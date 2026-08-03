@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bueno-redis
+  namespace: bueno
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: bueno-redis }
+  template:
+    metadata:
+      labels: { app: bueno-redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server","--appendonly","yes","--maxmemory","256mb"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "200m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bueno-redis-svc
+  namespace: bueno
+spec:
+  selector: { app: bueno-redis }
+  ports:
+    - port: 6379
+      targetPort: 6379
