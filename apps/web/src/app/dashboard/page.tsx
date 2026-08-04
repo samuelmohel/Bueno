@@ -38,7 +38,7 @@ const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
   };
 });
 
-const SEED_DEALS: any[] = [];   // Admin creates deals — starts empty
+const SEED_DEALS: any[] = [];
 
 const SEED_TRIPS: any[] = [
   {
@@ -81,7 +81,7 @@ const SEED_REQUESTS: any[] = [
 /* ─────────────────────────────────────────────────────────
    SHARED UTILS
 ───────────────────────────────────────────────────────── */
-const ic = 'w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400';
+const ic = 'w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88]';
 const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1';
 
 function tryParse<T>(key: string, fallback: T): T {
@@ -103,17 +103,17 @@ function getOccupiedWagonIds(trips: any[]): Set<string> {
 }
 
 function Badge({ text, color }: { text: string; color?: string }) {
-  const c = color || 'amber';
+  const c = color || 'blue';
   const cls: Record<string, string> = {
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    blue:  'bg-sky-50 text-sky-700 border-sky-200',
-    purple:'bg-purple-50 text-purple-700 border-purple-200',
-    red:   'bg-rose-50 text-rose-700 border-rose-200',
-    slate: 'bg-slate-100 text-slate-700 border-slate-200',
+    blue:   'bg-blue-50 text-[#0E4B88] border-blue-200',
+    green:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    red:    'bg-rose-50 text-rose-700 border-rose-200',
+    slate:  'bg-slate-100 text-slate-700 border-slate-200',
+    amber:  'bg-amber-50 text-amber-700 border-amber-200',
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${cls[c] || cls.amber}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${cls[c] || cls.blue}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />{text}
     </span>
   );
@@ -121,16 +121,16 @@ function Badge({ text, color }: { text: string; color?: string }) {
 
 function stageColor(stage: string) {
   if (stage === 'Completed' || stage === 'Paid') return 'green';
-  if (stage === 'Admin') return 'amber';
-  if (stage === 'Head of Operations') return 'blue';
-  if (stage === 'CEO') return 'purple';
+  if (stage === 'Admin') return 'blue';
+  if (stage === 'Head of Operations') return 'purple';
+  if (stage === 'CEO') return 'amber';
   if (stage === 'Accountant') return 'red';
-  return 'amber';
+  return 'blue';
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
         {children}
       </div>
@@ -147,7 +147,7 @@ function LiveTimer({ ts }: { ts: number }) {
   const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
   const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
   const ss = String(sec % 60).padStart(2, '0');
-  return <span className="font-mono font-black text-amber-600 text-lg">{hh}:{mm}:{ss}</span>;
+  return <span className="font-mono font-black text-[#0E4B88] text-base sm:text-lg">{hh}:{mm}:{ss}</span>;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -204,9 +204,9 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
           attribution: '&copy; OpenStreetMap contributors',
         }).addTo(map);
 
-        // Draw track polyline
+        // Track polyline
         const track = L.polyline([originCoords, destCoords], {
-          color: '#F59E0B',
+          color: '#62BC37',
           weight: 6,
           dashArray: '8, 8',
           opacity: 0.9,
@@ -218,7 +218,7 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
           const isDest   = code === trip?.destination;
           L.circleMarker(coords, {
             radius: isOrigin || isDest ? 9 : 6,
-            color: isOrigin ? '#10B981' : isDest ? '#8B5CF6' : '#64748B',
+            color: isOrigin ? '#62BC37' : isDest ? '#8B5CF6' : '#0E4B88',
             fillColor: '#FFFFFF',
             fillOpacity: 1,
             weight: 3,
@@ -228,8 +228,8 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
         // Train locomotive marker
         const trainIcon = L.divIcon({
           html: `
-            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:16px; border:2px solid #F59E0B; box-shadow:0 6px 18px rgba(15,23,42,0.5); display:inline-flex; items-center; gap:6px; white-space:nowrap;">
-              <span style="width:8px; height:8px; border-radius:50%; background:#10B981; display:inline-block;" class="animate-pulse"></span>
+            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:16px; border:2px solid #62BC37; box-shadow:0 6px 18px rgba(15,23,42,0.5); display:inline-flex; items-center; gap:6px; white-space:nowrap;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#62BC37; display:inline-block;" class="animate-pulse"></span>
               ${trip?.locomotiveId || 'L2205'} (${trip?.company || 'Consignment'})
             </div>
           `,
@@ -252,24 +252,24 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
   return (
     <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <div className="p-5 bg-slate-950 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+      <div className="p-4 sm:p-5 bg-slate-950 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-mono font-black uppercase text-amber-400">LIVE SATELLITE GPS TELEMETRY</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#62BC37] animate-pulse" />
+            <span className="text-[11px] font-mono font-black uppercase text-[#62BC37]">LIVE SATELLITE GPS TELEMETRY</span>
           </div>
-          <h3 className="text-xl font-black text-white mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
-            {sName(trip?.origin)} <span className="text-amber-400">⟶</span> {sName(trip?.destination)}
+          <h3 className="text-lg sm:text-xl font-black text-white mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
+            {sName(trip?.origin)} <span className="text-[#62BC37]">➔</span> {sName(trip?.destination)}
           </h3>
           <p className="text-xs text-slate-400">Locomotive: <b className="text-slate-200">{trip?.locomotiveId}</b> • {trip?.company}</p>
         </div>
-        <div className="flex gap-5 text-right font-mono">
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Live Speed</span><span className="text-base font-black text-emerald-400">{speed} km/h</span></div>
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Progress</span><span className="text-base font-black text-amber-400">{(progressRatio * 100).toFixed(0)}%</span></div>
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Coordinates</span><span className="text-xs text-slate-200">{curLat.toFixed(4)}°N, {curLng.toFixed(4)}°E</span></div>
+        <div className="flex gap-4 sm:gap-6 text-right font-mono text-xs">
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Live Speed</span><span className="text-sm sm:text-base font-black text-[#62BC37]">{speed} km/h</span></div>
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Progress</span><span className="text-sm sm:text-base font-black text-sky-400">{(progressRatio * 100).toFixed(0)}%</span></div>
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">GPS Pings</span><span className="text-xs text-slate-200">{curLat.toFixed(4)}°N, {curLng.toFixed(4)}°E</span></div>
         </div>
       </div>
-      <div ref={containerRef} className="h-96 w-full bg-slate-950" />
+      <div ref={containerRef} className="h-80 sm:h-96 w-full bg-slate-950" />
     </div>
   );
 }
@@ -290,7 +290,7 @@ function FundRequestDetailModal({
     { key: 'Head of Operations', label: '2. Ops Review' },
     { key: 'CEO', label: '3. CEO Clearance' },
     { key: 'Accountant', label: '4. Finance Disburse' },
-    { key: 'Paid', label: '5. Paid ✓' },
+    { key: 'Paid', label: '5. Paid' },
   ];
   const currentStageIndex = stages.findIndex(s => s.key === req.stage);
 
@@ -323,30 +323,30 @@ function FundRequestDetailModal({
 
   return (
     <Modal onClose={onClose}>
-      <div className="p-6 space-y-5">
-        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+      <div className="p-4 sm:p-6 space-y-5">
+        <div className="flex flex-wrap justify-between items-start border-b border-slate-100 pb-4 gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-amber-600 text-sm">{req.id}</span>
+              <span className="font-mono font-black text-[#0E4B88] text-sm">{req.id}</span>
               <Badge text={req.stage} color={stageColor(req.stage)} />
             </div>
-            <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>{req.title}</h3>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>{req.title}</h3>
             <p className="text-xs text-slate-500">Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}</p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <span className="block text-[10px] font-extrabold uppercase text-slate-400">Requested Amount</span>
-            <span className="text-2xl font-black font-mono text-emerald-600">₦{Number(req.amount).toLocaleString()}</span>
+            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-600">₦{Number(req.amount).toLocaleString()}</span>
           </div>
         </div>
 
         <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2">
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Approval Progression Stepper</p>
-          <div className="grid grid-cols-5 gap-1 text-center text-[10px]">
+          <div className="grid grid-cols-5 gap-1 text-center text-[9px] sm:text-[10px]">
             {stages.map((s, idx) => {
               const isActive = idx === currentStageIndex;
               const isPassed = idx < currentStageIndex;
               return (
-                <div key={s.key} className={`p-2 rounded-xl border transition-all ${isActive ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-md' : isPassed ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}>
+                <div key={s.key} className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isActive ? 'bg-[#0E4B88] border-blue-400 text-white font-black shadow-md' : isPassed ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}>
                   <span className="block truncate">{s.label}</span>
                 </div>
               );
@@ -366,7 +366,7 @@ function FundRequestDetailModal({
         </div>
 
         <div className="space-y-3">
-          <div className="flex justify-between items-center"><h4 className="text-xs font-black uppercase tracking-wider text-slate-800">💬 Approval Conversation & Clarifications ({req.conversation?.length || 0})</h4></div>
+          <div className="flex justify-between items-center"><h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Approval Conversation & Clarifications ({req.conversation?.length || 0})</h4></div>
           <div className="bg-slate-900 rounded-2xl p-4 space-y-3 max-h-56 overflow-y-auto border border-slate-800">
             {(!req.conversation || req.conversation.length === 0) ? (
               <p className="text-center text-xs text-slate-500 py-4">No questions or notes added yet.</p>
@@ -375,8 +375,8 @@ function FundRequestDetailModal({
                 const isMe = m.sender === user.fullName;
                 return (
                   <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-amber-500 text-slate-950 font-semibold' : 'bg-slate-800 text-slate-100 border border-slate-700'}`}>
-                      <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-black/10 pb-1">
+                    <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-[#0E4B88] text-white font-semibold' : 'bg-slate-800 text-slate-100 border border-slate-700'}`}>
+                      <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-white/10 pb-1">
                         <span className="font-bold">{m.sender} ({m.role})</span><span className="font-mono">{m.time}</span>
                       </div>
                       <p className="leading-snug">{m.msg}</p>
@@ -388,7 +388,7 @@ function FundRequestDetailModal({
           </div>
           <form onSubmit={sendMessage} className="flex gap-2">
             <input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Ask a question or clarify details before approving..." className={`${ic} flex-1`} />
-            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">Send Q&A 💬</button>
+            <button type="submit" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">Send Q&A</button>
           </form>
         </div>
 
@@ -400,7 +400,7 @@ function FundRequestDetailModal({
           {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
             <div className="flex items-center gap-2">
               <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
-              <button onClick={disbursePayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment ✓</button>
+              <button onClick={disbursePayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
             </div>
           )}
         </div>
@@ -427,9 +427,9 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
   const activeTrip = myTrips.find(t => t.status === 'IN_TRANSIT' || t.status === 'LOADING' || t.status === 'UNLOADING') || myTrips[0] || SEED_TRIPS[0];
 
   const navItems = [
-    { key: 'tracking', label: '📍 Live Consignment Tracking' },
-    { key: 'alerts',   label: '🔔 Live Shipment Notifications' },
-    { key: 'history',  label: '📜 Consignment Delivery History' },
+    { key: 'tracking', label: 'Live Consignment Tracking' },
+    { key: 'alerts',   label: 'Live Shipment Notifications' },
+    { key: 'history',  label: 'Consignment Delivery History' },
   ];
 
   return (
@@ -464,13 +464,13 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
         <Section title="Live Consignment Notifications" subtitle="Real-time milestone alerts pushed from terminal operations">
           <div className="space-y-3">
             {myTrips.map(t => (
-              <div key={t.id} className="bg-white border-l-4 border-amber-500 rounded-2xl p-5 shadow-sm space-y-2">
+              <div key={t.id} className="bg-white border-l-4 border-[#0E4B88] rounded-2xl p-5 shadow-sm space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="font-mono font-black text-amber-700 text-sm">TRIP #{t.tripId} — {t.company}</span>
+                  <span className="font-mono font-black text-[#0E4B88] text-sm">TRIP #{t.tripId} — {t.company}</span>
                   <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
                 </div>
                 <p className="text-xs text-slate-800 font-medium">
-                  🚆 Locomotive <b className="font-mono">{t.locomotiveId}</b> carrying <b>{t.quantity} Bags</b> of {t.cargoType} from <b>{sName(t.origin)}</b> to <b>{sName(t.destination)}</b> is currently <b>{t.status}</b>.
+                  Locomotive <b className="font-mono">{t.locomotiveId}</b> carrying <b>{t.quantity} Bags</b> of {t.cargoType} from <b>{sName(t.origin)}</b> to <b>{sName(t.destination)}</b> is currently <b>{t.status}</b>.
                 </p>
                 <p className="text-[10px] font-mono text-slate-400">GPS Signal: Live Satellite Stream • Officer: {t.cargoOfficerName}</p>
               </div>
@@ -481,15 +481,29 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
 
       {view === 'history' && (
         <Section title="Consignment Delivery History" subtitle="Completed and audited freight shipments for your account">
-          <TableWrap headers={['Trip ID', 'Origin ➔ Destination', 'Cargo Type', 'Wagons', 'Status', 'Date']}>
+          <TableWrap
+            headers={['Trip ID', 'Origin ➔ Destination', 'Cargo Type', 'Wagons', 'Status', 'Date']}
+            mobileCard={(t: any) => (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                  <Badge text={t.status} color={t.status === 'ARRIVED' ? 'green' : 'blue'} />
+                </div>
+                <p className="font-bold text-slate-900">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                <p className="text-xs text-slate-600">{t.cargoType} ({t.quantity} Bags)</p>
+                <p className="text-[10px] font-mono text-slate-400">{t.createdAt}</p>
+              </div>
+            )}
+            data={myTrips}
+          >
             {myTrips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No consignment history yet.</td></tr>
               : myTrips.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                  <td className="p-4 font-bold text-slate-900">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                  <td className="p-4 font-bold text-slate-900">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                   <td className="p-4 text-slate-700">{t.cargoType} <b>({t.quantity} Bags)</b></td>
                   <td className="p-4 font-mono font-bold text-slate-800">{t.wagonLogs?.length || 23} Wagons</td>
-                  <td className="p-4"><Badge text={t.status} color={t.status === 'ARRIVED' ? 'green' : 'amber'} /></td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'ARRIVED' ? 'green' : 'blue'} /></td>
                   <td className="p-4 text-slate-400 font-mono">{t.createdAt}</td>
                 </tr>
               ))}
@@ -513,23 +527,15 @@ function Shell({
 }) {
   const Nav = () => (
     <div className="h-full bg-slate-900 flex flex-col" style={{ fontFamily: "'Inter',sans-serif" }}>
-      <div className="p-6 border-b border-slate-800 bg-slate-950">
+      <div className="p-5 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-xl p-1 flex-shrink-0 flex items-center justify-center shadow">
-            <img src="/bueno_logo.png" alt="Bueno" className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <p className="text-sm font-black text-white" style={{ fontFamily: "'Outfit',sans-serif" }}>
-              BUENO <span className="text-amber-400">LOGISTICS</span>
-            </p>
-            <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">LIMITED</p>
-          </div>
+          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-10 object-contain bg-white/10 p-1.5 rounded-xl" />
         </Link>
       </div>
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
         {navItems.map(item => (
           <button key={item.key} onClick={() => { onNav(item.key); setMenuOpen(false); }}
-            className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${activeKey === item.key ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+            className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${activeKey === item.key ? 'bg-[#0E4B88] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
             {item.label}
           </button>
         ))}
@@ -538,7 +544,7 @@ function Shell({
         <div className="px-2">
           <p className="text-[10px] font-extrabold uppercase text-slate-500 mb-0.5">Signed in as</p>
           <p className="text-xs font-black text-white">{user?.fullName}</p>
-          <p className="text-[11px] text-amber-400 font-semibold mt-0.5">{user?.roleLabel}</p>
+          <p className="text-[11px] text-[#62BC37] font-semibold mt-0.5">{user?.roleLabel}</p>
         </div>
         <Link href="/" className="block px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white">← Home</Link>
         <button onClick={onSignOut} className="w-full text-left px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-rose-900/40 hover:text-rose-300">Sign Out</button>
@@ -556,26 +562,19 @@ function Shell({
         </div>
       )}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center gap-4 flex-shrink-0">
-          <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-slate-100 p-0.5 flex items-center justify-center">
-              <img src="/bueno_logo.png" alt="" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <p className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-                BUENO <span className="text-amber-500">LOGISTICS LIMITED</span>
-              </p>
-              <p className="text-[10px] text-slate-500 font-semibold">
-                Welcome, <span className="font-bold text-slate-900">{user?.fullName}</span>
-                {user?.assignedStation ? ` — ${sName(user.assignedStation)}` : ''}
-              </p>
-            </div>
+            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-8 sm:h-9 object-contain" />
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-black text-slate-900 truncate max-w-[150px] sm:max-w-none">{user?.fullName}</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate max-w-[150px] sm:max-w-none">{user?.roleLabel || user?.role}</p>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-5 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
@@ -663,12 +662,12 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   const navItems = [
-    { key: 'deals',           label: '📋 Latest Deals (Loading)' },
-    { key: 'trips',           label: '🚆 Trips Created (Loading)' },
-    { key: 'in_transit',      label: '🚚 Trips on the Move' },
-    { key: 'incoming_unload', label: '📦 Incoming Consignments (Unload)' },
-    { key: 'wagons',          label: `🚃 Wagon Fleet (${wagons.length})` },
-    { key: 'funds',           label: '💵 Request Funds' },
+    { key: 'deals',           label: 'Latest Deals (Loading)' },
+    { key: 'trips',           label: 'Trips Created (Loading)' },
+    { key: 'in_transit',      label: 'Trips on the Move' },
+    { key: 'incoming_unload', label: 'Incoming Consignments (Unload)' },
+    { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
+    { key: 'funds',           label: 'Request Funds' },
   ];
 
   return (
@@ -681,15 +680,29 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         <>
           {view === 'deals' && (
             <Section title="Latest Deals (Origin Loading Station)" subtitle={`Deals assigned to ${sName(station)} — click Create Trip to begin wagon loading`}>
-              <TableWrap headers={['Deal ID', 'Company', 'Destination', 'Cargo & Qty', 'Action']}>
+              <TableWrap
+                headers={['Deal ID', 'Company', 'Destination', 'Cargo & Qty', 'Action']}
+                mobileCard={(d: any) => (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</span>
+                      <span className="text-xs font-bold text-slate-700">{sName(d.destination)}</span>
+                    </div>
+                    <p className="font-bold text-slate-900">{d.company}</p>
+                    <p className="text-xs text-slate-600">{d.cargoType} ({d.quantity} Bags)</p>
+                    <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="w-full bg-[#0E4B88] text-white font-bold text-xs py-2 rounded-xl mt-2">Create Trip ➔</button>
+                  </div>
+                )}
+                data={myDeals}
+              >
                 {myDeals.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)}.</td></tr>
                   : myDeals.map(d => (
-                    <tr key={d.id} className="hover:bg-amber-50">
-                      <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber || d.id}</td>
+                    <tr key={d.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</td>
                       <td className="p-4 font-bold text-slate-900">{d.company}</td>
                       <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
                       <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
-                      <td className="p-4"><button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button></td>
+                      <td className="p-4"><button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button></td>
                     </tr>
                   ))}
               </TableWrap>
@@ -698,18 +711,32 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
           {view === 'trips' && (
             <Section title="Trips Created (Wagon Loading)" subtitle="Click a trip to manage loading times for each wagon">
-              <TableWrap headers={['Trip ID', 'Cargo Officer', 'Company', 'Route', 'Wagons Loaded', 'Action']}>
+              <TableWrap
+                headers={['Trip ID', 'Cargo Officer', 'Company', 'Route', 'Wagons Loaded', 'Action']}
+                mobileCard={(t: any) => (
+                  <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                      <span className="font-mono font-bold text-slate-900 text-xs">{(t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length} / 23 Loaded</span>
+                    </div>
+                    <p className="font-bold text-slate-900">{t.company}</p>
+                    <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                    <p className="text-xs font-bold text-[#0E4B88] pt-1">Open Wagon Loading ➔</p>
+                  </div>
+                )}
+                data={myTrips}
+              >
                 {myTrips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips loading.</td></tr>
                   : myTrips.map(t => {
                     const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
                     return (
-                      <tr key={t.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
-                        <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                      <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                        <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                         <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                         <td className="p-4 text-slate-700">{t.company}</td>
-                        <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                        <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                         <td className="p-4 font-mono font-bold text-slate-900">{loaded} / 23</td>
-                        <td className="p-4 font-bold text-amber-600">Open Wagon Loading ➔</td>
+                        <td className="p-4 font-bold text-[#0E4B88]">Open Wagon Loading ➔</td>
                       </tr>
                     );
                   })}
@@ -719,14 +746,28 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
           {view === 'in_transit' && (
             <Section title="Trips on the Move (Live GPS Corridor Stream)" subtitle="Dispatched trips currently in corridor transit from your station">
-              <TableWrap headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}>
+              <TableWrap
+                headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}
+                mobileCard={(t: any) => (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                      <Badge text={t.status} color="green" />
+                    </div>
+                    <p className="font-bold text-slate-900">{t.company}</p>
+                    <p className="text-xs font-mono text-slate-700">{t.locomotiveId}</p>
+                    <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                  </div>
+                )}
+                data={myInTransit}
+              >
                 {myInTransit.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit.</td></tr>
                   : myInTransit.map(t => (
                     <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                      <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                       <td className="p-4 font-bold text-slate-900">{t.company}</td>
                       <td className="p-4 font-mono text-slate-800">{t.locomotiveId}</td>
-                      <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                      <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                       <td className="p-4"><Badge text={t.status} color="green" /></td>
                     </tr>
                   ))}
@@ -736,14 +777,32 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
           {view === 'incoming_unload' && (
             <Section title="Incoming Consignments (Unloading Station)" subtitle={`Trips arriving at ${sName(station)} — click Unload Consignment`}>
-              <TableWrap headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Total Wagons', 'Status', 'Action']}>
+              <TableWrap
+                headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Total Wagons', 'Status', 'Action']}
+                mobileCard={(t: any) => {
+                  const totalWagons = (t.wagonLogs || []).length;
+                  const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                        <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
+                      </div>
+                      <p className="font-bold text-slate-900">{t.company} — {t.cargoType}</p>
+                      <p className="text-xs text-slate-600">Origin: {sName(t.origin)} | Unloaded: {unloadedCount} / {totalWagons || 23}</p>
+                      <button onClick={() => setSelectedUnloadTripId(t.id)} className="w-full bg-purple-600 text-white font-bold text-xs py-2 rounded-xl mt-1">Unload Consignment ➔</button>
+                    </div>
+                  );
+                }}
+                data={myIncomingUnload}
+              >
                 {myIncomingUnload.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No incoming freight.</td></tr>
                   : myIncomingUnload.map(t => {
                     const totalWagons = (t.wagonLogs || []).length;
                     const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
                     return (
                       <tr key={t.id} className="hover:bg-purple-50">
-                        <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                        <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                         <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
                         <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
                         <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
@@ -757,8 +816,23 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           )}
 
           {view === 'wagons' && (
-            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
-              <TableWrap headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}>
+            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+              <TableWrap
+                headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}
+                mobileCard={(w: any) => {
+                  const isOccupied = occupiedWagonIds.has(w.id);
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
+                        <Badge text={isOccupied ? 'LOCKED (IN USE)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                      </div>
+                      <p className="text-xs text-slate-600">Capacity: {w.capacity || 70} Bags | Station: {sName(w.currentStation || station)}</p>
+                    </div>
+                  );
+                }}
+                data={wagons}
+              >
                 {wagons.map(w => {
                   const isOccupied = occupiedWagonIds.has(w.id);
                   return (
@@ -777,16 +851,30 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           )}
 
           {view === 'funds' && (
-            <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
-              <TableWrap headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}>
+            <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
+              <TableWrap
+                headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
+                mobileCard={(r: any) => (
+                  <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                      <Badge text={r.stage} color={stageColor(r.stage)} />
+                    </div>
+                    <p className="font-bold text-slate-900">{r.title}</p>
+                    <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                    <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect Details & Q&A ➔</p>
+                  </div>
+                )}
+                data={requests.filter(r => r.station === station)}
+              >
                 {requests.filter(r => r.station === station).length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No fund requests yet.</td></tr>
                   : requests.filter(r => r.station === station).map(r => (
-                    <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                      <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                    <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                      <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                       <td className="p-4"><p className="font-bold text-slate-900">{r.title}</p><p className="text-[10px] text-slate-500">{r.category}</p></td>
                       <td className="p-4 font-mono font-black text-slate-900">₦{Number(r.amount).toLocaleString()}</td>
                       <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                      <td className="p-4 font-bold text-amber-600">Inspect Details & Q&A ➔</td>
+                      <td className="p-4 font-bold text-[#0E4B88]">Inspect Details & Q&A ➔</td>
                     </tr>
                   ))}
               </TableWrap>
@@ -802,7 +890,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <h3 className="text-lg font-black text-slate-900">Register New Wagon</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -813,7 +901,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <h3 className="text-lg font-black text-slate-900">Trip Creation Form</h3>
             <form onSubmit={handleCreateTrip} className="space-y-4">
               <div><label className={lc}>Locomotive ID *</label><input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -829,7 +917,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div><label className={lc}>Category</label><select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>{['Equipment', 'Fuel', 'Repairs', 'Maintenance', 'Emergency Purchase', 'Operational Expenses', 'Other'].map(c => <option key={c}>{c}</option>)}</select></div>
               </div>
               <div><label className={lc}>Description *</label><textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Full justification..." /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Submit Request ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Submit Request ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -848,7 +936,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const [selWagon, setSelWagon] = useState('');
   const [qty, setQty] = useState('70');
 
-  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-amber-600">Go back</button></div>;
+  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#0E4B88]">Go back</button></div>;
 
   const loaded = logs.filter((w: any) => w.status === 'LOADED').length;
   const allDone = loaded >= 23;
@@ -932,11 +1020,11 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
     <div className="space-y-5">
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
         <button onClick={onBack} className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl">← Back to Trips Created</button>
-        <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">{loaded} / 23 Loaded</span>
+        <span className="text-xs font-bold text-[#0E4B88] bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">{loaded} / 23 Loaded</span>
       </div>
 
       <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 mb-3">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37] mb-3">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {[['Locomotive ID', trip.locomotiveId], ['Cargo Officer', trip.cargoOfficerName], ['Loading Station', trip.origin ? sName(trip.origin) : ''], ['Destination', trip.destination ? sName(trip.destination) : ''], ['Company', trip.company], ['Cargo Type', trip.cargoType], ['Quantity', `${trip.quantity} Bags`], ['Created', trip.createdAt || '—']].map(([l, v]) => (
             <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold">{v}</span></div>
@@ -944,26 +1032,26 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
       </div>
 
-      <div className="bg-slate-900 border-2 border-amber-400 text-white rounded-2xl p-5 shadow-2xl space-y-4">
+      <div className="bg-slate-900 border-2 border-[#62BC37] text-white rounded-2xl p-5 shadow-2xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-xs font-black uppercase tracking-wider text-amber-400 font-mono">GPS HARDWARE TELEMETRY BACKEND — READY</p>
+              <span className="w-3 h-3 rounded-full bg-[#62BC37] animate-pulse" />
+              <p className="text-xs font-black uppercase tracking-wider text-[#62BC37] font-mono">GPS HARDWARE TELEMETRY BACKEND — READY</p>
             </div>
             <p className="text-base font-black text-white mt-1">Locomotive: <span className="font-mono text-emerald-300">{trip.locomotiveId}</span></p>
             <p className="text-xs text-slate-400 mt-0.5">Clicking 'Start Trip & Activate GPS' connects directly to GPS hardware backend & launches corridor satellite tracking.</p>
           </div>
-          <button onClick={dispatchAndActivateGps} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2">
-            <span>🚀 Start Trip & Activate Live GPS Tracker ➔</span>
+          <button onClick={dispatchAndActivateGps} className="w-full sm:w-auto bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+            <span>Start Trip & Activate Live GPS Tracker ➔</span>
           </button>
         </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading Progress</h3>
-        <div className="grid grid-cols-4 gap-3 text-center">
-          {[['Required', '23', 'text-white'], ['Loaded', String(loaded), 'text-emerald-400'], ['Remaining', String(23 - loaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-sky-400']].map(([l, v, c]) => (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          {[['Required', '23', 'text-white'], ['Loaded', String(loaded), 'text-[#62BC37]'], ['Remaining', String(23 - loaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-sky-400']].map(([l, v, c]) => (
             <div key={l} className="bg-slate-900 rounded-xl p-3">
               <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
               <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
@@ -971,7 +1059,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
           ))}
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-400 to-emerald-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="bg-gradient-to-r from-[#0E4B88] to-[#62BC37] h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
@@ -979,7 +1067,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading</h3>
           {!active && !allDone && !adding && (
-            <button onClick={() => setAdding(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Add Wagon to Load</button>
+            <button onClick={() => setAdding(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Add Wagon to Load</button>
           )}
         </div>
 
@@ -1001,9 +1089,9 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         )}
 
         {active && (
-          <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-blue-50 border-2 border-[#0E4B88] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[10px] font-extrabold text-amber-800 uppercase">Currently Loading</p>
+              <p className="text-[10px] font-extrabold text-[#0E4B88] uppercase">Currently Loading</p>
               <p className="text-xl font-mono font-black text-slate-900">{active.wagonId}</p>
               <p className="text-xs text-slate-600 mt-0.5">Started: {active.startDate} at {active.startTime}</p>
             </div>
@@ -1023,7 +1111,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
                 <span>End: {w.endTime || '—'}</span>
                 <span className="font-bold">Duration: {w.durationStr || 'Running...'}</span>
               </div>
-              <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'amber'} />
+              <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'blue'} />
             </div>
           ))}
         </div>
@@ -1034,9 +1122,9 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
 
         {allDone && (
           <div className="bg-emerald-900 text-white rounded-2xl p-5 space-y-3">
-            <p className="text-sm font-bold text-emerald-300">✅ All 23 Wagons Loaded — Train is Ready to Move!</p>
-            <button onClick={dispatchAndActivateGps} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm py-3.5 rounded-xl">
-              🚀 Start Trip & Activate Live GPS Tracker ➔
+            <p className="text-sm font-bold text-emerald-300">All 23 Wagons Loaded — Train is Ready to Move!</p>
+            <button onClick={dispatchAndActivateGps} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-sm py-3.5 rounded-xl">
+              Start Trip & Activate Live GPS Tracker ➔
             </button>
           </div>
         )}
@@ -1052,7 +1140,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   const trip = trips.find((t: any) => t.id === tripId);
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
 
-  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-amber-600">Go back</button></div>;
+  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#0E4B88]">Go back</button></div>;
 
   const total = logs.length || 23;
   const unloaded = logs.filter((w: any) => w.unloadStatus === 'UNLOADED').length;
@@ -1119,7 +1207,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Unloading Progress</h3>
-        <div className="grid grid-cols-4 gap-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           {[['Total Wagons', String(total), 'text-white'], ['Unloaded', String(unloaded), 'text-emerald-400'], ['Pending Unload', String(total - unloaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-purple-400']].map(([l, v, c]) => (
             <div key={l} className="bg-slate-900 rounded-xl p-3">
               <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
@@ -1178,8 +1266,8 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
 
         {allUnloaded && (
           <div className="bg-emerald-900 text-white rounded-2xl p-5 space-y-3 mt-4">
-            <p className="text-sm font-bold text-emerald-300">✅ All Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
-            <button onClick={completeTrip} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm py-3.5 rounded-xl">
+            <p className="text-sm font-bold text-emerald-300">All Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
+            <button onClick={completeTrip} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-sm py-3.5 rounded-xl">
               Complete Consignment & Mark Arrived ✓
             </button>
           </div>
@@ -1238,21 +1326,35 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   };
 
   const navItems = [
-    { key: 'deals',    label: '📋 Manage Deals' },
-    { key: 'trips',    label: '🚆 All Active Trips & GPS' },
-    { key: 'wagons',   label: `🚃 Wagon Fleet Inventory (${wagons.length})` },
-    { key: 'requests', label: '📝 Fund Requests (Review & Approve)' },
+    { key: 'deals',    label: 'Manage Deals' },
+    { key: 'trips',    label: 'All Active Trips & GPS' },
+    { key: 'wagons',   label: `Wagon Fleet Inventory (${wagons.length})` },
+    { key: 'requests', label: 'Fund Requests (Review & Approve)' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'deals' && (
-        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Create New Deal</button>}>
-          <TableWrap headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created']}>
+        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Create New Deal</button>}>
+          <TableWrap
+            headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created']}
+            mobileCard={(d: any) => (
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber}</span>
+                  <span className="text-xs text-slate-500 font-mono">{d.createdAt}</span>
+                </div>
+                <p className="font-bold text-slate-900">{d.company}</p>
+                <p className="text-xs text-slate-600">{sName(d.loadingStation)} ➔ {sName(d.destination)}</p>
+                <p className="text-xs text-slate-500">{d.cargoType} ({d.quantity} Bags)</p>
+              </div>
+            )}
+            data={deals}
+          >
             {deals.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No deals created yet.</td></tr>
               : deals.map(d => (
                 <tr key={d.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber}</td>
+                  <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber}</td>
                   <td className="p-4 font-bold text-slate-900">{d.company}</td>
                   <td className="p-4 font-semibold text-slate-700">{sName(d.loadingStation)}</td>
                   <td className="p-4 font-semibold text-slate-700">{sName(d.destination)}</td>
@@ -1268,15 +1370,29 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
         <Section title="All Active Trips (Corridor GPS Satellite Map)" subtitle="High-precision interactive map of all active rail corridor trips">
           <div className="space-y-6">
             <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
-            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons', 'Status']}>
+            <TableWrap
+              headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons', 'Status']}
+              mobileCard={(t: any) => (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                    <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
+                  </div>
+                  <p className="font-bold text-slate-900">{t.company}</p>
+                  <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                  <p className="text-xs text-slate-500">Officer: {t.cargoOfficerName} | {(t.wagonLogs || []).length} Wagons</p>
+                </div>
+              )}
+              data={trips}
+            >
               {trips.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                   <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                   <td className="p-4 text-slate-700">{t.company}</td>
-                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                   <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} Wagons</td>
-                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} /></td>
                 </tr>
               ))}
             </TableWrap>
@@ -1285,8 +1401,23 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       )}
 
       {view === 'wagons' && (
-        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
-          <TableWrap headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}>
+        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+          <TableWrap
+            headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}
+            mobileCard={(w: any) => {
+              const isOccupied = occupiedWagonIds.has(w.id);
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
+                    <Badge text={isOccupied ? 'LOCKED (IN USE)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                  </div>
+                  <p className="text-xs text-slate-600">Capacity: {w.capacity || 70} Bags | Station: {sName(w.currentStation || 'EWK')}</p>
+                </div>
+              );
+            }}
+            data={wagons}
+          >
             {wagons.map(w => (
               <tr key={w.id} className="hover:bg-slate-50 text-xs">
                 <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
@@ -1303,15 +1434,29 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
       {view === 'requests' && (
         <Section title="Fund Requests — Admin Review" subtitle="Click any request to inspect & ask questions">
-          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
+          <TableWrap
+            headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}
+            mobileCard={(r: any) => (
+              <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                  <Badge text={r.stage} color={stageColor(r.stage)} />
+                </div>
+                <p className="font-bold text-slate-900">{r.title}</p>
+                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect & Q&A / Approve ➔</p>
+              </div>
+            )}
+            data={requests}
+          >
             {requests.map(r => (
-              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+              <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                 <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                 <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                <td className="p-4 font-bold text-sky-600">Inspect & Q&A / Approve ➔</td>
+                <td className="p-4 font-bold text-[#0E4B88]">Inspect & Q&A / Approve ➔</td>
               </tr>
             ))}
           </TableWrap>
@@ -1325,7 +1470,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
             <h3 className="text-lg font-black text-slate-900">Register New Wagon (Admin)</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -1342,7 +1487,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                 <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement" className={ic} /></div>
                 <div><label className={lc}>Quantity (Bags)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
               </div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Create Deal ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Create Deal ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -1369,8 +1514,8 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'trips',    label: '🚆 Corridor Live GPS Command Map' },
-    { key: 'requests', label: '📝 Fund Requests (Ops Review)' },
+    { key: 'trips',    label: 'Corridor Live GPS Command Map' },
+    { key: 'requests', label: 'Fund Requests (Ops Review)' },
   ];
 
   return (
@@ -1379,15 +1524,28 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
         <div className="space-y-6">
           <Section title="Network Operations Command — Corridor Live GPS Map" subtitle="High-precision interactive train telemetry map across all Nigerian rail corridors">
             <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
-            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
+            <TableWrap
+              headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}
+              mobileCard={(t: any) => (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                    <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
+                  </div>
+                  <p className="font-bold text-slate-900">{t.company}</p>
+                  <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                </div>
+              )}
+              data={trips}
+            >
               {trips.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                   <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                   <td className="p-4 text-slate-700">{t.company}</td>
-                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                   <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} / 23</td>
-                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} /></td>
                 </tr>
               ))}
             </TableWrap>
@@ -1397,10 +1555,24 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
 
       {view === 'requests' && (
         <Section title="Fund Requests — Operations Approval" subtitle="Click any request to view details, ask questions, or approve to MD/CEO">
-          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
+          <TableWrap
+            headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}
+            mobileCard={(r: any) => (
+              <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                  <Badge text={r.stage} color={stageColor(r.stage)} />
+                </div>
+                <p className="font-bold text-slate-900">{r.title}</p>
+                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect & Q&A / Approve ➔</p>
+              </div>
+            )}
+            data={requests}
+          >
             {requests.map(r => (
-              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+              <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                 <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
@@ -1435,8 +1607,8 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'trips',    label: '🚆 Executive Corridor GPS Map' },
-    { key: 'requests', label: '📝 Fund Requests (CEO Clearance)' },
+    { key: 'trips',    label: 'Executive Corridor GPS Map' },
+    { key: 'requests', label: 'Fund Requests (CEO Clearance)' },
   ];
 
   return (
@@ -1445,15 +1617,28 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
         <div className="space-y-6">
           <Section title="Executive Overview — Corridor GPS Live Satellite Telemetry" subtitle="High-precision interactive train movement map across all Nigerian rail corridors">
             <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
-            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
+            <TableWrap
+              headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}
+              mobileCard={(t: any) => (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                    <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
+                  </div>
+                  <p className="font-bold text-slate-900">{t.company}</p>
+                  <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                </div>
+              )}
+              data={trips}
+            >
               {trips.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                   <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                   <td className="p-4 text-slate-700">{t.company}</td>
-                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                   <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} / 23</td>
-                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} /></td>
                 </tr>
               ))}
             </TableWrap>
@@ -1463,10 +1648,24 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
 
       {view === 'requests' && (
         <Section title="Fund Requests — CEO Executive Clearance" subtitle="Click any request to inspect details, ask questions, or clear for payment">
-          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
+          <TableWrap
+            headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}
+            mobileCard={(r: any) => (
+              <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                  <Badge text={r.stage} color={stageColor(r.stage)} />
+                </div>
+                <p className="font-bold text-slate-900">{r.title}</p>
+                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-purple-600 pt-1">Inspect & Q&A / Clear ➔</p>
+              </div>
+            )}
+            data={requests}
+          >
             {requests.map(r => (
-              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+              <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                 <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
@@ -1501,18 +1700,32 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'requests', label: '💵 Approved Requests (Review & Disburse)' },
-    { key: 'records',  label: '📒 Financial Transaction Records' },
+    { key: 'requests', label: 'Approved Requests (Review & Disburse)' },
+    { key: 'records',  label: 'Financial Transaction Records' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Head of Finance / Accountant' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'requests' && (
         <Section title="Approved Requests — Disburse Payment" subtitle="Click any request to view full details, ask questions, or disburse">
-          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Payment Reference', 'Action']}>
+          <TableWrap
+            headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Payment Reference', 'Action']}
+            mobileCard={(r: any) => (
+              <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                  <Badge text={r.stage} color={stageColor(r.stage)} />
+                </div>
+                <p className="font-bold text-slate-900">{r.title}</p>
+                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-emerald-600 pt-1">Inspect & Q&A / Disburse ➔</p>
+              </div>
+            )}
+            data={requests}
+          >
             {requests.map(r => (
-              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+              <tr key={r.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                 <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
@@ -1527,10 +1740,23 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
 
       {view === 'records' && (
         <Section title="Financial Transaction Records" subtitle="Permanent ledger of all disbursed payments">
-          <TableWrap headers={['Record ID', 'Request ID', 'Beneficiary / Station', 'Amount (₦)', 'Date', 'Reference', 'Accountant']}>
+          <TableWrap
+            headers={['Record ID', 'Request ID', 'Beneficiary / Station', 'Amount (₦)', 'Date', 'Reference', 'Accountant']}
+            mobileCard={(r: any) => (
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                  <span className="font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</span>
+                </div>
+                <p className="font-bold text-slate-900">{r.beneficiary} ({sName(r.station)})</p>
+                <p className="text-xs font-mono text-slate-600">Ref: {r.ref} | Date: {r.date}</p>
+              </div>
+            )}
+            data={records}
+          >
             {records.map(r => (
               <tr key={r.id} className="hover:bg-slate-50">
-                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
                 <td className="p-4 font-mono font-bold text-slate-900">{r.reqId}</td>
                 <td className="p-4"><p className="font-bold text-slate-900">{r.beneficiary}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                 <td className="p-4 font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</td>
@@ -1566,15 +1792,33 @@ function Section({ title, subtitle, action, children }: { title: string; subtitl
   );
 }
 
-function TableWrap({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+function TableWrap({ headers, children, mobileCard, data }: { headers: string[]; children: React.ReactNode; mobileCard?: (item: any) => React.ReactNode; data?: any[] }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <table className="w-full text-xs">
-        <thead className="bg-slate-900 text-white">
-          <tr>{headers.map(h => <th key={h} className="text-left p-4 text-[10px] font-extrabold uppercase tracking-widest">{h}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">{children}</tbody>
-      </table>
+    <div>
+      {/* Mobile Card List View (Phones) */}
+      {mobileCard && data && (
+        <div className="sm:hidden space-y-3">
+          {data.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">No records available.</div>
+          ) : (
+            data.map((item, idx) => (
+              <div key={item.id || idx} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                {mobileCard(item)}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Responsive Table View (Tablets & Desktops, Scrollable on Small Screens) */}
+      <div className={`${mobileCard && data ? 'hidden sm:block' : 'block'} bg-white rounded-2xl border border-slate-200 overflow-x-auto max-w-full shadow-sm`}>
+        <table className="w-full text-xs min-w-[600px]">
+          <thead className="bg-slate-900 text-white">
+            <tr>{headers.map(h => <th key={h} className="text-left p-3.5 text-[10px] font-extrabold uppercase tracking-widest whitespace-nowrap">{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">{children}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1608,7 +1852,7 @@ export default function Dashboard() {
   if (!ready || !user) return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
       <div className="text-center text-white space-y-3">
-        <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+        <div className="w-10 h-10 border-2 border-[#62BC37] border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-xs font-bold text-slate-400">Loading your workspace...</p>
       </div>
     </div>
@@ -1628,7 +1872,7 @@ export default function Dashboard() {
       <div>
         <p className="font-bold text-amber-400 text-lg mb-2">Unknown Role: {role}</p>
         <p className="text-xs text-slate-400 mb-4">Your account role is not recognised. Please contact Admin.</p>
-        <button onClick={signOut} className="bg-amber-500 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs">Sign Out</button>
+        <button onClick={signOut} className="bg-[#0E4B88] text-white font-bold px-6 py-2.5 rounded-xl text-xs">Sign Out</button>
       </div>
     </div>
   );
