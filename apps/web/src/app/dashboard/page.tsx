@@ -58,10 +58,10 @@ const SEED_REQUESTS: any[] = [
     id: 'REQ-2026-0001',
     officerName: 'Ade Bello', station: 'EWK',
     title: 'Hydraulic Jacks & Crane Slings', category: 'Equipment',
-    amount: 85000, description: 'Bay crane replacement parts.',
+    amount: 85000, description: 'Bay crane replacement parts for wagon maintenance bay.',
     stage: 'Admin', date: '31 Jul 2026',
     conversation: [
-      { sender: 'Ade Bello', role: 'Cargo Officer', msg: 'Need 3 hydraulic jacks urgently.', time: '09:00 AM' },
+      { sender: 'Ade Bello', role: 'Cargo Officer', msg: 'Need 3 hydraulic jacks urgently for loading bay crane.', time: '09:00 AM' },
     ],
     paymentDetails: null,
   },
@@ -112,7 +112,7 @@ function stageColor(stage: string) {
   if (stage === 'Completed' || stage === 'Paid') return 'green';
   if (stage === 'Admin') return 'amber';
   if (stage === 'Head of Operations') return 'blue';
-  if (stage === 'CEO') return 'slate';
+  if (stage === 'CEO') return 'purple';
   if (stage === 'Accountant') return 'red';
   return 'amber';
 }
@@ -120,7 +120,7 @@ function stageColor(stage: string) {
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -137,6 +137,264 @@ function LiveTimer({ ts }: { ts: number }) {
   const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
   const ss = String(sec % 60).padStart(2, '0');
   return <span className="font-mono font-black text-amber-600 text-lg">{hh}:{mm}:{ss}</span>;
+}
+
+/* ─────────────────────────────────────────────────────────
+   FUND REQUEST DETAILED INSPECTION & Q&A CONVERSATION MODAL
+───────────────────────────────────────────────────────── */
+function FundRequestDetailModal({
+  req,
+  user,
+  onClose,
+  onSaveRequests,
+  allRequests,
+}: {
+  req: any;
+  user: any;
+  onClose: () => void;
+  onSaveRequests: (v: any[]) => void;
+  allRequests: any[];
+}) {
+  const [chatMsg, setChatMsg] = useState('');
+  const [disburseRef, setDisburseRef] = useState(req.paymentDetails?.ref || '');
+
+  const stages = [
+    { key: 'Admin', label: '1. Admin Review' },
+    { key: 'Head of Operations', label: '2. Ops Review' },
+    { key: 'CEO', label: '3. CEO Clearance' },
+    { key: 'Accountant', label: '4. Finance Disburse' },
+    { key: 'Paid', label: '5. Paid ✓' },
+  ];
+  const currentStageIndex = stages.findIndex(s => s.key === req.stage);
+
+  const sendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMsg.trim()) return;
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsg = {
+      sender: user.fullName,
+      role: user.roleLabel || user.role,
+      msg: chatMsg.trim(),
+      time: now,
+    };
+    const updated = allRequests.map((r: any) =>
+      r.id === req.id
+        ? { ...r, conversation: [...(r.conversation || []), newMsg] }
+        : r
+    );
+    onSaveRequests(updated);
+    setChatMsg('');
+  };
+
+  const advanceStage = (nextStage: string) => {
+    const updated = allRequests.map((r: any) =>
+      r.id === req.id ? { ...r, stage: nextStage } : r
+    );
+    onSaveRequests(updated);
+    onClose();
+  };
+
+  const disbursePayment = () => {
+    const ref = disburseRef || `TRF-GTB-${Math.floor(100000 + Math.random() * 900000)}`;
+    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const updated = allRequests.map((r: any) =>
+      r.id === req.id
+        ? {
+            ...r,
+            stage: 'Paid',
+            paymentDetails: { ref, date: now, method: 'Bank Transfer', paidBy: user.fullName },
+          }
+        : r
+    );
+    const records = tryParse('bueno_finance_records', []);
+    const newRecord = {
+      id: `FIN-${Date.now()}`,
+      reqId: req.id,
+      beneficiary: req.officerName,
+      station: req.station,
+      amount: req.amount,
+      ref,
+      date: now,
+      approvedBy: 'MD/CEO',
+      accountant: user.fullName,
+    };
+    localStorage.setItem('bueno_finance_records', JSON.stringify([newRecord, ...records]));
+    onSaveRequests(updated);
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 space-y-5">
+        {/* Header */}
+        <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-black text-amber-600 text-sm">{req.id}</span>
+              <Badge text={req.stage} color={stageColor(req.stage)} />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
+              {req.title}
+            </h3>
+            <p className="text-xs text-slate-500">
+              Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="block text-[10px] font-extrabold uppercase text-slate-400">Requested Amount</span>
+            <span className="text-2xl font-black font-mono text-emerald-600">₦{Number(req.amount).toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Approval Pipeline Stepper */}
+        <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Approval Progression Stepper</p>
+          <div className="grid grid-cols-5 gap-1 text-center text-[10px]">
+            {stages.map((s, idx) => {
+              const isActive = idx === currentStageIndex;
+              const isPassed = idx < currentStageIndex;
+              return (
+                <div
+                  key={s.key}
+                  className={`p-2 rounded-xl border transition-all ${
+                    isActive
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-md'
+                      : isPassed
+                      ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold'
+                      : 'bg-slate-800/50 border-slate-700 text-slate-500'
+                  }`}
+                >
+                  <span className="block truncate">{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Request Details & Justification */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+          <div className="flex justify-between items-center text-xs">
+            <span className="font-bold text-slate-700">Category: <b className="text-slate-900">{req.category}</b></span>
+            <span className="font-mono text-slate-500">Station: {sName(req.station)}</span>
+          </div>
+          <div>
+            <span className={lc}>Justification / Description</span>
+            <p className="text-xs text-slate-800 font-medium bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
+              {req.description}
+            </p>
+          </div>
+          {req.paymentDetails && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex justify-between items-center">
+              <div>
+                <p className="font-bold">Payment Disbursed ✓</p>
+                <p className="text-[11px] font-mono text-emerald-700">Ref: {req.paymentDetails.ref} • Paid by {req.paymentDetails.paidBy}</p>
+              </div>
+              <Badge text="PAID ✓" color="green" />
+            </div>
+          )}
+        </div>
+
+        {/* Q&A Thread / Conversation Box */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+              💬 Approval Conversation & Clarifications ({req.conversation?.length || 0})
+            </h4>
+            <span className="text-[10px] text-slate-400">Approvers & Cargo Officer can ask questions here</span>
+          </div>
+
+          <div className="bg-slate-900 rounded-2xl p-4 space-y-3 max-h-56 overflow-y-auto border border-slate-800">
+            {(!req.conversation || req.conversation.length === 0) ? (
+              <p className="text-center text-xs text-slate-500 py-4">No questions or notes added yet.</p>
+            ) : (
+              req.conversation.map((m: any, i: number) => {
+                const isMe = m.sender === user.fullName;
+                return (
+                  <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-amber-500 text-slate-950 font-semibold' : 'bg-slate-800 text-slate-100 border border-slate-700'}`}>
+                      <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-black/10 pb-1">
+                        <span className="font-bold">{m.sender} ({m.role})</span>
+                        <span className="font-mono">{m.time}</span>
+                      </div>
+                      <p className="leading-snug">{m.msg}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Ask Question / Reply Form */}
+          <form onSubmit={sendMessage} className="flex gap-2">
+            <input
+              value={chatMsg}
+              onChange={e => setChatMsg(e.target.value)}
+              placeholder="Ask a question or clarify details before approving..."
+              className={`${ic} flex-1`}
+            />
+            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">
+              Send Q&A 💬
+            </button>
+          </form>
+        </div>
+
+        {/* Stage-Specific Approval Actions */}
+        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl">
+            Close View
+          </button>
+
+          {/* Admin Stage Action */}
+          {user.role === 'ADMIN' && req.stage === 'Admin' && (
+            <button
+              onClick={() => advanceStage('Head of Operations')}
+              className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
+            >
+              Approve & Forward to Operations Head ➔
+            </button>
+          )}
+
+          {/* Operations Head Stage Action */}
+          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && (
+            <button
+              onClick={() => advanceStage('CEO')}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
+            >
+              Approve & Forward to MD / CEO ➔
+            </button>
+          )}
+
+          {/* CEO Stage Action */}
+          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && (
+            <button
+              onClick={() => advanceStage('Accountant')}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
+            >
+              CEO Executive Clearance → Send to Accountant ➔
+            </button>
+          )}
+
+          {/* Accountant Stage Action */}
+          {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
+            <div className="flex items-center gap-2">
+              <input
+                value={disburseRef}
+                onChange={e => setDisburseRef(e.target.value)}
+                placeholder="Payment Ref (e.g. TRF-GTB-998120)"
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48"
+              />
+              <button
+                onClick={disbursePayment}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
+              >
+                Disburse Payment ✓
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -228,6 +486,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
+  const [selectedReq, setSelectedReq] = useState<any | null>(null);
 
   const [deals, setDeals]         = useState<any[]>([]);
   const [trips, setTrips]         = useState<any[]>([]);
@@ -264,24 +523,19 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
   const saveWagons   = (v: any[]) => { setWagons(v);   persist('bueno_wagons', v);   };
 
-  // Occupied wagons locked across ALL stations
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
 
-  // Origin Station Logic
   const myDeals       = deals.filter(d => d.loadingStation === station);
   const myTrips       = trips.filter(t => t.origin === station && t.status === 'LOADING');
   const myInTransit   = trips.filter(t => t.origin === station && t.status === 'IN_TRANSIT');
-
-  // Destination Station Logic
   const myIncomingUnload = trips.filter(t => t.destination === station && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
 
-  /* ── Add New Wagon ── */
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
     if (wagons.some(w => w.id === wId)) {
-      alert(`Wagon ${wId} is already registered in the system!`);
+      alert(`Wagon ${wId} is already registered!`);
       return;
     }
     const newWagon = {
@@ -297,7 +551,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setAddWagonModal(false);
   };
 
-  /* ── Create Trip ── */
   const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!createDeal) return;
@@ -329,16 +582,13 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         unloadStatus: 'PENDING_UNLOAD',
       }],
     };
-    const updatedTrips = [newTrip, ...trips];
-    const updatedDeals = deals.filter(d => d.id !== createDeal.id);
-    saveTrips(updatedTrips);
-    saveDeals(updatedDeals);
+    saveTrips([newTrip, ...trips]);
+    saveDeals(deals.filter(d => d.id !== createDeal.id));
     setCreateDeal(null);
     setSelectedTripId(newTrip.id);
     setView('trips');
   };
 
-  /* ── Submit Fund Request ── */
   const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
     const req = {
@@ -369,33 +619,17 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   return (
     <Shell user={{ ...user, roleLabel: `Cargo Officer — ${sName(station)}` }} navItems={navItems} activeKey={view} onNav={k => { setView(k as any); setSelectedTripId(null); setSelectedUnloadTripId(null); }} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
-
-      {/* ── TRIP DETAIL (WAGON LOADING AT ORIGIN) ── */}
       {selectedTripId ? (
-        <TripWagonView
-          tripId={selectedTripId}
-          trips={trips}
-          wagons={wagons}
-          onBack={() => setSelectedTripId(null)}
-          onSaveTrips={saveTrips}
-        />
+        <TripWagonView tripId={selectedTripId} trips={trips} wagons={wagons} onBack={() => setSelectedTripId(null)} onSaveTrips={saveTrips} />
       ) : selectedUnloadTripId ? (
-        /* ── TRIP UNLOAD DETAIL (UNLOADING AT DESTINATION) ── */
-        <TripUnloadWagonView
-          tripId={selectedUnloadTripId}
-          trips={trips}
-          user={user}
-          onBack={() => setSelectedUnloadTripId(null)}
-          onSaveTrips={saveTrips}
-        />
+        <TripUnloadWagonView tripId={selectedUnloadTripId} trips={trips} user={user} onBack={() => setSelectedUnloadTripId(null)} onSaveTrips={saveTrips} />
       ) : (
         <>
-          {/* VIEW: Latest Deals (Origin Loading) */}
           {view === 'deals' && (
             <Section title="Latest Deals (Origin Loading Station)" subtitle={`Deals assigned to ${sName(station)} — click Create Trip to begin wagon loading`}>
               <TableWrap headers={['Deal ID', 'Company', 'Destination', 'Cargo & Qty', 'Action']}>
                 {myDeals.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)} at this time. Admin Officer will create and assign deals.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)} at this time.</td></tr>
                 ) : myDeals.map(d => (
                   <tr key={d.id} className="hover:bg-amber-50 transition-colors">
                     <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber || d.id}</td>
@@ -403,10 +637,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
                     <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
                     <td className="p-4">
-                      <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">
-                        Create Trip ➔
-                      </button>
+                      <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button>
                     </td>
                   </tr>
                 ))}
@@ -414,7 +645,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Trips Created (Origin Loading) */}
           {view === 'trips' && (
             <Section title="Trips Created (Wagon Loading)" subtitle="Click a trip to manage loading times for each wagon">
               <TableWrap headers={['Trip ID', 'Cargo Officer', 'Company', 'Route', 'Wagons Loaded', 'Action']}>
@@ -437,7 +667,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Trips on the Move */}
           {view === 'in_transit' && (
             <Section title="Trips on the Move" subtitle="Dispatched trips currently in corridor transit from your station">
               <TableWrap headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}>
@@ -456,7 +685,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Incoming Consignments (Destination Unloading Station) */}
           {view === 'incoming_unload' && (
             <Section title="Incoming Consignments (Unloading Station)" subtitle={`Trips arriving at ${sName(station)} — click Unload Consignment to time wagon unloading`}>
               <TableWrap headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Total Wagons', 'Status', 'Action']}>
@@ -473,12 +701,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
                       <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
                       <td className="p-4">
-                        <button
-                          onClick={() => setSelectedUnloadTripId(t.id)}
-                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm"
-                        >
-                          Unload Consignment ➔
-                        </button>
+                        <button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Unload Consignment ➔</button>
                       </td>
                     </tr>
                   );
@@ -487,34 +710,22 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Wagon Fleet Inventory */}
           {view === 'wagons' && (
-            <Section
-              title="Wagon Fleet Inventory (46+ Registered)"
-              subtitle="Real-time availability lock — wagons in use by any officer are automatically locked system-wide"
-              action={
-                <button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">
-                  + Register New Wagon
-                </button>
-              }
-            >
+            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use by any officer are automatically locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
               <div className="bg-slate-900 text-white rounded-2xl p-5 mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                 <div><span className="block text-[9px] uppercase font-bold text-slate-400">Total Fleet</span><span className="text-xl font-black font-mono text-white">{wagons.length}</span></div>
                 <div><span className="block text-[9px] uppercase font-bold text-slate-400">Available</span><span className="text-xl font-black font-mono text-emerald-400">{availableWagons.length}</span></div>
                 <div><span className="block text-[9px] uppercase font-bold text-slate-400">In Active Use</span><span className="text-xl font-black font-mono text-amber-400">{occupiedWagonIds.size}</span></div>
                 <div><span className="block text-[9px] uppercase font-bold text-slate-400">System Lock</span><span className="text-xl font-black font-mono text-sky-400">REALTIME</span></div>
               </div>
-
               <TableWrap headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}>
                 {wagons.map(w => {
                   const isOccupied = occupiedWagonIds.has(w.id);
-                  const statusText = isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE';
-                  const badgeColor = isOccupied ? 'amber' : 'green';
                   return (
                     <tr key={w.id} className="hover:bg-slate-50 text-xs">
                       <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
                       <td className="p-4 font-mono font-bold text-slate-700">{w.capacity || 70} Bags</td>
-                      <td className="p-4"><Badge text={statusText} color={badgeColor} /></td>
+                      <td className="p-4"><Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} /></td>
                       <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
                       <td className="p-4 text-slate-600">{w.addedBy || 'System'}</td>
                       <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
@@ -525,19 +736,18 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Request Funds */}
           {view === 'funds' && (
-            <Section title="Request Funds" subtitle="Submit and track petty cash requests for station needs" action={<button onClick={() => setFundsModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
-              <TableWrap headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Date']}>
+            <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
+              <TableWrap headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}>
                 {requests.filter(r => r.station === station).length === 0 ? (
                   <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No fund requests submitted yet.</td></tr>
                 ) : requests.filter(r => r.station === station).map(r => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
                     <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
                     <td className="p-4"><p className="font-bold text-slate-900">{r.title}</p><p className="text-[10px] text-slate-500">{r.category}</p></td>
                     <td className="p-4 font-mono font-black text-slate-900">₦{Number(r.amount).toLocaleString()}</td>
                     <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                    <td className="p-4 text-slate-500 font-mono">{r.date}</td>
+                    <td className="p-4 font-bold text-amber-600">Inspect Details & Q&A ➔</td>
                   </tr>
                 ))}
               </TableWrap>
@@ -546,18 +756,19 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </>
       )}
 
-      {/* ── REGISTER NEW WAGON MODAL ── */}
+      {/* DETAILED REQUEST MODAL */}
+      {selectedReq && (
+        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
+      )}
+
       {addWagonModal && (
         <Modal onClose={() => setAddWagonModal(false)}>
           <div className="p-6 space-y-4">
             <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon to Fleet</h3>
-              <p className="text-xs text-slate-500">New wagon will immediately become available in the system-wide inventory pool.</p>
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon</h3>
             </div>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
-              <div><label className={lc}>Station Location</label><input readOnly value={sName(station)} className={`${ic} bg-slate-100`} /></div>
-              <div><label className={lc}>Capacity (Bags/MT)</label><input readOnly value="70 Bags / 35 MT" className={`${ic} bg-slate-100`} /></div>
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
                 <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button>
@@ -567,48 +778,28 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </Modal>
       )}
 
-      {/* ── TRIP CREATION MODAL ── */}
       {createDeal && (
         <Modal onClose={() => setCreateDeal(null)}>
           <div className="p-6 space-y-4">
             <div className="border-b border-slate-100 pb-4">
-              <p className="text-[10px] font-extrabold uppercase text-amber-600 mb-1">DEAL {createDeal.dealNumber} — {createDeal.company}</p>
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Trip Creation Form</h3>
-              <p className="text-xs text-slate-500">{sName(station)} ⟶ {sName(createDeal.destination)}</p>
             </div>
             <form onSubmit={handleCreateTrip} className="space-y-4">
-              <div><label className={lc}>Trip ID (Auto-Generated)</label><input readOnly value={`T-${Date.now().toString().slice(-4)}`} className={`${ic} bg-slate-100 cursor-not-allowed`} /></div>
               <div><label className={lc}>Locomotive ID *</label><input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} /></div>
-              <div><label className={lc}>Cargo Officer Name</label><input readOnly value={user.fullName} className={`${ic} bg-slate-100`} /></div>
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <p className="text-xs font-black text-slate-800">First Wagon Loading</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className={lc}>Select Available Wagon ({availableWagons.length} Available)</label>
-                    <select value={tripForm.selectedWagon} onChange={e => setTripForm({ ...tripForm, selectedWagon: e.target.value })} className={ic}>
-                      {availableWagons.length === 0 ? <option value="">No wagons available right now</option> : availableWagons.map(w => <option key={w.id} value={w.id}>{w.id} (Available)</option>)}
-                    </select>
-                  </div>
-                  <div><label className={lc}>Loading Date</label><input value={tripForm.loadingDate} onChange={e => setTripForm({ ...tripForm, loadingDate: e.target.value })} className={ic} /></div>
-                  <div><label className={lc}>Quantity (Bags/MT)</label><input type="number" value={tripForm.qty} onChange={e => setTripForm({ ...tripForm, qty: e.target.value })} className={ic} /></div>
-                  <div><label className={lc}>Start Time</label><input value={tripForm.startTime} onChange={e => setTripForm({ ...tripForm, startTime: e.target.value })} className={ic} /></div>
-                </div>
-              </div>
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" disabled={availableWagons.length === 0} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl disabled:opacity-50">Begin Wagon Loading & Create Trip ➔</button>
+                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button>
               </div>
             </form>
           </div>
         </Modal>
       )}
 
-      {/* ── FUND REQUEST MODAL ── */}
       {fundsModal && (
         <Modal onClose={() => setFundsModal(false)}>
           <div className="p-6 space-y-4">
             <div className="border-b border-slate-100 pb-4">
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Request Funds for Station</h3>
-              <p className="text-xs text-slate-500">Petty cash request for tools, equipment, or fuel.</p>
             </div>
             <form onSubmit={handleFundRequest} className="space-y-4">
               <div><label className={lc}>Purpose / Title *</label><input required value={fundForm.title} onChange={e => setFundForm({ ...fundForm, title: e.target.value })} placeholder="e.g. Loading Bay Crane Slings" className={ic} /></div>
@@ -649,7 +840,6 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const allDone = loaded >= 23;
   const active  = logs.find((w: any) => w.status === 'LOADING');
 
-  // Exclude wagons in use across ALL trips
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const usedInThisTrip   = new Set(logs.map((w: any) => w.wagonId));
   const available        = (wagons || SEED_WAGONS).filter((w: any) => !occupiedWagonIds.has(w.id) && !usedInThisTrip.has(w.id));
@@ -695,7 +885,6 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">{loaded} / 23 Loaded</span>
       </div>
 
-      {/* Trip summary */}
       <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
         <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 mb-3">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
@@ -705,7 +894,6 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
       </div>
 
-      {/* Progress */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading Progress</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
@@ -721,7 +909,6 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
       </div>
 
-      {/* Wagon controls */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading</h3>
@@ -857,7 +1044,6 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">{unloaded} / {total} Unloaded</span>
       </div>
 
-      {/* Trip summary */}
       <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
         <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400 mb-3">TRIP {trip.tripId} — DESTINATION UNLOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
@@ -867,7 +1053,6 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         </div>
       </div>
 
-      {/* Progress */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Unloading Progress</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
@@ -883,7 +1068,6 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         </div>
       </div>
 
-      {/* Active Unloading Banner */}
       {activeUnload && (
         <div className="bg-purple-50 border-2 border-purple-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -898,7 +1082,6 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         </div>
       )}
 
-      {/* List of exact wagons loaded at origin */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
         <div className="flex justify-between items-center">
           <div>
@@ -974,6 +1157,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
   const [createDealModal, setCreateDealModal] = useState(false);
   const [addWagonModal, setAddWagonModal]     = useState(false);
+  const [selectedReq, setSelectedReq]         = useState<any | null>(null);
 
   const [newWagonId, setNewWagonId] = useState('');
   const [newWagonStation, setNewWagonStation] = useState('EWK');
@@ -1022,15 +1206,11 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     setDealForm({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
   };
 
-  const advanceRequest = (id: string, nextStage: string) => {
-    saveRequests(requests.map(r => r.id === id ? { ...r, stage: nextStage } : r));
-  };
-
   const navItems = [
     { key: 'deals',    label: '📋 Manage Deals' },
     { key: 'trips',    label: '🚆 All Active Trips' },
     { key: 'wagons',   label: `🚃 Wagon Fleet Inventory (${wagons.length})` },
-    { key: 'requests', label: '📝 Fund Requests (Approve)' },
+    { key: 'requests', label: '📝 Fund Requests (Review & Approve)' },
   ];
 
   return (
@@ -1096,33 +1276,32 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       )}
 
       {view === 'requests' && (
-        <Section title="Fund Requests — Admin Review" subtitle="Review and approve requests to send to Head of Operations">
+        <Section title="Fund Requests — Admin Review" subtitle="Click any request to view full details, ask questions, or approve to Operations Head">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
             {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests yet.</td></tr>
               : requests.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
                   <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
                   <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                   <td className="p-4 font-bold text-slate-900">{r.title}</td>
                   <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                   <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4">
-                    {r.stage === 'Admin' && <button onClick={() => advanceRequest(r.id, 'Head of Operations')} className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg">Approve → Ops</button>}
-                    {r.stage !== 'Admin' && <span className="text-[10px] text-slate-400 font-bold">Forwarded ✓</span>}
-                  </td>
+                  <td className="p-4 font-bold text-sky-600">Inspect & Q&A / Approve ➔</td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
       )}
 
-      {/* REGISTER NEW WAGON MODAL */}
+      {selectedReq && (
+        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
+      )}
+
       {addWagonModal && (
         <Modal onClose={() => setAddWagonModal(false)}>
           <div className="p-6 space-y-4">
             <div className="border-b border-slate-100 pb-4">
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon (Admin)</h3>
-              <p className="text-xs text-slate-500">Adds a new wagon into system inventory for allocation by any Cargo Officer.</p>
             </div>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
@@ -1145,7 +1324,6 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
           <div className="p-6 space-y-4">
             <div className="border-b border-slate-100 pb-4">
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Create New Deal</h3>
-              <p className="text-xs text-slate-500">This deal will appear on the assigned terminal's Cargo Officer portal under "Latest Deals".</p>
             </div>
             <form onSubmit={handleCreateDeal} className="space-y-4">
               <div><label className={lc}>Company / Client Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Lafarge Africa Plc" className={ic} /></div>
@@ -1183,6 +1361,7 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips]     = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [selectedReq, setSelectedReq] = useState<any | null>(null);
 
   useEffect(() => {
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
@@ -1190,11 +1369,10 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   }, []);
 
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
-  const advance = (id: string) => saveRequests(requests.map(r => r.id === id ? { ...r, stage: 'CEO' } : r));
 
   const navItems = [
     { key: 'trips',    label: '🚆 All Trips Overview' },
-    { key: 'requests', label: '📝 Fund Requests (Ops Approval)' },
+    { key: 'requests', label: '📝 Fund Requests (Review & Approve)' },
   ];
 
   return (
@@ -1219,25 +1397,27 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
           </TableWrap>
         </Section>
       )}
+
       {view === 'requests' && (
-        <Section title="Fund Requests — Operations Approval" subtitle="Approve requests forwarded from Admin to send to MD/CEO">
+        <Section title="Fund Requests — Operations Approval" subtitle="Click any request to view details, ask questions, or approve to MD/CEO">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
             {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests.</td></tr>
               : requests.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
                   <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
                   <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                   <td className="p-4 font-bold text-slate-900">{r.title}</td>
                   <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                   <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4">
-                    {r.stage === 'Head of Operations' && <button onClick={() => advance(r.id)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg">Approve → CEO</button>}
-                    {r.stage !== 'Head of Operations' && <span className="text-[10px] text-slate-400 font-bold">{r.stage === 'CEO' || r.stage === 'Accountant' || r.stage === 'Paid' ? 'Forwarded ✓' : 'Pending Admin'}</span>}
-                  </td>
+                  <td className="p-4 font-bold text-indigo-600">Inspect & Q&A / Approve ➔</td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
+      )}
+
+      {selectedReq && (
+        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
       )}
     </Shell>
   );
@@ -1251,6 +1431,7 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips]   = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [selectedReq, setSelectedReq] = useState<any | null>(null);
 
   useEffect(() => {
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
@@ -1258,11 +1439,10 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   }, []);
 
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
-  const advance = (id: string) => saveRequests(requests.map(r => r.id === id ? { ...r, stage: 'Accountant' } : r));
 
   const navItems = [
     { key: 'trips',    label: '🚆 All Trips' },
-    { key: 'requests', label: '📝 Fund Requests (CEO Clearance)' },
+    { key: 'requests', label: '📝 Fund Requests (Executive Clearance)' },
   ];
 
   return (
@@ -1287,25 +1467,27 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
           </TableWrap>
         </Section>
       )}
+
       {view === 'requests' && (
-        <Section title="Fund Requests — CEO Executive Clearance" subtitle="Final executive approval before payment disbursement">
+        <Section title="Fund Requests — CEO Executive Clearance" subtitle="Click any request to view full details, ask questions, or grant executive approval">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
             {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests.</td></tr>
               : requests.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
                   <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
                   <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                   <td className="p-4 font-bold text-slate-900">{r.title}</td>
                   <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                   <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4">
-                    {r.stage === 'CEO' && <button onClick={() => advance(r.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg">CEO Approve → Accountant</button>}
-                    {r.stage !== 'CEO' && <span className="text-[10px] text-slate-400">{r.stage === 'Accountant' || r.stage === 'Paid' ? 'Approved ✓' : 'Pending'}</span>}
-                  </td>
+                  <td className="p-4 font-bold text-purple-600">Inspect & Q&A / Clear ➔</td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
+      )}
+
+      {selectedReq && (
+        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
       )}
     </Shell>
   );
@@ -1319,56 +1501,41 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
   const [menuOpen, setMenuOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
   const [records,  setRecords]  = useState<any[]>([]);
-  const [payRef, setPayRef]     = useState('');
+  const [selectedReq, setSelectedReq] = useState<any | null>(null);
 
   useEffect(() => {
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
     setRecords(tryParse('bueno_finance_records', []));
   }, []);
 
-  const disburse = (req: any) => {
-    const ref = payRef || `TRF-GTB-${Math.floor(100000 + Math.random() * 900000)}`;
-    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const updated = requests.map(r => r.id === req.id ? { ...r, stage: 'Paid', paymentDetails: { ref, date: now, method: 'Bank Transfer', paidBy: user.fullName } } : r);
-    const newRecord = { id: `FIN-${Date.now()}`, reqId: req.id, beneficiary: req.officerName, station: req.station, amount: req.amount, ref, date: now, approvedBy: 'MD/CEO', accountant: user.fullName };
-    const updatedRecords = [newRecord, ...records];
-    setRequests(updated); localStorage.setItem('bueno_requests', JSON.stringify(updated));
-    setRecords(updatedRecords); localStorage.setItem('bueno_finance_records', JSON.stringify(updatedRecords));
-    setPayRef('');
-  };
+  const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'requests', label: '💵 Approved Requests (Disburse)' },
+    { key: 'requests', label: '💵 Approved Requests (Review & Disburse)' },
     { key: 'records',  label: '📒 Financial Transaction Records' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Head of Finance / Accountant' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'requests' && (
-        <Section title="Approved Requests — Disburse Payment" subtitle="CEO-approved requests ready for payment disbursement">
+        <Section title="Approved Requests — Disburse Payment" subtitle="Click any request to view full details, ask questions, or enter payment reference & disburse">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Payment Reference', 'Action']}>
             {requests.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-xs">No requests yet.</td></tr>
               : requests.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
                   <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
                   <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
                   <td className="p-4 font-bold text-slate-900">{r.title}</td>
                   <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                   <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4">
-                    {r.stage === 'Accountant' && <input value={payRef} onChange={e => setPayRef(e.target.value)} placeholder="e.g. TRF-GTB-998301" className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[11px] font-mono w-40" />}
-                    {r.stage === 'Paid' && <span className="text-[11px] font-mono text-slate-500">{r.paymentDetails?.ref}</span>}
-                  </td>
-                  <td className="p-4">
-                    {r.stage === 'Accountant' && <button onClick={() => disburse(r)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg">Disburse ✓</button>}
-                    {r.stage === 'Paid' && <span className="text-[10px] font-bold text-emerald-700">PAID ✓</span>}
-                    {r.stage !== 'Accountant' && r.stage !== 'Paid' && <span className="text-[10px] text-slate-400">Pending</span>}
-                  </td>
+                  <td className="p-4 font-mono text-slate-600">{r.paymentDetails?.ref || '—'}</td>
+                  <td className="p-4 font-bold text-emerald-600">Inspect & Q&A / Disburse ➔</td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
       )}
+
       {view === 'records' && (
         <Section title="Financial Transaction Records" subtitle="Permanent ledger of all disbursed payments">
           <TableWrap headers={['Record ID', 'Request ID', 'Beneficiary / Station', 'Amount (₦)', 'Date', 'Reference', 'Accountant']}>
@@ -1386,6 +1553,10 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
               ))}
           </TableWrap>
         </Section>
+      )}
+
+      {selectedReq && (
+        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
       )}
     </Shell>
   );
