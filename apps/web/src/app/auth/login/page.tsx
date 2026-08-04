@@ -8,7 +8,7 @@ import Link from 'next/link';
 function setAuthCookieAndStorage(token: string, user: any) {
   localStorage.setItem('bueno_token', token);
   localStorage.setItem('bueno_user', JSON.stringify(user));
-  document.cookie = `bueno_token=${token}; path=/; max-age=2592000; SameSite=Lax`; // 30 Days Permanent Session
+  document.cookie = `bueno_token=${token}; path=/; max-age=2592000; SameSite=Lax`; // 30 Days Session
 }
 
 /* ── Registered Officers per Station ── */
@@ -54,6 +54,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams?.get('from');
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loginType, setLoginType] = useState<'CUSTOMER' | 'CARGO_OFFICER' | 'EXECUTIVE'>('CUSTOMER');
 
   // Cargo Officer Form State
@@ -69,12 +70,15 @@ function LoginForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Check if user already logged in (Permanent Session)
-    const existing = localStorage.getItem('bueno_user');
-    if (existing) {
-      router.push('/dashboard');
+    try {
+      const raw = localStorage.getItem('bueno_user');
+      if (raw) {
+        setCurrentUser(JSON.parse(raw));
+      }
+    } catch {
+      setCurrentUser(null);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     const list = OFFICERS_BY_STATION[selectedStation] || [];
@@ -82,6 +86,13 @@ function LoginForm() {
       setSelectedOfficerName(list[0].name);
     }
   }, [selectedStation]);
+
+  const handleSignOutActiveSession = () => {
+    localStorage.removeItem('bueno_token');
+    localStorage.removeItem('bueno_user');
+    document.cookie = 'bueno_token=; path=/; max-age=0';
+    setCurrentUser(null);
+  };
 
   // 1-Click Customer Instant Access
   const handleCustomerInstantLogin = (customer: typeof CUSTOMERS[0]) => {
@@ -173,6 +184,26 @@ function LoginForm() {
           </div>
         </div>
 
+        {/* Active Session Banner if User is already Logged In */}
+        {currentUser && (
+          <div className="bg-blue-50 border-b border-blue-200 p-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-extrabold text-[#0E4B88] uppercase tracking-wider">Active Session Detected</p>
+                <p className="font-bold text-slate-900">{currentUser.fullName} ({currentUser.roleLabel || currentUser.role})</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/dashboard" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-[11px] px-3.5 py-1.5 rounded-xl shadow-xs">
+                  Go to Dashboard ➔
+                </Link>
+                <button onClick={handleSignOutActiveSession} className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[11px] px-3 py-1.5 rounded-xl">
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Role Selector Tabs */}
         <div className="bg-slate-50 p-2 border-b border-slate-200 grid grid-cols-3 gap-1 text-center text-xs font-extrabold">
           <button
@@ -204,7 +235,7 @@ function LoginForm() {
             </div>
           )}
 
-          {/* TAB 1: INDUSTRIAL CUSTOMERS (1-CLICK INSTANT ACCESS) */}
+          {/* TAB 1: INDUSTRIAL CUSTOMERS */}
           {loginType === 'CUSTOMER' && (
             <div className="space-y-4">
               <div className="text-center">
@@ -233,14 +264,10 @@ function LoginForm() {
                   </button>
                 ))}
               </div>
-
-              <p className="text-[11px] text-center text-slate-400 pt-2 font-medium">
-                Your browser will stay signed in permanently. No passwords needed.
-              </p>
             </div>
           )}
 
-          {/* TAB 2: TERMINAL CARGO OFFICERS (STATION + OFFICER NAME + 4-DIGIT PIN) */}
+          {/* TAB 2: TERMINAL CARGO OFFICERS */}
           {loginType === 'CARGO_OFFICER' && (
             <form onSubmit={handleOfficerLogin} className="space-y-4">
               <div className="text-center mb-4">
