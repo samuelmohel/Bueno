@@ -7,7 +7,7 @@ import Link from 'next/link';
 function setAuthCookieAndStorage(token: string, user: any) {
   localStorage.setItem('bueno_token', token);
   localStorage.setItem('bueno_user', JSON.stringify(user));
-  document.cookie = `bueno_token=${token}; path=/; max-age=2592000; SameSite=Lax`; // 30 Days Permanent Session
+  document.cookie = `bueno_token=${token}; path=/; max-age=2592000; SameSite=Lax`;
 }
 
 const OFFICERS_BY_STATION: Record<string, { name: string; staffId: string; pin: string }[]> = {
@@ -143,46 +143,52 @@ function StaffLoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 flex flex-col justify-between p-4 sm:p-8 font-sans text-slate-800">
+    <div className="min-h-screen bg-[#F4F9F1] text-slate-900 font-sans relative overflow-hidden flex flex-col justify-between p-4 sm:p-8">
       
+      {/* Dynamic Background Blur Orbs */}
+      <div className="absolute -top-40 -right-40 w-96 h-96 bg-[#62BC37]/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-[#0E4B88]/20 rounded-full blur-3xl pointer-events-none" />
+
       {/* Top Header */}
-      <div className="max-w-4xl mx-auto w-full flex items-center justify-between py-4">
+      <div className="max-w-4xl mx-auto w-full flex items-center justify-between py-4 relative z-10">
         <Link href="/" className="flex items-center gap-3">
-          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-12 sm:h-14 object-contain" />
+          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-12 sm:h-14 object-contain drop-shadow-sm" />
         </Link>
-        <Link href="/auth/client" className="text-xs font-bold text-[#62BC37] hover:text-[#52A02D] bg-[#62BC37]/10 border border-[#62BC37]/30 px-4 py-2 rounded-xl transition-all">
+        <Link href="/auth/client" className="text-xs font-black text-[#62BC37] hover:text-[#52A02D] bg-white/90 backdrop-blur border border-[#62BC37]/30 hover:border-[#62BC37] px-5 py-2.5 rounded-2xl shadow-md transition-all">
           Client Freight Portal ➔
         </Link>
       </div>
 
       {/* Main Container */}
-      <div className="max-w-xl mx-auto w-full my-auto py-6 space-y-6">
+      <div className="max-w-xl mx-auto w-full my-auto py-6 space-y-6 relative z-10">
         
         {/* Header Title */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0E4B88]/10 text-[#0E4B88] text-xs font-extrabold uppercase tracking-widest">
-            STAFF & OPERATIONS PORTAL
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#0E4B88]/15 border-2 border-[#0E4B88]/30 text-[#0E4B88] text-xs font-black uppercase tracking-widest shadow-sm">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#0E4B88] animate-pulse" />
+            STAFF & OPERATIONS WORKSPACE
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Sign In to Operational Workspace
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            Sign In to Dispatch Operations
           </h1>
-          <p className="text-slate-500 text-xs sm:text-sm font-medium">
-            Terminal Cargo Officers & Executive Command Team.
+          <p className="text-slate-600 text-xs sm:text-sm font-bold">
+            Terminal Cargo Officers & Corporate Management.
           </p>
         </div>
 
         {/* Active Session Alert */}
         {currentUser && (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-xs flex items-center justify-between gap-3">
+          <div className="bg-white/90 backdrop-blur border-2 border-blue-200 rounded-3xl p-5 shadow-xl flex items-center justify-between gap-3">
             <div>
-              <span className="text-[10px] font-extrabold text-[#0E4B88] uppercase tracking-wider block">ACTIVE STAFF SESSION</span>
-              <p className="font-bold text-slate-900">{currentUser.fullName} ({currentUser.roleLabel})</p>
+              <span className="text-[10px] font-black text-[#0E4B88] uppercase tracking-widest block">ACTIVE STAFF SESSION</span>
+              <p className="font-black text-slate-900">{currentUser.fullName}</p>
+              <p className="text-xs text-slate-500 font-semibold">{currentUser.roleLabel}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/dashboard" className="bg-[#0E4B88] text-white font-extrabold text-xs px-4 py-2 rounded-xl">
+              <Link href="/dashboard" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-black text-xs px-5 py-3 rounded-2xl shadow-md">
                 Go to Dashboard ➔
               </Link>
-              <button onClick={handleSignOut} className="bg-rose-100 text-rose-800 font-bold text-xs px-3 py-2 rounded-xl">
+              <button onClick={handleSignOut} className="bg-rose-50 text-rose-800 font-bold text-xs px-3.5 py-3 rounded-2xl border border-rose-200">
                 Sign Out
               </button>
             </div>
@@ -190,42 +196,42 @@ function StaffLoginForm() {
         )}
 
         {/* Card Box */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+        <div className="bg-white/90 backdrop-blur rounded-3xl border-2 border-slate-200/90 shadow-2xl overflow-hidden">
           
           {/* Tab Bar */}
-          <div className="bg-slate-50 p-2 border-b border-slate-200 grid grid-cols-2 gap-2 text-center text-xs font-black">
+          <div className="bg-slate-100/70 p-2 border-b border-slate-200 grid grid-cols-2 gap-2 text-center text-xs font-black">
             <button
               onClick={() => { setActiveTab('CARGO_OFFICER'); setError(''); }}
-              className={`py-3 rounded-2xl transition-all ${activeTab === 'CARGO_OFFICER' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`py-3.5 rounded-2xl transition-all ${activeTab === 'CARGO_OFFICER' ? 'bg-[#62BC37] text-white shadow-lg shadow-[#62BC37]/20 scale-[1.02]' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Terminal Cargo Officer
             </button>
             <button
               onClick={() => { setActiveTab('EXECUTIVE'); setError(''); }}
-              className={`py-3 rounded-2xl transition-all ${activeTab === 'EXECUTIVE' ? 'bg-[#0E4B88] text-white shadow-md' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`py-3.5 rounded-2xl transition-all ${activeTab === 'EXECUTIVE' ? 'bg-[#0E4B88] text-white shadow-lg shadow-[#0E4B88]/20 scale-[1.02]' : 'text-slate-600 hover:text-slate-900'}`}
             >
               Management / Executive
             </button>
           </div>
 
-          <div className="p-6 sm:p-8 space-y-5">
+          <div className="p-6 sm:p-8 space-y-6">
             {error && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-2xl text-xs font-bold">
+              <div className="bg-rose-50 border-2 border-rose-200 text-rose-800 px-4 py-3 rounded-2xl text-xs font-bold shadow-sm">
                 {error}
               </div>
             )}
 
             {/* TAB 1: CARGO OFFICER LOGIN */}
             {activeTab === 'CARGO_OFFICER' && (
-              <form onSubmit={handleOfficerLogin} className="space-y-4">
+              <form onSubmit={handleOfficerLogin} className="space-y-5">
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
                     1. Select Terminal Station *
                   </label>
                   <select
                     value={selectedStation}
                     onChange={(e) => setSelectedStation(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white transition-all"
                   >
                     {Object.entries(STATIONS).map(([code, name]) => (
                       <option key={code} value={code}>{name} ({code})</option>
@@ -234,13 +240,13 @@ function StaffLoginForm() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
                     2. Select Your Full Name (Officer Identity) *
                   </label>
                   <select
                     value={selectedOfficerName}
                     onChange={(e) => setSelectedOfficerName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white transition-all"
                   >
                     {(OFFICERS_BY_STATION[selectedStation] || []).map((o) => (
                       <option key={o.staffId} value={o.name}>
@@ -251,8 +257,8 @@ function StaffLoginForm() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
-                    3. Enter Personal 4-Digit PIN *
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    3. Enter Personal 4-Digit Security PIN *
                   </label>
                   <input
                     type="password"
@@ -261,26 +267,26 @@ function StaffLoginForm() {
                     value={officerPin}
                     onChange={(e) => setOfficerPin(e.target.value)}
                     placeholder="e.g. 1111"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-mono font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white transition-all"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Default Demo PIN: <b>1111</b></p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1.5">Default Demo PIN: <b className="text-[#62BC37]">1111</b></p>
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-2xl shadow-lg transition-all disabled:opacity-50 mt-2"
+                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs py-4 rounded-2xl shadow-xl shadow-[#62BC37]/20 transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 mt-2"
                 >
-                  {loading ? 'Verifying PIN...' : `Sign In as ${selectedOfficerName} ➔`}
+                  {loading ? 'Verifying Security PIN...' : `Sign In as ${selectedOfficerName} ➔`}
                 </button>
               </form>
             )}
 
             {/* TAB 2: EXECUTIVE LOGIN */}
             {activeTab === 'EXECUTIVE' && (
-              <form onSubmit={handleExecutiveLogin} className="space-y-4">
+              <form onSubmit={handleExecutiveLogin} className="space-y-5">
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
                     Corporate Email Address *
                   </label>
                   <input
@@ -289,12 +295,12 @@ function StaffLoginForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="e.g. ceo@bueno.ng or ops.command@bueno.ng"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88]"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88] focus:bg-white transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
                     Password *
                   </label>
                   <input
@@ -303,20 +309,20 @@ function StaffLoginForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88]"
+                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88] focus:bg-white transition-all"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-extrabold text-xs py-3.5 rounded-2xl shadow-lg transition-all disabled:opacity-50"
+                  className="w-full bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-black text-xs py-4 rounded-2xl shadow-xl shadow-[#0E4B88]/20 transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
                 >
                   {loading ? 'Authenticating...' : 'Sign In to Workspace ➔'}
                 </button>
 
-                <div className="pt-3 border-t border-slate-100 text-center">
-                  <p className="text-[10px] text-slate-400 font-bold mb-2">QUICK EXECUTIVE SELECTOR:</p>
+                <div className="pt-4 border-t border-slate-100 text-center">
+                  <p className="text-[10px] text-slate-400 font-black mb-2.5 uppercase tracking-widest">QUICK EXECUTIVE SELECTOR:</p>
                   <div className="grid grid-cols-2 gap-2">
                     {EXECUTIVES.map((ex, idx) => (
                       <button
@@ -326,7 +332,7 @@ function StaffLoginForm() {
                           setEmail(ex.email);
                           setPassword('password123');
                         }}
-                        className="text-left p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-[10px] font-bold text-slate-700"
+                        className="text-left p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-[10px] font-black text-slate-700 hover:text-[#0E4B88] transition-all"
                       >
                         {ex.label}
                       </button>
@@ -343,7 +349,7 @@ function StaffLoginForm() {
       </div>
 
       {/* Footer */}
-      <div className="max-w-4xl mx-auto w-full text-center text-xs text-slate-400 font-semibold py-4 border-t border-slate-200">
+      <div className="max-w-4xl mx-auto w-full text-center text-xs text-slate-400 font-bold py-4 border-t border-slate-200/80 relative z-10">
         BUENO LOGISTICS LIMITED &copy; {new Date().getFullYear()} — Operational Command Portal
       </div>
     </div>
