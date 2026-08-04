@@ -164,12 +164,8 @@ export default function BuenoLogisticsHomePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/auth/staff" className="hidden sm:block text-xs font-bold text-[#0E4B88] hover:text-[#0B3C70] px-4 py-2 rounded-xl hover:bg-slate-50 transition-all border border-slate-200">
-              Staff & Operations Login
-            </Link>
-            <Link href="/auth/client" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-extrabold px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5">
-              <span>Client Freight Portal</span>
-              <span>➔</span>
+            <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-sm">
+              Sign In to Freight OS ➔
             </Link>
           </div>
         </div>
@@ -179,14 +175,14 @@ export default function BuenoLogisticsHomePage() {
       <section className="relative pt-16 pb-24 px-6 lg:px-10 overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-7 space-y-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-900 text-xs font-extrabold">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-800 text-xs font-extrabold">
               <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
               BUENO LOGISTICS LIMITED — NIGERIAN RAIL FREIGHT OPERATING SYSTEM
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1]" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Heavy Rail Freight <br />
-              <span className="bg-gradient-to-r from-[#0E4B88] to-[#62BC37] bg-clip-text text-transparent">
+              <span className="text-[#62BC37]">
                 Tracking & Logistics.
               </span>
             </h1>
@@ -196,12 +192,11 @@ export default function BuenoLogisticsHomePage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link href="/auth/client" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-lg transition-all flex items-center gap-2">
-                <span>Client Freight Portal</span>
-                <span>➔</span>
+              <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all">
+                Access Freight Workspace ➔
               </Link>
-              <Link href="/auth/staff" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white text-sm font-bold px-7 py-3.5 rounded-2xl shadow-lg transition-all">
-                Staff & Operations Login
+              <Link href="/tracking" className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-3.5 rounded-2xl transition-all shadow-sm">
+                Public Consignment Tracking
               </Link>
             </div>
 
