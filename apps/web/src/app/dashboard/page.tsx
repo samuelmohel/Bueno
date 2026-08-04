@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 /* ─────────────────────────────────────────────────────────
-   MASTER DATA
+   MASTER DATA & STATIONS
 ───────────────────────────────────────────────────────── */
 const STATIONS: Record<string, string> = {
   EWK: 'Ewekoro Terminal',
@@ -15,7 +15,20 @@ const STATIONS: Record<string, string> = {
   APT: 'Apapa Maritime Port',
 };
 const sName = (c: string) => STATIONS[c] || c;
-const MASTER_WAGONS = Array.from({ length: 46 }, (_, i) => `WG${String(i + 1).padStart(3, '0')}`);
+
+// Initial 46 Registered Wagons
+const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
+  const id = `WG${String(i + 1).padStart(3, '0')}`;
+  const isInUse = id === 'WG001' || id === 'WG002';
+  return {
+    id,
+    capacity: 70,
+    status: isInUse ? 'IN_TRANSIT' : 'AVAILABLE',
+    currentStation: isInUse ? 'MNY' : 'EWK',
+    addedBy: 'System Registry',
+    createdAt: '31 Jul 2026',
+  };
+});
 
 const SEED_DEALS: any[] = [];   // Admin creates deals — starts empty
 
@@ -64,6 +77,20 @@ function tryParse<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 }
 
+function getOccupiedWagonIds(trips: any[]): Set<string> {
+  const occupied = new Set<string>();
+  trips.forEach((t: any) => {
+    if (t.status === 'LOADING' || t.status === 'IN_TRANSIT' || t.status === 'UNLOADING') {
+      (t.wagonLogs || []).forEach((w: any) => {
+        if (w.wagonId && w.unloadStatus !== 'UNLOADED') {
+          occupied.add(w.wagonId);
+        }
+      });
+    }
+  });
+  return occupied;
+}
+
 function Badge({ text, color }: { text: string; color?: string }) {
   const c = color || 'amber';
   const cls: Record<string, string> = {
@@ -100,9 +127,6 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   LIVE TIMER
-───────────────────────────────────────────────────────── */
 function LiveTimer({ ts }: { ts: number }) {
   const [sec, setSec] = useState(0);
   useEffect(() => {
@@ -116,7 +140,7 @@ function LiveTimer({ ts }: { ts: number }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PORTAL SHELLS (logo + nav + sign-out)
+   PORTAL SHELL
 ═══════════════════════════════════════════════════════════ */
 function Shell({
   user, navItems, activeKey, onNav, children, onSignOut, menuOpen, setMenuOpen,
@@ -200,7 +224,7 @@ function Shell({
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
 function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'funds'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'wagons' | 'funds'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
@@ -208,13 +232,16 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [deals, setDeals]         = useState<any[]>([]);
   const [trips, setTrips]         = useState<any[]>([]);
   const [requests, setRequests]   = useState<any[]>([]);
+  const [wagons, setWagons]       = useState<any[]>([]);
 
   // Modals
-  const [createDeal, setCreateDeal]   = useState<any>(null);   // deal chosen to create trip
-  const [fundsModal, setFundsModal]   = useState(false);
+  const [createDeal, setCreateDeal]     = useState<any>(null);
+  const [addWagonModal, setAddWagonModal] = useState(false);
+  const [fundsModal, setFundsModal]     = useState(false);
 
-  const [tripForm, setTripForm] = useState({ locomotiveId: '', selectedWagon: MASTER_WAGONS[0], loadingDate: '', qty: '70', startTime: '' });
-  const [fundForm, setFundForm] = useState({ title: '', amount: '', category: 'Equipment', description: '' });
+  const [newWagonId, setNewWagonId] = useState('');
+  const [tripForm, setTripForm]     = useState({ locomotiveId: '', selectedWagon: '', loadingDate: '', qty: '70', startTime: '' });
+  const [fundForm, setFundForm]     = useState({ title: '', amount: '', category: 'Equipment', description: '' });
 
   const station = user?.assignedStation || 'EWK';
 
@@ -222,6 +249,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setDeals(tryParse('bueno_deals', SEED_DEALS));
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
+    setWagons(tryParse('bueno_wagons', SEED_WAGONS));
     const now = new Date();
     setTripForm(f => ({ ...f,
       loadingDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -234,19 +262,46 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const saveDeals    = (v: any[]) => { setDeals(v);    persist('bueno_deals', v);    };
   const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v);    };
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
+  const saveWagons   = (v: any[]) => { setWagons(v);   persist('bueno_wagons', v);   };
 
-  // Origin Station Logic (Loading Station)
+  // Occupied wagons locked across ALL stations
+  const occupiedWagonIds = getOccupiedWagonIds(trips);
+  const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
+
+  // Origin Station Logic
   const myDeals       = deals.filter(d => d.loadingStation === station);
   const myTrips       = trips.filter(t => t.origin === station && t.status === 'LOADING');
   const myInTransit   = trips.filter(t => t.origin === station && t.status === 'IN_TRANSIT');
 
-  // Destination Station Logic (Unloading Station)
+  // Destination Station Logic
   const myIncomingUnload = trips.filter(t => t.destination === station && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
+
+  /* ── Add New Wagon ── */
+  const handleRegisterWagon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
+    if (wagons.some(w => w.id === wId)) {
+      alert(`Wagon ${wId} is already registered in the system!`);
+      return;
+    }
+    const newWagon = {
+      id: wId,
+      capacity: 70,
+      status: 'AVAILABLE',
+      currentStation: station,
+      addedBy: user.fullName,
+      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    saveWagons([...wagons, newWagon]);
+    setNewWagonId('');
+    setAddWagonModal(false);
+  };
 
   /* ── Create Trip ── */
   const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!createDeal) return;
+    const firstWagon = tripForm.selectedWagon || availableWagons[0]?.id || 'WG001';
     const num = String(Date.now()).slice(-4);
     const now = new Date();
     const newTrip = {
@@ -264,7 +319,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       createdAt: now.toLocaleString(),
       wagonLogs: [{
         id: `wl_${Date.now()}`,
-        wagonId: tripForm.selectedWagon,
+        wagonId: firstWagon,
         startTimestamp: Date.now(),
         startDate: tripForm.loadingDate,
         startTime: tripForm.startTime,
@@ -308,6 +363,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     { key: 'trips',           label: '🚆 Trips Created (Loading)' },
     { key: 'in_transit',      label: '🚚 Trips on the Move' },
     { key: 'incoming_unload', label: '📦 Incoming Consignments (Unload)' },
+    { key: 'wagons',          label: `🚃 Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: '💵 Request Funds' },
   ];
 
@@ -319,6 +375,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         <TripWagonView
           tripId={selectedTripId}
           trips={trips}
+          wagons={wagons}
           onBack={() => setSelectedTripId(null)}
           onSaveTrips={saveTrips}
         />
@@ -346,7 +403,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
                     <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
                     <td className="p-4">
-                      <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: MASTER_WAGONS[0] })); }}
+                      <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }}
                         className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">
                         Create Trip ➔
                       </button>
@@ -430,6 +487,44 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
+          {/* VIEW: Wagon Fleet Inventory */}
+          {view === 'wagons' && (
+            <Section
+              title="Wagon Fleet Inventory (46+ Registered)"
+              subtitle="Real-time availability lock — wagons in use by any officer are automatically locked system-wide"
+              action={
+                <button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">
+                  + Register New Wagon
+                </button>
+              }
+            >
+              <div className="bg-slate-900 text-white rounded-2xl p-5 mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div><span className="block text-[9px] uppercase font-bold text-slate-400">Total Fleet</span><span className="text-xl font-black font-mono text-white">{wagons.length}</span></div>
+                <div><span className="block text-[9px] uppercase font-bold text-slate-400">Available</span><span className="text-xl font-black font-mono text-emerald-400">{availableWagons.length}</span></div>
+                <div><span className="block text-[9px] uppercase font-bold text-slate-400">In Active Use</span><span className="text-xl font-black font-mono text-amber-400">{occupiedWagonIds.size}</span></div>
+                <div><span className="block text-[9px] uppercase font-bold text-slate-400">System Lock</span><span className="text-xl font-black font-mono text-sky-400">REALTIME</span></div>
+              </div>
+
+              <TableWrap headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}>
+                {wagons.map(w => {
+                  const isOccupied = occupiedWagonIds.has(w.id);
+                  const statusText = isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE';
+                  const badgeColor = isOccupied ? 'amber' : 'green';
+                  return (
+                    <tr key={w.id} className="hover:bg-slate-50 text-xs">
+                      <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
+                      <td className="p-4 font-mono font-bold text-slate-700">{w.capacity || 70} Bags</td>
+                      <td className="p-4"><Badge text={statusText} color={badgeColor} /></td>
+                      <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
+                      <td className="p-4 text-slate-600">{w.addedBy || 'System'}</td>
+                      <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </TableWrap>
+            </Section>
+          )}
+
           {/* VIEW: Request Funds */}
           {view === 'funds' && (
             <Section title="Request Funds" subtitle="Submit and track petty cash requests for station needs" action={<button onClick={() => setFundsModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
@@ -451,6 +546,27 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </>
       )}
 
+      {/* ── REGISTER NEW WAGON MODAL ── */}
+      {addWagonModal && (
+        <Modal onClose={() => setAddWagonModal(false)}>
+          <div className="p-6 space-y-4">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon to Fleet</h3>
+              <p className="text-xs text-slate-500">New wagon will immediately become available in the system-wide inventory pool.</p>
+            </div>
+            <form onSubmit={handleRegisterWagon} className="space-y-4">
+              <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
+              <div><label className={lc}>Station Location</label><input readOnly value={sName(station)} className={`${ic} bg-slate-100`} /></div>
+              <div><label className={lc}>Capacity (Bags/MT)</label><input readOnly value="70 Bags / 35 MT" className={`${ic} bg-slate-100`} /></div>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
       {/* ── TRIP CREATION MODAL ── */}
       {createDeal && (
         <Modal onClose={() => setCreateDeal(null)}>
@@ -467,9 +583,9 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                 <p className="text-xs font-black text-slate-800">First Wagon Loading</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className={lc}>Select Wagon</label>
+                  <div><label className={lc}>Select Available Wagon ({availableWagons.length} Available)</label>
                     <select value={tripForm.selectedWagon} onChange={e => setTripForm({ ...tripForm, selectedWagon: e.target.value })} className={ic}>
-                      {MASTER_WAGONS.map(w => <option key={w}>{w}</option>)}
+                      {availableWagons.length === 0 ? <option value="">No wagons available right now</option> : availableWagons.map(w => <option key={w.id} value={w.id}>{w.id} (Available)</option>)}
                     </select>
                   </div>
                   <div><label className={lc}>Loading Date</label><input value={tripForm.loadingDate} onChange={e => setTripForm({ ...tripForm, loadingDate: e.target.value })} className={ic} /></div>
@@ -479,7 +595,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading & Create Trip ➔</button>
+                <button type="submit" disabled={availableWagons.length === 0} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl disabled:opacity-50">Begin Wagon Loading & Create Trip ➔</button>
               </div>
             </form>
           </div>
@@ -520,7 +636,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 /* ─────────────────────────────────────────────────────────
    WAGON LOADING VIEW (at Origin Loading Station)
 ───────────────────────────────────────────────────────── */
-function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
+function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const trip = trips.find((t: any) => t.id === tripId);
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
   const [adding, setAdding] = useState(false);
@@ -532,8 +648,11 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
   const loaded = logs.filter((w: any) => w.status === 'LOADED').length;
   const allDone = loaded >= 23;
   const active  = logs.find((w: any) => w.status === 'LOADING');
-  const usedIds = new Set(logs.map((w: any) => w.wagonId));
-  const available = MASTER_WAGONS.filter(w => !usedIds.has(w));
+
+  // Exclude wagons in use across ALL trips
+  const occupiedWagonIds = getOccupiedWagonIds(trips);
+  const usedInThisTrip   = new Set(logs.map((w: any) => w.wagonId));
+  const available        = (wagons || SEED_WAGONS).filter((w: any) => !occupiedWagonIds.has(w.id) && !usedInThisTrip.has(w.id));
   const pct = Math.min(100, Math.round((loaded / 23) * 100));
 
   const commitLogs = (updated: any[]) => {
@@ -543,7 +662,7 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
 
   const startLoading = (e: React.FormEvent) => {
     e.preventDefault();
-    const wId = selWagon || available[0] || 'WG001';
+    const wId = selWagon || available[0]?.id || 'WG001';
     const now = new Date();
     const log = { id: `wl_${Date.now()}`, wagonId: wId, startTimestamp: Date.now(),
       startDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -614,16 +733,16 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
         {adding && (
           <form onSubmit={startLoading} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
-              <div><label className={lc}>Select Wagon ID</label>
+              <div><label className={lc}>Select Available Wagon ({available.length} Available)</label>
                 <select value={selWagon} onChange={e => setSelWagon(e.target.value)} className={ic}>
-                  {available.map(w => <option key={w}>{w}</option>)}
+                  {available.length === 0 ? <option value="">No available wagons right now</option> : available.map((w: any) => <option key={w.id} value={w.id}>{w.id} (Available)</option>)}
                 </select>
               </div>
               <div><label className={lc}>Quantity (Bags)</label><input type="number" value={qty} onChange={e => setQty(e.target.value)} className={ic} /></div>
             </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setAdding(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-              <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2 rounded-xl">Begin Loading ➔</button>
+              <button type="submit" disabled={available.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2 rounded-xl disabled:opacity-50">Begin Loading ➔</button>
             </div>
           </form>
         )}
@@ -846,23 +965,53 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'requests'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'wagons' | 'requests'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [wagons, setWagons]     = useState<any[]>([]);
+
   const [createDealModal, setCreateDealModal] = useState(false);
+  const [addWagonModal, setAddWagonModal]     = useState(false);
+
+  const [newWagonId, setNewWagonId] = useState('');
+  const [newWagonStation, setNewWagonStation] = useState('EWK');
   const [dealForm, setDealForm] = useState({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
 
   useEffect(() => {
     setDeals(tryParse('bueno_deals', SEED_DEALS));
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
+    setWagons(tryParse('bueno_wagons', SEED_WAGONS));
   }, []);
 
   const persist = (key: string, val: any[]) => localStorage.setItem(key, JSON.stringify(val));
   const saveDeals    = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
+  const saveWagons   = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
+
+  const occupiedWagonIds = getOccupiedWagonIds(trips);
+
+  const handleRegisterWagon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
+    if (wagons.some(w => w.id === wId)) {
+      alert(`Wagon ${wId} is already registered!`);
+      return;
+    }
+    const newWagon = {
+      id: wId,
+      capacity: 70,
+      status: 'AVAILABLE',
+      currentStation: newWagonStation,
+      addedBy: user.fullName,
+      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    saveWagons([...wagons, newWagon]);
+    setNewWagonId('');
+    setAddWagonModal(false);
+  };
 
   const handleCreateDeal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -880,6 +1029,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const navItems = [
     { key: 'deals',    label: '📋 Manage Deals' },
     { key: 'trips',    label: '🚆 All Active Trips' },
+    { key: 'wagons',   label: `🚃 Wagon Fleet Inventory (${wagons.length})` },
     { key: 'requests', label: '📝 Fund Requests (Approve)' },
   ];
 
@@ -925,6 +1075,26 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
         </Section>
       )}
 
+      {view === 'wagons' && (
+        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons and live usage status" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+          <TableWrap headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}>
+            {wagons.map(w => {
+              const isOccupied = occupiedWagonIds.has(w.id);
+              return (
+                <tr key={w.id} className="hover:bg-slate-50 text-xs">
+                  <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
+                  <td className="p-4 font-mono text-slate-700">{w.capacity || 70} Bags</td>
+                  <td className="p-4"><Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} /></td>
+                  <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || 'EWK')}</td>
+                  <td className="p-4 text-slate-600">{w.addedBy || 'Admin'}</td>
+                  <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
+                </tr>
+              );
+            })}
+          </TableWrap>
+        </Section>
+      )}
+
       {view === 'requests' && (
         <Section title="Fund Requests — Admin Review" subtitle="Review and approve requests to send to Head of Operations">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
@@ -944,6 +1114,30 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
               ))}
           </TableWrap>
         </Section>
+      )}
+
+      {/* REGISTER NEW WAGON MODAL */}
+      {addWagonModal && (
+        <Modal onClose={() => setAddWagonModal(false)}>
+          <div className="p-6 space-y-4">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon (Admin)</h3>
+              <p className="text-xs text-slate-500">Adds a new wagon into system inventory for allocation by any Cargo Officer.</p>
+            </div>
+            <form onSubmit={handleRegisterWagon} className="space-y-4">
+              <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
+              <div><label className={lc}>Initial Station Location</label>
+                <select value={newWagonStation} onChange={e => setNewWagonStation(e.target.value)} className={ic}>
+                  {Object.entries(STATIONS).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
       )}
 
       {createDealModal && (
@@ -1125,7 +1319,7 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
   const [menuOpen, setMenuOpen] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
   const [records,  setRecords]  = useState<any[]>([]);
-  const [payRef, setPayRef] = useState('');
+  const [payRef, setPayRef]     = useState('');
 
   useEffect(() => {
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
@@ -1229,7 +1423,7 @@ function TableWrap({ headers, children }: { headers: string[]; children: React.R
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ROOT — reads role from localStorage and renders correct portal
+   ROOT
 ═══════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const router = useRouter();
