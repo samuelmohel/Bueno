@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -15,6 +15,14 @@ const STATIONS: Record<string, string> = {
   APT: 'Apapa Maritime Port',
 };
 const sName = (c: string) => STATIONS[c] || c;
+
+const STATION_COORDS: Record<string, [number, number]> = {
+  EWK: [6.8974, 3.2141],
+  ITO: [6.9333, 3.3833],
+  MNY: [7.4610, 3.9470],
+  ILR: [8.4966, 4.5426],
+  APT: [6.4550, 3.3610],
+};
 
 // Initial 46 Registered Wagons
 const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
@@ -45,6 +53,9 @@ const SEED_TRIPS: any[] = [
     cargoType: 'Elephant Cement (50kg bags)',
     quantity: 1600,
     status: 'IN_TRANSIT',
+    gpsActive: true,
+    currentSpeed: 74,
+    currentCoords: { lat: 7.1205, lng: 3.5102 },
     createdAt: '31 Jul 2026 09:00 AM',
     wagonLogs: [
       { id: 'wl_1', wagonId: 'WG001', startTimestamp: Date.now() - 3600000 * 5, startDate: '31 Jul 2026', startTime: '09:10 AM', endDate: '31 Jul 2026', endTime: '09:40 AM', durationStr: '30 Minutes', qty: 70, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' },
@@ -140,20 +151,136 @@ function LiveTimer({ ts }: { ts: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   FUND REQUEST DETAILED INSPECTION & Q&A CONVERSATION MODAL
+   HIGH-PRECISION INTERACTIVE RAIL CORRIDOR MAP
+───────────────────────────────────────────────────────── */
+function RailCorridorGpsMap({ trip }: { trip: any }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const [mounted, setMounted] = useState(false);
+
+  const originCoords: [number, number] = STATION_COORDS[trip?.origin] || [6.8974, 3.2141];
+  const destCoords: [number, number]   = STATION_COORDS[trip?.destination] || [7.4610, 3.9470];
+
+  const [progressRatio, setProgressRatio] = useState(
+    trip?.status === 'ARRIVED' || trip?.status === 'UNLOADING' || trip?.status === 'COMPLETED' ? 1.0 : 0.58
+  );
+  const [speed, setSpeed] = useState(trip?.status === 'IN_TRANSIT' ? 74 : 0);
+
+  const curLat = originCoords[0] + (destCoords[0] - originCoords[0]) * progressRatio;
+  const curLng = originCoords[1] + (destCoords[1] - originCoords[1]) * progressRatio;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (trip?.status === 'IN_TRANSIT') {
+      const id = setInterval(() => {
+        setSpeed(70 + Math.floor(Math.random() * 10));
+        setProgressRatio(r => (r >= 0.95 ? 0.95 : r + 0.003));
+      }, 3000);
+      return () => clearInterval(id);
+    }
+  }, [trip?.status]);
+
+  useEffect(() => {
+    if (!mounted || !containerRef.current) return;
+
+    import('leaflet').then(L => {
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      const currentPoint: [number, number] = [curLat, curLng];
+      const elem = containerRef.current;
+      if (!elem) return;
+
+      if (!mapRef.current) {
+        const map = L.map(elem, { zoomControl: true }).setView(currentPoint, 9);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map);
+
+        // Draw track polyline
+        const track = L.polyline([originCoords, destCoords], {
+          color: '#F59E0B',
+          weight: 6,
+          dashArray: '8, 8',
+          opacity: 0.9,
+        }).addTo(map);
+
+        // Station markers
+        Object.entries(STATION_COORDS).forEach(([code, coords]) => {
+          const isOrigin = code === trip?.origin;
+          const isDest   = code === trip?.destination;
+          L.circleMarker(coords, {
+            radius: isOrigin || isDest ? 9 : 6,
+            color: isOrigin ? '#10B981' : isDest ? '#8B5CF6' : '#64748B',
+            fillColor: '#FFFFFF',
+            fillOpacity: 1,
+            weight: 3,
+          }).addTo(map).bindPopup(`<b>${sName(code)} (${code})</b><br/>GPS: ${coords[0]}°N, ${coords[1]}°E`);
+        });
+
+        // Train locomotive marker
+        const trainIcon = L.divIcon({
+          html: `
+            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:16px; border:2px solid #F59E0B; box-shadow:0 6px 18px rgba(15,23,42,0.5); display:inline-flex; items-center; gap:6px; white-space:nowrap;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#10B981; display:inline-block;" class="animate-pulse"></span>
+              ${trip?.locomotiveId || 'L2205'} (${trip?.company || 'Consignment'})
+            </div>
+          `,
+          className: 'custom-train-marker',
+          iconSize: [160, 32],
+          iconAnchor: [80, 16],
+        });
+
+        markerRef.current = L.marker(currentPoint, { icon: trainIcon }).addTo(map);
+        map.fitBounds(track.getBounds(), { padding: [40, 40] });
+        mapRef.current = map;
+      } else {
+        if (markerRef.current) {
+          markerRef.current.setLatLng(currentPoint);
+        }
+      }
+    });
+  }, [mounted, curLat, curLng, trip]);
+
+  return (
+    <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <div className="p-5 bg-slate-950 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] font-mono font-black uppercase text-amber-400">LIVE SATELLITE GPS TELEMETRY</span>
+          </div>
+          <h3 className="text-xl font-black text-white mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
+            {sName(trip?.origin)} <span className="text-amber-400">⟶</span> {sName(trip?.destination)}
+          </h3>
+          <p className="text-xs text-slate-400">Locomotive: <b className="text-slate-200">{trip?.locomotiveId}</b> • {trip?.company}</p>
+        </div>
+        <div className="flex gap-5 text-right font-mono">
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Live Speed</span><span className="text-base font-black text-emerald-400">{speed} km/h</span></div>
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Progress</span><span className="text-base font-black text-amber-400">{(progressRatio * 100).toFixed(0)}%</span></div>
+          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Coordinates</span><span className="text-xs text-slate-200">{curLat.toFixed(4)}°N, {curLng.toFixed(4)}°E</span></div>
+        </div>
+      </div>
+      <div ref={containerRef} className="h-96 w-full bg-slate-950" />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   FUND REQUEST DETAILED INSPECTION MODAL
 ───────────────────────────────────────────────────────── */
 function FundRequestDetailModal({
-  req,
-  user,
-  onClose,
-  onSaveRequests,
-  allRequests,
+  req, user, onClose, onSaveRequests, allRequests,
 }: {
-  req: any;
-  user: any;
-  onClose: () => void;
-  onSaveRequests: (v: any[]) => void;
-  allRequests: any[];
+  req: any; user: any; onClose: () => void; onSaveRequests: (v: any[]) => void; allRequests: any[];
 }) {
   const [chatMsg, setChatMsg] = useState('');
   const [disburseRef, setDisburseRef] = useState(req.paymentDetails?.ref || '');
@@ -171,25 +298,14 @@ function FundRequestDetailModal({
     e.preventDefault();
     if (!chatMsg.trim()) return;
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = {
-      sender: user.fullName,
-      role: user.roleLabel || user.role,
-      msg: chatMsg.trim(),
-      time: now,
-    };
-    const updated = allRequests.map((r: any) =>
-      r.id === req.id
-        ? { ...r, conversation: [...(r.conversation || []), newMsg] }
-        : r
-    );
+    const newMsg = { sender: user.fullName, role: user.roleLabel || user.role, msg: chatMsg.trim(), time: now };
+    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, conversation: [...(r.conversation || []), newMsg] } : r);
     onSaveRequests(updated);
     setChatMsg('');
   };
 
   const advanceStage = (nextStage: string) => {
-    const updated = allRequests.map((r: any) =>
-      r.id === req.id ? { ...r, stage: nextStage } : r
-    );
+    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, stage: nextStage } : r);
     onSaveRequests(updated);
     onClose();
   };
@@ -197,27 +313,9 @@ function FundRequestDetailModal({
   const disbursePayment = () => {
     const ref = disburseRef || `TRF-GTB-${Math.floor(100000 + Math.random() * 900000)}`;
     const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const updated = allRequests.map((r: any) =>
-      r.id === req.id
-        ? {
-            ...r,
-            stage: 'Paid',
-            paymentDetails: { ref, date: now, method: 'Bank Transfer', paidBy: user.fullName },
-          }
-        : r
-    );
+    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, stage: 'Paid', paymentDetails: { ref, date: now, method: 'Bank Transfer', paidBy: user.fullName } } : r);
     const records = tryParse('bueno_finance_records', []);
-    const newRecord = {
-      id: `FIN-${Date.now()}`,
-      reqId: req.id,
-      beneficiary: req.officerName,
-      station: req.station,
-      amount: req.amount,
-      ref,
-      date: now,
-      approvedBy: 'MD/CEO',
-      accountant: user.fullName,
-    };
+    const newRecord = { id: `FIN-${Date.now()}`, reqId: req.id, beneficiary: req.officerName, station: req.station, amount: req.amount, ref, date: now, approvedBy: 'MD/CEO', accountant: user.fullName };
     localStorage.setItem('bueno_finance_records', JSON.stringify([newRecord, ...records]));
     onSaveRequests(updated);
     onClose();
@@ -226,19 +324,14 @@ function FundRequestDetailModal({
   return (
     <Modal onClose={onClose}>
       <div className="p-6 space-y-5">
-        {/* Header */}
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono font-black text-amber-600 text-sm">{req.id}</span>
               <Badge text={req.stage} color={stageColor(req.stage)} />
             </div>
-            <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
-              {req.title}
-            </h3>
-            <p className="text-xs text-slate-500">
-              Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}
-            </p>
+            <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>{req.title}</h3>
+            <p className="text-xs text-slate-500">Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}</p>
           </div>
           <div className="text-right">
             <span className="block text-[10px] font-extrabold uppercase text-slate-400">Requested Amount</span>
@@ -246,7 +339,6 @@ function FundRequestDetailModal({
           </div>
         </div>
 
-        {/* Approval Pipeline Stepper */}
         <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2">
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Approval Progression Stepper</p>
           <div className="grid grid-cols-5 gap-1 text-center text-[10px]">
@@ -254,16 +346,7 @@ function FundRequestDetailModal({
               const isActive = idx === currentStageIndex;
               const isPassed = idx < currentStageIndex;
               return (
-                <div
-                  key={s.key}
-                  className={`p-2 rounded-xl border transition-all ${
-                    isActive
-                      ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-md'
-                      : isPassed
-                      ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold'
-                      : 'bg-slate-800/50 border-slate-700 text-slate-500'
-                  }`}
-                >
+                <div key={s.key} className={`p-2 rounded-xl border transition-all ${isActive ? 'bg-amber-500 border-amber-400 text-slate-950 font-black shadow-md' : isPassed ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}>
                   <span className="block truncate">{s.label}</span>
                 </div>
               );
@@ -271,7 +354,6 @@ function FundRequestDetailModal({
           </div>
         </div>
 
-        {/* Request Details & Justification */}
         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
           <div className="flex justify-between items-center text-xs">
             <span className="font-bold text-slate-700">Category: <b className="text-slate-900">{req.category}</b></span>
@@ -279,30 +361,12 @@ function FundRequestDetailModal({
           </div>
           <div>
             <span className={lc}>Justification / Description</span>
-            <p className="text-xs text-slate-800 font-medium bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
-              {req.description}
-            </p>
+            <p className="text-xs text-slate-800 font-medium bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">{req.description}</p>
           </div>
-          {req.paymentDetails && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex justify-between items-center">
-              <div>
-                <p className="font-bold">Payment Disbursed ✓</p>
-                <p className="text-[11px] font-mono text-emerald-700">Ref: {req.paymentDetails.ref} • Paid by {req.paymentDetails.paidBy}</p>
-              </div>
-              <Badge text="PAID ✓" color="green" />
-            </div>
-          )}
         </div>
 
-        {/* Q&A Thread / Conversation Box */}
         <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              💬 Approval Conversation & Clarifications ({req.conversation?.length || 0})
-            </h4>
-            <span className="text-[10px] text-slate-400">Approvers & Cargo Officer can ask questions here</span>
-          </div>
-
+          <div className="flex justify-between items-center"><h4 className="text-xs font-black uppercase tracking-wider text-slate-800">💬 Approval Conversation & Clarifications ({req.conversation?.length || 0})</h4></div>
           <div className="bg-slate-900 rounded-2xl p-4 space-y-3 max-h-56 overflow-y-auto border border-slate-800">
             {(!req.conversation || req.conversation.length === 0) ? (
               <p className="text-center text-xs text-slate-500 py-4">No questions or notes added yet.</p>
@@ -313,8 +377,7 @@ function FundRequestDetailModal({
                   <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-amber-500 text-slate-950 font-semibold' : 'bg-slate-800 text-slate-100 border border-slate-700'}`}>
                       <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-black/10 pb-1">
-                        <span className="font-bold">{m.sender} ({m.role})</span>
-                        <span className="font-mono">{m.time}</span>
+                        <span className="font-bold">{m.sender} ({m.role})</span><span className="font-mono">{m.time}</span>
                       </div>
                       <p className="leading-snug">{m.msg}</p>
                     </div>
@@ -323,77 +386,117 @@ function FundRequestDetailModal({
               })
             )}
           </div>
-
-          {/* Ask Question / Reply Form */}
           <form onSubmit={sendMessage} className="flex gap-2">
-            <input
-              value={chatMsg}
-              onChange={e => setChatMsg(e.target.value)}
-              placeholder="Ask a question or clarify details before approving..."
-              className={`${ic} flex-1`}
-            />
-            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">
-              Send Q&A 💬
-            </button>
+            <input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Ask a question or clarify details before approving..." className={`${ic} flex-1`} />
+            <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">Send Q&A 💬</button>
           </form>
         </div>
 
-        {/* Stage-Specific Approval Actions */}
         <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl">
-            Close View
-          </button>
-
-          {/* Admin Stage Action */}
-          {user.role === 'ADMIN' && req.stage === 'Admin' && (
-            <button
-              onClick={() => advanceStage('Head of Operations')}
-              className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
-            >
-              Approve & Forward to Operations Head ➔
-            </button>
-          )}
-
-          {/* Operations Head Stage Action */}
-          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && (
-            <button
-              onClick={() => advanceStage('CEO')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
-            >
-              Approve & Forward to MD / CEO ➔
-            </button>
-          )}
-
-          {/* CEO Stage Action */}
-          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && (
-            <button
-              onClick={() => advanceStage('Accountant')}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
-            >
-              CEO Executive Clearance → Send to Accountant ➔
-            </button>
-          )}
-
-          {/* Accountant Stage Action */}
+          <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl">Close View</button>
+          {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
+          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
+          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
           {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
             <div className="flex items-center gap-2">
-              <input
-                value={disburseRef}
-                onChange={e => setDisburseRef(e.target.value)}
-                placeholder="Payment Ref (e.g. TRF-GTB-998120)"
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48"
-              />
-              <button
-                onClick={disbursePayment}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md"
-              >
-                Disburse Payment ✓
-              </button>
+              <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
+              <button onClick={disbursePayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment ✓</button>
             </div>
           )}
         </div>
       </div>
     </Modal>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PORTAL 6 — CUSTOMER / INDUSTRIAL CONSIGNEE
+═══════════════════════════════════════════════════════════ */
+function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
+  const [view, setView] = useState<'tracking' | 'alerts' | 'history'>('tracking');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [trips, setTrips] = useState<any[]>([]);
+
+  const companyName = user?.companyName || 'Lafarge Africa Plc';
+
+  useEffect(() => {
+    setTrips(tryParse('bueno_trips', SEED_TRIPS));
+  }, []);
+
+  const myTrips = trips.filter(t => t.company?.toLowerCase().includes(companyName.toLowerCase()) || companyName.toLowerCase().includes(t.company?.toLowerCase()));
+  const activeTrip = myTrips.find(t => t.status === 'IN_TRANSIT' || t.status === 'LOADING' || t.status === 'UNLOADING') || myTrips[0] || SEED_TRIPS[0];
+
+  const navItems = [
+    { key: 'tracking', label: '📍 Live Consignment Tracking' },
+    { key: 'alerts',   label: '🔔 Live Shipment Notifications' },
+    { key: 'history',  label: '📜 Consignment Delivery History' },
+  ];
+
+  return (
+    <Shell user={{ ...user, roleLabel: `Industrial Consignee — ${companyName}` }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+      {view === 'tracking' && (
+        <div className="space-y-6">
+          <Section title={`Live Consignment Tracking — ${companyName}`} subtitle="Real-time satellite GPS telemetry and wagon manifest for your company's freight">
+            {activeTrip ? (
+              <div className="space-y-6">
+                <RailCorridorGpsMap trip={activeTrip} />
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                  <h4 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Manifest Breakdown ({activeTrip.wagonLogs?.length || 23} Wagons)</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    {(activeTrip.wagonLogs || []).map((w: any, idx: number) => (
+                      <div key={w.id || idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                        <span className="text-[10px] font-mono text-slate-400 block">Wagon #{idx + 1}</span>
+                        <span className="font-mono font-black text-slate-900">{w.wagonId}</span>
+                        <span className="block text-[11px] text-slate-600 mt-1">{w.qty || 70} Bags • {w.durationStr || 'Loaded'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">No active consignments currently in transit for {companyName}.</div>
+            )}
+          </Section>
+        </div>
+      )}
+
+      {view === 'alerts' && (
+        <Section title="Live Consignment Notifications" subtitle="Real-time milestone alerts pushed from terminal operations">
+          <div className="space-y-3">
+            {myTrips.map(t => (
+              <div key={t.id} className="bg-white border-l-4 border-amber-500 rounded-2xl p-5 shadow-sm space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-black text-amber-700 text-sm">TRIP #{t.tripId} — {t.company}</span>
+                  <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
+                </div>
+                <p className="text-xs text-slate-800 font-medium">
+                  🚆 Locomotive <b className="font-mono">{t.locomotiveId}</b> carrying <b>{t.quantity} Bags</b> of {t.cargoType} from <b>{sName(t.origin)}</b> to <b>{sName(t.destination)}</b> is currently <b>{t.status}</b>.
+                </p>
+                <p className="text-[10px] font-mono text-slate-400">GPS Signal: Live Satellite Stream • Officer: {t.cargoOfficerName}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {view === 'history' && (
+        <Section title="Consignment Delivery History" subtitle="Completed and audited freight shipments for your account">
+          <TableWrap headers={['Trip ID', 'Origin ➔ Destination', 'Cargo Type', 'Wagons', 'Status', 'Date']}>
+            {myTrips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No consignment history yet.</td></tr>
+              : myTrips.map(t => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-bold text-slate-900">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 text-slate-700">{t.cargoType} <b>({t.quantity} Bags)</b></td>
+                  <td className="p-4 font-mono font-bold text-slate-800">{t.wagonLogs?.length || 23} Wagons</td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'ARRIVED' ? 'green' : 'amber'} /></td>
+                  <td className="p-4 text-slate-400 font-mono">{t.createdAt}</td>
+                </tr>
+              ))}
+          </TableWrap>
+        </Section>
+      )}
+    </Shell>
   );
 }
 
@@ -493,7 +596,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [requests, setRequests]   = useState<any[]>([]);
   const [wagons, setWagons]       = useState<any[]>([]);
 
-  // Modals
   const [createDeal, setCreateDeal]     = useState<any>(null);
   const [addWagonModal, setAddWagonModal] = useState(false);
   const [fundsModal, setFundsModal]     = useState(false);
@@ -517,7 +619,6 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   }, []);
 
   const persist = (key: string, val: any[]) => { localStorage.setItem(key, JSON.stringify(val)); };
-
   const saveDeals    = (v: any[]) => { setDeals(v);    persist('bueno_deals', v);    };
   const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v);    };
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
@@ -534,21 +635,9 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
-    if (wagons.some(w => w.id === wId)) {
-      alert(`Wagon ${wId} is already registered!`);
-      return;
-    }
-    const newWagon = {
-      id: wId,
-      capacity: 70,
-      status: 'AVAILABLE',
-      currentStation: station,
-      addedBy: user.fullName,
-      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    };
-    saveWagons([...wagons, newWagon]);
-    setNewWagonId('');
-    setAddWagonModal(false);
+    if (wagons.some(w => w.id === wId)) { alert(`Wagon ${wId} is already registered!`); return; }
+    saveWagons([...wagons, { id: wId, capacity: 70, status: 'AVAILABLE', currentStation: station, addedBy: user.fullName, createdAt: new Date().toLocaleDateString('en-GB') }]);
+    setNewWagonId(''); setAddWagonModal(false);
   };
 
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -558,54 +647,19 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const num = String(Date.now()).slice(-4);
     const now = new Date();
     const newTrip = {
-      id: `TRIP-${num}`,
-      tripId: num,
-      dealId: createDeal.id,
-      locomotiveId: tripForm.locomotiveId,
-      cargoOfficerName: user.fullName,
-      company: createDeal.company,
-      origin: station,
-      destination: createDeal.destination,
-      cargoType: createDeal.cargoType,
-      quantity: createDeal.quantity,
-      status: 'LOADING',
-      createdAt: now.toLocaleString(),
-      wagonLogs: [{
-        id: `wl_${Date.now()}`,
-        wagonId: firstWagon,
-        startTimestamp: Date.now(),
-        startDate: tripForm.loadingDate,
-        startTime: tripForm.startTime,
-        endDate: null, endTime: null, durationStr: null,
-        qty: tripForm.qty,
-        status: 'LOADED',
-        unloadStatus: 'PENDING_UNLOAD',
-      }],
+      id: `TRIP-${num}`, tripId: num, dealId: createDeal.id, locomotiveId: tripForm.locomotiveId, cargoOfficerName: user.fullName, company: createDeal.company, origin: station, destination: createDeal.destination, cargoType: createDeal.cargoType, quantity: createDeal.quantity, status: 'LOADING', createdAt: now.toLocaleString(),
+      wagonLogs: [{ id: `wl_${Date.now()}`, wagonId: firstWagon, startTimestamp: Date.now(), startDate: tripForm.loadingDate, startTime: tripForm.startTime, endDate: null, endTime: null, durationStr: null, qty: tripForm.qty, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' }],
     };
     saveTrips([newTrip, ...trips]);
     saveDeals(deals.filter(d => d.id !== createDeal.id));
-    setCreateDeal(null);
-    setSelectedTripId(newTrip.id);
-    setView('trips');
+    setCreateDeal(null); setSelectedTripId(newTrip.id); setView('trips');
   };
 
   const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    const req = {
-      id: `REQ-${Date.now()}`,
-      officerName: user.fullName,
-      station,
-      ...fundForm,
-      amount: parseFloat(fundForm.amount) || 0,
-      stage: 'Admin',
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
-      paymentDetails: null,
-    };
+    const req = { id: `REQ-${Date.now()}`, officerName: user.fullName, station, ...fundForm, amount: parseFloat(fundForm.amount) || 0, stage: 'Admin', date: new Date().toLocaleDateString('en-GB'), conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }], paymentDetails: null };
     saveRequests([req, ...requests]);
-    setFundsModal(false);
-    setFundForm({ title: '', amount: '', category: 'Equipment', description: '' });
-    setView('funds');
+    setFundsModal(false); setFundForm({ title: '', amount: '', category: 'Equipment', description: '' }); setView('funds');
   };
 
   const navItems = [
@@ -628,19 +682,16 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           {view === 'deals' && (
             <Section title="Latest Deals (Origin Loading Station)" subtitle={`Deals assigned to ${sName(station)} — click Create Trip to begin wagon loading`}>
               <TableWrap headers={['Deal ID', 'Company', 'Destination', 'Cargo & Qty', 'Action']}>
-                {myDeals.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)} at this time.</td></tr>
-                ) : myDeals.map(d => (
-                  <tr key={d.id} className="hover:bg-amber-50 transition-colors">
-                    <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber || d.id}</td>
-                    <td className="p-4 font-bold text-slate-900">{d.company}</td>
-                    <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
-                    <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
-                    <td className="p-4">
-                      <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button>
-                    </td>
-                  </tr>
-                ))}
+                {myDeals.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)}.</td></tr>
+                  : myDeals.map(d => (
+                    <tr key={d.id} className="hover:bg-amber-50">
+                      <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber || d.id}</td>
+                      <td className="p-4 font-bold text-slate-900">{d.company}</td>
+                      <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
+                      <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
+                      <td className="p-4"><button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button></td>
+                    </tr>
+                  ))}
               </TableWrap>
             </Section>
           )}
@@ -648,76 +699,65 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           {view === 'trips' && (
             <Section title="Trips Created (Wagon Loading)" subtitle="Click a trip to manage loading times for each wagon">
               <TableWrap headers={['Trip ID', 'Cargo Officer', 'Company', 'Route', 'Wagons Loaded', 'Action']}>
-                {myTrips.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips currently in loading stage at {sName(station)}.</td></tr>
-                ) : myTrips.map(t => {
-                  const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                  return (
-                    <tr key={t.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
-                      <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                      <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                      <td className="p-4 text-slate-700">{t.company}</td>
-                      <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
-                      <td className="p-4 font-mono font-bold text-slate-900">{loaded} / 23</td>
-                      <td className="p-4 font-bold text-amber-600">Open Wagon Loading ➔</td>
-                    </tr>
-                  );
-                })}
+                {myTrips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips loading.</td></tr>
+                  : myTrips.map(t => {
+                    const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
+                    return (
+                      <tr key={t.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                        <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                        <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                        <td className="p-4 text-slate-700">{t.company}</td>
+                        <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                        <td className="p-4 font-mono font-bold text-slate-900">{loaded} / 23</td>
+                        <td className="p-4 font-bold text-amber-600">Open Wagon Loading ➔</td>
+                      </tr>
+                    );
+                  })}
               </TableWrap>
             </Section>
           )}
 
           {view === 'in_transit' && (
-            <Section title="Trips on the Move" subtitle="Dispatched trips currently in corridor transit from your station">
+            <Section title="Trips on the Move (Live GPS Corridor Stream)" subtitle="Dispatched trips currently in corridor transit from your station">
               <TableWrap headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}>
-                {myInTransit.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit from {sName(station)}.</td></tr>
-                ) : myInTransit.map(t => (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                    <td className="p-4 font-bold text-slate-900">{t.company}</td>
-                    <td className="p-4 font-mono text-slate-800">{t.locomotiveId}</td>
-                    <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
-                    <td className="p-4"><Badge text={t.status} color="green" /></td>
-                  </tr>
-                ))}
+                {myInTransit.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit.</td></tr>
+                  : myInTransit.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                      <td className="p-4 font-bold text-slate-900">{t.company}</td>
+                      <td className="p-4 font-mono text-slate-800">{t.locomotiveId}</td>
+                      <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                      <td className="p-4"><Badge text={t.status} color="green" /></td>
+                    </tr>
+                  ))}
               </TableWrap>
             </Section>
           )}
 
           {view === 'incoming_unload' && (
-            <Section title="Incoming Consignments (Unloading Station)" subtitle={`Trips arriving at ${sName(station)} — click Unload Consignment to time wagon unloading`}>
+            <Section title="Incoming Consignments (Unloading Station)" subtitle={`Trips arriving at ${sName(station)} — click Unload Consignment`}>
               <TableWrap headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Total Wagons', 'Status', 'Action']}>
-                {myIncomingUnload.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No incoming freight assigned to {sName(station)} for unloading right now.</td></tr>
-                ) : myIncomingUnload.map(t => {
-                  const totalWagons = (t.wagonLogs || []).length;
-                  const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
-                  return (
-                    <tr key={t.id} className="hover:bg-purple-50 transition-colors">
-                      <td className="p-4 font-mono font-black text-amber-700 text-sm">{t.tripId}</td>
-                      <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
-                      <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
-                      <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
-                      <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
-                      <td className="p-4">
-                        <button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Unload Consignment ➔</button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {myIncomingUnload.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No incoming freight.</td></tr>
+                  : myIncomingUnload.map(t => {
+                    const totalWagons = (t.wagonLogs || []).length;
+                    const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                    return (
+                      <tr key={t.id} className="hover:bg-purple-50">
+                        <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                        <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
+                        <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
+                        <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
+                        <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
+                        <td className="p-4"><button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Unload Consignment ➔</button></td>
+                      </tr>
+                    );
+                  })}
               </TableWrap>
             </Section>
           )}
 
           {view === 'wagons' && (
-            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use by any officer are automatically locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
-              <div className="bg-slate-900 text-white rounded-2xl p-5 mb-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                <div><span className="block text-[9px] uppercase font-bold text-slate-400">Total Fleet</span><span className="text-xl font-black font-mono text-white">{wagons.length}</span></div>
-                <div><span className="block text-[9px] uppercase font-bold text-slate-400">Available</span><span className="text-xl font-black font-mono text-emerald-400">{availableWagons.length}</span></div>
-                <div><span className="block text-[9px] uppercase font-bold text-slate-400">In Active Use</span><span className="text-xl font-black font-mono text-amber-400">{occupiedWagonIds.size}</span></div>
-                <div><span className="block text-[9px] uppercase font-bold text-slate-400">System Lock</span><span className="text-xl font-black font-mono text-sky-400">REALTIME</span></div>
-              </div>
+            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
               <TableWrap headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}>
                 {wagons.map(w => {
                   const isOccupied = occupiedWagonIds.has(w.id);
@@ -739,83 +779,57 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           {view === 'funds' && (
             <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
               <TableWrap headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}>
-                {requests.filter(r => r.station === station).length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No fund requests submitted yet.</td></tr>
-                ) : requests.filter(r => r.station === station).map(r => (
-                  <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                    <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                    <td className="p-4"><p className="font-bold text-slate-900">{r.title}</p><p className="text-[10px] text-slate-500">{r.category}</p></td>
-                    <td className="p-4 font-mono font-black text-slate-900">₦{Number(r.amount).toLocaleString()}</td>
-                    <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                    <td className="p-4 font-bold text-amber-600">Inspect Details & Q&A ➔</td>
-                  </tr>
-                ))}
+                {requests.filter(r => r.station === station).length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No fund requests yet.</td></tr>
+                  : requests.filter(r => r.station === station).map(r => (
+                    <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                      <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                      <td className="p-4"><p className="font-bold text-slate-900">{r.title}</p><p className="text-[10px] text-slate-500">{r.category}</p></td>
+                      <td className="p-4 font-mono font-black text-slate-900">₦{Number(r.amount).toLocaleString()}</td>
+                      <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
+                      <td className="p-4 font-bold text-amber-600">Inspect Details & Q&A ➔</td>
+                    </tr>
+                  ))}
               </TableWrap>
             </Section>
           )}
         </>
       )}
 
-      {/* DETAILED REQUEST MODAL */}
-      {selectedReq && (
-        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
-      )}
-
+      {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
       {addWagonModal && (
         <Modal onClose={() => setAddWagonModal(false)}>
           <div className="p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon</h3>
-            </div>
+            <h3 className="text-lg font-black text-slate-900">Register New Wagon</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
-              <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button>
-              </div>
+              <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
       )}
-
       {createDeal && (
         <Modal onClose={() => setCreateDeal(null)}>
           <div className="p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Trip Creation Form</h3>
-            </div>
+            <h3 className="text-lg font-black text-slate-900">Trip Creation Form</h3>
             <form onSubmit={handleCreateTrip} className="space-y-4">
               <div><label className={lc}>Locomotive ID *</label><input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} /></div>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button>
-              </div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button></div>
             </form>
           </div>
         </Modal>
       )}
-
       {fundsModal && (
         <Modal onClose={() => setFundsModal(false)}>
           <div className="p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Request Funds for Station</h3>
-            </div>
+            <h3 className="text-lg font-black text-slate-900">Request Funds for Station</h3>
             <form onSubmit={handleFundRequest} className="space-y-4">
               <div><label className={lc}>Purpose / Title *</label><input required value={fundForm.title} onChange={e => setFundForm({ ...fundForm, title: e.target.value })} placeholder="e.g. Loading Bay Crane Slings" className={ic} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lc}>Amount (₦) *</label><input required type="number" value={fundForm.amount} onChange={e => setFundForm({ ...fundForm, amount: e.target.value })} className={`${ic} font-mono`} placeholder="85000" /></div>
-                <div><label className={lc}>Category</label>
-                  <select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>
-                    {['Equipment', 'Fuel', 'Repairs', 'Maintenance', 'Emergency Purchase', 'Operational Expenses', 'Other'].map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
+                <div><label className={lc}>Category</label><select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>{['Equipment', 'Fuel', 'Repairs', 'Maintenance', 'Emergency Purchase', 'Operational Expenses', 'Other'].map(c => <option key={c}>{c}</option>)}</select></div>
               </div>
-              <div><label className={lc}>Description *</label><textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Full justification for the request..." /></div>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Submit Request ➔</button>
-              </div>
+              <div><label className={lc}>Description *</label><textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Full justification..." /></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Submit Request ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -930,27 +944,17 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
       </div>
 
-      {/* FIXED GPS TRACKER ACTIVATION CONTROL PANEL */}
       <div className="bg-slate-900 border-2 border-amber-400 text-white rounded-2xl p-5 shadow-2xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-xs font-black uppercase tracking-wider text-amber-400 font-mono">
-                GPS HARDWARE TELEMETRY BACKEND — READY
-              </p>
+              <p className="text-xs font-black uppercase tracking-wider text-amber-400 font-mono">GPS HARDWARE TELEMETRY BACKEND — READY</p>
             </div>
-            <p className="text-base font-black text-white mt-1">
-              Locomotive: <span className="font-mono text-emerald-300">{trip.locomotiveId}</span>
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Clicking 'Start Trip & Activate GPS' connects directly to GPS hardware backend & launches corridor satellite tracking.
-            </p>
+            <p className="text-base font-black text-white mt-1">Locomotive: <span className="font-mono text-emerald-300">{trip.locomotiveId}</span></p>
+            <p className="text-xs text-slate-400 mt-0.5">Clicking 'Start Trip & Activate GPS' connects directly to GPS hardware backend & launches corridor satellite tracking.</p>
           </div>
-          <button
-            onClick={dispatchAndActivateGps}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2"
-          >
+          <button onClick={dispatchAndActivateGps} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2">
             <span>🚀 Start Trip & Activate Live GPS Tracker ➔</span>
           </button>
         </div>
@@ -1025,9 +1029,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
 
         {!active && !allDone && loaded > 0 && !adding && (
-          <button onClick={() => setAdding(true)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl">
-            + Add Another Wagon ({loaded + 1} / 23)
-          </button>
+          <button onClick={() => setAdding(true)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl">+ Add Another Wagon ({loaded + 1} / 23)</button>
         )}
 
         {allDone && (
@@ -1163,30 +1165,11 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
                   <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
                   <p className="text-[11px] text-slate-500 mt-0.5">Loaded Bags: <b className="text-slate-800">{w.qty || 70}</b> | Origin Duration: {w.durationStr || '—'}</p>
                 </div>
-
                 <div className="font-mono text-slate-600 text-right">
-                  {isUnloaded ? (
-                    <div>
-                      <p className="text-emerald-700 font-bold">Unloaded in {w.unloadDurationStr || '—'}</p>
-                      <p className="text-[10px] text-slate-400">{w.unloadStartTime} ➔ {w.unloadEndTime}</p>
-                    </div>
-                  ) : isUnloading ? (
-                    <p className="text-purple-700 font-bold animate-pulse">Unloading in progress...</p>
-                  ) : (
-                    <p className="text-slate-400">Ready to unload</p>
-                  )}
+                  {isUnloaded ? <div><p className="text-emerald-700 font-bold">Unloaded in {w.unloadDurationStr || '—'}</p><p className="text-[10px] text-slate-400">{w.unloadStartTime} ➔ {w.unloadEndTime}</p></div> : isUnloading ? <p className="text-purple-700 font-bold animate-pulse">Unloading in progress...</p> : <p className="text-slate-400">Ready to unload</p>}
                 </div>
-
                 <div>
-                  {isUnloaded ? (
-                    <Badge text="UNLOADED ✓" color="green" />
-                  ) : isUnloading ? (
-                    <button onClick={() => stopUnloading(w.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Stop Unload ✓</button>
-                  ) : !activeUnload ? (
-                    <button onClick={() => startUnloading(w.wagonId)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Start Unload ➔</button>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">Waiting for active wagon</span>
-                  )}
+                  {isUnloaded ? <Badge text="UNLOADED ✓" color="green" /> : isUnloading ? <button onClick={() => stopUnloading(w.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Stop Unload ✓</button> : !activeUnload ? <button onClick={() => startUnloading(w.wagonId)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Start Unload ➔</button> : <span className="text-[10px] text-slate-400">Waiting for active wagon</span>}
                 </div>
               </div>
             );
@@ -1242,35 +1225,21 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
-    if (wagons.some(w => w.id === wId)) {
-      alert(`Wagon ${wId} is already registered!`);
-      return;
-    }
-    const newWagon = {
-      id: wId,
-      capacity: 70,
-      status: 'AVAILABLE',
-      currentStation: newWagonStation,
-      addedBy: user.fullName,
-      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    };
-    saveWagons([...wagons, newWagon]);
-    setNewWagonId('');
-    setAddWagonModal(false);
+    if (wagons.some(w => w.id === wId)) { alert(`Wagon ${wId} is already registered!`); return; }
+    saveWagons([...wagons, { id: wId, capacity: 70, status: 'AVAILABLE', currentStation: newWagonStation, addedBy: user.fullName, createdAt: new Date().toLocaleDateString('en-GB') }]);
+    setNewWagonId(''); setAddWagonModal(false);
   };
 
   const handleCreateDeal = (e: React.FormEvent) => {
     e.preventDefault();
     const num = String(deals.length + 1).padStart(3, '0');
-    const newDeal = { id: `DEAL-${num}`, dealNumber: num, ...dealForm, quantity: dealForm.quantity, createdAt: new Date().toLocaleString(), createdBy: user.fullName };
-    saveDeals([newDeal, ...deals]);
-    setCreateDealModal(false);
-    setDealForm({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
+    saveDeals([{ id: `DEAL-${num}`, dealNumber: num, ...dealForm, quantity: dealForm.quantity, createdAt: new Date().toLocaleString(), createdBy: user.fullName }, ...deals]);
+    setCreateDealModal(false); setDealForm({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
   };
 
   const navItems = [
     { key: 'deals',    label: '📋 Manage Deals' },
-    { key: 'trips',    label: '🚆 All Active Trips' },
+    { key: 'trips',    label: '🚆 All Active Trips & GPS' },
     { key: 'wagons',   label: `🚃 Wagon Fleet Inventory (${wagons.length})` },
     { key: 'requests', label: '📝 Fund Requests (Review & Approve)' },
   ];
@@ -1278,135 +1247,102 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   return (
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'deals' && (
-        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations. Cargo Officers will see them under 'Latest Deals'." action={<button onClick={() => setCreateDealModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Create New Deal</button>}>
+        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Create New Deal</button>}>
           <TableWrap headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created']}>
-            {deals.length === 0 ? (
-              <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No deals created yet. Click "Create New Deal" to begin.</td></tr>
-            ) : deals.map(d => (
-              <tr key={d.id} className="hover:bg-slate-50">
-                <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber}</td>
-                <td className="p-4 font-bold text-slate-900">{d.company}</td>
-                <td className="p-4 font-semibold text-slate-700">{sName(d.loadingStation)}</td>
-                <td className="p-4 font-semibold text-slate-700">{sName(d.destination)}</td>
-                <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
-                <td className="p-4 text-slate-500 font-mono text-[11px]">{d.createdAt}</td>
-              </tr>
-            ))}
-          </TableWrap>
-        </Section>
-      )}
-
-      {view === 'trips' && (
-        <Section title="All Active Trips" subtitle="Overview of all trips created across all terminals">
-          <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons', 'Status']}>
-            {trips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips yet.</td></tr>
-              : trips.map(t => {
-                const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                    <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                    <td className="p-4 text-slate-700">{t.company}</td>
-                    <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
-                    <td className="p-4 font-mono font-bold">{loaded} / 23</td>
-                    <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
-                  </tr>
-                );
-              })}
-          </TableWrap>
-        </Section>
-      )}
-
-      {view === 'wagons' && (
-        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons and live usage status" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
-          <TableWrap headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}>
-            {wagons.map(w => {
-              const isOccupied = occupiedWagonIds.has(w.id);
-              return (
-                <tr key={w.id} className="hover:bg-slate-50 text-xs">
-                  <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
-                  <td className="p-4 font-mono text-slate-700">{w.capacity || 70} Bags</td>
-                  <td className="p-4"><Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} /></td>
-                  <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || 'EWK')}</td>
-                  <td className="p-4 text-slate-600">{w.addedBy || 'Admin'}</td>
-                  <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
-                </tr>
-              );
-            })}
-          </TableWrap>
-        </Section>
-      )}
-
-      {view === 'requests' && (
-        <Section title="Fund Requests — Admin Review" subtitle="Click any request to view full details, ask questions, or approve to Operations Head">
-          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
-            {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests yet.</td></tr>
-              : requests.map(r => (
-                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                  <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                  <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
-                  <td className="p-4 font-bold text-slate-900">{r.title}</td>
-                  <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
-                  <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4 font-bold text-sky-600">Inspect & Q&A / Approve ➔</td>
+            {deals.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No deals created yet.</td></tr>
+              : deals.map(d => (
+                <tr key={d.id} className="hover:bg-slate-50">
+                  <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber}</td>
+                  <td className="p-4 font-bold text-slate-900">{d.company}</td>
+                  <td className="p-4 font-semibold text-slate-700">{sName(d.loadingStation)}</td>
+                  <td className="p-4 font-semibold text-slate-700">{sName(d.destination)}</td>
+                  <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
+                  <td className="p-4 text-slate-500 font-mono text-[11px]">{d.createdAt}</td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
       )}
 
-      {selectedReq && (
-        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
+      {view === 'trips' && (
+        <Section title="All Active Trips (Corridor GPS Satellite Map)" subtitle="High-precision interactive map of all active rail corridor trips">
+          <div className="space-y-6">
+            <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
+            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons', 'Status']}>
+              {trips.map(t => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                  <td className="p-4 text-slate-700">{t.company}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} Wagons</td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                </tr>
+              ))}
+            </TableWrap>
+          </div>
+        </Section>
       )}
 
+      {view === 'wagons' && (
+        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons" action={<button onClick={() => setAddWagonModal(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+          <TableWrap headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}>
+            {wagons.map(w => (
+              <tr key={w.id} className="hover:bg-slate-50 text-xs">
+                <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
+                <td className="p-4 font-mono text-slate-700">{w.capacity || 70} Bags</td>
+                <td className="p-4"><Badge text={occupiedWagonIds.has(w.id) ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={occupiedWagonIds.has(w.id) ? 'amber' : 'green'} /></td>
+                <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || 'EWK')}</td>
+                <td className="p-4 text-slate-600">{w.addedBy || 'Admin'}</td>
+                <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
+              </tr>
+            ))}
+          </TableWrap>
+        </Section>
+      )}
+
+      {view === 'requests' && (
+        <Section title="Fund Requests — Admin Review" subtitle="Click any request to inspect & ask questions">
+          <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
+            {requests.map(r => (
+              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
+                <td className="p-4 font-bold text-slate-900">{r.title}</td>
+                <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
+                <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
+                <td className="p-4 font-bold text-sky-600">Inspect & Q&A / Approve ➔</td>
+              </tr>
+            ))}
+          </TableWrap>
+        </Section>
+      )}
+
+      {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
       {addWagonModal && (
         <Modal onClose={() => setAddWagonModal(false)}>
           <div className="p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Register New Wagon (Admin)</h3>
-            </div>
+            <h3 className="text-lg font-black text-slate-900">Register New Wagon (Admin)</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
-              <div><label className={lc}>Wagon ID (e.g. WG047) *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} font-mono uppercase`} /></div>
-              <div><label className={lc}>Initial Station Location</label>
-                <select value={newWagonStation} onChange={e => setNewWagonStation(e.target.value)} className={ic}>
-                  {Object.entries(STATIONS).map(([c, n]) => <option key={c} value={c}>{n}</option>)}
-                </select>
-              </div>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button>
-              </div>
+              <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
       )}
-
       {createDealModal && (
         <Modal onClose={() => setCreateDealModal(false)}>
           <div className="p-6 space-y-4">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Create New Deal</h3>
-            </div>
+            <h3 className="text-lg font-black text-slate-900">Create New Deal</h3>
             <form onSubmit={handleCreateDeal} className="space-y-4">
-              <div><label className={lc}>Company / Client Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Lafarge Africa Plc" className={ic} /></div>
+              <div><label className={lc}>Company Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Lafarge Africa Plc" className={ic} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={lc}>Loading Station (Origin)</label>
-                  <select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>
-                    {Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                  </select>
-                </div>
-                <div><label className={lc}>Destination</label>
-                  <select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>
-                    {Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                  </select>
-                </div>
-                <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement (50kg bags)" className={ic} /></div>
-                <div><label className={lc}>Total Quantity (Bags/MT)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
+                <div><label className={lc}>Loading Station</label><select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></div>
+                <div><label className={lc}>Destination</label><select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></div>
+                <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement" className={ic} /></div>
+                <div><label className={lc}>Quantity (Bags)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
               </div>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Create Deal ➔</button>
-              </div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-amber-500 text-slate-950 font-bold text-xs px-6 py-2.5 rounded-xl">Create Deal ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -1433,54 +1369,50 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'trips',    label: '🚆 All Trips Overview' },
-    { key: 'requests', label: '📝 Fund Requests (Review & Approve)' },
+    { key: 'trips',    label: '🚆 Corridor Live GPS Command Map' },
+    { key: 'requests', label: '📝 Fund Requests (Ops Review)' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Head of Operations' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'trips' && (
-        <Section title="All Trips — Operations Overview" subtitle="Network-wide trip and loading status">
-          <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
-            {trips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips yet.</td></tr>
-              : trips.map(t => {
-                const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                    <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                    <td className="p-4 text-slate-700">{t.company}</td>
-                    <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
-                    <td className="p-4 font-mono font-bold">{loaded} / 23</td>
-                    <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
-                  </tr>
-                );
-              })}
-          </TableWrap>
-        </Section>
+        <div className="space-y-6">
+          <Section title="Network Operations Command — Corridor Live GPS Map" subtitle="High-precision interactive train telemetry map across all Nigerian rail corridors">
+            <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
+            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
+              {trips.map(t => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                  <td className="p-4 text-slate-700">{t.company}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} / 23</td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                </tr>
+              ))}
+            </TableWrap>
+          </Section>
+        </div>
       )}
 
       {view === 'requests' && (
         <Section title="Fund Requests — Operations Approval" subtitle="Click any request to view details, ask questions, or approve to MD/CEO">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
-            {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests.</td></tr>
-              : requests.map(r => (
-                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                  <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                  <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
-                  <td className="p-4 font-bold text-slate-900">{r.title}</td>
-                  <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
-                  <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4 font-bold text-indigo-600">Inspect & Q&A / Approve ➔</td>
-                </tr>
-              ))}
+            {requests.map(r => (
+              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
+                <td className="p-4 font-bold text-slate-900">{r.title}</td>
+                <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
+                <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
+                <td className="p-4 font-bold text-indigo-600">Inspect & Q&A / Approve ➔</td>
+              </tr>
+            ))}
           </TableWrap>
         </Section>
       )}
 
-      {selectedReq && (
-        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
-      )}
+      {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
     </Shell>
   );
 }
@@ -1503,54 +1435,50 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'trips',    label: '🚆 All Trips' },
-    { key: 'requests', label: '📝 Fund Requests (Executive Clearance)' },
+    { key: 'trips',    label: '🚆 Executive Corridor GPS Map' },
+    { key: 'requests', label: '📝 Fund Requests (CEO Clearance)' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Managing Director / CEO' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'trips' && (
-        <Section title="All Trips — Executive Overview">
-          <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
-            {trips.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips yet.</td></tr>
-              : trips.map(t => {
-                const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
-                    <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                    <td className="p-4 text-slate-700">{t.company}</td>
-                    <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
-                    <td className="p-4 font-mono font-bold">{loaded} / 23</td>
-                    <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
-                  </tr>
-                );
-              })}
-          </TableWrap>
-        </Section>
+        <div className="space-y-6">
+          <Section title="Executive Overview — Corridor GPS Live Satellite Telemetry" subtitle="High-precision interactive train movement map across all Nigerian rail corridors">
+            <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
+            <TableWrap headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}>
+              {trips.map(t => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
+                  <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                  <td className="p-4 text-slate-700">{t.company}</td>
+                  <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
+                  <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} / 23</td>
+                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'amber'} /></td>
+                </tr>
+              ))}
+            </TableWrap>
+          </Section>
+        </div>
       )}
 
       {view === 'requests' && (
-        <Section title="Fund Requests — CEO Executive Clearance" subtitle="Click any request to view full details, ask questions, or grant executive approval">
+        <Section title="Fund Requests — CEO Executive Clearance" subtitle="Click any request to inspect details, ask questions, or clear for payment">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Action']}>
-            {requests.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No requests.</td></tr>
-              : requests.map(r => (
-                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                  <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                  <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
-                  <td className="p-4 font-bold text-slate-900">{r.title}</td>
-                  <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
-                  <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4 font-bold text-purple-600">Inspect & Q&A / Clear ➔</td>
-                </tr>
-              ))}
+            {requests.map(r => (
+              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
+                <td className="p-4 font-bold text-slate-900">{r.title}</td>
+                <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
+                <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
+                <td className="p-4 font-bold text-purple-600">Inspect & Q&A / Clear ➔</td>
+              </tr>
+            ))}
           </TableWrap>
         </Section>
       )}
 
-      {selectedReq && (
-        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
-      )}
+      {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
     </Shell>
   );
 }
@@ -1580,20 +1508,19 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
   return (
     <Shell user={{ ...user, roleLabel: 'Head of Finance / Accountant' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'requests' && (
-        <Section title="Approved Requests — Disburse Payment" subtitle="Click any request to view full details, ask questions, or enter payment reference & disburse">
+        <Section title="Approved Requests — Disburse Payment" subtitle="Click any request to view full details, ask questions, or disburse">
           <TableWrap headers={['Req ID', 'Officer / Station', 'Title', 'Amount (₦)', 'Stage', 'Payment Reference', 'Action']}>
-            {requests.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-xs">No requests yet.</td></tr>
-              : requests.map(r => (
-                <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                  <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                  <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
-                  <td className="p-4 font-bold text-slate-900">{r.title}</td>
-                  <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
-                  <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                  <td className="p-4 font-mono text-slate-600">{r.paymentDetails?.ref || '—'}</td>
-                  <td className="p-4 font-bold text-emerald-600">Inspect & Q&A / Disburse ➔</td>
-                </tr>
-              ))}
+            {requests.map(r => (
+              <tr key={r.id} className="hover:bg-amber-50 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4"><p className="font-bold text-slate-900">{r.officerName}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
+                <td className="p-4 font-bold text-slate-900">{r.title}</td>
+                <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
+                <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
+                <td className="p-4 font-mono text-slate-600">{r.paymentDetails?.ref || '—'}</td>
+                <td className="p-4 font-bold text-emerald-600">Inspect & Q&A / Disburse ➔</td>
+              </tr>
+            ))}
           </TableWrap>
         </Section>
       )}
@@ -1601,25 +1528,22 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
       {view === 'records' && (
         <Section title="Financial Transaction Records" subtitle="Permanent ledger of all disbursed payments">
           <TableWrap headers={['Record ID', 'Request ID', 'Beneficiary / Station', 'Amount (₦)', 'Date', 'Reference', 'Accountant']}>
-            {records.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-xs">No records yet.</td></tr>
-              : records.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
-                  <td className="p-4 font-mono font-bold text-slate-900">{r.reqId}</td>
-                  <td className="p-4"><p className="font-bold text-slate-900">{r.beneficiary}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
-                  <td className="p-4 font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</td>
-                  <td className="p-4 font-mono text-slate-600">{r.date}</td>
-                  <td className="p-4 font-mono font-bold text-slate-800">{r.ref}</td>
-                  <td className="p-4 text-slate-700 font-semibold">{r.accountant}</td>
-                </tr>
-              ))}
+            {records.map(r => (
+              <tr key={r.id} className="hover:bg-slate-50">
+                <td className="p-4 font-mono font-black text-amber-700">{r.id}</td>
+                <td className="p-4 font-mono font-bold text-slate-900">{r.reqId}</td>
+                <td className="p-4"><p className="font-bold text-slate-900">{r.beneficiary}</p><p className="text-[10px] text-slate-500">{sName(r.station)}</p></td>
+                <td className="p-4 font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</td>
+                <td className="p-4 font-mono text-slate-600">{r.date}</td>
+                <td className="p-4 font-mono font-bold text-slate-800">{r.ref}</td>
+                <td className="p-4 text-slate-700 font-semibold">{r.accountant}</td>
+              </tr>
+            ))}
           </TableWrap>
         </Section>
       )}
 
-      {selectedReq && (
-        <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />
-      )}
+      {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
     </Shell>
   );
 }
@@ -1697,6 +1621,7 @@ export default function Dashboard() {
   if (role === 'HEAD_OF_OPERATIONS') return <OpsPortal           user={user} onSignOut={signOut} />;
   if (role === 'CEO' || role === 'MD') return <CEOPortal          user={user} onSignOut={signOut} />;
   if (role === 'HEAD_OF_FINANCE')    return <AccountantPortal    user={user} onSignOut={signOut} />;
+  if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-8 text-white text-center">
