@@ -19,7 +19,26 @@ const MASTER_WAGONS = Array.from({ length: 46 }, (_, i) => `WG${String(i + 1).pa
 
 const SEED_DEALS: any[] = [];   // Admin creates deals — starts empty
 
-const SEED_TRIPS: any[] = [];
+const SEED_TRIPS: any[] = [
+  {
+    id: 'TRIP-0024',
+    tripId: '0024',
+    dealId: 'DEAL-001',
+    locomotiveId: 'L2205 (General Electric)',
+    cargoOfficerName: 'Ade Bello',
+    company: 'Lafarge Africa Plc',
+    origin: 'EWK',
+    destination: 'MNY',
+    cargoType: 'Elephant Cement (50kg bags)',
+    quantity: 1600,
+    status: 'IN_TRANSIT',
+    createdAt: '31 Jul 2026 09:00 AM',
+    wagonLogs: [
+      { id: 'wl_1', wagonId: 'WG001', startTimestamp: Date.now() - 3600000 * 5, startDate: '31 Jul 2026', startTime: '09:10 AM', endDate: '31 Jul 2026', endTime: '09:40 AM', durationStr: '30 Minutes', qty: 70, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' },
+      { id: 'wl_2', wagonId: 'WG002', startTimestamp: Date.now() - 3600000 * 4, startDate: '31 Jul 2026', startTime: '09:42 AM', endDate: '31 Jul 2026', endTime: '10:18 AM', durationStr: '36 Minutes', qty: 70, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' },
+    ],
+  },
+];
 
 const SEED_REQUESTS: any[] = [
   {
@@ -51,6 +70,7 @@ function Badge({ text, color }: { text: string; color?: string }) {
     amber: 'bg-amber-50 text-amber-700 border-amber-200',
     green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     blue:  'bg-sky-50 text-sky-700 border-sky-200',
+    purple:'bg-purple-50 text-purple-700 border-purple-200',
     red:   'bg-rose-50 text-rose-700 border-rose-200',
     slate: 'bg-slate-100 text-slate-700 border-slate-200',
   };
@@ -96,7 +116,7 @@ function LiveTimer({ ts }: { ts: number }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PORTAL SHELLS  (logo + nav + sign-out)
+   PORTAL SHELLS (logo + nav + sign-out)
 ═══════════════════════════════════════════════════════════ */
 function Shell({
   user, navItems, activeKey, onNav, children, onSignOut, menuOpen, setMenuOpen,
@@ -180,9 +200,10 @@ function Shell({
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
 function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'funds'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'funds'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
 
   const [deals, setDeals]         = useState<any[]>([]);
   const [trips, setTrips]         = useState<any[]>([]);
@@ -214,10 +235,13 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v);    };
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
 
-  // Only show deals assigned to this officer's station
-  const myDeals    = deals.filter(d => d.loadingStation === station);
-  const myTrips    = trips.filter(t => t.origin === station && t.status === 'LOADING');
-  const myInTransit = trips.filter(t => t.origin === station && (t.status === 'IN_TRANSIT' || t.status === 'ARRIVED'));
+  // Origin Station Logic (Loading Station)
+  const myDeals       = deals.filter(d => d.loadingStation === station);
+  const myTrips       = trips.filter(t => t.origin === station && t.status === 'LOADING');
+  const myInTransit   = trips.filter(t => t.origin === station && t.status === 'IN_TRANSIT');
+
+  // Destination Station Logic (Unloading Station)
+  const myIncomingUnload = trips.filter(t => t.destination === station && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
 
   /* ── Create Trip ── */
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -246,7 +270,8 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         startTime: tripForm.startTime,
         endDate: null, endTime: null, durationStr: null,
         qty: tripForm.qty,
-        status: 'LOADING',
+        status: 'LOADED',
+        unloadStatus: 'PENDING_UNLOAD',
       }],
     };
     const updatedTrips = [newTrip, ...trips];
@@ -279,16 +304,17 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   const navItems = [
-    { key: 'deals',      label: '📋 Latest Deals' },
-    { key: 'trips',      label: '🚆 Trips Created' },
-    { key: 'in_transit', label: '🚚 Trips on the Move' },
-    { key: 'funds',      label: '💵 Request Funds' },
+    { key: 'deals',           label: '📋 Latest Deals (Loading)' },
+    { key: 'trips',           label: '🚆 Trips Created (Loading)' },
+    { key: 'in_transit',      label: '🚚 Trips on the Move' },
+    { key: 'incoming_unload', label: '📦 Incoming Consignments (Unload)' },
+    { key: 'funds',           label: '💵 Request Funds' },
   ];
 
   return (
-    <Shell user={{ ...user, roleLabel: `Cargo Officer — ${sName(station)}` }} navItems={navItems} activeKey={view} onNav={k => { setView(k as any); setSelectedTripId(null); }} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+    <Shell user={{ ...user, roleLabel: `Cargo Officer — ${sName(station)}` }} navItems={navItems} activeKey={view} onNav={k => { setView(k as any); setSelectedTripId(null); setSelectedUnloadTripId(null); }} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
 
-      {/* ── TRIP DETAIL (WAGON LOADING) ── */}
+      {/* ── TRIP DETAIL (WAGON LOADING AT ORIGIN) ── */}
       {selectedTripId ? (
         <TripWagonView
           tripId={selectedTripId}
@@ -296,14 +322,23 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           onBack={() => setSelectedTripId(null)}
           onSaveTrips={saveTrips}
         />
+      ) : selectedUnloadTripId ? (
+        /* ── TRIP UNLOAD DETAIL (UNLOADING AT DESTINATION) ── */
+        <TripUnloadWagonView
+          tripId={selectedUnloadTripId}
+          trips={trips}
+          user={user}
+          onBack={() => setSelectedUnloadTripId(null)}
+          onSaveTrips={saveTrips}
+        />
       ) : (
         <>
-          {/* VIEW: Latest Deals */}
+          {/* VIEW: Latest Deals (Origin Loading) */}
           {view === 'deals' && (
-            <Section title="Latest Deals" subtitle={`Deals assigned to ${sName(station)} — click Create Trip to begin loading`}>
+            <Section title="Latest Deals (Origin Loading Station)" subtitle={`Deals assigned to ${sName(station)} — click Create Trip to begin wagon loading`}>
               <TableWrap headers={['Deal ID', 'Company', 'Destination', 'Cargo & Qty', 'Action']}>
                 {myDeals.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No deals assigned to {sName(station)} yet. The Admin Officer will create and assign deals.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No loading deals assigned to {sName(station)} at this time. Admin Officer will create and assign deals.</td></tr>
                 ) : myDeals.map(d => (
                   <tr key={d.id} className="hover:bg-amber-50 transition-colors">
                     <td className="p-4 font-mono font-black text-amber-700">{d.dealNumber || d.id}</td>
@@ -322,12 +357,12 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </Section>
           )}
 
-          {/* VIEW: Trips Created */}
+          {/* VIEW: Trips Created (Origin Loading) */}
           {view === 'trips' && (
-            <Section title="Trips Created" subtitle="Click a trip to continue wagon loading">
+            <Section title="Trips Created (Wagon Loading)" subtitle="Click a trip to manage loading times for each wagon">
               <TableWrap headers={['Trip ID', 'Cargo Officer', 'Company', 'Route', 'Wagons Loaded', 'Action']}>
                 {myTrips.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips in loading stage yet.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips currently in loading stage at {sName(station)}.</td></tr>
                 ) : myTrips.map(t => {
                   const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
                   return (
@@ -337,7 +372,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <td className="p-4 text-slate-700">{t.company}</td>
                       <td className="p-4 text-slate-600">{sName(t.origin)} → {sName(t.destination)}</td>
                       <td className="p-4 font-mono font-bold text-slate-900">{loaded} / 23</td>
-                      <td className="p-4 font-bold text-amber-600">Open ➔</td>
+                      <td className="p-4 font-bold text-amber-600">Open Wagon Loading ➔</td>
                     </tr>
                   );
                 })}
@@ -347,10 +382,10 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
           {/* VIEW: Trips on the Move */}
           {view === 'in_transit' && (
-            <Section title="Trips on the Move" subtitle="Dispatched trips currently in corridor transit">
+            <Section title="Trips on the Move" subtitle="Dispatched trips currently in corridor transit from your station">
               <TableWrap headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}>
                 {myInTransit.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips in transit from {sName(station)} yet.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit from {sName(station)}.</td></tr>
                 ) : myInTransit.map(t => (
                   <tr key={t.id} className="hover:bg-slate-50">
                     <td className="p-4 font-mono font-black text-amber-700">{t.tripId}</td>
@@ -360,6 +395,37 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <td className="p-4"><Badge text={t.status} color="green" /></td>
                   </tr>
                 ))}
+              </TableWrap>
+            </Section>
+          )}
+
+          {/* VIEW: Incoming Consignments (Destination Unloading Station) */}
+          {view === 'incoming_unload' && (
+            <Section title="Incoming Consignments (Unloading Station)" subtitle={`Trips arriving at ${sName(station)} — click Unload Consignment to time wagon unloading`}>
+              <TableWrap headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Total Wagons', 'Status', 'Action']}>
+                {myIncomingUnload.length === 0 ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No incoming freight assigned to {sName(station)} for unloading right now.</td></tr>
+                ) : myIncomingUnload.map(t => {
+                  const totalWagons = (t.wagonLogs || []).length;
+                  const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                  return (
+                    <tr key={t.id} className="hover:bg-purple-50 transition-colors">
+                      <td className="p-4 font-mono font-black text-amber-700 text-sm">{t.tripId}</td>
+                      <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
+                      <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
+                      <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
+                      <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
+                      <td className="p-4">
+                        <button
+                          onClick={() => setSelectedUnloadTripId(t.id)}
+                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm"
+                        >
+                          Unload Consignment ➔
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </TableWrap>
             </Section>
           )}
@@ -452,7 +518,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 }
 
 /* ─────────────────────────────────────────────────────────
-   WAGON LOADING VIEW (inside Cargo Officer portal)
+   WAGON LOADING VIEW (at Origin Loading Station)
 ───────────────────────────────────────────────────────── */
 function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
   const trip = trips.find((t: any) => t.id === tripId);
@@ -482,7 +548,7 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
     const log = { id: `wl_${Date.now()}`, wagonId: wId, startTimestamp: Date.now(),
       startDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       startTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      endDate: null, endTime: null, durationStr: null, qty, status: 'LOADING' };
+      endDate: null, endTime: null, durationStr: null, qty, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' };
     commitLogs([...logs, log]);
     setAdding(false); setSelWagon('');
   };
@@ -512,7 +578,7 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
 
       {/* Trip summary */}
       <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 mb-3">TRIP {trip.tripId} — ONGOING DETAILS</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 mb-3">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {[['Locomotive ID', trip.locomotiveId], ['Cargo Officer', trip.cargoOfficerName], ['Loading Station', trip.origin ? sName(trip.origin) : ''], ['Destination', trip.destination ? sName(trip.destination) : ''], ['Company', trip.company], ['Cargo Type', trip.cargoType], ['Quantity', `${trip.quantity} Bags`], ['Created', trip.createdAt || '—']].map(([l, v]) => (
             <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold">{v}</span></div>
@@ -601,6 +667,173 @@ function TripWagonView({ tripId, trips, onBack, onSaveTrips }: any) {
             <p className="text-sm font-bold text-emerald-300">✅ All 23 Wagons Loaded — Train is Ready to Move!</p>
             <button onClick={dispatch} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm py-3.5 rounded-xl">
               Start Trip / Dispatch Journey ➔
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   WAGON UNLOADING VIEW (at Destination Unloading Station)
+───────────────────────────────────────────────────────── */
+function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) {
+  const trip = trips.find((t: any) => t.id === tripId);
+  const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
+
+  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-amber-600">Go back</button></div>;
+
+  const total = logs.length || 23;
+  const unloaded = logs.filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+  const allUnloaded = unloaded >= total && total > 0;
+  const activeUnload = logs.find((w: any) => w.unloadStatus === 'UNLOADING');
+  const pct = Math.min(100, Math.round((unloaded / total) * 100));
+
+  const commitLogs = (updated: any[], statusOverride?: string) => {
+    setLogs(updated);
+    onSaveTrips(trips.map((t: any) => t.id === trip.id ? { ...t, status: statusOverride || (allUnloaded ? 'ARRIVED' : 'UNLOADING'), wagonLogs: updated } : t));
+  };
+
+  const startUnloading = (wagonId: string) => {
+    const now = new Date();
+    const updated = logs.map((w: any) => {
+      if (w.wagonId !== wagonId) return w;
+      return {
+        ...w,
+        unloadStartTimestamp: Date.now(),
+        unloadStartDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        unloadStartTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        unloadStatus: 'UNLOADING',
+      };
+    });
+    commitLogs(updated, 'UNLOADING');
+  };
+
+  const stopUnloading = (wagonId: string) => {
+    const now = new Date();
+    const updated = logs.map((w: any) => {
+      if (w.wagonId !== wagonId) return w;
+      const mins = Math.round((Date.now() - (w.unloadStartTimestamp || Date.now())) / 60000);
+      return {
+        ...w,
+        unloadEndDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        unloadEndTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        unloadDurationStr: `${mins || 1} Minutes`,
+        unloadStatus: 'UNLOADED',
+      };
+    });
+    commitLogs(updated);
+  };
+
+  const completeTrip = () => {
+    onSaveTrips(trips.map((t: any) => t.id === trip.id ? { ...t, status: 'ARRIVED', wagonLogs: logs } : t));
+    onBack();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
+        <button onClick={onBack} className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl">← Back to Incoming Consignments</button>
+        <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">{unloaded} / {total} Unloaded</span>
+      </div>
+
+      {/* Trip summary */}
+      <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400 mb-3">TRIP {trip.tripId} — DESTINATION UNLOADING DETAILS</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          {[['Locomotive ID', trip.locomotiveId], ['Origin Loading Station', trip.origin ? sName(trip.origin) : ''], ['Destination Station', trip.destination ? sName(trip.destination) : ''], ['Unloading Officer', user.fullName], ['Company', trip.company], ['Cargo Type', trip.cargoType], ['Quantity', `${trip.quantity} Bags`], ['Status', trip.status]].map(([l, v]) => (
+            <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold">{v}</span></div>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Unloading Progress</h3>
+        <div className="grid grid-cols-4 gap-3 text-center">
+          {[['Total Wagons', String(total), 'text-white'], ['Unloaded', String(unloaded), 'text-emerald-400'], ['Pending Unload', String(total - unloaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-purple-400']].map(([l, v, c]) => (
+            <div key={l} className="bg-slate-900 rounded-xl p-3">
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
+              <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Active Unloading Banner */}
+      {activeUnload && (
+        <div className="bg-purple-50 border-2 border-purple-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-extrabold text-purple-800 uppercase">Currently Unloading Wagon</p>
+            <p className="text-xl font-mono font-black text-slate-900">{activeUnload.wagonId}</p>
+            <p className="text-xs text-slate-600 mt-0.5">Started: {activeUnload.unloadStartDate} at {activeUnload.unloadStartTime}</p>
+          </div>
+          <div className="flex items-center gap-5">
+            <div><span className={lc}>Unloading Live Timer</span><LiveTimer ts={activeUnload.unloadStartTimestamp} /></div>
+            <button onClick={() => stopUnloading(activeUnload.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl">Stop Unloading ✓</button>
+          </div>
+        </div>
+      )}
+
+      {/* List of exact wagons loaded at origin */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Consignment Wagons (Loaded at Origin)</h3>
+            <p className="text-xs text-slate-500">Unload each wagon arriving from {sName(trip.origin)}.</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {logs.map((w: any, i: number) => {
+            const isUnloading = w.unloadStatus === 'UNLOADING';
+            const isUnloaded  = w.unloadStatus === 'UNLOADED';
+            return (
+              <div key={w.id || i} className={`border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-all ${isUnloaded ? 'bg-emerald-50/50 border-emerald-200' : isUnloading ? 'bg-purple-50 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 mr-2">Wagon #{i + 1}</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Loaded Bags: <b className="text-slate-800">{w.qty || 70}</b> | Origin Duration: {w.durationStr || '—'}</p>
+                </div>
+
+                <div className="font-mono text-slate-600 text-right">
+                  {isUnloaded ? (
+                    <div>
+                      <p className="text-emerald-700 font-bold">Unloaded in {w.unloadDurationStr || '—'}</p>
+                      <p className="text-[10px] text-slate-400">{w.unloadStartTime} ➔ {w.unloadEndTime}</p>
+                    </div>
+                  ) : isUnloading ? (
+                    <p className="text-purple-700 font-bold animate-pulse">Unloading in progress...</p>
+                  ) : (
+                    <p className="text-slate-400">Ready to unload</p>
+                  )}
+                </div>
+
+                <div>
+                  {isUnloaded ? (
+                    <Badge text="UNLOADED ✓" color="green" />
+                  ) : isUnloading ? (
+                    <button onClick={() => stopUnloading(w.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Stop Unload ✓</button>
+                  ) : !activeUnload ? (
+                    <button onClick={() => startUnloading(w.wagonId)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Start Unload ➔</button>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Waiting for active wagon</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {allUnloaded && (
+          <div className="bg-emerald-900 text-white rounded-2xl p-5 space-y-3 mt-4">
+            <p className="text-sm font-bold text-emerald-300">✅ All Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
+            <button onClick={completeTrip} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm py-3.5 rounded-xl">
+              Complete Consignment & Mark Arrived ✓
             </button>
           </div>
         )}
@@ -1010,9 +1243,8 @@ export default function Dashboard() {
       setUser(JSON.parse(raw));
     } catch {
       router.push('/auth/login');
-    } finally {
-      setReady(true);
     }
+    setReady(true);
   }, [router]);
 
   const signOut = () => {
@@ -1039,7 +1271,6 @@ export default function Dashboard() {
   if (role === 'CEO' || role === 'MD') return <CEOPortal          user={user} onSignOut={signOut} />;
   if (role === 'HEAD_OF_FINANCE')    return <AccountantPortal    user={user} onSignOut={signOut} />;
 
-  // Fallback
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-8 text-white text-center">
       <div>
