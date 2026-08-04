@@ -40,29 +40,7 @@ const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
 
 const SEED_DEALS: any[] = [];
 
-const SEED_TRIPS: any[] = [
-  {
-    id: 'TRIP-0024',
-    tripId: '0024',
-    dealId: 'DEAL-001',
-    locomotiveId: 'L2205 (General Electric)',
-    cargoOfficerName: 'Ade Bello',
-    company: 'Lafarge Africa Plc',
-    origin: 'EWK',
-    destination: 'MNY',
-    cargoType: 'Elephant Cement (50kg bags)',
-    quantity: 1600,
-    status: 'IN_TRANSIT',
-    gpsActive: true,
-    currentSpeed: 74,
-    currentCoords: { lat: 7.1205, lng: 3.5102 },
-    createdAt: '31 Jul 2026 09:00 AM',
-    wagonLogs: [
-      { id: 'wl_1', wagonId: 'WG001', startTimestamp: Date.now() - 3600000 * 5, startDate: '31 Jul 2026', startTime: '09:10 AM', endDate: '31 Jul 2026', endTime: '09:40 AM', durationStr: '30 Minutes', qty: 70, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' },
-      { id: 'wl_2', wagonId: 'WG002', startTimestamp: Date.now() - 3600000 * 4, startDate: '31 Jul 2026', startTime: '09:42 AM', endDate: '31 Jul 2026', endTime: '10:18 AM', durationStr: '36 Minutes', qty: 70, status: 'LOADED', unloadStatus: 'PENDING_UNLOAD' },
-    ],
-  },
-];
+const SEED_TRIPS: any[] = [];
 
 const SEED_REQUESTS: any[] = [
   {
