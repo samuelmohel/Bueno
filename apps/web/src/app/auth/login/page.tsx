@@ -12,20 +12,17 @@ function setAuthCookieAndStorage(token: string, user: any) {
   document.cookie = `bueno_token=${token}; path=/; max-age=86400; SameSite=Lax`;
 }
 
-/* ── Corporate Demo Accounts List (Tucked in collapsible drawer) ── */
+/* ── Corporate Demo Accounts List ── */
 const DEMO_PERSONAS = [
-  // C-Suite & Executives
   { label: 'Managing Director / CEO', sub: 'Full Network & Financial Clearance', email: 'ceo@bueno.ng', role: 'CEO', company: 'Bueno Logistics HQ' },
   { label: 'Head of Finance / Accountant', sub: 'Disbursements & Financial Audit', email: 'finance@bueno.ng', role: 'HEAD_OF_FINANCE', company: 'Bueno Logistics HQ' },
   { label: 'Head of Operations', sub: 'Corridor Command & Dispatch', email: 'ops.command@bueno.ng', role: 'HEAD_OF_OPERATIONS', company: 'Dispatch HQ' },
   { label: 'Admin Officer', sub: 'Master Settings & Requisitions', email: 'admin@bueno.ng', role: 'ADMIN', company: 'Admin HQ' },
 
-  // Terminal Cargo Officers
   { label: 'Cargo Officer — Ewekoro', sub: 'Origin Loading Station (EWK)', email: 'ade.bello.ewk@bueno.ng', role: 'CARGO_OFFICER', station: 'EWK', stationName: 'Ewekoro Terminal' },
   { label: 'Cargo Officer — Moniya', sub: 'Destination Yard (MNY)', email: 'musa.ibrahim.mny@bueno.ng', role: 'CARGO_OFFICER', station: 'MNY', stationName: 'Moniya Yard (Ibadan)' },
   { label: 'Cargo Officer — Apapa Port', sub: 'Maritime Hub (APT)', email: 'ngozi.eze.apt@bueno.ng', role: 'CARGO_OFFICER', station: 'APT', stationName: 'Apapa Maritime Port' },
 
-  // Industrial Consignees (Customers)
   { label: 'Lafarge Africa Plc', sub: 'Industrial Consignee Portal', email: 'logistics@lafarge.ng', role: 'CUSTOMER', companyName: 'Lafarge Africa Plc' },
   { label: 'Dangote Cement', sub: 'Industrial Consignee Portal', email: 'freight@dangotecement.ng', role: 'CUSTOMER', companyName: 'Dangote Cement' },
   { label: 'BUA Cement Industries', sub: 'Industrial Consignee Portal', email: 'logistics@buacement.ng', role: 'CUSTOMER', companyName: 'BUA Cement Industries' },
@@ -53,7 +50,6 @@ function LoginForm() {
       setAuthCookieAndStorage(token, user);
       router.push(from ?? '/dashboard');
     } catch {
-      // Demo fallback session
       let user = fallbackProfile;
 
       if (!user) {
@@ -98,15 +94,15 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800">
-      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-800">
+    <div className="min-h-screen bg-[#F4F9F1] flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800">
+      <div className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200">
 
-        {/* Corporate Header */}
-        <div className="bg-slate-950 p-6 text-center border-b border-slate-800">
+        {/* Header */}
+        <div className="bg-white p-6 text-center border-b border-slate-100">
           <Link href="/" className="inline-block mb-2">
-            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-12 object-contain mx-auto bg-white/10 p-2 rounded-xl" />
+            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-14 object-contain mx-auto" />
           </Link>
-          <div className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37]">
+          <div className="text-[10px] font-extrabold uppercase tracking-widest text-[#0E4B88] mt-1">
             BUENO LOGISTICS LIMITED — FREIGHT OS
           </div>
         </div>
@@ -130,7 +126,7 @@ function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
                 Corporate Email Address
               </label>
               <input
@@ -139,12 +135,12 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="e.g. ade.bello.ewk@bueno.ng"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88] focus:bg-white transition-all placeholder:text-slate-300"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white transition-all placeholder:text-slate-300"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1.5">
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
                 Password
               </label>
               <input
@@ -153,14 +149,14 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88] focus:bg-white transition-all placeholder:text-slate-300"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white transition-all placeholder:text-slate-300"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0E4B88] hover:bg-[#0B3C70] active:scale-[0.99] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-all disabled:opacity-50"
+              className="w-full bg-[#62BC37] hover:bg-[#52A02D] active:scale-[0.99] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all disabled:opacity-50"
             >
               {loading ? 'Authenticating...' : 'Sign In to Workspace ➔'}
             </button>
@@ -170,10 +166,10 @@ function LoginForm() {
           <div className="mt-6 pt-6 border-t border-slate-100">
             <button
               onClick={() => setShowDemoPersonas(!showDemoPersonas)}
-              className="w-full flex items-center justify-between text-xs font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200 transition-all"
+              className="w-full flex items-center justify-between text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200 transition-all"
             >
               <span>Quick Demo User Selector</span>
-              <span className="text-[#0E4B88] font-mono">{showDemoPersonas ? '▲ Close' : '▼ View Personas'}</span>
+              <span className="text-[#62BC37] font-mono">{showDemoPersonas ? '▲ Close' : '▼ View Personas'}</span>
             </button>
 
             {showDemoPersonas && (
@@ -186,7 +182,7 @@ function LoginForm() {
                       setPassword('password123');
                       executeLogin(p.email, 'password123', p);
                     }}
-                    className="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-all group"
+                    className="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 transition-all group"
                   >
                     <div className="flex justify-between items-start">
                       <span className="text-xs font-black text-slate-900 group-hover:text-[#0E4B88]">{p.label}</span>
@@ -202,7 +198,7 @@ function LoginForm() {
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 p-4 text-center border-t border-slate-100 text-[10px] text-slate-400 font-semibold">
+        <div className="bg-slate-50 p-4 text-center border-t border-slate-100 text-[10px] text-slate-500 font-semibold">
           BUENO LOGISTICS LIMITED &copy; {new Date().getFullYear()}
         </div>
       </div>
@@ -213,7 +209,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white text-xs font-bold">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-900 text-xs font-bold">
         Loading Sign In...
       </div>
     }>

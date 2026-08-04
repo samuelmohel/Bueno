@@ -81,8 +81,8 @@ const SEED_REQUESTS: any[] = [
 /* ─────────────────────────────────────────────────────────
    SHARED UTILS
 ───────────────────────────────────────────────────────── */
-const ic = 'w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0E4B88]';
-const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1';
+const ic = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white';
+const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1';
 
 function tryParse<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
@@ -103,17 +103,17 @@ function getOccupiedWagonIds(trips: any[]): Set<string> {
 }
 
 function Badge({ text, color }: { text: string; color?: string }) {
-  const c = color || 'blue';
+  const c = color || 'green';
   const cls: Record<string, string> = {
+    green:  'bg-emerald-50 text-emerald-800 border-emerald-200',
     blue:   'bg-blue-50 text-[#0E4B88] border-blue-200',
-    green:  'bg-emerald-50 text-emerald-700 border-emerald-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    red:    'bg-rose-50 text-rose-700 border-rose-200',
+    purple: 'bg-purple-50 text-purple-800 border-purple-200',
+    red:    'bg-rose-50 text-rose-800 border-rose-200',
+    amber:  'bg-amber-50 text-amber-800 border-amber-200',
     slate:  'bg-slate-100 text-slate-700 border-slate-200',
-    amber:  'bg-amber-50 text-amber-700 border-amber-200',
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${cls[c] || cls.blue}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider border ${cls[c] || cls.green}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />{text}
     </span>
   );
@@ -125,12 +125,12 @@ function stageColor(stage: string) {
   if (stage === 'Head of Operations') return 'purple';
   if (stage === 'CEO') return 'amber';
   if (stage === 'Accountant') return 'red';
-  return 'blue';
+  return 'green';
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-3 sm:p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
         {children}
       </div>
@@ -147,11 +147,11 @@ function LiveTimer({ ts }: { ts: number }) {
   const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
   const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
   const ss = String(sec % 60).padStart(2, '0');
-  return <span className="font-mono font-black text-[#0E4B88] text-base sm:text-lg">{hh}:{mm}:{ss}</span>;
+  return <span className="font-mono font-black text-[#62BC37] text-base sm:text-lg">{hh}:{mm}:{ss}</span>;
 }
 
 /* ─────────────────────────────────────────────────────────
-   HIGH-PRECISION INTERACTIVE RAIL CORRIDOR MAP
+   HIGH-PRECISION INTERACTIVE RAIL CORRIDOR MAP (LIGHT UI)
 ───────────────────────────────────────────────────────── */
 function RailCorridorGpsMap({ trip }: { trip: any }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -228,7 +228,7 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
         // Train locomotive marker
         const trainIcon = L.divIcon({
           html: `
-            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:16px; border:2px solid #62BC37; box-shadow:0 6px 18px rgba(15,23,42,0.5); display:inline-flex; items-center; gap:6px; white-space:nowrap;">
+            <div style="background:#0E4B88; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:16px; border:2px solid #62BC37; box-shadow:0 4px 14px rgba(14,75,136,0.3); display:inline-flex; items-center; gap:6px; white-space:nowrap;">
               <span style="width:8px; height:8px; border-radius:50%; background:#62BC37; display:inline-block;" class="animate-pulse"></span>
               ${trip?.locomotiveId || 'L2205'} (${trip?.company || 'Consignment'})
             </div>
@@ -250,26 +250,26 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
   }, [mounted, curLat, curLng, trip]);
 
   return (
-    <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-2xl overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-lg overflow-hidden">
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <div className="p-4 sm:p-5 bg-slate-950 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+      <div className="p-4 sm:p-5 bg-slate-50 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#62BC37] animate-pulse" />
             <span className="text-[11px] font-mono font-black uppercase text-[#62BC37]">LIVE SATELLITE GPS TELEMETRY</span>
           </div>
-          <h3 className="text-lg sm:text-xl font-black text-white mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
+          <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
             {sName(trip?.origin)} <span className="text-[#62BC37]">➔</span> {sName(trip?.destination)}
           </h3>
-          <p className="text-xs text-slate-400">Locomotive: <b className="text-slate-200">{trip?.locomotiveId}</b> • {trip?.company}</p>
+          <p className="text-xs text-slate-500">Locomotive: <b className="text-slate-800">{trip?.locomotiveId}</b> • {trip?.company}</p>
         </div>
         <div className="flex gap-4 sm:gap-6 text-right font-mono text-xs">
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Live Speed</span><span className="text-sm sm:text-base font-black text-[#62BC37]">{speed} km/h</span></div>
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">Progress</span><span className="text-sm sm:text-base font-black text-sky-400">{(progressRatio * 100).toFixed(0)}%</span></div>
-          <div><span className="block text-[9px] uppercase font-bold text-slate-400">GPS Pings</span><span className="text-xs text-slate-200">{curLat.toFixed(4)}°N, {curLng.toFixed(4)}°E</span></div>
+          <div><span className="block text-[9px] uppercase font-extrabold text-slate-400">Live Speed</span><span className="text-sm sm:text-base font-black text-[#62BC37]">{speed} km/h</span></div>
+          <div><span className="block text-[9px] uppercase font-extrabold text-slate-400">Progress</span><span className="text-sm sm:text-base font-black text-[#0E4B88]">{(progressRatio * 100).toFixed(0)}%</span></div>
+          <div><span className="block text-[9px] uppercase font-extrabold text-slate-400">GPS Position</span><span className="text-xs font-bold text-slate-700">{curLat.toFixed(4)}°N, {curLng.toFixed(4)}°E</span></div>
         </div>
       </div>
-      <div ref={containerRef} className="h-80 sm:h-96 w-full bg-slate-950" />
+      <div ref={containerRef} className="h-80 sm:h-96 w-full bg-slate-100" />
     </div>
   );
 }
@@ -335,18 +335,18 @@ function FundRequestDetailModal({
           </div>
           <div className="text-left sm:text-right">
             <span className="block text-[10px] font-extrabold uppercase text-slate-400">Requested Amount</span>
-            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-600">₦{Number(req.amount).toLocaleString()}</span>
+            <span className="text-xl sm:text-2xl font-black font-mono text-emerald-700">₦{Number(req.amount).toLocaleString()}</span>
           </div>
         </div>
 
-        <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Approval Progression Stepper</p>
-          <div className="grid grid-cols-5 gap-1 text-center text-[9px] sm:text-[10px]">
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Approval Progression Stepper</p>
+          <div className="grid grid-cols-5 gap-1.5 text-center text-[9px] sm:text-[10px]">
             {stages.map((s, idx) => {
               const isActive = idx === currentStageIndex;
               const isPassed = idx < currentStageIndex;
               return (
-                <div key={s.key} className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isActive ? 'bg-[#0E4B88] border-blue-400 text-white font-black shadow-md' : isPassed ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300 font-bold' : 'bg-slate-800/50 border-slate-700 text-slate-500'}`}>
+                <div key={s.key} className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isActive ? 'bg-[#62BC37] border-[#52A02D] text-white font-black shadow-sm' : isPassed ? 'bg-emerald-100 border-emerald-300 text-emerald-900 font-bold' : 'bg-white border-slate-200 text-slate-400'}`}>
                   <span className="block truncate">{s.label}</span>
                 </div>
               );
@@ -367,16 +367,16 @@ function FundRequestDetailModal({
 
         <div className="space-y-3">
           <div className="flex justify-between items-center"><h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Approval Conversation & Clarifications ({req.conversation?.length || 0})</h4></div>
-          <div className="bg-slate-900 rounded-2xl p-4 space-y-3 max-h-56 overflow-y-auto border border-slate-800">
+          <div className="bg-slate-50 rounded-2xl p-4 space-y-3 max-h-56 overflow-y-auto border border-slate-200">
             {(!req.conversation || req.conversation.length === 0) ? (
-              <p className="text-center text-xs text-slate-500 py-4">No questions or notes added yet.</p>
+              <p className="text-center text-xs text-slate-400 py-4">No questions or notes added yet.</p>
             ) : (
               req.conversation.map((m: any, i: number) => {
                 const isMe = m.sender === user.fullName;
                 return (
                   <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-[#0E4B88] text-white font-semibold' : 'bg-slate-800 text-slate-100 border border-slate-700'}`}>
-                      <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-white/10 pb-1">
+                    <div className={`max-w-[85%] rounded-2xl p-3 text-xs space-y-1 ${isMe ? 'bg-[#0E4B88] text-white font-semibold' : 'bg-white text-slate-900 border border-slate-200 shadow-xs'}`}>
+                      <div className="flex justify-between items-center gap-3 text-[10px] opacity-80 border-b border-current/10 pb-1">
                         <span className="font-bold">{m.sender} ({m.role})</span><span className="font-mono">{m.time}</span>
                       </div>
                       <p className="leading-snug">{m.msg}</p>
@@ -388,19 +388,19 @@ function FundRequestDetailModal({
           </div>
           <form onSubmit={sendMessage} className="flex gap-2">
             <input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Ask a question or clarify details before approving..." className={`${ic} flex-1`} />
-            <button type="submit" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap">Send Q&A</button>
+            <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl whitespace-nowrap shadow-sm">Send Q&A</button>
           </form>
         </div>
 
         <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl">Close View</button>
-          {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
-          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
-          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
+          {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
+          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
+          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
           {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
             <div className="flex items-center gap-2">
               <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
-              <button onClick={disbursePayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
+              <button onClick={disbursePayment} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
             </div>
           )}
         </div>
@@ -440,7 +440,7 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
             {activeTrip ? (
               <div className="space-y-6">
                 <RailCorridorGpsMap trip={activeTrip} />
-                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs">
                   <h4 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Manifest Breakdown ({activeTrip.wagonLogs?.length || 23} Wagons)</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     {(activeTrip.wagonLogs || []).map((w: any, idx: number) => (
@@ -464,7 +464,7 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
         <Section title="Live Consignment Notifications" subtitle="Real-time milestone alerts pushed from terminal operations">
           <div className="space-y-3">
             {myTrips.map(t => (
-              <div key={t.id} className="bg-white border-l-4 border-[#0E4B88] rounded-2xl p-5 shadow-sm space-y-2">
+              <div key={t.id} className="bg-white border-l-4 border-[#62BC37] rounded-2xl p-5 shadow-sm space-y-2 border border-slate-200">
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-black text-[#0E4B88] text-sm">TRIP #{t.tripId} — {t.company}</span>
                   <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
@@ -515,7 +515,7 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PORTAL SHELL
+   PORTAL SHELL (LIGHT & USER FRIENDLY UI)
 ═══════════════════════════════════════════════════════════ */
 function Shell({
   user, navItems, activeKey, onNav, children, onSignOut, menuOpen, setMenuOpen,
@@ -526,43 +526,46 @@ function Shell({
   menuOpen: boolean; setMenuOpen: (v: boolean) => void;
 }) {
   const Nav = () => (
-    <div className="h-full bg-slate-900 flex flex-col" style={{ fontFamily: "'Inter',sans-serif" }}>
-      <div className="p-5 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+    <div className="h-full bg-white flex flex-col border-r border-slate-200" style={{ fontFamily: "'Inter',sans-serif" }}>
+      <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-10 object-contain bg-white/10 p-1.5 rounded-xl" />
+          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-10 object-contain" />
         </Link>
       </div>
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-        {navItems.map(item => (
-          <button key={item.key} onClick={() => { onNav(item.key); setMenuOpen(false); }}
-            className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all ${activeKey === item.key ? 'bg-[#0E4B88] text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-            {item.label}
-          </button>
-        ))}
+        {navItems.map(item => {
+          const isActive = activeKey === item.key;
+          return (
+            <button key={item.key} onClick={() => { onNav(item.key); setMenuOpen(false); }}
+              className={`w-full text-left px-4 py-3 rounded-xl text-xs font-extrabold transition-all ${isActive ? 'bg-[#62BC37] text-white shadow-md shadow-[#62BC37]/20' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
-      <div className="p-4 border-t border-slate-800 space-y-2">
+      <div className="p-4 border-t border-slate-200 space-y-2 bg-slate-50">
         <div className="px-2">
-          <p className="text-[10px] font-extrabold uppercase text-slate-500 mb-0.5">Signed in as</p>
-          <p className="text-xs font-black text-white">{user?.fullName}</p>
-          <p className="text-[11px] text-[#62BC37] font-semibold mt-0.5">{user?.roleLabel}</p>
+          <p className="text-[10px] font-extrabold uppercase text-slate-400 mb-0.5">Signed in as</p>
+          <p className="text-xs font-black text-slate-900">{user?.fullName}</p>
+          <p className="text-[11px] text-[#0E4B88] font-bold mt-0.5">{user?.roleLabel}</p>
         </div>
-        <Link href="/" className="block px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white">← Home</Link>
-        <button onClick={onSignOut} className="w-full text-left px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-rose-900/40 hover:text-rose-300">Sign Out</button>
+        <Link href="/" className="block px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900">← Home Page</Link>
+        <button onClick={onSignOut} className="w-full text-left px-4 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50">Sign Out</button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-100 flex" style={{ fontFamily: "'Inter',sans-serif" }}>
+    <div className="min-h-screen bg-[#F4F9F1]/60 flex" style={{ fontFamily: "'Inter',sans-serif" }}>
       <aside className="hidden lg:flex w-64 xl:w-72 flex-shrink-0 flex-col sticky top-0 h-screen"><Nav /></aside>
       {menuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-slate-950/60" onClick={() => setMenuOpen(false)} />
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs" onClick={() => setMenuOpen(false)} />
           <div className="relative z-10 w-64 flex-shrink-0"><Nav /></div>
         </div>
       )}
       <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0 shadow-xs">
           <div className="flex items-center gap-3">
             <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -571,7 +574,7 @@ function Shell({
           </div>
           <div className="text-right">
             <p className="text-xs font-black text-slate-900 truncate max-w-[150px] sm:max-w-none">{user?.fullName}</p>
-            <p className="text-[10px] text-slate-500 font-medium truncate max-w-[150px] sm:max-w-none">{user?.roleLabel || user?.role}</p>
+            <p className="text-[10px] text-[#0E4B88] font-bold truncate max-w-[150px] sm:max-w-none">{user?.roleLabel || user?.role}</p>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
@@ -690,7 +693,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </div>
                     <p className="font-bold text-slate-900">{d.company}</p>
                     <p className="text-xs text-slate-600">{d.cargoType} ({d.quantity} Bags)</p>
-                    <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="w-full bg-[#0E4B88] text-white font-bold text-xs py-2 rounded-xl mt-2">Create Trip ➔</button>
+                    <button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs py-2 rounded-xl mt-2 shadow-sm">Create Trip ➔</button>
                   </div>
                 )}
                 data={myDeals}
@@ -702,7 +705,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <td className="p-4 font-bold text-slate-900">{d.company}</td>
                       <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
                       <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
-                      <td className="p-4"><button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-4 py-2 rounded-xl">Create Trip ➔</button></td>
+                      <td className="p-4"><button onClick={() => { setCreateDeal(d); setTripForm(f => ({ ...f, selectedWagon: availableWagons[0]?.id || '' })); }} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Create Trip ➔</button></td>
                     </tr>
                   ))}
               </TableWrap>
@@ -717,7 +720,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
                     <div className="flex justify-between items-center">
                       <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                      <span className="font-mono font-bold text-slate-900 text-xs">{(t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length} / 23 Loaded</span>
+                      <span className="font-mono font-bold text-[#62BC37] text-xs">{(t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length} / 23 Loaded</span>
                     </div>
                     <p className="font-bold text-slate-900">{t.company}</p>
                     <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
@@ -735,7 +738,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                         <td className="p-4 text-slate-700">{t.company}</td>
                         <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
-                        <td className="p-4 font-mono font-bold text-slate-900">{loaded} / 23</td>
+                        <td className="p-4 font-mono font-bold text-[#62BC37]">{loaded} / 23</td>
                         <td className="p-4 font-bold text-[#0E4B88]">Open Wagon Loading ➔</td>
                       </tr>
                     );
@@ -790,7 +793,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       </div>
                       <p className="font-bold text-slate-900">{t.company} — {t.cargoType}</p>
                       <p className="text-xs text-slate-600">Origin: {sName(t.origin)} | Unloaded: {unloadedCount} / {totalWagons || 23}</p>
-                      <button onClick={() => setSelectedUnloadTripId(t.id)} className="w-full bg-purple-600 text-white font-bold text-xs py-2 rounded-xl mt-1">Unload Consignment ➔</button>
+                      <button onClick={() => setSelectedUnloadTripId(t.id)} className="w-full bg-purple-600 text-white font-bold text-xs py-2 rounded-xl mt-1 shadow-sm">Unload Consignment ➔</button>
                     </div>
                   );
                 }}
@@ -801,13 +804,13 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     const totalWagons = (t.wagonLogs || []).length;
                     const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
                     return (
-                      <tr key={t.id} className="hover:bg-purple-50">
+                      <tr key={t.id} className="hover:bg-purple-50/50">
                         <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                         <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
                         <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
                         <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
                         <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
-                        <td className="p-4"><button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Unload Consignment ➔</button></td>
+                        <td className="p-4"><button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Unload Consignment ➔</button></td>
                       </tr>
                     );
                   })}
@@ -816,7 +819,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           )}
 
           {view === 'wagons' && (
-            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Register New Wagon</button>}>
               <TableWrap
                 headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}
                 mobileCard={(w: any) => {
@@ -851,7 +854,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           )}
 
           {view === 'funds' && (
-            <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Request Funds</button>}>
+            <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Request Funds</button>}>
               <TableWrap
                 headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
                 mobileCard={(r: any) => (
@@ -861,7 +864,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <Badge text={r.stage} color={stageColor(r.stage)} />
                     </div>
                     <p className="font-bold text-slate-900">{r.title}</p>
-                    <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
+                    <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
                     <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect Details & Q&A ➔</p>
                   </div>
                 )}
@@ -890,7 +893,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <h3 className="text-lg font-black text-slate-900">Register New Wagon</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Register Wagon ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Register Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -901,7 +904,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <h3 className="text-lg font-black text-slate-900">Trip Creation Form</h3>
             <form onSubmit={handleCreateTrip} className="space-y-4">
               <div><label className={lc}>Locomotive ID *</label><input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Begin Wagon Loading ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Begin Wagon Loading ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -917,7 +920,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div><label className={lc}>Category</label><select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>{['Equipment', 'Fuel', 'Repairs', 'Maintenance', 'Emergency Purchase', 'Operational Expenses', 'Other'].map(c => <option key={c}>{c}</option>)}</select></div>
               </div>
               <div><label className={lc}>Description *</label><textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Full justification..." /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Submit Request ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Submit Request ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -936,7 +939,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const [selWagon, setSelWagon] = useState('');
   const [qty, setQty] = useState('70');
 
-  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#0E4B88]">Go back</button></div>;
+  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#62BC37]">Go back</button></div>;
 
   const loaded = logs.filter((w: any) => w.status === 'LOADED').length;
   const allDone = loaded >= 23;
@@ -1018,41 +1021,41 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button onClick={onBack} className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl">← Back to Trips Created</button>
-        <span className="text-xs font-bold text-[#0E4B88] bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">{loaded} / 23 Loaded</span>
+        <span className="text-xs font-bold text-[#62BC37] bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">{loaded} / 23 Loaded</span>
       </div>
 
-      <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37] mb-3">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37]">TRIP {trip.tripId} — ORIGIN LOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {[['Locomotive ID', trip.locomotiveId], ['Cargo Officer', trip.cargoOfficerName], ['Loading Station', trip.origin ? sName(trip.origin) : ''], ['Destination', trip.destination ? sName(trip.destination) : ''], ['Company', trip.company], ['Cargo Type', trip.cargoType], ['Quantity', `${trip.quantity} Bags`], ['Created', trip.createdAt || '—']].map(([l, v]) => (
-            <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold">{v}</span></div>
+            <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold text-slate-900">{v}</span></div>
           ))}
         </div>
       </div>
 
-      <div className="bg-slate-900 border-2 border-[#62BC37] text-white rounded-2xl p-5 shadow-2xl space-y-4">
+      <div className="bg-[#62BC37] text-white rounded-2xl p-5 shadow-lg space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-[#62BC37] animate-pulse" />
-              <p className="text-xs font-black uppercase tracking-wider text-[#62BC37] font-mono">GPS HARDWARE TELEMETRY BACKEND — READY</p>
+              <span className="w-3 h-3 rounded-full bg-white animate-pulse" />
+              <p className="text-xs font-black uppercase tracking-wider font-mono">GPS HARDWARE TELEMETRY BACKEND — READY</p>
             </div>
-            <p className="text-base font-black text-white mt-1">Locomotive: <span className="font-mono text-emerald-300">{trip.locomotiveId}</span></p>
-            <p className="text-xs text-slate-400 mt-0.5">Clicking 'Start Trip & Activate GPS' connects directly to GPS hardware backend & launches corridor satellite tracking.</p>
+            <p className="text-base font-black text-white mt-1">Locomotive: <span className="font-mono text-white/90">{trip.locomotiveId}</span></p>
+            <p className="text-xs text-white/80 mt-0.5">Clicking 'Start Trip & Activate GPS' connects directly to GPS hardware backend & launches corridor satellite tracking.</p>
           </div>
-          <button onClick={dispatchAndActivateGps} className="w-full sm:w-auto bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
+          <button onClick={dispatchAndActivateGps} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
             <span>Start Trip & Activate Live GPS Tracker ➔</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading Progress</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[['Required', '23', 'text-white'], ['Loaded', String(loaded), 'text-[#62BC37]'], ['Remaining', String(23 - loaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-sky-400']].map(([l, v, c]) => (
-            <div key={l} className="bg-slate-900 rounded-xl p-3">
+          {[['Required', '23', 'text-slate-900'], ['Loaded', String(loaded), 'text-[#62BC37]'], ['Remaining', String(23 - loaded), 'text-amber-600'], ['Progress', `${pct}%`, 'text-[#0E4B88]']].map(([l, v, c]) => (
+            <div key={l} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
               <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
             </div>
@@ -1063,11 +1066,11 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading</h3>
           {!active && !allDone && !adding && (
-            <button onClick={() => setAdding(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Add Wagon to Load</button>
+            <button onClick={() => setAdding(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Add Wagon to Load</button>
           )}
         </div>
 
@@ -1083,33 +1086,33 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
             </div>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setAdding(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-              <button type="submit" disabled={available.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2 rounded-xl disabled:opacity-50">Begin Loading ➔</button>
+              <button type="submit" disabled={available.length === 0} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2 rounded-xl disabled:opacity-50 shadow-sm">Begin Loading ➔</button>
             </div>
           </form>
         )}
 
         {active && (
-          <div className="bg-blue-50 border-2 border-[#0E4B88] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-emerald-50 border-2 border-[#62BC37] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-[10px] font-extrabold text-[#0E4B88] uppercase">Currently Loading</p>
+              <p className="text-[10px] font-extrabold text-[#62BC37] uppercase">Currently Loading</p>
               <p className="text-xl font-mono font-black text-slate-900">{active.wagonId}</p>
               <p className="text-xs text-slate-600 mt-0.5">Started: {active.startDate} at {active.startTime}</p>
             </div>
             <div className="flex items-center gap-5">
               <div><span className={lc}>Live Timer</span><LiveTimer ts={active.startTimestamp} /></div>
-              <button onClick={() => stopLoading(active.id)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl">Stop Loading ✓</button>
+              <button onClick={() => stopLoading(active.id)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">Stop Loading ✓</button>
             </div>
           </div>
         )}
 
         <div className="space-y-2">
           {logs.map((w: any, i: number) => (
-            <div key={w.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div key={w.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
               <div><span className="text-[10px] font-mono text-slate-400 mr-2">#{i + 1}</span><span className="font-mono font-black text-slate-900">{w.wagonId}</span></div>
               <div className="flex gap-3 font-mono text-slate-600">
                 <span>Start: {w.startTime}</span>
                 <span>End: {w.endTime || '—'}</span>
-                <span className="font-bold">Duration: {w.durationStr || 'Running...'}</span>
+                <span className="font-bold text-slate-800">Duration: {w.durationStr || 'Running...'}</span>
               </div>
               <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'blue'} />
             </div>
@@ -1117,13 +1120,13 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         </div>
 
         {!active && !allDone && loaded > 0 && !adding && (
-          <button onClick={() => setAdding(true)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl">+ Add Another Wagon ({loaded + 1} / 23)</button>
+          <button onClick={() => setAdding(true)} className="w-full bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs py-3 rounded-xl shadow-sm">+ Add Another Wagon ({loaded + 1} / 23)</button>
         )}
 
         {allDone && (
-          <div className="bg-emerald-900 text-white rounded-2xl p-5 space-y-3">
-            <p className="text-sm font-bold text-emerald-300">All 23 Wagons Loaded — Train is Ready to Move!</p>
-            <button onClick={dispatchAndActivateGps} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-sm py-3.5 rounded-xl">
+          <div className="bg-emerald-800 text-white rounded-2xl p-5 space-y-3">
+            <p className="text-sm font-bold text-emerald-100">All 23 Wagons Loaded — Train is Ready to Move!</p>
+            <button onClick={dispatchAndActivateGps} className="w-full bg-white text-slate-900 font-black text-sm py-3.5 rounded-xl shadow-md hover:bg-slate-100">
               Start Trip & Activate Live GPS Tracker ➔
             </button>
           </div>
@@ -1140,7 +1143,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   const trip = trips.find((t: any) => t.id === tripId);
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
 
-  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#0E4B88]">Go back</button></div>;
+  if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#62BC37]">Go back</button></div>;
 
   const total = logs.length || 23;
   const unloaded = logs.filter((w: any) => w.unloadStatus === 'UNLOADED').length;
@@ -1191,32 +1194,32 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200">
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button onClick={onBack} className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl">← Back to Incoming Consignments</button>
         <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">{unloaded} / {total} Unloaded</span>
       </div>
 
-      <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800">
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400 mb-3">TRIP {trip.tripId} — DESTINATION UNLOADING DETAILS</p>
+      <div className="bg-white text-slate-900 rounded-2xl p-5 border border-slate-200 shadow-xs">
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700 mb-3">TRIP {trip.tripId} — DESTINATION UNLOADING DETAILS</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {[['Locomotive ID', trip.locomotiveId], ['Origin Loading Station', trip.origin ? sName(trip.origin) : ''], ['Destination Station', trip.destination ? sName(trip.destination) : ''], ['Unloading Officer', user.fullName], ['Company', trip.company], ['Cargo Type', trip.cargoType], ['Quantity', `${trip.quantity} Bags`], ['Status', trip.status]].map(([l, v]) => (
-            <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold">{v}</span></div>
+            <div key={l}><span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span><span className="font-bold text-slate-900">{v}</span></div>
           ))}
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Unloading Progress</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[['Total Wagons', String(total), 'text-white'], ['Unloaded', String(unloaded), 'text-emerald-400'], ['Pending Unload', String(total - unloaded), 'text-amber-400'], ['Progress', `${pct}%`, 'text-purple-400']].map(([l, v, c]) => (
-            <div key={l} className="bg-slate-900 rounded-xl p-3">
+          {[['Total Wagons', String(total), 'text-slate-900'], ['Unloaded', String(unloaded), 'text-[#62BC37]'], ['Pending Unload', String(total - unloaded), 'text-amber-600'], ['Progress', `${pct}%`, 'text-purple-600']].map(([l, v, c]) => (
+            <div key={l} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
               <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
             </div>
           ))}
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-500 to-emerald-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
+          <div className="bg-gradient-to-r from-purple-500 to-[#62BC37] h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
@@ -1229,12 +1232,12 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
           </div>
           <div className="flex items-center gap-5">
             <div><span className={lc}>Unloading Live Timer</span><LiveTimer ts={activeUnload.unloadStartTimestamp} /></div>
-            <button onClick={() => stopUnloading(activeUnload.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl">Stop Unloading ✓</button>
+            <button onClick={() => stopUnloading(activeUnload.wagonId)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">Stop Unloading ✓</button>
           </div>
         </div>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <div className="flex justify-between items-center">
           <div>
             <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Consignment Wagons (Loaded at Origin)</h3>
@@ -1265,9 +1268,9 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         </div>
 
         {allUnloaded && (
-          <div className="bg-emerald-900 text-white rounded-2xl p-5 space-y-3 mt-4">
-            <p className="text-sm font-bold text-emerald-300">All Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
-            <button onClick={completeTrip} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-sm py-3.5 rounded-xl">
+          <div className="bg-[#62BC37] text-white rounded-2xl p-5 space-y-3 mt-4 shadow-md">
+            <p className="text-sm font-bold text-white">All Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
+            <button onClick={completeTrip} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-sm py-3.5 rounded-xl">
               Complete Consignment & Mark Arrived ✓
             </button>
           </div>
@@ -1335,7 +1338,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   return (
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {view === 'deals' && (
-        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Create New Deal</button>}>
+        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Create New Deal</button>}>
           <TableWrap
             headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created']}
             mobileCard={(d: any) => (
@@ -1401,7 +1404,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       )}
 
       {view === 'wagons' && (
-        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white font-bold text-xs px-5 py-2.5 rounded-xl">+ Register New Wagon</button>}>
+        <Section title="Wagon Fleet Inventory (Admin Control)" subtitle="System-wide inventory of all wagons" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Register New Wagon</button>}>
           <TableWrap
             headers={['Wagon ID', 'Capacity', 'Status', 'Current Station', 'Registered By', 'Date']}
             mobileCard={(w: any) => {
@@ -1443,8 +1446,8 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                   <Badge text={r.stage} color={stageColor(r.stage)} />
                 </div>
                 <p className="font-bold text-slate-900">{r.title}</p>
-                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
-                <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect & Q&A / Approve ➔</p>
+                <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect & Q&A / Approve ➔</p>
               </div>
             )}
             data={requests}
@@ -1456,7 +1459,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                 <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                <td className="p-4 font-bold text-[#0E4B88]">Inspect & Q&A / Approve ➔</td>
+                <td className="p-4 font-bold text-[#62BC37]">Inspect & Q&A / Approve ➔</td>
               </tr>
             ))}
           </TableWrap>
@@ -1470,7 +1473,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
             <h3 className="text-lg font-black text-slate-900">Register New Wagon (Admin)</h3>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Add Wagon ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Add Wagon ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -1487,7 +1490,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                 <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement" className={ic} /></div>
                 <div><label className={lc}>Quantity (Bags)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
               </div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#0E4B88] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Create Deal ➔</button></div>
+              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Create Deal ➔</button></div>
             </form>
           </div>
         </Modal>
@@ -1564,8 +1567,8 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
                   <Badge text={r.stage} color={stageColor(r.stage)} />
                 </div>
                 <p className="font-bold text-slate-900">{r.title}</p>
-                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
-                <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect & Q&A / Approve ➔</p>
+                <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect & Q&A / Approve ➔</p>
               </div>
             )}
             data={requests}
@@ -1577,7 +1580,7 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                 <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                <td className="p-4 font-bold text-indigo-600">Inspect & Q&A / Approve ➔</td>
+                <td className="p-4 font-bold text-[#62BC37]">Inspect & Q&A / Approve ➔</td>
               </tr>
             ))}
           </TableWrap>
@@ -1657,8 +1660,8 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
                   <Badge text={r.stage} color={stageColor(r.stage)} />
                 </div>
                 <p className="font-bold text-slate-900">{r.title}</p>
-                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
-                <p className="text-xs font-bold text-purple-600 pt-1">Inspect & Q&A / Clear ➔</p>
+                <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect & Q&A / Clear ➔</p>
               </div>
             )}
             data={requests}
@@ -1670,7 +1673,7 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
                 <td className="p-4 font-bold text-slate-900">{r.title}</td>
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                 <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
-                <td className="p-4 font-bold text-purple-600">Inspect & Q&A / Clear ➔</td>
+                <td className="p-4 font-bold text-[#62BC37]">Inspect & Q&A / Clear ➔</td>
               </tr>
             ))}
           </TableWrap>
@@ -1717,8 +1720,8 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
                   <Badge text={r.stage} color={stageColor(r.stage)} />
                 </div>
                 <p className="font-bold text-slate-900">{r.title}</p>
-                <p className="text-xs font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</p>
-                <p className="text-xs font-bold text-emerald-600 pt-1">Inspect & Q&A / Disburse ➔</p>
+                <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect & Q&A / Disburse ➔</p>
               </div>
             )}
             data={requests}
@@ -1731,7 +1734,7 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
                 <td className="p-4 font-mono font-black">₦{Number(r.amount).toLocaleString()}</td>
                 <td className="p-4"><Badge text={r.stage} color={stageColor(r.stage)} /></td>
                 <td className="p-4 font-mono text-slate-600">{r.paymentDetails?.ref || '—'}</td>
-                <td className="p-4 font-bold text-emerald-600">Inspect & Q&A / Disburse ➔</td>
+                <td className="p-4 font-bold text-[#62BC37]">Inspect & Q&A / Disburse ➔</td>
               </tr>
             ))}
           </TableWrap>
@@ -1746,7 +1749,7 @@ function AccountantPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
-                  <span className="font-mono font-black text-emerald-600">₦{Number(r.amount).toLocaleString()}</span>
+                  <span className="font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</span>
                 </div>
                 <p className="font-bold text-slate-900">{r.beneficiary} ({sName(r.station)})</p>
                 <p className="text-xs font-mono text-slate-600">Ref: {r.ref} | Date: {r.date}</p>
@@ -1813,7 +1816,7 @@ function TableWrap({ headers, children, mobileCard, data }: { headers: string[];
       {/* Responsive Table View (Tablets & Desktops, Scrollable on Small Screens) */}
       <div className={`${mobileCard && data ? 'hidden sm:block' : 'block'} bg-white rounded-2xl border border-slate-200 overflow-x-auto max-w-full shadow-sm`}>
         <table className="w-full text-xs min-w-[600px]">
-          <thead className="bg-slate-900 text-white">
+          <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
             <tr>{headers.map(h => <th key={h} className="text-left p-3.5 text-[10px] font-extrabold uppercase tracking-widest whitespace-nowrap">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">{children}</tbody>
@@ -1850,10 +1853,10 @@ export default function Dashboard() {
   };
 
   if (!ready || !user) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-      <div className="text-center text-white space-y-3">
-        <div className="w-10 h-10 border-2 border-[#62BC37] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs font-bold text-slate-400">Loading your workspace...</p>
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="text-center text-slate-900 space-y-3">
+        <div className="w-10 h-10 border-3 border-[#62BC37] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs font-bold text-slate-500">Loading your workspace...</p>
       </div>
     </div>
   );
@@ -1868,11 +1871,11 @@ export default function Dashboard() {
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-8 text-white text-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-slate-900 text-center">
       <div>
-        <p className="font-bold text-amber-400 text-lg mb-2">Unknown Role: {role}</p>
-        <p className="text-xs text-slate-400 mb-4">Your account role is not recognised. Please contact Admin.</p>
-        <button onClick={signOut} className="bg-[#0E4B88] text-white font-bold px-6 py-2.5 rounded-xl text-xs">Sign Out</button>
+        <p className="font-bold text-rose-600 text-lg mb-2">Unknown Role: {role}</p>
+        <p className="text-xs text-slate-500 mb-4">Your account role is not recognised. Please contact Admin.</p>
+        <button onClick={signOut} className="bg-[#62BC37] text-white font-bold px-6 py-2.5 rounded-xl text-xs">Sign Out</button>
       </div>
     </div>
   );
