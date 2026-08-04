@@ -164,11 +164,12 @@ export default function BuenoLogisticsHomePage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/auth/login" className="hidden sm:block text-xs font-bold text-blue-900 hover:text-blue-950 px-4 py-2 rounded-xl hover:bg-slate-50 transition-all">
-              Staff Sign In
+            <Link href="/auth/staff" className="hidden sm:block text-xs font-bold text-[#0E4B88] hover:text-[#0B3C70] px-4 py-2 rounded-xl hover:bg-slate-50 transition-all border border-slate-200">
+              Staff & Operations Login
             </Link>
-            <Link href="/auth/login" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-md">
-              Access Portal
+            <Link href="/auth/client" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-extrabold px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5">
+              <span>Client Freight Portal</span>
+              <span>➔</span>
             </Link>
           </div>
         </div>
@@ -195,11 +196,12 @@ export default function BuenoLogisticsHomePage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link href="/auth/login" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white text-sm font-bold px-7 py-3.5 rounded-2xl shadow-lg transition-all">
-                Access Portal
+              <Link href="/auth/client" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-lg transition-all flex items-center gap-2">
+                <span>Client Freight Portal</span>
+                <span>➔</span>
               </Link>
-              <Link href="/tracking" className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-3.5 rounded-2xl transition-all shadow-sm">
-                Public Consignment Tracking
+              <Link href="/auth/staff" className="bg-[#0E4B88] hover:bg-[#0B3C70] text-white text-sm font-bold px-7 py-3.5 rounded-2xl shadow-lg transition-all">
+                Staff & Operations Login
               </Link>
             </div>
 
