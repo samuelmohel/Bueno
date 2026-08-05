@@ -2337,32 +2337,62 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const [dealForm, setDealForm] = useState({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
 
   useEffect(() => {
-    const syncData = () => {
+    const syncData = async () => {
       setDeals(tryParse('bueno_deals', SEED_DEALS));
-      setTrips(tryParse('bueno_trips', SEED_TRIPS));
-      setRequests(tryParse('bueno_requests', SEED_REQUESTS));
       setWagons(tryParse('bueno_wagons', SEED_WAGONS));
-      setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
-      const loadedNegs = tryParse('bueno_custom_deal_negotiations', [
-        {
-          id: 'DEAL-NEG-001',
-          companyName: 'Purechem Cement Industries Ltd',
-          contactName: 'Engr. Clement Lawson',
-          loadingStation: 'EWK',
-          destination: 'MNY',
-          cargoType: 'Cement (50kg Bags)',
-          quantity: '6000',
-          targetDate: '15 Aug 2026',
-          status: 'UNDER_NEGOTIATION',
-          createdAt: '1 hour ago',
-          messages: [
-            { sender: 'Engr. Clement Lawson', role: 'Industrial Consignee', text: 'We require 6,000 bags moved from Ewekoro Siding to Moniya Yard next week. What is your available wagon slot?', time: '1 hour ago' },
-            { sender: 'Babajide Sanwo', role: 'Head of Operations', text: 'Good day! We have Locomotive #L2205 with 23 hopper wagons ready at Ewekoro. We can lock in this freight corridor for 15th August.', time: '45 mins ago' },
-          ]
+
+      // Fetch Trips from DB
+      try {
+        const res = await fetch('/api/trips.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setTrips(json.data);
+            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+          }
         }
-      ]);
-      setNegotiations(loadedNegs);
-      if (loadedNegs.length > 0 && !activeNegId) setActiveNegId(loadedNegs[0].id);
+      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+
+      // Fetch Users from DB
+      try {
+        const res = await fetch('/api/users.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setUsers(json.data);
+            localStorage.setItem('bueno_provisioned_users', JSON.stringify(json.data));
+          }
+        }
+      } catch { setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS)); }
+
+      // Fetch Fund Requests from DB
+      try {
+        const res = await fetch('/api/requests.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setRequests(json.data);
+            localStorage.setItem('bueno_requests', JSON.stringify(json.data));
+          }
+        }
+      } catch { setRequests(tryParse('bueno_requests', SEED_REQUESTS)); }
+
+      // Fetch Deal Negotiations from DB
+      try {
+        const res = await fetch('/api/negotiations.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setNegotiations(json.data);
+            localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(json.data));
+            if (!activeNegId) setActiveNegId(json.data[0].id);
+          }
+        }
+      } catch {
+        const loadedNegs = tryParse<any[]>('bueno_custom_deal_negotiations', []);
+        setNegotiations(loadedNegs);
+        if (loadedNegs.length > 0 && !activeNegId) setActiveNegId(loadedNegs[0].id);
+      }
     };
 
     syncData();
@@ -2370,22 +2400,35 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     window.addEventListener('storage', syncData);
     window.addEventListener('bueno_state_updated', syncData);
 
+    const interval = setInterval(syncData, 5000);
+
     return () => {
       window.removeEventListener('storage', syncData);
       window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
     };
-  }, []);
+  }, [activeNegId]);
 
-  const persist = (key: string, val: any[]) => {
+  const persist = (key: string, val: any[], apiEndpoint?: string) => {
     localStorage.setItem(key, JSON.stringify(val));
     window.dispatchEvent(new Event('bueno_state_updated'));
+    if (apiEndpoint) {
+      try {
+        fetch(apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(val),
+        });
+      } catch {}
+    }
   };
 
   const saveDeals        = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
-  const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
+  const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v, '/api/requests.php'); };
   const saveWagons       = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
-  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
-  const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v); };
+  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v, '/api/users.php'); };
+  const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v, '/api/negotiations.php'); };
+  const saveTrips        = (v: any[]) => { setTrips(v); persist('bueno_trips', v, '/api/trips.php'); };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
 

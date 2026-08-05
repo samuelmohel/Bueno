@@ -14,7 +14,6 @@ function getDbConnection() {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
 
-    // Check if cPanel MySQL environment variables exist
     $dbHost = getenv('DB_HOST') ?: 'localhost';
     $dbName = getenv('DB_NAME') ?: 'bueno_db';
     $dbUser = getenv('DB_USER') ?: 'bueno_user';
@@ -27,7 +26,6 @@ function getDbConnection() {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
         } else {
-            // Fallback to zero-config SQLite file in api directory for instant production deployment
             $sqlitePath = __DIR__ . '/bueno.sqlite';
             $pdo = new PDO("sqlite:" . $sqlitePath, null, null, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -92,7 +90,73 @@ function initTables($pdo) {
         createdAt VARCHAR(100)
     )");
 
-    // Seed default users if table is empty
+    // 4. Official Deals Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_deals (
+        id VARCHAR(100) PRIMARY KEY,
+        dealNumber VARCHAR(100),
+        company VARCHAR(255) NOT NULL,
+        loadingStation VARCHAR(50),
+        destination VARCHAR(50),
+        cargoType VARCHAR(255),
+        quantity VARCHAR(100),
+        createdBy VARCHAR(255),
+        createdAt VARCHAR(100)
+    )");
+
+    // 5. Trips & GPS Telemetry Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_trips (
+        id VARCHAR(100) PRIMARY KEY,
+        tripId VARCHAR(100),
+        locomotiveId VARCHAR(100),
+        cargoOfficerName VARCHAR(255),
+        company VARCHAR(255),
+        cargoType VARCHAR(255),
+        quantity VARCHAR(100),
+        origin VARCHAR(50),
+        destination VARCHAR(50),
+        status VARCHAR(50),
+        curLat REAL,
+        curLng REAL,
+        wagonLogsText TEXT,
+        createdAt VARCHAR(100)
+    )");
+
+    // 6. Fund Requests & Approval Conversations Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_fund_requests (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        officerName VARCHAR(255),
+        station VARCHAR(50),
+        amount REAL,
+        category VARCHAR(100),
+        description TEXT,
+        stage VARCHAR(100),
+        conversationText TEXT,
+        paymentDetailsText TEXT,
+        date VARCHAR(100)
+    )");
+
+    // 7. Wagon Fleet Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_wagons (
+        id VARCHAR(100) PRIMARY KEY,
+        capacity INT,
+        status VARCHAR(50),
+        currentStation VARCHAR(50),
+        addedBy VARCHAR(255),
+        createdAt VARCHAR(100)
+    )");
+
+    // 8. Notifications Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_notifications (
+        id VARCHAR(100) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        body TEXT,
+        time VARCHAR(100),
+        type VARCHAR(100),
+        readInt INT DEFAULT 0
+    )");
+
+    // Seed default users if empty
     $stmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_users");
     $row = $stmt->fetch();
     if ($row && $row['cnt'] == 0) {
