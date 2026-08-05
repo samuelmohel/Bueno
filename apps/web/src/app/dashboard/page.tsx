@@ -42,6 +42,22 @@ const SEED_DEALS: any[] = [];
 
 const SEED_TRIPS: any[] = [];
 
+const DEFAULT_PROVISIONED_USERS = [
+  { id: 'usr_1', fullName: 'Ade Bello', email: 'ade.bello@bueno.ng', phone: '08031112233', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-01', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_2', fullName: 'Samuel Okafor', email: 'samuel.okafor@bueno.ng', phone: '08032223344', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-02', pin: '2222', status: 'ACTIVE' },
+  { id: 'usr_3', fullName: 'Tunde Bakare', email: 'tunde.bakare@bueno.ng', phone: '08033334455', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-03', pin: '3333', status: 'ACTIVE' },
+  { id: 'usr_4', fullName: 'Musa Ibrahim', email: 'musa.ibrahim@bueno.ng', phone: '08034445566', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'MNY', stationName: 'Moniya Yard (Ibadan)', staffId: 'MNY-01', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_5', fullName: 'Kassim Ahmed', email: 'kassim.ahmed@bueno.ng', phone: '08035556677', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'MNY', stationName: 'Moniya Yard (Ibadan)', staffId: 'MNY-02', pin: '2222', status: 'ACTIVE' },
+  { id: 'usr_6', fullName: 'Ngozi Eze', email: 'ngozi.eze@bueno.ng', phone: '08036667788', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'APT', stationName: 'Apapa Maritime Port', staffId: 'APT-01', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_7', fullName: 'Alhaji Bashir Umar', email: 'ceo@bueno.ng', phone: '08030000001', role: 'CEO', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Bueno HQ Command', staffId: 'EXEC-01', pin: '9999', status: 'ACTIVE' },
+  { id: 'usr_8', fullName: 'Babajide Sanwo', email: 'ops.command@bueno.ng', phone: '08030000002', role: 'HEAD_OF_OPERATIONS', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Dispatch HQ', staffId: 'EXEC-02', pin: '8888', status: 'ACTIVE' },
+  { id: 'usr_9', fullName: 'Folake Adeyemi', email: 'admin@bueno.ng', phone: '08030000003', role: 'ADMIN', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Admin HQ', staffId: 'EXEC-03', pin: '7777', status: 'ACTIVE' },
+  { id: 'usr_10', fullName: 'Chinenye Nnamdi', email: 'finance@bueno.ng', phone: '08030000004', role: 'HEAD_OF_FINANCE', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Finance HQ', staffId: 'EXEC-04', pin: '6666', status: 'ACTIVE' },
+  { id: 'usr_11', fullName: 'Lafarge Logistics Desk', companyName: 'Lafarge Africa Plc', email: 'logistics@lafarge.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'Dangote Freight Team', companyName: 'Dangote Cement', email: 'freight@dangotecement.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+];
+
 const SEED_REQUESTS: any[] = [
   {
     id: 'REQ-2026-0001',
@@ -1325,16 +1341,413 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   );
 }
 
+
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN USER PROVISIONING & ACCOUNT MANAGEMENT
+───────────────────────────────────────────────────────── */
+function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveUsers: (u: any[]) => void }) {
+  const [filter, setFilter] = useState<'ALL' | 'STAFF' | 'CUSTOMER'>('ALL');
+  const [search, setSearch] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    userType: 'STAFF',
+    role: 'CARGO_OFFICER',
+    assignedStation: 'EWK',
+    companyName: 'Lafarge Africa Plc',
+    pin: '1111',
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.fullName.trim() || (!form.email.trim() && !form.phone.trim())) {
+      alert('Please provide Full Name and at least Email or Phone Number.');
+      return;
+    }
+
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const newUser = {
+      id: `usr_${Date.now()}`,
+      fullName: form.fullName.trim(),
+      email: form.email.trim() || `${form.fullName.toLowerCase().replace(/\s+/g, '.')}@bueno.ng`,
+      phone: form.phone.trim() || '08030000000',
+      role: form.userType === 'CUSTOMER' ? 'CUSTOMER' : form.role,
+      userType: form.userType,
+      assignedStation: form.assignedStation,
+      stationName: STATIONS[form.assignedStation] || form.assignedStation,
+      companyName: form.userType === 'CUSTOMER' ? (form.companyName || form.fullName) : null,
+      staffId: form.role === 'CARGO_OFFICER' ? `${form.assignedStation}-${num}` : `STAFF-${num}`,
+      pin: form.pin || '1111',
+      status: 'ACTIVE',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+    };
+
+    onSaveUsers([newUser, ...users]);
+    setModalOpen(false);
+    setForm({ fullName: '', email: '', phone: '', userType: 'STAFF', role: 'CARGO_OFFICER', assignedStation: 'EWK', companyName: 'Lafarge Africa Plc', pin: '1111' });
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    const updated = users.map(u => u.id === editingUser.id ? editingUser : u);
+    onSaveUsers(updated);
+    setEditingUser(null);
+  };
+
+  const toggleStatus = (id: string) => {
+    const updated = users.map(u => u.id === id ? { ...u, status: u.status === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE' } : u);
+    onSaveUsers(updated);
+  };
+
+  const deleteUser = (id: string) => {
+    if (confirm('Are you sure you want to permanently delete this user account?')) {
+      const updated = users.filter(u => u.id !== id);
+      onSaveUsers(updated);
+    }
+  };
+
+  const filteredUsers = users.filter(u => {
+    if (filter === 'STAFF' && u.userType !== 'STAFF') return false;
+    if (filter === 'CUSTOMER' && u.userType !== 'CUSTOMER') return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone && u.phone.includes(q)) || (u.companyName && u.companyName.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  return (
+    <Section
+      title="User Provisioning & Account Directory"
+      subtitle="Provision new Cargo Officers, Executives, or Industrial Clients, edit account credentials, or revoke access"
+      action={
+        <button
+          onClick={() => setModalOpen(true)}
+          className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-sm"
+        >
+          + Provision New User Account
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        
+        {/* Filter & Search Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <button
+              onClick={() => setFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl transition-all ${filter === 'ALL' ? 'bg-slate-900 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-200'}`}
+            >
+              All Users ({users.length})
+            </button>
+            <button
+              onClick={() => setFilter('STAFF')}
+              className={`px-3 py-1.5 rounded-xl transition-all ${filter === 'STAFF' ? 'bg-[#0E4B88] text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-200'}`}
+            >
+              Staff Members ({users.filter(u => u.userType === 'STAFF').length})
+            </button>
+            <button
+              onClick={() => setFilter('CUSTOMER')}
+              className={`px-3 py-1.5 rounded-xl transition-all ${filter === 'CUSTOMER' ? 'bg-[#62BC37] text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-200'}`}
+            >
+              Industrial Clients ({users.filter(u => u.userType === 'CUSTOMER').length})
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by Name, Email or Phone..."
+            className="bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 text-xs font-semibold text-slate-900 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+          />
+        </div>
+
+        {/* Directory Table */}
+        <TableWrap
+          headers={['User Identity', 'Classification & Role', 'Contact Email / Phone', 'Station / Company', 'Status', 'Actions']}
+          mobileCard={(u: any) => (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-900">{u.fullName}</span>
+                <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
+              </div>
+              <p className="text-xs text-slate-600">{u.roleLabel || u.role} • {u.userType}</p>
+              <p className="text-xs font-mono text-slate-500">{u.email} | {u.phone}</p>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setEditingUser(u)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">Edit</button>
+                <button onClick={() => toggleStatus(u.id)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">{u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
+              </div>
+            </div>
+          )}
+          data={filteredUsers}
+        >
+          {filteredUsers.map(u => (
+            <tr key={u.id} className="hover:bg-slate-50 text-xs">
+              <td className="p-4">
+                <p className="font-black text-slate-900">{u.fullName}</p>
+                <p className="text-[10px] font-mono text-slate-400">ID: {u.staffId || u.id}</p>
+              </td>
+              <td className="p-4">
+                <span className="font-extrabold text-slate-800 block">{u.roleLabel || u.role}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">{u.userType}</span>
+              </td>
+              <td className="p-4 font-mono">
+                <p className="text-slate-900 font-semibold">{u.email}</p>
+                <p className="text-slate-500">{u.phone}</p>
+              </td>
+              <td className="p-4 font-bold text-slate-700">
+                {u.assignedStation ? `${sName(u.assignedStation)} (${u.assignedStation})` : u.companyName || 'HQ Command'}
+              </td>
+              <td className="p-4">
+                <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
+              </td>
+              <td className="p-4 space-x-2">
+                <button
+                  onClick={() => setEditingUser(u)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => toggleStatus(u.id)}
+                  className={`font-bold text-xs px-3 py-1.5 rounded-xl border ${u.status === 'ACTIVE' ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}
+                >
+                  {u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                </button>
+                <button
+                  onClick={() => deleteUser(u.id)}
+                  className="text-slate-400 hover:text-rose-600 font-bold text-xs px-2 py-1.5"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </TableWrap>
+      </div>
+
+      {/* PROVISION NEW USER MODAL */}
+      {modalOpen && (
+        <Modal onClose={() => setModalOpen(false)}>
+          <div className="p-6 space-y-5">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              Provision New User Account
+            </h3>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Account Classification *</label>
+                  <select
+                    value={form.userType}
+                    onChange={(e) => setForm({ ...form, userType: e.target.value })}
+                    className={ic}
+                  >
+                    <option value="STAFF">Staff Member</option>
+                    <option value="CUSTOMER">Industrial Client / Consignee</option>
+                  </select>
+                </div>
+
+                {form.userType === 'STAFF' ? (
+                  <div>
+                    <label className={lc}>Operational Role *</label>
+                    <select
+                      value={form.role}
+                      onChange={(e) => setForm({ ...form, role: e.target.value })}
+                      className={ic}
+                    >
+                      <option value="CARGO_OFFICER">Terminal Cargo Officer</option>
+                      <option value="HEAD_OF_OPERATIONS">Head of Operations</option>
+                      <option value="HEAD_OF_FINANCE">Head of Finance</option>
+                      <option value="CEO">Managing Director / CEO</option>
+                      <option value="ADMIN">Admin Officer</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className={lc}>Company Name *</label>
+                    <input
+                      required
+                      value={form.companyName}
+                      onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                      placeholder="e.g. Purechem Cement"
+                      className={ic}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className={lc}>Full Name *</label>
+                <input
+                  required
+                  value={form.fullName}
+                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  placeholder="e.g. Adebayo Ogunlesi"
+                  className={ic}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Email Address</label>
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="adebayo@bueno.ng"
+                    className={ic}
+                  />
+                </div>
+                <div>
+                  <label className={lc}>Phone Number</label>
+                  <input
+                    type="text"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="08031234567"
+                    className={ic}
+                  />
+                </div>
+              </div>
+
+              {form.userType === 'STAFF' && form.role === 'CARGO_OFFICER' && (
+                <div>
+                  <label className={lc}>Assigned Terminal Station *</label>
+                  <select
+                    value={form.assignedStation}
+                    onChange={(e) => setForm({ ...form, assignedStation: e.target.value })}
+                    className={ic}
+                  >
+                    {Object.entries(STATIONS).map(([code, name]) => (
+                      <option key={code} value={code}>{name} ({code})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className={lc}>4-Digit Security PIN *</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  required
+                  value={form.pin}
+                  onChange={(e) => setForm({ ...form, pin: e.target.value })}
+                  placeholder="1111"
+                  className={`${ic} font-mono`}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-500">
+                  Cancel
+                </button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-sm">
+                  Provision Account ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* EDIT USER MODAL */}
+      {editingUser && (
+        <Modal onClose={() => setEditingUser(null)}>
+          <div className="p-6 space-y-5">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              Edit Account: {editingUser.fullName}
+            </h3>
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className={lc}>Full Name</label>
+                <input
+                  required
+                  value={editingUser.fullName}
+                  onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
+                  className={ic}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Email Address</label>
+                  <input
+                    value={editingUser.email}
+                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                    className={ic}
+                  />
+                </div>
+                <div>
+                  <label className={lc}>Phone Number</label>
+                  <input
+                    value={editingUser.phone}
+                    onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                    className={ic}
+                  />
+                </div>
+              </div>
+
+              {editingUser.userType === 'STAFF' && editingUser.role === 'CARGO_OFFICER' && (
+                <div>
+                  <label className={lc}>Terminal Station Transfer</label>
+                  <select
+                    value={editingUser.assignedStation}
+                    onChange={(e) => setEditingUser({ ...editingUser, assignedStation: e.target.value })}
+                    className={ic}
+                  >
+                    {Object.entries(STATIONS).map(([code, name]) => (
+                      <option key={code} value={code}>{name} ({code})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className={lc}>4-Digit Security PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={editingUser.pin}
+                  onChange={(e) => setEditingUser({ ...editingUser, pin: e.target.value })}
+                  className={`${ic} font-mono`}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-xs font-bold text-slate-500">
+                  Cancel
+                </button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-sm">
+                  Save Changes ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+    </Section>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'wagons' | 'requests'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'wagons' | 'requests' | 'users'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [wagons, setWagons]     = useState<any[]>([]);
+  const [users, setUsers]       = useState<any[]>([]);
 
   const [createDealModal, setCreateDealModal] = useState(false);
   const [addWagonModal, setAddWagonModal]     = useState(false);
@@ -1349,12 +1762,14 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
     setWagons(tryParse('bueno_wagons', SEED_WAGONS));
+    setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
   }, []);
 
   const persist = (key: string, val: any[]) => localStorage.setItem(key, JSON.stringify(val));
   const saveDeals    = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
   const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
   const saveWagons   = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
+  const saveUsers    = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
 
@@ -1378,6 +1793,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     { key: 'trips',    label: 'All Active Trips & GPS' },
     { key: 'wagons',   label: `Wagon Fleet Inventory (${wagons.length})` },
     { key: 'requests', label: 'Fund Requests (Review & Approve)' },
+    { key: 'users',    label: 'User Provisioning & Accounts' },
   ];
 
   return (
@@ -1418,32 +1834,6 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
         <Section title="All Active Trips (Corridor GPS Satellite Map)" subtitle="High-precision interactive map of all active rail corridor trips">
           <div className="space-y-6">
             <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
-            <TableWrap
-              headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons', 'Status']}
-              mobileCard={(t: any) => (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                    <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
-                  </div>
-                  <p className="font-bold text-slate-900">{t.company}</p>
-                  <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
-                  <p className="text-xs text-slate-500">Officer: {t.cargoOfficerName} | {(t.wagonLogs || []).length} Wagons</p>
-                </div>
-              )}
-              data={trips}
-            >
-              {trips.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
-                  <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                  <td className="p-4 text-slate-700">{t.company}</td>
-                  <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
-                  <td className="p-4 font-mono font-bold">{(t.wagonLogs || []).length} Wagons</td>
-                  <td className="p-4"><Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} /></td>
-                </tr>
-              ))}
-            </TableWrap>
           </div>
         </Section>
       )}
@@ -1509,6 +1899,10 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
             ))}
           </TableWrap>
         </Section>
+      )}
+
+      {view === 'users' && (
+        <UserProvisioningSection users={users} onSaveUsers={saveUsers} />
       )}
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
