@@ -833,7 +833,19 @@ function NotificationBell({ onNav }: { onNav?: (k: string) => void }) {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    setNotifications(tryParse('bueno_notifications', DEFAULT_NOTIFICATIONS));
+    const syncNotifs = () => {
+      setNotifications(tryParse('bueno_notifications', DEFAULT_NOTIFICATIONS));
+    };
+
+    syncNotifs();
+
+    window.addEventListener('storage', syncNotifs);
+    window.addEventListener('bueno_state_updated', syncNotifs);
+
+    return () => {
+      window.removeEventListener('storage', syncNotifs);
+      window.removeEventListener('bueno_state_updated', syncNotifs);
+    };
   }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -1801,6 +1813,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
 
     // 1. Add to users
     onSaveUsers([newCustomer, ...users]);
+    window.dispatchEvent(new Event('bueno_state_updated'));
 
     // 2. Mark request as provisioned
     const updatedReqs = clientRequests.map(r => r.id === req.id ? { ...r, status: 'PROVISIONED' } : r);
@@ -2295,13 +2308,16 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'wagons' | 'requests' | 'users'>('deals');
+  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [wagons, setWagons]     = useState<any[]>([]);
   const [users, setUsers]       = useState<any[]>([]);
+  const [negotiations, setNegotiations] = useState<any[]>([]);
+  const [activeNegId, setActiveNegId]   = useState<string | null>(null);
+  const [adminReplyInput, setAdminReplyInput] = useState('');
 
   const [createDealModal, setCreateDealModal] = useState(false);
   const [addWagonModal, setAddWagonModal]     = useState(false);
@@ -2312,20 +2328,119 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const [dealForm, setDealForm] = useState({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
 
   useEffect(() => {
-    setDeals(tryParse('bueno_deals', SEED_DEALS));
-    setTrips(tryParse('bueno_trips', SEED_TRIPS));
-    setRequests(tryParse('bueno_requests', SEED_REQUESTS));
-    setWagons(tryParse('bueno_wagons', SEED_WAGONS));
-    setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
+    const syncData = () => {
+      setDeals(tryParse('bueno_deals', SEED_DEALS));
+      setTrips(tryParse('bueno_trips', SEED_TRIPS));
+      setRequests(tryParse('bueno_requests', SEED_REQUESTS));
+      setWagons(tryParse('bueno_wagons', SEED_WAGONS));
+      setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
+      const loadedNegs = tryParse('bueno_custom_deal_negotiations', [
+        {
+          id: 'DEAL-NEG-001',
+          companyName: 'Purechem Cement Industries Ltd',
+          contactName: 'Engr. Clement Lawson',
+          loadingStation: 'EWK',
+          destination: 'MNY',
+          cargoType: 'Cement (50kg Bags)',
+          quantity: '6000',
+          targetDate: '15 Aug 2026',
+          status: 'UNDER_NEGOTIATION',
+          createdAt: '1 hour ago',
+          messages: [
+            { sender: 'Engr. Clement Lawson', role: 'Industrial Consignee', text: 'We require 6,000 bags moved from Ewekoro Siding to Moniya Yard next week. What is your available wagon slot?', time: '1 hour ago' },
+            { sender: 'Babajide Sanwo', role: 'Head of Operations', text: 'Good day! We have Locomotive #L2205 with 23 hopper wagons ready at Ewekoro. We can lock in this freight corridor for 15th August.', time: '45 mins ago' },
+          ]
+        }
+      ]);
+      setNegotiations(loadedNegs);
+      if (loadedNegs.length > 0 && !activeNegId) setActiveNegId(loadedNegs[0].id);
+    };
+
+    syncData();
+
+    window.addEventListener('storage', syncData);
+    window.addEventListener('bueno_state_updated', syncData);
+
+    return () => {
+      window.removeEventListener('storage', syncData);
+      window.removeEventListener('bueno_state_updated', syncData);
+    };
   }, []);
 
-  const persist = (key: string, val: any[]) => localStorage.setItem(key, JSON.stringify(val));
-  const saveDeals    = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
-  const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
-  const saveWagons   = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
-  const saveUsers    = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
+  const persist = (key: string, val: any[]) => {
+    localStorage.setItem(key, JSON.stringify(val));
+    window.dispatchEvent(new Event('bueno_state_updated'));
+  };
+
+  const saveDeals        = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
+  const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
+  const saveWagons       = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
+  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
+  const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v); };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
+
+  const handleAdminReply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminReplyInput.trim() || !activeNegId) return;
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const msg = {
+      sender: user.fullName,
+      role: user.roleLabel || user.role,
+      text: adminReplyInput.trim(),
+      time: now,
+    };
+
+    const updated = negotiations.map(n => n.id === activeNegId ? { ...n, messages: [...(n.messages || []), msg] } : n);
+    saveNegotiations(updated);
+    setAdminReplyInput('');
+
+    // Trigger Notification for Customer
+    try {
+      const notifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const targetNeg = negotiations.find(n => n.id === activeNegId);
+      const newNotif = {
+        id: `notif_${Date.now()}`,
+        title: `Ops Command Response for ${targetNeg?.companyName}`,
+        body: `"${msg.text}" — ${user.fullName}`,
+        time: 'Just now',
+        type: 'CLIENT_REQUEST',
+        read: false,
+      };
+      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
+  };
+
+  const handleAcceptAndConvertDeal = (neg: any) => {
+    const num = String(deals.length + 1).padStart(3, '0');
+    const newOfficialDeal = {
+      id: `DEAL-${num}`,
+      dealNumber: num,
+      company: neg.companyName,
+      loadingStation: neg.loadingStation || 'EWK',
+      destination: neg.destination || 'MNY',
+      cargoType: neg.cargoType || 'Cement (50kg Bags)',
+      quantity: neg.quantity || '5000',
+      createdAt: new Date().toLocaleString(),
+      createdBy: user.fullName,
+    };
+
+    saveDeals([newOfficialDeal, ...deals]);
+
+    // Send confirmation message in negotiation thread
+    const confirmMsg = {
+      sender: user.fullName,
+      role: user.roleLabel || user.role,
+      text: `✅ OFFICIAL ACCEPTANCE: Deal ${newOfficialDeal.dealNumber} has been locked in and assigned to ${sName(newOfficialDeal.loadingStation)} Terminal! Wagon allocation is active.`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const updatedNegs = negotiations.map(n => n.id === neg.id ? { ...n, status: 'ACCEPTED_DEAL_CREATED', messages: [...(n.messages || []), confirmMsg] } : n);
+    saveNegotiations(updatedNegs);
+
+    alert(`✅ Deal accepted! Created official Deal #${newOfficialDeal.dealNumber} for ${neg.companyName} at ${sName(newOfficialDeal.loadingStation)} Terminal.`);
+  };
 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2342,16 +2457,120 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     setCreateDealModal(false); setDealForm({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
   };
 
+  const selectedNeg = negotiations.find(n => n.id === activeNegId) || negotiations[0];
+
   const navItems = [
-    { key: 'deals',    label: 'Manage Deals' },
-    { key: 'trips',    label: 'All Active Trips & GPS' },
-    { key: 'wagons',   label: `Wagon Fleet Inventory (${wagons.length})` },
-    { key: 'requests', label: 'Fund Requests (Review & Approve)' },
-    { key: 'users',    label: 'User Provisioning & Accounts' },
+    { key: 'deals',        label: 'Manage Deals' },
+    { key: 'negotiations', label: `Client Negotiations & Chat (${negotiations.length})` },
+    { key: 'trips',        label: 'All Active Trips & GPS' },
+    { key: 'wagons',       label: `Wagon Fleet Inventory (${wagons.length})` },
+    { key: 'requests',     label: 'Fund Requests (Review & Approve)' },
+    { key: 'users',        label: 'User Provisioning & Accounts' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+      {view === 'negotiations' && (
+        <Section
+          title="Client Deal Negotiations & Executive Chat Center"
+          subtitle="Review incoming deal requests from industrial clients, negotiate wagon availability, and convert directly into official deals"
+        >
+          <div className="grid lg:grid-cols-12 gap-6">
+            
+            {/* List of Incoming Negotiations */}
+            <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-xs">
+              <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider px-2">Client Requisition Threads</h4>
+              <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                {negotiations.length === 0 ? (
+                  <p className="text-center text-xs text-slate-400 py-8">No custom deal negotiation requests yet.</p>
+                ) : (
+                  negotiations.map(neg => (
+                    <div
+                      key={neg.id}
+                      onClick={() => setActiveNegId(neg.id)}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${activeNegId === neg.id ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800'}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-black text-xs">{neg.companyName}</span>
+                        <span className={`text-[9px] font-extrabold font-mono px-2 py-0.5 rounded-full ${neg.status === 'ACCEPTED_DEAL_CREATED' ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'}`}>
+                          {neg.status === 'ACCEPTED_DEAL_CREATED' ? 'OFFICIAL DEAL ✓' : 'UNDER NEGOTIATION'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] opacity-80 font-medium">{neg.cargoType} ({neg.quantity} Bags)</p>
+                      <p className="text-[10px] opacity-60 font-mono">{sName(neg.loadingStation)} ➔ {sName(neg.destination)} • {neg.createdAt}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Live Recipient Chat & Conversion Panel */}
+            <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-xs flex flex-col h-[520px] overflow-hidden">
+              {selectedNeg ? (
+                <>
+                  <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-mono font-black text-[#0E4B88] uppercase">{selectedNeg.companyName} — {selectedNeg.id}</span>
+                      <h4 className="text-sm font-black text-slate-900 mt-0.5">
+                        {selectedNeg.cargoType} ({selectedNeg.quantity} Bags)
+                      </h4>
+                      <p className="text-xs text-slate-500">{sName(selectedNeg.loadingStation)} ➔ {sName(selectedNeg.destination)}</p>
+                    </div>
+
+                    {selectedNeg.status !== 'ACCEPTED_DEAL_CREATED' && (
+                      <button
+                        onClick={() => handleAcceptAndConvertDeal(selectedNeg)}
+                        className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs transition-all"
+                      >
+                        Accept & Lock In Deal ➔
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+                    {(selectedNeg.messages || []).map((m: any, idx: number) => {
+                      const isClient = m.role === 'Industrial Consignee';
+                      return (
+                        <div key={idx} className={`flex flex-col ${isClient ? 'items-start' : 'items-end'}`}>
+                          <div className="flex items-center gap-2 mb-1 text-[10px]">
+                            <span className="font-extrabold text-slate-900">{m.sender}</span>
+                            <span className="text-slate-400 font-mono">({m.role})</span>
+                            <span className="text-slate-400 font-mono">• {m.time}</span>
+                          </div>
+                          <div className={`p-3.5 rounded-2xl max-w-sm text-xs leading-relaxed ${isClient ? 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-xs' : 'bg-[#0E4B88] text-white rounded-tr-none'}`}>
+                            {m.text}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Reply Form */}
+                  <form onSubmit={handleAdminReply} className="p-3 bg-white border-t border-slate-200 flex gap-2">
+                    <input
+                      type="text"
+                      value={adminReplyInput}
+                      onChange={(e) => setAdminReplyInput(e.target.value)}
+                      placeholder={`Reply to ${selectedNeg.companyName}...`}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all"
+                    >
+                      Send Reply ➔
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="p-12 text-center text-slate-400 text-xs my-auto">Select a negotiation thread to view conversation.</div>
+              )}
+            </div>
+
+          </div>
+        </Section>
+      )}
       {view === 'deals' && (
         <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Create New Deal</button>}>
           <TableWrap

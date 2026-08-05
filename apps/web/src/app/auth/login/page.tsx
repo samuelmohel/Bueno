@@ -76,15 +76,27 @@ function LoginForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const loaded = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
-    setAllUsers(loaded);
+    const syncUsers = () => {
+      const loaded = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      setAllUsers(loaded);
+      try {
+        const raw = localStorage.getItem('bueno_user');
+        if (raw) setCurrentUser(JSON.parse(raw));
+      } catch {
+        setCurrentUser(null);
+      }
+    };
 
-    try {
-      const raw = localStorage.getItem('bueno_user');
-      if (raw) setCurrentUser(JSON.parse(raw));
-    } catch {
-      setCurrentUser(null);
-    }
+    syncUsers();
+
+    // Listen for storage changes across tabs & viewports
+    window.addEventListener('storage', syncUsers);
+    window.addEventListener('bueno_state_updated', syncUsers);
+
+    return () => {
+      window.removeEventListener('storage', syncUsers);
+      window.removeEventListener('bueno_state_updated', syncUsers);
+    };
   }, []);
 
   // Filter officers for selected station

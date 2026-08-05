@@ -397,28 +397,24 @@ export default function BuenoLogisticsHomePage() {
 
           {/* HD Nigerian Cargo Officer / Terminal Bay Card */}
           <div className="lg:col-span-5">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl relative space-y-5">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 shadow-2xl relative space-y-4 overflow-hidden">
               
-              {/* Header Badge */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                <div>
-                  <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest block">STATION LOADING BAY NO. 4</span>
-                  <h3 className="text-sm font-black text-white mt-0.5">Ewekoro Terminal Rail Siding</h3>
-                </div>
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-extrabold uppercase font-mono">
-                  ● ACTIVE LOADING
-                </span>
-              </div>
-
-              {/* Nigerian Cargo Lead Profile Card */}
-              <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0E4B88] to-[#62BC37] flex items-center justify-center text-white font-mono font-black text-lg shadow-md flex-shrink-0">
-                  AB
-                </div>
-                <div>
-                  <p className="text-xs font-black text-white">Ade Bello</p>
-                  <p className="text-[11px] font-bold text-[#62BC37]">Senior Cargo Officer — EWK Terminal</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Staff ID: EWK-01 • 12 Yrs Heavy Freight</p>
+              {/* HD On-Site Photo */}
+              <div className="relative h-56 w-full rounded-2xl overflow-hidden border border-slate-800 shadow-md">
+                <img
+                  src="/nigerian_cargo_officer.jpg"
+                  alt="Nigerian Rail Cargo Officer on site at Ewekoro Terminal loading bay"
+                  className="w-full h-full object-cover object-top"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
+                <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+                  <div>
+                    <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-wider block">SENIOR CARGO OPERATIONS LEAD</span>
+                    <p className="text-xs font-black text-white">Ade Bello (EWK-01)</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-[9px] font-extrabold uppercase font-mono">
+                    ● ON SITE
+                  </span>
                 </div>
               </div>
 
@@ -429,8 +425,8 @@ export default function BuenoLogisticsHomePage() {
                   <span className="text-sm font-black text-white">23 Hopper Wagons</span>
                 </div>
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
-                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Cargo Manifest</span>
-                  <span className="text-sm font-black text-emerald-400">1,610 Bags (Cement)</span>
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Train Capacity</span>
+                  <span className="text-sm font-black text-emerald-400">1,610 Bags / Trip</span>
                 </div>
               </div>
 
