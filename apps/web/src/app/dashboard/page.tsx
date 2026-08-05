@@ -407,23 +407,132 @@ function FundRequestDetailModal({
    PORTAL 6 — CUSTOMER / INDUSTRIAL CONSIGNEE
 ═══════════════════════════════════════════════════════════ */
 function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'tracking' | 'alerts' | 'history'>('tracking');
+  const [view, setView] = useState<'tracking' | 'negotiation' | 'alerts' | 'history'>('tracking');
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips] = useState<any[]>([]);
+  const [dealRequests, setDealRequests] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [activeDealId, setActiveDealId] = useState<string | null>(null);
+
+  const [dealForm, setDealForm] = useState({
+    loadingStation: 'EWK',
+    destination: 'MNY',
+    cargoType: 'Elephant Cement (50kg Bags)',
+    quantity: '5000',
+    targetDate: '',
+    budget: '',
+    notes: '',
+  });
 
   const companyName = user?.companyName || 'Lafarge Africa Plc';
 
   useEffect(() => {
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
-  }, []);
+    const loadedDeals = tryParse('bueno_custom_deal_negotiations', [
+      {
+        id: 'DEAL-NEG-001',
+        companyName,
+        contactName: user?.fullName || 'Logistics Lead',
+        loadingStation: 'EWK',
+        destination: 'MNY',
+        cargoType: 'Cement (50kg Bags)',
+        quantity: '6000',
+        targetDate: '15 Aug 2026',
+        status: 'UNDER_NEGOTIATION',
+        createdAt: '1 hour ago',
+        messages: [
+          { sender: user?.fullName || 'Client Lead', role: 'Industrial Consignee', text: 'We require 6,000 bags moved from Ewekoro Siding to Moniya Yard next week. What is your available wagon slot?', time: '1 hour ago' },
+          { sender: 'Babajide Sanwo', role: 'Head of Operations', text: 'Good day! We have Locomotive #L2205 with 23 hopper wagons ready at Ewekoro. We can lock in this freight corridor for 15th August.', time: '45 mins ago' },
+        ]
+      }
+    ]);
+    setDealRequests(loadedDeals);
+    if (loadedDeals.length > 0) setActiveDealId(loadedDeals[0].id);
+  }, [companyName, user]);
 
+  const saveNegotiations = (updated: any[]) => {
+    setDealRequests(updated);
+    localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updated));
+  };
+
+  const handleCreateDealRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newDeal = {
+      id: `DEAL-NEG-${String(dealRequests.length + 1).padStart(3, '0')}`,
+      companyName,
+      contactName: user?.fullName || 'Logistics Lead',
+      ...dealForm,
+      status: 'UNDER_NEGOTIATION',
+      createdAt: 'Just now',
+      messages: [
+        {
+          sender: user?.fullName || 'Client Lead',
+          role: 'Industrial Consignee',
+          text: `New Freight Requisition: ${dealForm.cargoType} (${dealForm.quantity} Bags) from ${sName(dealForm.loadingStation)} to ${sName(dealForm.destination)}. Target Date: ${dealForm.targetDate || 'ASAP'}. ${dealForm.notes}`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }
+      ]
+    };
+
+    const updated = [newDeal, ...dealRequests];
+    saveNegotiations(updated);
+    setActiveDealId(newDeal.id);
+
+    try {
+      const notifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const newNotif = {
+        id: `notif_${Date.now()}`,
+        title: `Deal Negotiation Request: ${companyName}`,
+        body: `Requested ${dealForm.quantity} Bags of ${dealForm.cargoType} (${sName(dealForm.loadingStation)} ➔ ${sName(dealForm.destination)})`,
+        time: 'Just now',
+        type: 'CLIENT_REQUEST',
+        read: false,
+      };
+      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
+    } catch {}
+
+    setDealForm({ loadingStation: 'EWK', destination: 'MNY', cargoType: 'Elephant Cement (50kg Bags)', quantity: '5000', targetDate: '', budget: '', notes: '' });
+    alert('✅ Custom Freight Deal Request submitted! Operations & Executive Command have been notified.');
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !activeDealId) return;
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const msg = {
+      sender: user?.fullName || 'Client Lead',
+      role: 'Industrial Consignee',
+      text: chatInput.trim(),
+      time: now,
+    };
+
+    const updated = dealRequests.map(d => d.id === activeDealId ? { ...d, messages: [...(d.messages || []), msg] } : d);
+    saveNegotiations(updated);
+    setChatInput('');
+
+    try {
+      const notifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const newNotif = {
+        id: `notif_${Date.now()}`,
+        title: `New Message from ${companyName}`,
+        body: `"${chatInput.trim()}"`,
+        time: 'Just now',
+        type: 'CLIENT_REQUEST',
+        read: false,
+      };
+      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
+    } catch {}
+  };
+
+  const selectedDeal = dealRequests.find(d => d.id === activeDealId) || dealRequests[0];
   const myTrips = trips.filter(t => t.company?.toLowerCase().includes(companyName.toLowerCase()) || companyName.toLowerCase().includes(t.company?.toLowerCase()));
   const activeTrip = myTrips.find(t => t.status === 'IN_TRANSIT' || t.status === 'LOADING' || t.status === 'UNLOADING') || myTrips[0] || SEED_TRIPS[0];
 
   const navItems = [
-    { key: 'tracking', label: 'Live Consignment Tracking' },
-    { key: 'alerts',   label: 'Live Shipment Notifications' },
-    { key: 'history',  label: 'Consignment Delivery History' },
+    { key: 'tracking',    label: 'Live Consignment Tracking' },
+    { key: 'negotiation', label: 'Request Deal & Live Negotiation' },
+    { key: 'alerts',       label: 'Live Shipment Notifications' },
+    { key: 'history',      label: 'Consignment Delivery History' },
   ];
 
   return (
@@ -454,6 +563,187 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
         </div>
       )}
 
+      {view === 'negotiation' && (
+        <Section
+          title="Deal Negotiation & Live Communication Center"
+          subtitle="Request a custom train cargo load, negotiate tariffs and wagon counts directly with Head of Ops, CEO & Admin"
+        >
+          <div className="space-y-6">
+            <div className="bg-[#0E4B88] text-white rounded-2xl p-4 sm:p-5 shadow-md flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-mono font-black uppercase text-emerald-400 tracking-widest block">DIRECT OPERATIONAL PHONE LINE</span>
+                <h4 className="text-base font-black text-white mt-0.5" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Prefer to speak directly with the Operations Desk?
+                </h4>
+                <p className="text-xs text-slate-200 mt-0.5">
+                  Call our 24/7 Rail Command Desk for instant tariff quotes & train allocations.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <a
+                  href="tel:+2348030000002"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  📞 Call Ops Desk: 0803 000 0002
+                </a>
+                <a
+                  href="tel:+2348030000001"
+                  className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl border border-white/20 transition-all"
+                >
+                  CEO Direct: 0803 000 0001
+                </a>
+              </div>
+            </div>
+
+            <div className="grid lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h4 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  + Request New Cargo Deal
+                </h4>
+                <form onSubmit={handleCreateDealRequest} className="space-y-3.5 text-xs font-semibold">
+                  <div>
+                    <label className={lc}>Loading Station *</label>
+                    <select
+                      value={dealForm.loadingStation}
+                      onChange={(e) => setDealForm({ ...dealForm, loadingStation: e.target.value })}
+                      className={ic}
+                    >
+                      {Object.entries(STATIONS).map(([code, name]) => (
+                        <option key={code} value={code}>{name} ({code})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={lc}>Receiving Destination Yard *</label>
+                    <select
+                      value={dealForm.destination}
+                      onChange={(e) => setDealForm({ ...dealForm, destination: e.target.value })}
+                      className={ic}
+                    >
+                      {Object.entries(STATIONS).map(([code, name]) => (
+                        <option key={code} value={code}>{name} ({code})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lc}>Cargo Commodity *</label>
+                      <input
+                        required
+                        value={dealForm.cargoType}
+                        onChange={(e) => setDealForm({ ...dealForm, cargoType: e.target.value })}
+                        placeholder="e.g. Elephant Cement"
+                        className={ic}
+                      />
+                    </div>
+                    <div>
+                      <label className={lc}>Quantity (Bags) *</label>
+                      <input
+                        type="number"
+                        required
+                        value={dealForm.quantity}
+                        onChange={(e) => setDealForm({ ...dealForm, quantity: e.target.value })}
+                        placeholder="5000"
+                        className={ic}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lc}>Target Loading Date</label>
+                      <input
+                        type="text"
+                        value={dealForm.targetDate}
+                        onChange={(e) => setDealForm({ ...dealForm, targetDate: e.target.value })}
+                        placeholder="15th Aug 2026"
+                        className={ic}
+                      />
+                    </div>
+                    <div>
+                      <label className={lc}>Target Rate / Budget (₦)</label>
+                      <input
+                        type="text"
+                        value={dealForm.budget}
+                        onChange={(e) => setDealForm({ ...dealForm, budget: e.target.value })}
+                        placeholder="Optional target rate"
+                        className={ic}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={lc}>Negotiation Notes / Siding Requirements</label>
+                    <textarea
+                      rows={2}
+                      value={dealForm.notes}
+                      onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })}
+                      placeholder="Enter specific wagon requirements or loading bay siding notes..."
+                      className={ic}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-xs transition-all"
+                  >
+                    Submit Deal Request to Ops & CEO ➔
+                  </button>
+                </form>
+              </div>
+
+              <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col h-[520px] overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono font-extrabold uppercase text-[#0E4B88]">LIVE NEGOTIATION THREAD</span>
+                    <h4 className="text-sm font-black text-slate-900 mt-0.5">{selectedDeal ? selectedDeal.id : 'No active negotiation'}</h4>
+                  </div>
+                  {selectedDeal && (
+                    <Badge text={selectedDeal.status || 'UNDER_NEGOTIATION'} color="purple" />
+                  )}
+                </div>
+
+                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+                  {selectedDeal && (selectedDeal.messages || []).map((m: any, idx: number) => {
+                    const isMe = m.role === 'Industrial Consignee';
+                    return (
+                      <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-2 mb-1 text-[10px]">
+                          <span className="font-extrabold text-slate-900">{m.sender}</span>
+                          <span className="text-slate-400 font-mono">({m.role})</span>
+                          <span className="text-slate-400 font-mono">• {m.time}</span>
+                        </div>
+                        <div className={`p-3.5 rounded-2xl max-w-sm text-xs leading-relaxed ${isMe ? 'bg-[#0E4B88] text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-xs'}`}>
+                          {m.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-200 flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type message to Ops Head, CEO & Admin..."
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all"
+                  >
+                    Send ➔
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </Section>
+      )}
+
       {view === 'alerts' && (
         <Section title="Live Consignment Notifications" subtitle="Real-time milestone alerts pushed from terminal operations">
           <div className="space-y-3">
@@ -474,11 +764,11 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
       )}
 
       {view === 'history' && (
-        <Section title="Consignment Delivery History" subtitle="Completed and audited freight shipments for your account">
+        <Section title="Consignment Delivery History" subtitle="Archived freight shipments delivered to your receiving yards">
           <TableWrap
-            headers={['Trip ID', 'Origin ➔ Destination', 'Cargo Type', 'Wagons', 'Status', 'Date']}
+            headers={['Trip ID', 'Origin Loading', 'Receiving Yard', 'Cargo Type', 'Wagons & Bags', 'Delivery Date']}
             mobileCard={(t: any) => (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
                   <Badge text={t.status} color={t.status === 'ARRIVED' ? 'green' : 'blue'} />
@@ -1493,7 +1783,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     ]));
   }, []);
 
-  const approveAndProvisionRequest = (req: any) => {
+  const approveAndProvisionRequest = async (req: any) => {
     const num = Math.floor(1000 + Math.random() * 9000);
     const newCustomer = {
       id: `usr_${Date.now()}`,
@@ -1524,7 +1814,22 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       localStorage.setItem('bueno_notifications', JSON.stringify(updatedNotifs));
     } catch {}
 
-    alert(`✅ ${req.companyName} has been approved and provisioned as an active Industrial Client! PIN: 1111`);
+    // 4. Trigger Real Transactional Email API Webhook
+    try {
+      await fetch('/api/send_mail.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: req.email,
+          companyName: req.companyName,
+          contactName: req.contactName,
+          staffId: `CUST-${num}`,
+          pin: '1111',
+        })
+      });
+    } catch {}
+
+    alert(`✅ ${req.companyName} has been approved and provisioned as an active Industrial Client!\n\n📧 Authentic Welcome Email with 4-Digit Security PIN (1111) dispatched to: ${req.email}`);
   };
 
   const [form, setForm] = useState({

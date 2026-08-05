@@ -362,6 +362,88 @@ export default function BuenoLogisticsHomePage() {
         </div>
       </section>
 
+      {/* ─── HIGH-IMPACT PARTNER ADVERT BANNER ──────── */}
+      <section className="py-20 px-6 lg:px-10 bg-slate-900 text-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Text & Advertising Copy */}
+          <div className="lg:col-span-7 space-y-6">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-400 text-xs font-black uppercase tracking-widest font-mono">
+              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              FOR MANUFACTURERS & BULK DISTRIBUTORS
+            </span>
+
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              Scale Bulk Freight Distribution Across Nigeria <br />
+              <span className="text-[#62BC37]">By Heavy Rail.</span>
+            </h2>
+
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-xl font-normal">
+              Move up to <strong>10,000 bags of cement, agricultural grains, or containerized freight</strong> in a single train movement. Eliminate road haulage delays, prevent transit losses, and track every wagon with live satellite GPS telemetry.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <button
+                onClick={() => setRequestModal(true)}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-8 py-4 rounded-2xl shadow-xl transition-all hover:scale-105"
+              >
+                Become a Freight Partner / Request Account ➔
+              </button>
+              <a href="tel:+2348030000002" className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold px-6 py-4 rounded-2xl border border-slate-700 transition-all">
+                📞 Call Operations Desk: +234 803 000 0002
+              </a>
+            </div>
+          </div>
+
+          {/* HD Nigerian Cargo Officer / Terminal Bay Card */}
+          <div className="lg:col-span-5">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl relative space-y-5">
+              
+              {/* Header Badge */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div>
+                  <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest block">STATION LOADING BAY NO. 4</span>
+                  <h3 className="text-sm font-black text-white mt-0.5">Ewekoro Terminal Rail Siding</h3>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-extrabold uppercase font-mono">
+                  ● ACTIVE LOADING
+                </span>
+              </div>
+
+              {/* Nigerian Cargo Lead Profile Card */}
+              <div className="bg-slate-900 rounded-2xl p-4 border border-slate-800 flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0E4B88] to-[#62BC37] flex items-center justify-center text-white font-mono font-black text-lg shadow-md flex-shrink-0">
+                  AB
+                </div>
+                <div>
+                  <p className="text-xs font-black text-white">Ade Bello</p>
+                  <p className="text-[11px] font-bold text-[#62BC37]">Senior Cargo Officer — EWK Terminal</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-mono">Staff ID: EWK-01 • 12 Yrs Heavy Freight</p>
+                </div>
+              </div>
+
+              {/* Live Manifest Metric */}
+              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Wagons Allocated</span>
+                  <span className="text-sm font-black text-white">23 Hopper Wagons</span>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                  <span className="text-[9px] uppercase text-slate-400 block font-bold">Cargo Manifest</span>
+                  <span className="text-sm font-black text-emerald-400">1,610 Bags (Cement)</span>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-400 font-mono text-center pt-1 border-t border-slate-900">
+                Verified Terminal Manifest · Nigerian Railway Corporation Corridor
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="bg-slate-950 text-white py-16 px-6 lg:px-10 border-t border-slate-900">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between gap-10">
