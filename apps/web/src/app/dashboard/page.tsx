@@ -124,8 +124,8 @@ function stageColor(stage: string) {
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-3xl w-full max-w-xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-3xl w-full max-w-xl mx-2 sm:mx-auto border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto min-w-0">
         {children}
       </div>
     </div>
@@ -981,7 +981,7 @@ function Shell({
   );
 
   return (
-    <div className="min-h-screen bg-slate-50/80 flex" style={{ fontFamily: "'Inter',sans-serif" }}>
+    <div className="min-h-screen bg-slate-50/80 flex w-full max-w-full overflow-x-hidden" style={{ fontFamily: "'Inter',sans-serif" }}>
       <aside className="hidden lg:flex w-64 xl:w-72 flex-shrink-0 flex-col sticky top-0 h-screen z-30"><Nav /></aside>
       {menuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
@@ -989,24 +989,24 @@ function Shell({
           <div className="relative z-10 w-64 flex-shrink-0"><Nav /></div>
         </div>
       )}
-      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden w-full">
         
         {/* Clean Corporate Top Header */}
-        <header className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-shrink-0 shadow-xs relative z-20">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all">
+        <header className="bg-white border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 shadow-xs relative z-20 w-full">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-9 object-contain" />
-            <div className="hidden sm:block pl-2 border-l border-slate-200">
+            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-7 sm:h-9 object-contain flex-shrink-0" />
+            <div className="hidden md:block pl-2 border-l border-slate-200 truncate">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">BUENO FREIGHT OS</span>
-              <h2 className="text-xs font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>OPERATIONAL COMMAND DASHBOARD</h2>
+              <h2 className="text-xs font-black text-slate-900 truncate" style={{ fontFamily: "'Outfit', sans-serif" }}>OPERATIONAL COMMAND DASHBOARD</h2>
             </div>
           </div>
 
           {/* Center Actions: Live Status + Notification Bell */}
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="hidden lg:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
               <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
               <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
                 CORRIDOR LIVE
@@ -1017,10 +1017,10 @@ function Shell({
             <NotificationBell onNav={onNav} />
           </div>
 
-          <div className="flex items-center gap-3 text-right">
-            <div>
-              <p className="text-xs font-black text-slate-900 truncate max-w-[150px] sm:max-w-none">{user?.fullName}</p>
-              <p className="text-[10px] text-[#62BC37] font-extrabold truncate max-w-[150px] sm:max-w-none uppercase">{user?.roleLabel || user?.role}</p>
+          <div className="flex items-center gap-2 sm:gap-3 text-right flex-shrink-0">
+            <div className="max-w-[100px] sm:max-w-none">
+              <p className="text-xs font-black text-slate-900 truncate">{user?.fullName}</p>
+              <p className="text-[9px] sm:text-[10px] text-[#62BC37] font-extrabold truncate uppercase">{user?.roleLabel || user?.role}</p>
             </div>
             <button onClick={onSignOut} className="hidden sm:block text-[11px] font-semibold text-slate-500 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-all">
               Sign Out
@@ -1028,7 +1028,7 @@ function Shell({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden">{children}</main>
       </div>
     </div>
   );
@@ -1814,6 +1814,15 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     // 1. Add to users
     onSaveUsers([newCustomer, ...users]);
     window.dispatchEvent(new Event('bueno_state_updated'));
+
+    // Push live to cPanel Database API
+    try {
+      await fetch('/api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCustomer),
+      });
+    } catch {}
 
     // 2. Mark request as provisioned
     const updatedReqs = clientRequests.map(r => r.id === req.id ? { ...r, status: 'PROVISIONED' } : r);

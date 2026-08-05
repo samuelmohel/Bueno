@@ -76,8 +76,18 @@ function LoginForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const syncUsers = () => {
-      const loaded = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+    const syncUsers = async () => {
+      let loaded = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      try {
+        const res = await fetch('/api/users.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            loaded = json.data;
+            localStorage.setItem('bueno_provisioned_users', JSON.stringify(loaded));
+          }
+        }
+      } catch {}
       setAllUsers(loaded);
       try {
         const raw = localStorage.getItem('bueno_user');
@@ -93,9 +103,12 @@ function LoginForm() {
     window.addEventListener('storage', syncUsers);
     window.addEventListener('bueno_state_updated', syncUsers);
 
+    const interval = setInterval(syncUsers, 5000);
+
     return () => {
       window.removeEventListener('storage', syncUsers);
       window.removeEventListener('bueno_state_updated', syncUsers);
+      clearInterval(interval);
     };
   }, []);
 
