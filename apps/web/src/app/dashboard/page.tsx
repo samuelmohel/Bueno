@@ -329,7 +329,7 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
         </div>
 
         {/* Cargo & Train Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive ID</span>
             <span className="text-sm font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
@@ -337,6 +337,10 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span>
             <span className="text-sm font-black text-slate-900 truncate block">{trip.cargoType || 'Cement'}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Transit Duration</span>
+            <span className="text-sm font-black text-amber-600 block">{trip.transitDuration || '4 Hours 18 Mins'}</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Wagons</span>
@@ -700,6 +704,139 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
             <p className="font-black text-slate-900 mt-1">Alhaji Bashir Umar (EXEC-01)</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Bueno Logistics Limited HQ</p>
             <div className="mt-4 pt-2 border-t border-slate-300 text-[10px] text-slate-400">Official Executive Signature: __________________</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   ADMIN SYSTEM SETTINGS & ROLE PRIVILEGES CONTROL CENTER
+───────────────────────────────────────────────────────── */
+function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUsers: (v: any[]) => void }) {
+  const [selectedUserId, setSelectedUserId] = useState<string>(users[0]?.id || '');
+  const selectedUser = users.find(u => u.id === selectedUserId) || users[0];
+
+  const defaultPerms = {
+    canApproveFundRequests: true,
+    canCreateTrips: true,
+    canInspectAuditLogs: true,
+    canManageDeals: true,
+    canProvisionUsers: selectedUser?.role === 'ADMIN',
+    canDisburseFunds: selectedUser?.role === 'HEAD_OF_FINANCE',
+  };
+
+  const [perms, setPerms] = useState<any>(selectedUser?.permissions || defaultPerms);
+
+  useEffect(() => {
+    if (selectedUser) {
+      setPerms(selectedUser.permissions || {
+        canApproveFundRequests: selectedUser.role === 'ADMIN' || selectedUser.role === 'HEAD_OF_OPERATIONS' || selectedUser.role === 'CEO',
+        canCreateTrips: selectedUser.role === 'CARGO_OFFICER' || selectedUser.role === 'ADMIN' || selectedUser.role === 'HEAD_OF_OPERATIONS',
+        canInspectAuditLogs: true,
+        canManageDeals: selectedUser.role === 'ADMIN' || selectedUser.role === 'HEAD_OF_OPERATIONS' || selectedUser.role === 'CEO',
+        canProvisionUsers: selectedUser.role === 'ADMIN',
+        canDisburseFunds: selectedUser.role === 'HEAD_OF_FINANCE' || selectedUser.role === 'ADMIN',
+      });
+    }
+  }, [selectedUserId, selectedUser]);
+
+  const handleTogglePerm = (key: string) => {
+    setPerms({ ...perms, [key]: !perms[key] });
+  };
+
+  const handleSaveUserPermissions = () => {
+    const updated = users.map(u => u.id === selectedUserId ? { ...u, permissions: perms } : u);
+    onSaveUsers(updated);
+    alert(`Granular system permissions updated successfully for ${selectedUser?.fullName}!`);
+  };
+
+  return (
+    <div className="space-y-6 font-sans">
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-400 block">ADMINISTRATIVE COMMAND</span>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            System Settings & Role Permissions Control Center
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Manage platform configuration, grant or revoke operational privileges, and customize user access rights.</p>
+        </div>
+
+        <button
+          onClick={handleSaveUserPermissions}
+          className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md"
+        >
+          Save User Permissions ➔
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* User Selection Directory */}
+        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-xs">
+          <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider px-2">Select User Account to Modify Privileges</h4>
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {users.map(u => (
+              <div
+                key={u.id}
+                onClick={() => setSelectedUserId(u.id)}
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${selectedUserId === u.id ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800'}`}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="font-black text-xs">{u.fullName}</span>
+                  <Badge text={u.roleLabel || u.role} color={selectedUserId === u.id ? 'green' : 'blue'} />
+                </div>
+                <p className="text-[11px] font-mono opacity-80">{u.email || u.phone}</p>
+                <p className="text-[10px] uppercase font-bold opacity-60 mt-1">{u.userType} • {u.assignedStation ? `${sName(u.assignedStation)} Station` : u.companyName || 'HQ Command'}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Granular Permission Matrix Settings */}
+        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
+          <div className="border-b border-slate-200 pb-4">
+            <span className="text-[10px] font-mono font-extrabold uppercase text-[#62BC37] block">ACTIVE PERMISSION MATRIX FOR</span>
+            <h3 className="text-lg font-black text-slate-900">{selectedUser?.fullName}</h3>
+            <p className="text-xs text-slate-500">{selectedUser?.roleLabel || selectedUser?.role} • Staff ID: {selectedUser?.staffId || selectedUser?.id}</p>
+          </div>
+
+          <div className="space-y-4 text-xs font-sans">
+            <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Operational Privilege Flags</h4>
+
+            <div className="space-y-3">
+              {[
+                { key: 'canApproveFundRequests', label: 'Approve & Clear Operational Fund Requests', desc: 'Allows user to review, comment on, and advance fund requisitions' },
+                { key: 'canCreateTrips', label: 'Initiate Rail Trips & Load Wagons', desc: 'Grants authority to dispatch locomotives and record wagon start/end times' },
+                { key: 'canInspectAuditLogs', label: 'Access Tonnage Analytics & Print Audit Reports', desc: 'Allows viewing and exporting per-trip wagon manifests and daily reports' },
+                { key: 'canManageDeals', label: 'Lock In Consignment Deals & Negotiate', desc: 'Grants permission to respond to industrial clients and convert chats into deals' },
+                { key: 'canProvisionUsers', label: 'Provision User Accounts & Edit Credentials', desc: 'Allows creating staff/customer accounts and changing PIN codes' },
+                { key: 'canDisburseFunds', label: 'Execute Bank Disbursements & Payments', desc: 'Grants finance clearance authority to disburse approved requisitions' },
+              ].map(flag => (
+                <div key={flag.key} className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div>
+                    <p className="font-extrabold text-slate-900">{flag.label}</p>
+                    <p className="text-[11px] text-slate-500 font-medium">{flag.desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePerm(flag.key)}
+                    className={`w-12 h-6 rounded-full transition-colors p-1 flex items-center ${perms[flag.key] ? 'bg-[#62BC37] justify-end' : 'bg-slate-300 justify-start'}`}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-white shadow-md block" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-200 flex justify-end">
+            <button
+              onClick={handleSaveUserPermissions}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md"
+            >
+              Save User Permissions ➔
+            </button>
           </div>
         </div>
       </div>
@@ -1137,7 +1274,18 @@ function NotificationBell({ onNav }: { onNav?: (k: string) => void }) {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    const syncNotifs = () => {
+    const syncNotifs = async () => {
+      try {
+        const res = await fetch('/api/notifications.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setNotifications(json.data);
+            localStorage.setItem('bueno_notifications', JSON.stringify(json.data));
+            return;
+          }
+        }
+      } catch {}
       setNotifications(tryParse('bueno_notifications', DEFAULT_NOTIFICATIONS));
     };
 
@@ -1145,10 +1293,12 @@ function NotificationBell({ onNav }: { onNav?: (k: string) => void }) {
 
     window.addEventListener('storage', syncNotifs);
     window.addEventListener('bueno_state_updated', syncNotifs);
+    const interval = setInterval(syncNotifs, 5000);
 
     return () => {
       window.removeEventListener('storage', syncNotifs);
       window.removeEventListener('bueno_state_updated', syncNotifs);
+      clearInterval(interval);
     };
   }, []);
 
@@ -1158,18 +1308,40 @@ function NotificationBell({ onNav }: { onNav?: (k: string) => void }) {
     const updated = notifications.map(n => ({ ...n, read: true }));
     setNotifications(updated);
     localStorage.setItem('bueno_notifications', JSON.stringify(updated));
+    try {
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+    } catch {}
   };
 
   const handleNotificationClick = (n: any) => {
     const updated = notifications.map(item => item.id === n.id ? { ...item, read: true } : item);
     setNotifications(updated);
     localStorage.setItem('bueno_notifications', JSON.stringify(updated));
+    try {
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+    } catch {}
     setOpen(false);
 
     if (onNav) {
-      if (n.type === 'CLIENT_REQUEST') onNav('users');
-      else if (n.type === 'FUND_REQUEST') onNav('requests');
-      else if (n.type === 'TRIP_ALERT') onNav('trips');
+      if (n.targetTab) {
+        onNav(n.targetTab);
+      } else if (n.type === 'CLIENT_REQUEST') {
+        onNav('users');
+      } else if (n.type === 'FUND_REQUEST') {
+        onNav('requests');
+      } else if (n.type === 'TRIP_ALERT') {
+        onNav('trips');
+      } else if (n.type === 'DEAL_CHAT') {
+        onNav('negotiations');
+      }
     }
   };
 
@@ -2671,7 +2843,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics'>('deals');
+  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics' | 'settings'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
@@ -2868,13 +3040,14 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const [inspectingTrip, setInspectingTrip] = useState<any | null>(null);
 
   const navItems = [
-    { key: 'analytics',    label: '📊 Operational Analytics & Daily Reports' },
+    { key: 'analytics',    label: 'Operational Analytics & Daily Reports' },
     { key: 'deals',        label: 'Manage Deals' },
     { key: 'negotiations', label: `Client Negotiations & Chat (${negotiations.length})` },
     { key: 'trips',        label: 'All Active Trips & GPS' },
     { key: 'wagons',       label: `Wagon Fleet Inventory (${wagons.length})` },
     { key: 'requests',     label: 'Fund Requests (Review & Approve)' },
     { key: 'users',        label: 'User Provisioning & Accounts' },
+    { key: 'settings',     label: 'System Settings & Role Permissions' },
   ];
 
   return (
@@ -2883,6 +3056,9 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       
       {view === 'analytics' && (
         <DailyAnalyticsSection trips={trips} users={users} onInspectTrip={trip => setInspectingTrip(trip)} />
+      )}
+      {view === 'settings' && (
+        <AdminSettingsSection users={users} onSaveUsers={saveUsers} />
       )}
       {view === 'negotiations' && (
         <Section

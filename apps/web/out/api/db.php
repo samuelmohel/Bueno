@@ -58,6 +58,7 @@ function initTables($pdo) {
         staffId VARCHAR(100),
         pin VARCHAR(20) DEFAULT '1111',
         status VARCHAR(50) DEFAULT 'ACTIVE',
+        permissionsText TEXT,
         createdAt VARCHAR(100)
     )");
 
@@ -154,6 +155,8 @@ function initTables($pdo) {
         body TEXT,
         time VARCHAR(100),
         type VARCHAR(100),
+        targetId VARCHAR(200),
+        targetTab VARCHAR(100),
         readInt INT DEFAULT 0
     )");
 
