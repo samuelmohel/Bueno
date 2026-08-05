@@ -508,6 +508,124 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
   );
 }
 
+/* ─────────────────────────────────────────────────────────
+   REAL-TIME OPERATIONAL NOTIFICATION BELL & DRAWER
+───────────────────────────────────────────────────────── */
+const DEFAULT_NOTIFICATIONS = [
+  {
+    id: 'notif_seed_1',
+    title: 'New Client Service Request',
+    body: 'Purechem Cement requested Ewekoro ➔ Moniya freight corridor (5,000 Bags/Month)',
+    time: '5 mins ago',
+    type: 'CLIENT_REQUEST',
+    read: false,
+  },
+  {
+    id: 'notif_seed_2',
+    title: 'Fund Requisition Pending Review',
+    body: 'Ade Bello requested ₦85,000 for Loading Bay Crane Parts (Ewekoro Terminal)',
+    time: '25 mins ago',
+    type: 'FUND_REQUEST',
+    read: false,
+  },
+  {
+    id: 'notif_seed_3',
+    title: 'Rail Corridor Departure Alert',
+    body: 'Locomotive #L2205 active on Ewekoro Corridor heading to Moniya Yard',
+    time: '1 hour ago',
+    type: 'TRIP_ALERT',
+    read: true,
+  },
+];
+
+function NotificationBell({ onNav }: { onNav?: (k: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    setNotifications(tryParse('bueno_notifications', DEFAULT_NOTIFICATIONS));
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAllRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem('bueno_notifications', JSON.stringify(updated));
+  };
+
+  const handleNotificationClick = (n: any) => {
+    const updated = notifications.map(item => item.id === n.id ? { ...item, read: true } : item);
+    setNotifications(updated);
+    localStorage.setItem('bueno_notifications', JSON.stringify(updated));
+    setOpen(false);
+
+    if (onNav) {
+      if (n.type === 'CLIENT_REQUEST') onNav('users');
+      else if (n.type === 'FUND_REQUEST') onNav('requests');
+      else if (n.type === 'TRIP_ALERT') onNav('trips');
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center justify-center"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-extrabold text-[10px] w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-pulse">
+            {unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-3xl border border-slate-200 shadow-2xl z-50 overflow-hidden font-sans">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h4 className="text-xs font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Operational Notifications</h4>
+              <p className="text-[10px] text-slate-500 font-semibold">{unreadCount} unread alerts</p>
+            </div>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} className="text-[10px] font-bold text-[#62BC37] hover:underline">
+                Mark All Read
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400">No recent notifications.</div>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => handleNotificationClick(n)}
+                  className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-emerald-50/40' : ''}`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${!n.read ? 'bg-[#62BC37] animate-pulse' : 'bg-slate-300'}`} />
+                  <div className="flex-1 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs font-black text-slate-900">{n.title}</p>
+                      <span className="text-[9px] font-mono text-slate-400">{n.time}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-snug">{n.body}</p>
+                    <span className="text-[10px] font-bold text-[#62BC37] inline-block pt-1">Inspect Details ➔</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    PORTAL SHELL (LIGHT & USER FRIENDLY UI)
 ═══════════════════════════════════════════════════════════ */
@@ -584,12 +702,17 @@ function Shell({
             </div>
           </div>
 
-          {/* Single Shining Eco-Green Status Pill */}
-          <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
-            <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
-              CORRIDOR LIVE
-            </span>
+          {/* Center Actions: Live Status + Notification Bell */}
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
+                CORRIDOR LIVE
+              </span>
+            </div>
+
+            {/* Notification Bell Component */}
+            <NotificationBell onNav={onNav} />
           </div>
 
           <div className="flex items-center gap-3 text-right">
@@ -1347,10 +1470,62 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
    ADMIN USER PROVISIONING & ACCOUNT MANAGEMENT
 ───────────────────────────────────────────────────────── */
 function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveUsers: (u: any[]) => void }) {
-  const [filter, setFilter] = useState<'ALL' | 'STAFF' | 'CUSTOMER'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'STAFF' | 'CUSTOMER' | 'REQS'>('ALL');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [clientRequests, setClientRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    setClientRequests(tryParse('bueno_client_requests', [
+      {
+        id: 'REQ-seed-01',
+        companyName: 'Purechem Cement Industries Ltd',
+        industry: 'Cement & Construction',
+        contactName: 'Engr. Clement Lawson',
+        email: 'logistics@purechem.ng',
+        phone: '08031234567',
+        volume: '5,000 Bags/Month',
+        route: 'EWK ➔ MNY (Ewekoro to Moniya)',
+        status: 'PENDING',
+        createdAt: '5 mins ago',
+      }
+    ]));
+  }, []);
+
+  const approveAndProvisionRequest = (req: any) => {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const newCustomer = {
+      id: `usr_${Date.now()}`,
+      fullName: req.contactName || `${req.companyName} Freight Manager`,
+      email: req.email,
+      phone: req.phone,
+      role: 'CUSTOMER',
+      userType: 'CUSTOMER',
+      companyName: req.companyName,
+      staffId: `CUST-${num}`,
+      pin: '1111',
+      status: 'ACTIVE',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+    };
+
+    // 1. Add to users
+    onSaveUsers([newCustomer, ...users]);
+
+    // 2. Mark request as provisioned
+    const updatedReqs = clientRequests.map(r => r.id === req.id ? { ...r, status: 'PROVISIONED' } : r);
+    setClientRequests(updatedReqs);
+    localStorage.setItem('bueno_client_requests', JSON.stringify(updatedReqs));
+
+    // 3. Mark notification as read
+    try {
+      const notifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const updatedNotifs = notifs.map((n: any) => n.reqId === req.id ? { ...n, read: true } : n);
+      localStorage.setItem('bueno_notifications', JSON.stringify(updatedNotifs));
+    } catch {}
+
+    alert(`✅ ${req.companyName} has been approved and provisioned as an active Industrial Client! PIN: 1111`);
+  };
 
   const [form, setForm] = useState({
     fullName: '',
@@ -1422,10 +1597,12 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     return true;
   });
 
+  const pendingCount = clientRequests.filter(r => r.status === 'PENDING').length;
+
   return (
     <Section
       title="User Provisioning & Account Directory"
-      subtitle="Provision new Cargo Officers, Executives, or Industrial Clients, edit account credentials, or revoke access"
+      subtitle="Provision new Cargo Officers, Executives, or Industrial Clients, edit account credentials, or approve website requisitions"
       action={
         <button
           onClick={() => setModalOpen(true)}
@@ -1458,6 +1635,17 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
             >
               Industrial Clients ({users.filter(u => u.userType === 'CUSTOMER').length})
             </button>
+            <button
+              onClick={() => setFilter('REQS')}
+              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${filter === 'REQS' ? 'bg-purple-700 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-200'}`}
+            >
+              Website Requisitions
+              {pendingCount > 0 && (
+                <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
           </div>
 
           <input
@@ -1469,68 +1657,129 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
           />
         </div>
 
-        {/* Directory Table */}
-        <TableWrap
-          headers={['User Identity', 'Classification & Role', 'Contact Email / Phone', 'Station / Company', 'Status', 'Actions']}
-          mobileCard={(u: any) => (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-900">{u.fullName}</span>
-                <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
+        {/* REQS TAB OR USERS TABLE */}
+        {filter === 'REQS' ? (
+          <TableWrap
+            headers={['Company / Industry', 'Contact Person', 'Email / Phone', 'Route & Volume', 'Status', 'Action']}
+            mobileCard={(req: any) => (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900">{req.companyName}</span>
+                  <Badge text={req.status} color={req.status === 'PENDING' ? 'amber' : 'green'} />
+                </div>
+                <p className="text-xs text-slate-600">{req.contactName} ({req.industry})</p>
+                <p className="text-xs font-mono text-slate-500">{req.email} | {req.phone}</p>
+                <p className="text-xs text-[#0E4B88] font-bold">{req.route} — {req.volume}</p>
+                {req.status === 'PENDING' && (
+                  <button
+                    onClick={() => approveAndProvisionRequest(req)}
+                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2 rounded-xl mt-1"
+                  >
+                    Approve & 1-Click Provision Account ➔
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-slate-600">{u.roleLabel || u.role} • {u.userType}</p>
-              <p className="text-xs font-mono text-slate-500">{u.email} | {u.phone}</p>
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setEditingUser(u)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">Edit</button>
-                <button onClick={() => toggleStatus(u.id)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">{u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
+            )}
+            data={clientRequests}
+          >
+            {clientRequests.length === 0 ? (
+              <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No website client requisitions received yet.</td></tr>
+            ) : clientRequests.map((req) => (
+              <tr key={req.id} className="hover:bg-slate-50 text-xs">
+                <td className="p-4">
+                  <p className="font-black text-slate-900">{req.companyName}</p>
+                  <p className="text-[10px] text-slate-500">{req.industry}</p>
+                </td>
+                <td className="p-4 font-bold text-slate-800">{req.contactName}</td>
+                <td className="p-4 font-mono">
+                  <p className="text-slate-900 font-semibold">{req.email}</p>
+                  <p className="text-slate-500">{req.phone}</p>
+                </td>
+                <td className="p-4">
+                  <p className="font-extrabold text-[#0E4B88]">{req.route}</p>
+                  <p className="text-[10px] text-slate-500 font-semibold">{req.volume}</p>
+                </td>
+                <td className="p-4">
+                  <Badge text={req.status} color={req.status === 'PENDING' ? 'amber' : 'green'} />
+                </td>
+                <td className="p-4">
+                  {req.status === 'PENDING' ? (
+                    <button
+                      onClick={() => approveAndProvisionRequest(req)}
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs"
+                    >
+                      Approve & Provision ➔
+                    </button>
+                  ) : (
+                    <span className="text-[11px] font-bold text-emerald-700">Account Active ✓</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </TableWrap>
+        ) : (
+          <TableWrap
+            headers={['User Identity', 'Classification & Role', 'Contact Email / Phone', 'Station / Company', 'Status', 'Actions']}
+            mobileCard={(u: any) => (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900">{u.fullName}</span>
+                  <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
+                </div>
+                <p className="text-xs text-slate-600">{u.roleLabel || u.role} • {u.userType}</p>
+                <p className="text-xs font-mono text-slate-500">{u.email} | {u.phone}</p>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setEditingUser(u)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">Edit</button>
+                  <button onClick={() => toggleStatus(u.id)} className="bg-slate-100 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl">{u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
+                </div>
               </div>
-            </div>
-          )}
-          data={filteredUsers}
-        >
-          {filteredUsers.map(u => (
-            <tr key={u.id} className="hover:bg-slate-50 text-xs">
-              <td className="p-4">
-                <p className="font-black text-slate-900">{u.fullName}</p>
-                <p className="text-[10px] font-mono text-slate-400">ID: {u.staffId || u.id}</p>
-              </td>
-              <td className="p-4">
-                <span className="font-extrabold text-slate-800 block">{u.roleLabel || u.role}</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">{u.userType}</span>
-              </td>
-              <td className="p-4 font-mono">
-                <p className="text-slate-900 font-semibold">{u.email}</p>
-                <p className="text-slate-500">{u.phone}</p>
-              </td>
-              <td className="p-4 font-bold text-slate-700">
-                {u.assignedStation ? `${sName(u.assignedStation)} (${u.assignedStation})` : u.companyName || 'HQ Command'}
-              </td>
-              <td className="p-4">
-                <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
-              </td>
-              <td className="p-4 space-x-2">
-                <button
-                  onClick={() => setEditingUser(u)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => toggleStatus(u.id)}
-                  className={`font-bold text-xs px-3 py-1.5 rounded-xl border ${u.status === 'ACTIVE' ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}
-                >
-                  {u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                </button>
-                <button
-                  onClick={() => deleteUser(u.id)}
-                  className="text-slate-400 hover:text-rose-600 font-bold text-xs px-2 py-1.5"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </TableWrap>
+            )}
+            data={filteredUsers}
+          >
+            {filteredUsers.map(u => (
+              <tr key={u.id} className="hover:bg-slate-50 text-xs">
+                <td className="p-4">
+                  <p className="font-black text-slate-900">{u.fullName}</p>
+                  <p className="text-[10px] font-mono text-slate-400">ID: {u.staffId || u.id}</p>
+                </td>
+                <td className="p-4">
+                  <span className="font-extrabold text-slate-800 block">{u.roleLabel || u.role}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{u.userType}</span>
+                </td>
+                <td className="p-4 font-mono">
+                  <p className="text-slate-900 font-semibold">{u.email}</p>
+                  <p className="text-slate-500">{u.phone}</p>
+                </td>
+                <td className="p-4 font-bold text-slate-700">
+                  {u.assignedStation ? `${sName(u.assignedStation)} (${u.assignedStation})` : u.companyName || 'HQ Command'}
+                </td>
+                <td className="p-4">
+                  <Badge text={u.status} color={u.status === 'ACTIVE' ? 'green' : 'rose'} />
+                </td>
+                <td className="p-4 space-x-2">
+                  <button
+                    onClick={() => setEditingUser(u)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-slate-200"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => toggleStatus(u.id)}
+                    className={`font-bold text-xs px-3 py-1.5 rounded-xl border ${u.status === 'ACTIVE' ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'}`}
+                  >
+                    {u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    onClick={() => deleteUser(u.id)}
+                    className="text-slate-400 hover:text-rose-600 font-bold text-xs px-2 py-1.5"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </TableWrap>
+        )}
       </div>
 
       {/* PROVISION NEW USER MODAL */}

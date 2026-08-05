@@ -105,6 +105,52 @@ function TelemetryCard() {
 
 /* ── Main Landing Page ───────────────────────────── */
 export default function BuenoLogisticsHomePage() {
+  const [requestModal, setRequestModal] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({
+    companyName: '',
+    industry: 'Cement & Construction',
+    contactName: '',
+    email: '',
+    phone: '',
+    volume: '2,000 - 10,000 Bags/Month',
+    route: 'EWK ➔ MNY (Ewekoro to Moniya)',
+    notes: '',
+  });
+
+  const handleSubmitRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const existingReqs = JSON.parse(localStorage.getItem('bueno_client_requests') || '[]');
+      const newReq = {
+        id: `REQ-${Date.now()}`,
+        ...form,
+        status: 'PENDING',
+        createdAt: new Date().toLocaleString(),
+      };
+      localStorage.setItem('bueno_client_requests', JSON.stringify([newReq, ...existingReqs]));
+
+      // Also trigger a real-time notification alert!
+      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const newNotif = {
+        id: `notif_${Date.now()}`,
+        title: 'New Client Service Request Received',
+        body: `${form.companyName} (${form.contactName}) requested ${form.route} [${form.volume}]`,
+        time: 'Just now',
+        type: 'CLIENT_REQUEST',
+        reqId: newReq.id,
+        read: false,
+      };
+      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...existingNotifs]));
+    } catch {}
+
+    setSubmitted(true);
+    setTimeout(() => {
+      setSubmitted(false);
+      setRequestModal(false);
+      setForm({ companyName: '', industry: 'Cement & Construction', contactName: '', email: '', phone: '', volume: '2,000 - 10,000 Bags/Month', route: 'EWK ➔ MNY (Ewekoro to Moniya)', notes: '' });
+    }, 2500);
+  };
 
   const steps = [
     { n: '01', title: 'Deal Registered', desc: 'Admin registers client contract, auto-generates Consignment ID and tracking reference.' },
@@ -164,6 +210,12 @@ export default function BuenoLogisticsHomePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setRequestModal(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-4 py-2.5 rounded-xl border border-slate-200 transition-all"
+            >
+              Request Freight Account
+            </button>
             <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-sm">
               Sign In to Freight OS ➔
             </Link>
@@ -192,11 +244,14 @@ export default function BuenoLogisticsHomePage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all">
-                Access Freight Workspace ➔
-              </Link>
-              <Link href="/tracking" className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-3.5 rounded-2xl transition-all shadow-sm">
-                Public Consignment Tracking
+              <button
+                onClick={() => setRequestModal(true)}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all"
+              >
+                Request Freight Account ➔
+              </button>
+              <Link href="/auth/login" className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-3.5 rounded-2xl transition-all shadow-sm">
+                Access Freight Workspace
               </Link>
             </div>
 
@@ -335,6 +390,170 @@ export default function BuenoLogisticsHomePage() {
           &copy; {new Date().getFullYear()} BUENO LOGISTICS LIMITED. All rights reserved.
         </div>
       </footer>
+
+      {/* ─── PUBLIC SERVICE REQUEST MODAL ───────────── */}
+      {requestModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 sm:p-8 space-y-5 my-8 relative animate-fadeIn">
+            <button
+              onClick={() => setRequestModal(false)}
+              className="absolute right-6 top-6 text-slate-400 hover:text-slate-900 font-bold text-xs"
+            >
+              ✕ Close
+            </button>
+
+            <div>
+              <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                Industrial Client Onboarding
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Request Freight Services
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Submit your freight corridor requirements directly to the Bueno Logistics Command Center.
+              </p>
+            </div>
+
+            {submitted ? (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-6 rounded-2xl text-center space-y-2">
+                <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center mx-auto text-lg font-black">
+                  ✓
+                </div>
+                <h3 className="text-base font-black">Service Request Transmitted!</h3>
+                <p className="text-xs text-emerald-800">
+                  Your freight inquiry has been dispatched to our Operations & Admin team. An officer will contact you shortly and provision your client workspace.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    Company Name *
+                  </label>
+                  <input
+                    required
+                    value={form.companyName}
+                    onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                    placeholder="e.g. Purechem Cement Industries Ltd"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Industry Category
+                    </label>
+                    <select
+                      value={form.industry}
+                      onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      <option value="Cement & Construction">Cement & Construction</option>
+                      <option value="FMCG & Beverages">FMCG & Beverages</option>
+                      <option value="Agriculture & Grains">Agriculture & Grains</option>
+                      <option value="Mining & Minerals">Mining & Minerals</option>
+                      <option value="Containerized Freight">Containerized Freight</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Contact Person Name *
+                    </label>
+                    <input
+                      required
+                      value={form.contactName}
+                      onChange={(e) => setForm({ ...form, contactName: e.target.value })}
+                      placeholder="e.g. Engr. Clement Lawson"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Official Business Email *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="logistics@purechem.ng"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Phone / WhatsApp *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="08031234567"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Est. Cargo Volume
+                    </label>
+                    <select
+                      value={form.volume}
+                      onChange={(e) => setForm({ ...form, volume: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      <option value="500 - 2,000 Bags/Month">500 – 2,000 Bags/Month</option>
+                      <option value="2,000 - 10,000 Bags/Month">2,000 – 10,000 Bags/Month</option>
+                      <option value="10,000+ Bags/Month (Dedicated Train)">10,000+ Bags/Month (Full Train)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                      Corridor Route
+                    </label>
+                    <select
+                      value={form.route}
+                      onChange={(e) => setForm({ ...form, route: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      <option value="EWK ➔ MNY (Ewekoro to Moniya)">Ewekoro ➔ Moniya (Ibadan)</option>
+                      <option value="APT ➔ MNY (Apapa Port to Moniya)">Apapa Port ➔ Moniya</option>
+                      <option value="Custom Freight Route">Custom Freight Route</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    Special Cargo / Operational Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    placeholder="Provide any specific loading bay or siding requirements..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1"
+                >
+                  Submit Freight Requisition ➔
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
