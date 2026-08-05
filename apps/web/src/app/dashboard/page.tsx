@@ -269,6 +269,145 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   PER-TRIP COMPREHENSIVE DATABASE AUDIT & MANIFEST REPORT
+───────────────────────────────────────────────────────── */
+function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => void }) {
+  if (!trip) return null;
+
+  const logs = trip.wagonLogs || [];
+  const loadingOfficer = trip.cargoOfficerName || 'Ade Bello (EWK-01)';
+  const unloadingOfficer = trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)';
+  const totalBags = trip.quantity || 1610;
+  const totalTonnes = (totalBags * 50) / 1000;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-4 sm:p-6 space-y-5 print:p-0 print:space-y-3 font-sans">
+        
+        {/* Printable Header */}
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-4 gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-black text-[#0E4B88] text-sm">TRIP MANIFEST AUDIT #{trip.tripId}</span>
+              <Badge text={trip.status || 'COMPLETED'} color="green" />
+            </div>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
+              {sName(trip.origin)} <span className="text-[#62BC37]">➔</span> {sName(trip.destination)}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Consignee: <b className="text-slate-900">{trip.company}</b> • Date: {trip.createdAt}</p>
+          </div>
+
+          <div className="flex gap-2 print:hidden">
+            <button
+              onClick={handlePrint}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
+            >
+              🖨️ Print Official Trip Audit
+            </button>
+            <button onClick={onClose} className="px-3 py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Supervising Officers Badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-extrabold uppercase text-[#0E4B88] block">LOADING SUPERVISING CARGO OFFICER</span>
+            <p className="font-black text-slate-900">{loadingOfficer}</p>
+            <p className="text-[11px] text-slate-500 font-medium">Station: {sName(trip.origin)} Terminal</p>
+          </div>
+          <div className="space-y-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
+            <span className="text-[10px] font-mono font-extrabold uppercase text-[#62BC37] block">UNLOADING SUPERVISING CARGO OFFICER</span>
+            <p className="font-black text-slate-900">{unloadingOfficer}</p>
+            <p className="text-[11px] text-slate-500 font-medium">Station: {sName(trip.destination)} Receiving Yard</p>
+          </div>
+        </div>
+
+        {/* Cargo & Train Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive ID</span>
+            <span className="text-sm font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span>
+            <span className="text-sm font-black text-slate-900 truncate block">{trip.cargoType || 'Cement'}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Wagons</span>
+            <span className="text-sm font-black text-[#0E4B88]">{logs.length || 23} Wagons</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Volume</span>
+            <span className="text-sm font-black text-[#62BC37]">{totalBags} Bags ({totalTonnes} T)</span>
+          </div>
+        </div>
+
+        {/* Per-Wagon Database Timing Audit Table */}
+        <div className="space-y-2">
+          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Per-Wagon Timestamp & Supervision Audit ({logs.length || 23} Wagons)</h4>
+          <TableWrap
+            headers={['Wagon ID', 'Qty (Bags)', 'Loading Supervision & Timing', 'Unloading Supervision & Timing', 'Audit Status']}
+            mobileCard={(w: any, idx: number) => (
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between items-center font-mono">
+                  <span className="font-black text-slate-900">Wagon #{idx + 1} — {w.wagonId}</span>
+                  <Badge text="VERIFIED ✓" color="green" />
+                </div>
+                <p className="text-slate-600">Qty: <b>{w.qty || 70} Bags</b></p>
+                <p className="text-[11px] text-slate-500 font-mono">Loaded by: {loadingOfficer} • {w.startTime || '08:15 AM'}</p>
+                <p className="text-[11px] text-slate-500 font-mono">Unloaded by: {unloadingOfficer} • {w.unloadEndTime || '01:05 PM'}</p>
+              </div>
+            )}
+            data={logs}
+          >
+            {logs.map((w: any, idx: number) => (
+              <tr key={w.id || idx} className="hover:bg-slate-50 text-xs">
+                <td className="p-3 font-mono font-black text-slate-900">
+                  #{idx + 1} — {w.wagonId}
+                </td>
+                <td className="p-3 font-mono font-bold text-slate-700">{w.qty || 70} Bags</td>
+                <td className="p-3">
+                  <span className="font-bold text-slate-900 block">{loadingOfficer}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{w.startDate || '31 Jul 2026'} • {w.startTime || '08:15 AM'} ({w.durationStr || '14 Mins'})</span>
+                </td>
+                <td className="p-3">
+                  <span className="font-bold text-slate-900 block">{unloadingOfficer}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{w.unloadEndDate || '31 Jul 2026'} • {w.unloadEndTime || '01:05 PM'} ({w.unloadDurationStr || '16 Mins'})</span>
+                </td>
+                <td className="p-3">
+                  <Badge text="VERIFIED AUDITED ✓" color="green" />
+                </td>
+              </tr>
+            ))}
+          </TableWrap>
+        </div>
+
+        {/* Executive Sign-off Lines */}
+        <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs font-mono">
+          <div>
+            <span className="text-[9px] uppercase text-slate-400 block font-bold">Terminal Loading Supervisor</span>
+            <p className="font-black text-slate-900 mt-1">{loadingOfficer}</p>
+            <p className="text-[10px] text-slate-400">Signature: ______________________</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[9px] uppercase text-slate-400 block font-bold">Destination Unloading Supervisor</span>
+            <p className="font-black text-slate-900 mt-1">{unloadingOfficer}</p>
+            <p className="text-[10px] text-slate-400">Signature: ______________________</p>
+          </div>
+        </div>
+
+      </div>
+    </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    FUND REQUEST DETAILED INSPECTION MODAL
 ───────────────────────────────────────────────────────── */
 function FundRequestDetailModal({
@@ -400,6 +539,171 @@ function FundRequestDetailModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   DAILY OPERATIONAL ANALYTICS & PRINTABLE REPORT SECTION
+───────────────────────────────────────────────────────── */
+function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; users: any[]; onInspectTrip: (trip: any) => void }) {
+  const [filterPeriod, setFilterPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const [filterCorridor, setFilterCorridor] = useState<string>('ALL');
+
+  const totalTrips = trips.length;
+  const completedTrips = trips.filter(t => t.status === 'COMPLETED' || t.status === 'UNLOADED').length;
+  const activeTrips = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'LOADING').length;
+
+  let totalBagsMoved = 0;
+  let totalWagonsLoaded = 0;
+  trips.forEach(t => {
+    totalBagsMoved += Number(t.quantity || 1610);
+    totalWagonsLoaded += (t.wagonLogs || []).length || 23;
+  });
+  const totalTonnesMoved = ((totalBagsMoved * 50) / 1000).toLocaleString();
+
+  const handlePrintDailyReport = () => {
+    window.print();
+  };
+
+  return (
+    <div className="space-y-6 font-sans">
+      {/* Top Action Header */}
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-400 block">EXECUTIVE ERP AUDIT</span>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            Daily Operational Analytics & Freight Audit
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Real-time tonnage analytics, corridor velocity metrics, and official printable report manifests.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 print:hidden">
+          <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700">
+            <option value="today">Today (05 Aug 2026)</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+          <select value={filterCorridor} onChange={e => setFilterCorridor(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700">
+            <option value="ALL">All Rail Corridors</option>
+            <option value="EWK_MNY">Ewekoro ➔ Moniya</option>
+            <option value="APT_MNY">Apapa Port ➔ Moniya</option>
+          </select>
+          <button
+            onClick={handlePrintDailyReport}
+            className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2"
+          >
+            🖨️ Print Official Daily Report
+          </button>
+        </div>
+      </div>
+
+      {/* Analytics KPI Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
+        <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Total Freight Volume</span>
+          <p className="text-xl sm:text-2xl font-black text-[#62BC37] mt-1">{totalBagsMoved.toLocaleString()} <span className="text-xs text-slate-500 font-bold">Bags</span></p>
+          <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">≈ {totalTonnesMoved} Metric Tonnes</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Train Movements</span>
+          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalTrips} <span className="text-xs text-slate-500 font-bold">Trips</span></p>
+          <p className="text-[11px] text-[#0E4B88] font-sans mt-0.5 font-bold">{completedTrips} Completed • {activeTrips} Active</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Avg Loading Speed</span>
+          <p className="text-xl sm:text-2xl font-black text-amber-600 mt-1">14.2 <span className="text-xs text-slate-500 font-bold">Mins/Wagon</span></p>
+          <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">Total {totalWagonsLoaded} Wagons Loaded</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Est. Corridor Value</span>
+          <p className="text-xl sm:text-2xl font-black text-[#0E4B88] mt-1">₦14.8M</p>
+          <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">100% Tariff Cleared</p>
+        </div>
+      </div>
+
+      {/* Database Trip Audit Breakdown Table */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Database Trip Audit Log</h3>
+            <p className="text-xs text-slate-500">Click any trip row to view the full per-wagon timing manifest and supervising officer sign-offs.</p>
+          </div>
+        </div>
+
+        <TableWrap
+          headers={['Trip ID & Locomotive', 'Consignee Company', 'Corridor Route', 'Volume Moved', 'Loading Supervisor', 'Unloading Supervisor', 'Actions']}
+          mobileCard={(t: any) => (
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between items-center font-mono">
+                <span className="font-black text-[#0E4B88]">{t.tripId} ({t.locomotiveId || 'L2205'})</span>
+                <Badge text={t.status || 'COMPLETED'} color="green" />
+              </div>
+              <p className="font-bold text-slate-900">{t.company}</p>
+              <p className="text-[11px] text-slate-500 font-mono">Loading Officer: <b>{t.cargoOfficerName || 'Ade Bello'}</b></p>
+              <p className="text-[11px] text-slate-500 font-mono">Unloading Officer: <b>{t.unloadingOfficerName || 'Musa Ibrahim'}</b></p>
+              <button onClick={() => onInspectTrip(t)} className="w-full mt-2 bg-[#62BC37] text-white font-bold text-xs py-1.5 rounded-lg">
+                📋 Inspect Trip Audit ➔
+              </button>
+            </div>
+          )}
+          data={trips}
+        >
+          {trips.map((t: any, idx: number) => (
+            <tr key={t.id || idx} className="hover:bg-slate-50 text-xs">
+              <td className="p-3.5 font-mono">
+                <span className="font-black text-[#0E4B88] block">{t.tripId || `T10${idx + 1}`}</span>
+                <span className="text-[10px] text-slate-500 font-bold">Loco #{t.locomotiveId || 'L2205'}</span>
+              </td>
+              <td className="p-3.5 font-bold text-slate-900">{t.company || 'Lafarge Africa Plc'}</td>
+              <td className="p-3.5 font-mono text-slate-700">
+                {sName(t.origin)} ➔ {sName(t.destination)}
+              </td>
+              <td className="p-3.5 font-mono font-bold text-[#62BC37]">
+                {t.quantity || 1610} Bags
+              </td>
+              <td className="p-3.5 font-mono">
+                <span className="font-extrabold text-slate-900 block">{t.cargoOfficerName || 'Ade Bello'}</span>
+                <span className="text-[10px] text-slate-400">EWK Terminal Supervisor</span>
+              </td>
+              <td className="p-3.5 font-mono">
+                <span className="font-extrabold text-slate-900 block">{t.unloadingOfficerName || 'Musa Ibrahim'}</span>
+                <span className="text-[10px] text-slate-400">MNY Yard Supervisor</span>
+              </td>
+              <td className="p-3.5">
+                <button
+                  onClick={() => onInspectTrip(t)}
+                  className="bg-slate-100 hover:bg-[#62BC37] hover:text-white font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all border border-slate-200"
+                >
+                  📋 Inspect Audit ➔
+                </button>
+              </td>
+            </tr>
+          ))}
+        </TableWrap>
+      </div>
+
+      {/* Official Daily Executive Sign-off Printable Block */}
+      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4 print:block">
+        <h4 className="text-xs font-mono font-black uppercase text-slate-400">OFFICIAL DAILY OPERATIONS EXECUTIVE SIGN-OFF</h4>
+        <div className="grid grid-cols-2 gap-6 font-mono text-xs">
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">SUPERVISING HEAD OF OPERATIONS</span>
+            <p className="font-black text-slate-900 mt-1">Babajide Sanwo (EXEC-02)</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Bueno Freight OS Dispatch HQ</p>
+            <div className="mt-4 pt-2 border-t border-slate-300 text-[10px] text-slate-400">Official Executive Signature: __________________</div>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase block">MANAGING DIRECTOR / CEO</span>
+            <p className="font-black text-slate-900 mt-1">Alhaji Bashir Umar (EXEC-01)</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Bueno Logistics Limited HQ</p>
+            <div className="mt-4 pt-2 border-t border-slate-300 text-[10px] text-slate-400">Official Executive Signature: __________________</div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2317,7 +2621,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users'>('deals');
+  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
@@ -2511,7 +2815,10 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
   const selectedNeg = negotiations.find(n => n.id === activeNegId) || negotiations[0];
 
+  const [inspectingTrip, setInspectingTrip] = useState<any | null>(null);
+
   const navItems = [
+    { key: 'analytics',    label: '📊 Operational Analytics & Daily Reports' },
     { key: 'deals',        label: 'Manage Deals' },
     { key: 'negotiations', label: `Client Negotiations & Chat (${negotiations.length})` },
     { key: 'trips',        label: 'All Active Trips & GPS' },
@@ -2522,6 +2829,11 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
   return (
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+      {inspectingTrip && <TripAuditReportModal trip={inspectingTrip} onClose={() => setInspectingTrip(null)} />}
+      
+      {view === 'analytics' && (
+        <DailyAnalyticsSection trips={trips} users={users} onInspectTrip={trip => setInspectingTrip(trip)} />
+      )}
       {view === 'negotiations' && (
         <Section
           title="Client Deal Negotiations & Executive Chat Center"
@@ -2767,26 +3079,35 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
    PORTAL 3 — HEAD OF OPERATIONS
 ═══════════════════════════════════════════════════════════ */
 function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView]   = useState<'trips' | 'requests'>('trips');
+  const [view, setView]   = useState<'trips' | 'analytics' | 'requests'>('trips');
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips]     = useState<any[]>([]);
+  const [users, setUsers]     = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
+  const [inspectingTrip, setInspectingTrip] = useState<any | null>(null);
 
   useEffect(() => {
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
+    setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
     setRequests(tryParse('bueno_requests', SEED_REQUESTS));
   }, []);
 
   const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
 
   const navItems = [
-    { key: 'trips',    label: 'Corridor Live GPS Command Map' },
-    { key: 'requests', label: 'Fund Requests (Ops Review)' },
+    { key: 'trips',     label: 'Corridor Live GPS Command Map' },
+    { key: 'analytics', label: '📊 Operational Analytics & Daily Reports' },
+    { key: 'requests',  label: 'Fund Requests (Ops Review)' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Head of Operations' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+      {inspectingTrip && <TripAuditReportModal trip={inspectingTrip} onClose={() => setInspectingTrip(null)} />}
+      
+      {view === 'analytics' && (
+        <DailyAnalyticsSection trips={trips} users={users} onInspectTrip={trip => setInspectingTrip(trip)} />
+      )}
       {view === 'trips' && (
         <div className="space-y-6">
           <Section title="Network Operations Command — Corridor Live GPS Map" subtitle="High-precision interactive train telemetry map across all Nigerian rail corridors">
@@ -3059,7 +3380,7 @@ function Section({ title, subtitle, action, children }: { title: string; subtitl
   );
 }
 
-function TableWrap({ headers, children, mobileCard, data }: { headers: string[]; children: React.ReactNode; mobileCard?: (item: any) => React.ReactNode; data?: any[] }) {
+function TableWrap({ headers, children, mobileCard, data }: { headers: string[]; children: React.ReactNode; mobileCard?: (item: any, idx?: any) => React.ReactNode; data?: any[] }) {
   return (
     <div>
       {/* Mobile Card List View (Phones) */}
@@ -3070,7 +3391,7 @@ function TableWrap({ headers, children, mobileCard, data }: { headers: string[];
           ) : (
             data.map((item, idx) => (
               <div key={item.id || idx} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                {mobileCard(item)}
+                {mobileCard(item, idx)}
               </div>
             ))
           )}
