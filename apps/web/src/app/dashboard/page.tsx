@@ -2858,9 +2858,34 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const [addWagonModal, setAddWagonModal]     = useState(false);
   const [selectedReq, setSelectedReq]         = useState<any | null>(null);
 
+  const [editingDeal, setEditingDeal] = useState<any | null>(null);
+  const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
+
   const [newWagonId, setNewWagonId] = useState('');
   const [newWagonStation, setNewWagonStation] = useState('EWK');
   const [dealForm, setDealForm] = useState({ company: '', loadingStation: 'EWK', destination: 'MNY', cargoType: '', quantity: '' });
+
+  const handleDeleteDealConfirm = () => {
+    if (!deletingDealId) return;
+    const updated = deals.filter(d => d.id !== deletingDealId);
+    saveDeals(updated);
+    try {
+      fetch('/api/deals.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'DELETE', id: deletingDealId }),
+      });
+    } catch {}
+    setDeletingDealId(null);
+  };
+
+  const handleSaveEditDeal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDeal) return;
+    const updated = deals.map(d => d.id === editingDeal.id ? editingDeal : d);
+    saveDeals(updated);
+    setEditingDeal(null);
+  };
 
   useEffect(() => {
     const syncData = async () => {
@@ -3162,11 +3187,11 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
         </Section>
       )}
       {view === 'deals' && (
-        <Section title="Manage Deals" subtitle="Create deals and assign them to terminal stations" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Create New Deal</button>}>
+        <Section title="Manage Deals" subtitle="Create, edit, or delete commercial deals and assign them to rail terminals" action={<button onClick={() => setCreateDealModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Create New Deal</button>}>
           <TableWrap
-            headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created']}
+            headers={['Deal ID', 'Company', 'Loading Station', 'Destination', 'Cargo & Qty', 'Created', 'Actions']}
             mobileCard={(d: any) => (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber}</span>
                   <span className="text-xs text-slate-500 font-mono">{d.createdAt}</span>
@@ -3174,11 +3199,15 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                 <p className="font-bold text-slate-900">{d.company}</p>
                 <p className="text-xs text-slate-600">{sName(d.loadingStation)} ➔ {sName(d.destination)}</p>
                 <p className="text-xs text-slate-500">{d.cargoType} ({d.quantity} Bags)</p>
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <button onClick={() => setEditingDeal(d)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[11px] rounded-lg">Edit</button>
+                  <button onClick={() => setDeletingDealId(d.id)} className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-extrabold text-[11px] rounded-lg">Delete</button>
+                </div>
               </div>
             )}
             data={deals}
           >
-            {deals.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No deals created yet.</td></tr>
+            {deals.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-xs">No deals created yet.</td></tr>
               : deals.map(d => (
                 <tr key={d.id} className="hover:bg-slate-50">
                   <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber}</td>
@@ -3187,10 +3216,81 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
                   <td className="p-4 font-semibold text-slate-700">{sName(d.destination)}</td>
                   <td className="p-4 text-slate-700">{d.cargoType} <b>({d.quantity} Bags)</b></td>
                   <td className="p-4 text-slate-500 font-mono text-[11px]">{d.createdAt}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setEditingDeal(d)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs rounded-xl transition-all">Edit</button>
+                      <button onClick={() => setDeletingDealId(d.id)} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-xs rounded-xl transition-all">Delete</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
           </TableWrap>
         </Section>
+      )}
+
+      {/* EDIT DEAL MODAL */}
+      {editingDeal && (
+        <Modal onClose={() => setEditingDeal(null)}>
+          <div className="p-6 space-y-5">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              Edit Commercial Deal #{editingDeal.dealNumber}
+            </h3>
+            <form onSubmit={handleSaveEditDeal} className="space-y-4 text-xs font-sans">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Consignee Company Name</label>
+                <input type="text" value={editingDeal.company} onChange={e => setEditingDeal({ ...editingDeal, company: e.target.value })} className={ic} required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Origin Terminal</label>
+                  <select value={editingDeal.loadingStation} onChange={e => setEditingDeal({ ...editingDeal, loadingStation: e.target.value })} className={ic}>
+                    <option value="EWK">Ewekoro Terminal</option>
+                    <option value="APT">Apapa Port</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Destination Yard</label>
+                  <select value={editingDeal.destination} onChange={e => setEditingDeal({ ...editingDeal, destination: e.target.value })} className={ic}>
+                    <option value="MNY">Moniya Yard (Ibadan)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Cargo Commodity</label>
+                  <input type="text" value={editingDeal.cargoType} onChange={e => setEditingDeal({ ...editingDeal, cargoType: e.target.value })} className={ic} required />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Quantity (Bags)</label>
+                  <input type="number" value={editingDeal.quantity} onChange={e => setEditingDeal({ ...editingDeal, quantity: e.target.value })} className={ic} required />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-3">
+                <button type="button" onClick={() => setEditingDeal(null)} className="px-4 py-2 font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold px-6 py-2.5 rounded-xl shadow-sm">Save Deal Changes ➔</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* DELETE DEAL CONFIRMATION MODAL */}
+      {deletingDealId && (
+        <Modal onClose={() => setDeletingDealId(null)}>
+          <div className="p-6 space-y-4 text-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black text-2xl">
+              !
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Confirm Permanent Deletion</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Are you sure you want to permanently delete this commercial deal? This action will update your database in real time.</p>
+            </div>
+            <div className="flex justify-center gap-3 pt-2">
+              <button onClick={() => setDeletingDealId(null)} className="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl">Cancel</button>
+              <button onClick={handleDeleteDealConfirm} className="px-6 py-2.5 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md">Yes, Confirm Deletion ➔</button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {view === 'trips' && (
