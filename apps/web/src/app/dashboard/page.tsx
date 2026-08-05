@@ -1364,30 +1364,80 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const station = user?.assignedStation || 'EWK';
 
   useEffect(() => {
-    setDeals(tryParse('bueno_deals', SEED_DEALS));
-    setTrips(tryParse('bueno_trips', SEED_TRIPS));
-    setRequests(tryParse('bueno_requests', SEED_REQUESTS));
-    setWagons(tryParse('bueno_wagons', SEED_WAGONS));
+    const syncData = async () => {
+      setDeals(tryParse('bueno_deals', SEED_DEALS));
+      setWagons(tryParse('bueno_wagons', SEED_WAGONS));
+
+      // Fetch Trips from DB
+      try {
+        const res = await fetch('/api/trips.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setTrips(json.data);
+            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+          }
+        }
+      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+
+      // Fetch Fund Requests from DB
+      try {
+        const res = await fetch('/api/requests.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setRequests(json.data);
+            localStorage.setItem('bueno_requests', JSON.stringify(json.data));
+          }
+        }
+      } catch { setRequests(tryParse('bueno_requests', SEED_REQUESTS)); }
+    };
+
+    syncData();
+
+    window.addEventListener('storage', syncData);
+    window.addEventListener('bueno_state_updated', syncData);
+    const interval = setInterval(syncData, 5000);
+
     const now = new Date();
     setTripForm(f => ({ ...f,
       loadingDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       startTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }));
+
+    return () => {
+      window.removeEventListener('storage', syncData);
+      window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
+    };
   }, []);
 
-  const persist = (key: string, val: any[]) => { localStorage.setItem(key, JSON.stringify(val)); };
+  const persist = (key: string, val: any[], apiEndpoint?: string) => {
+    localStorage.setItem(key, JSON.stringify(val));
+    window.dispatchEvent(new Event('bueno_state_updated'));
+    if (apiEndpoint) {
+      try {
+        fetch(apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(val),
+        });
+      } catch {}
+    }
+  };
+
   const saveDeals    = (v: any[]) => { setDeals(v);    persist('bueno_deals', v);    };
-  const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v);    };
-  const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
+  const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v, '/api/trips.php'); };
+  const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v, '/api/requests.php'); };
   const saveWagons   = (v: any[]) => { setWagons(v);   persist('bueno_wagons', v);   };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
 
   const myDeals       = deals.filter(d => d.loadingStation === station);
-  const myTrips       = trips.filter(t => t.origin === station && t.status === 'LOADING');
-  const myInTransit   = trips.filter(t => t.origin === station && t.status === 'IN_TRANSIT');
-  const myIncomingUnload = trips.filter(t => t.destination === station && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
+  const myTrips       = trips.filter(t => (t.origin === station || t.cargoOfficerName === user?.fullName) && (t.status === 'LOADING' || t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'COMPLETED'));
+  const myInTransit   = trips.filter(t => (t.origin === station || t.cargoOfficerName === user?.fullName) && t.status === 'IN_TRANSIT');
+  const myIncomingUnload = trips.filter(t => (t.destination === station || t.unloadingOfficerName === user?.fullName) && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -3088,12 +3138,57 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [inspectingTrip, setInspectingTrip] = useState<any | null>(null);
 
   useEffect(() => {
-    setTrips(tryParse('bueno_trips', SEED_TRIPS));
-    setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
-    setRequests(tryParse('bueno_requests', SEED_REQUESTS));
+    const syncData = async () => {
+      setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
+
+      try {
+        const res = await fetch('/api/trips.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setTrips(json.data);
+            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+          }
+        }
+      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+
+      try {
+        const res = await fetch('/api/requests.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setRequests(json.data);
+            localStorage.setItem('bueno_requests', JSON.stringify(json.data));
+          }
+        }
+      } catch { setRequests(tryParse('bueno_requests', SEED_REQUESTS)); }
+    };
+
+    syncData();
+
+    window.addEventListener('storage', syncData);
+    window.addEventListener('bueno_state_updated', syncData);
+    const interval = setInterval(syncData, 5000);
+
+    return () => {
+      window.removeEventListener('storage', syncData);
+      window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
+    };
   }, []);
 
-  const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
+  const saveRequests = (v: any[]) => {
+    setRequests(v);
+    localStorage.setItem('bueno_requests', JSON.stringify(v));
+    window.dispatchEvent(new Event('bueno_state_updated'));
+    try {
+      fetch('/api/requests.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(v),
+      });
+    } catch {}
+  };
 
   const navItems = [
     { key: 'trips',     label: 'Corridor Live GPS Command Map' },
@@ -3188,11 +3283,55 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
 
   useEffect(() => {
-    setTrips(tryParse('bueno_trips', SEED_TRIPS));
-    setRequests(tryParse('bueno_requests', SEED_REQUESTS));
+    const syncData = async () => {
+      try {
+        const res = await fetch('/api/trips.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setTrips(json.data);
+            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+          }
+        }
+      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+
+      try {
+        const res = await fetch('/api/requests.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            setRequests(json.data);
+            localStorage.setItem('bueno_requests', JSON.stringify(json.data));
+          }
+        }
+      } catch { setRequests(tryParse('bueno_requests', SEED_REQUESTS)); }
+    };
+
+    syncData();
+
+    window.addEventListener('storage', syncData);
+    window.addEventListener('bueno_state_updated', syncData);
+    const interval = setInterval(syncData, 5000);
+
+    return () => {
+      window.removeEventListener('storage', syncData);
+      window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
+    };
   }, []);
 
-  const saveRequests = (v: any[]) => { setRequests(v); localStorage.setItem('bueno_requests', JSON.stringify(v)); };
+  const saveRequests = (v: any[]) => {
+    setRequests(v);
+    localStorage.setItem('bueno_requests', JSON.stringify(v));
+    window.dispatchEvent(new Event('bueno_state_updated'));
+    try {
+      fetch('/api/requests.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(v),
+      });
+    } catch {}
+  };
 
   const navItems = [
     { key: 'trips',    label: 'Executive Corridor GPS Map' },

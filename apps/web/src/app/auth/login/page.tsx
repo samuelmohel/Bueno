@@ -119,11 +119,13 @@ function LoginForm() {
 
   useEffect(() => {
     if (stationOfficers.length > 0) {
-      setSelectedOfficerId(stationOfficers[0].id);
+      if (!selectedOfficerId || !stationOfficers.some(u => u.id === selectedOfficerId)) {
+        setSelectedOfficerId(stationOfficers[0].id);
+      }
     } else {
       setSelectedOfficerId('');
     }
-  }, [selectedStation, allUsers]);
+  }, [selectedStation, allUsers, selectedOfficerId]);
 
   // Customer List
   const customerAccounts = allUsers.filter(u => u.userType === 'CUSTOMER' && u.status === 'ACTIVE');
