@@ -109,6 +109,7 @@ function initTables($pdo) {
         tripId VARCHAR(100),
         locomotiveId VARCHAR(100),
         cargoOfficerName VARCHAR(255),
+        unloadingOfficerName VARCHAR(255),
         company VARCHAR(255),
         cargoType VARCHAR(255),
         quantity VARCHAR(100),

@@ -25,18 +25,18 @@ if ($method === 'POST') {
         exit();
     }
 
-    // Support batch bulk sync or single trip sync
     $trips = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_trips (id, tripId, locomotiveId, cargoOfficerName, company, cargoType, quantity, origin, destination, status, curLat, curLng, wagonLogsText, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status=?, curLat=?, curLng=?, wagonLogsText=?");
+    $stmt = $pdo->prepare("INSERT INTO bueno_trips (id, tripId, locomotiveId, cargoOfficerName, unloadingOfficerName, company, cargoType, quantity, origin, destination, status, curLat, curLng, wagonLogsText, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status=?, curLat=?, curLng=?, wagonLogsText=?, unloadingOfficerName=?");
 
     foreach ($trips as $t) {
         $id = $t['id'] ?? ('trip_' . time());
         $tripId = $t['tripId'] ?? 'T101';
         $locomotiveId = $t['locomotiveId'] ?? 'L2205';
-        $cargoOfficerName = $t['cargoOfficerName'] ?? 'Ade Bello';
+        $cargoOfficerName = $t['cargoOfficerName'] ?? 'Ade Bello (EWK-01)';
+        $unloadingOfficerName = $t['unloadingOfficerName'] ?? 'Musa Ibrahim (MNY-01)';
         $company = $t['company'] ?? 'Lafarge Africa Plc';
         $cargoType = $t['cargoType'] ?? 'Elephant Cement (50kg bags)';
         $quantity = $t['quantity'] ?? '1600';
@@ -49,8 +49,8 @@ if ($method === 'POST') {
         $createdAt = $t['createdAt'] ?? date('d/m/Y');
 
         $stmt->execute([
-            $id, $tripId, $locomotiveId, $cargoOfficerName, $company, $cargoType, $quantity, $origin, $destination, $status, $curLat, $curLng, $wagonLogsText, $createdAt,
-            $status, $curLat, $curLng, $wagonLogsText
+            $id, $tripId, $locomotiveId, $cargoOfficerName, $unloadingOfficerName, $company, $cargoType, $quantity, $origin, $destination, $status, $curLat, $curLng, $wagonLogsText, $createdAt,
+            $status, $curLat, $curLng, $wagonLogsText, $unloadingOfficerName
         ]);
     }
 
