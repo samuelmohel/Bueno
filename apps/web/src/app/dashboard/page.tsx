@@ -366,40 +366,42 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-xs">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive ID</span>
-            <span className="text-sm font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+            <span className="text-sm font-black text-slate-900">{trip.locomotiveId || '—'}</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span>
-            <span className="text-sm font-black text-slate-900 truncate block">{trip.cargoType || 'Cement'}</span>
+            <span className="text-sm font-black text-slate-900 truncate block">{trip.cargoType || 'Freight Cargo'}</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Transit Duration</span>
-            <span className="text-sm font-black text-amber-600 block">{trip.transitDuration || '4 Hours 18 Mins'}</span>
+            <span className="text-sm font-black text-amber-600 block">
+              {trip.status === 'COMPLETED' ? (trip.transitDuration || 'Completed') : trip.status === 'IN_TRANSIT' ? 'En Route (In Transit)' : trip.status === 'LOADING' ? 'Currently Loading' : '—'}
+            </span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Wagons</span>
-            <span className="text-sm font-black text-[#0E4B88]">{logs.length || 23} Wagons</span>
+            <span className="text-sm font-black text-[#0E4B88]">{logs.length} Wagons</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Volume</span>
-            <span className="text-sm font-black text-[#62BC37]">{totalBags} Bags ({totalTonnes} T)</span>
+            <span className="text-sm font-black text-[#62BC37]">{totalBags.toLocaleString()} Bags ({totalTonnes} T)</span>
           </div>
         </div>
 
         {/* Per-Wagon Database Timing Audit Table */}
         <div className="space-y-2">
-          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Per-Wagon Timestamp & Supervision Audit ({logs.length || 23} Wagons)</h4>
+          <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">Per-Wagon Timestamp & Supervision Audit ({logs.length} Wagons)</h4>
           <TableWrap
             headers={['Wagon ID', 'Qty (Bags)', 'Loading Supervision & Timing', 'Unloading Supervision & Timing', 'Audit Status']}
             mobileCard={(w: any, idx: number) => (
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between items-center font-mono">
                   <span className="font-black text-slate-900">Wagon #{idx + 1} — {w.wagonId}</span>
-                  <Badge text="VERIFIED ✓" color="green" />
+                  <Badge text={w.unloadStatus === 'UNLOADED' ? 'UNLOADED ✓' : w.status === 'LOADED' ? 'LOADED ✓' : 'IN PROGRESS'} color={w.unloadStatus === 'UNLOADED' ? 'green' : w.status === 'LOADED' ? 'blue' : 'amber'} />
                 </div>
-                <p className="text-slate-600">Qty: <b>{w.qty || 70} Bags</b></p>
-                <p className="text-[11px] text-slate-500 font-mono">Loaded by: {loadingOfficer} • {w.startTime || '08:15 AM'}</p>
-                <p className="text-[11px] text-slate-500 font-mono">Unloaded by: {unloadingOfficer} • {w.unloadEndTime || '01:05 PM'}</p>
+                <p className="text-slate-600">Qty: <b>{Number(w.qty || 0).toLocaleString()} Bags</b></p>
+                <p className="text-[11px] text-slate-500 font-mono">Loaded by: {w.loadingOfficer || loadingOfficer} • {w.startDate || ''} {w.startTime || '—'}</p>
+                <p className="text-[11px] text-slate-500 font-mono">Unloaded by: {w.unloadingOfficer || unloadingOfficer} • {w.unloadStartDate || ''} {w.unloadEndTime || '—'}</p>
               </div>
             )}
             data={logs}
@@ -409,17 +411,17 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
                 <td className="p-3 font-mono font-black text-slate-900">
                   #{idx + 1} — {w.wagonId}
                 </td>
-                <td className="p-3 font-mono font-bold text-slate-700">{w.qty || 70} Bags</td>
+                <td className="p-3 font-mono font-bold text-slate-700">{Number(w.qty || 0).toLocaleString()} Bags</td>
                 <td className="p-3">
-                  <span className="font-bold text-slate-900 block">{loadingOfficer}</span>
-                  <span className="text-[10px] font-mono text-slate-500">{w.startDate || '31 Jul 2026'} • {w.startTime || '08:15 AM'} ({w.durationStr || '14 Mins'})</span>
+                  <span className="font-bold text-slate-900 block">{w.loadingOfficer || loadingOfficer}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{w.startDate || ''} {w.startTime || '—'} {w.durationStr ? `(${w.durationStr})` : ''}</span>
                 </td>
                 <td className="p-3">
-                  <span className="font-bold text-slate-900 block">{unloadingOfficer}</span>
-                  <span className="text-[10px] font-mono text-slate-500">{w.unloadEndDate || '31 Jul 2026'} • {w.unloadEndTime || '01:05 PM'} ({w.unloadDurationStr || '16 Mins'})</span>
+                  <span className="font-bold text-slate-900 block">{w.unloadStatus === 'UNLOADED' ? (w.unloadingOfficer || unloadingOfficer) : 'Pending Unload'}</span>
+                  <span className="text-[10px] font-mono text-slate-500">{w.unloadStartDate || ''} {w.unloadEndTime || '—'} {w.unloadDurationStr ? `(${w.unloadDurationStr})` : ''}</span>
                 </td>
                 <td className="p-3">
-                  <Badge text="VERIFIED AUDITED ✓" color="green" />
+                  <Badge text={w.unloadStatus === 'UNLOADED' ? 'UNLOADED ✓' : w.status === 'LOADED' ? 'LOADED ✓' : 'LOADING'} color={w.unloadStatus === 'UNLOADED' ? 'green' : w.status === 'LOADED' ? 'blue' : 'amber'} />
                 </td>
               </tr>
             ))}
@@ -588,18 +590,50 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
   const [filterCorridor, setFilterCorridor] = useState<string>('ALL');
 
   const totalTrips = trips.length;
-  const completedTrips = trips.filter(t => t.status === 'COMPLETED' || t.status === 'UNLOADED').length;
+  const completedTrips = trips.filter(t => t.status === 'COMPLETED').length;
   const activeTrips = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'LOADING').length;
 
   let totalBagsMoved = 0;
   let totalWagonsLoaded = 0;
+  let totalLoadingMinutes = 0;
+  let wagonsWithDurationCount = 0;
+
   trips.forEach(t => {
-    totalBagsMoved += Number(t.quantity || 1610);
-    totalWagonsLoaded += (t.wagonLogs || []).length || 23;
+    const logs = t.wagonLogs || [];
+    logs.forEach((w: any) => {
+      if (w.status === 'LOADED' || w.unloadStatus === 'UNLOADED') {
+        const q = Number(w.qty) || 0;
+        totalBagsMoved += q;
+        totalWagonsLoaded++;
+      }
+      if (w.durationStr) {
+        const matchMins = w.durationStr.match(/(\d+)\s*M/i) || w.durationStr.match(/(\d+)\s*min/i);
+        const matchHrs = w.durationStr.match(/(\d+)\s*h/i);
+        let mins = 0;
+        if (matchHrs) mins += parseInt(matchHrs[1]) * 60;
+        if (matchMins) mins += parseInt(matchMins[1]);
+        if (mins > 0) {
+          totalLoadingMinutes += mins;
+          wagonsWithDurationCount++;
+        }
+      }
+    });
   });
+
   const totalTonnesMoved = ((totalBagsMoved * 50) / 1000).toLocaleString();
+  const avgLoadingSpeedStr = wagonsWithDurationCount > 0 ? (totalLoadingMinutes / wagonsWithDurationCount).toFixed(1) : '—';
+  const totalCorridorValueNaira = (totalBagsMoved * 1200);
+  const totalCorridorValueStr = totalCorridorValueNaira > 0
+    ? totalCorridorValueNaira >= 1000000
+      ? `₦${(totalCorridorValueNaira / 1000000).toFixed(1)}M`
+      : `₦${totalCorridorValueNaira.toLocaleString()}`
+    : '₦0';
 
   const handlePrintDailyReport = () => {
+    if (trips.length === 0) {
+      alert('No freight trips recorded in database yet.');
+      return;
+    }
     window.print();
   };
 
@@ -617,7 +651,7 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
 
         <div className="flex flex-wrap items-center gap-3 print:hidden">
           <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700">
-            <option value="today">Today (05 Aug 2026)</option>
+            <option value="today">Today (07 Aug 2026)</option>
             <option value="week">This Week</option>
             <option value="month">This Month</option>
           </select>
@@ -651,13 +685,13 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
 
         <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Avg Loading Speed</span>
-          <p className="text-xl sm:text-2xl font-black text-amber-600 mt-1">14.2 <span className="text-xs text-slate-500 font-bold">Mins/Wagon</span></p>
+          <p className="text-xl sm:text-2xl font-black text-amber-600 mt-1">{avgLoadingSpeedStr} <span className="text-xs text-slate-500 font-bold">Mins/Wagon</span></p>
           <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">Total {totalWagonsLoaded} Wagons Loaded</p>
         </div>
 
         <div className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-xs">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Est. Corridor Value</span>
-          <p className="text-xl sm:text-2xl font-black text-[#0E4B88] mt-1">₦14.8M</p>
+          <p className="text-xl sm:text-2xl font-black text-[#0E4B88] mt-1">{totalCorridorValueStr}</p>
           <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">100% Tariff Cleared</p>
         </div>
       </div>
