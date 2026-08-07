@@ -303,6 +303,112 @@ function RailCorridorGpsMap({ trip }: { trip: any }) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   MOBILE PHONE REAL-TIME GPS TRACKING COMPONENT
+───────────────────────────────────────────────────────── */
+function MobileGpsTracker({ trip, onUpdateLocation }: { trip?: any; onUpdateLocation?: (lat: number, lng: number, speed: number) => void }) {
+  const [tracking, setTracking] = useState(false);
+  const [phoneNum, setPhoneNum] = useState(trip?.escortPhone || '08031112233');
+  const [watchId, setWatchId] = useState<number | null>(null);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number; speed: number } | null>(null);
+
+  const startPhoneGps = () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Geolocation API is not supported by your browser/device.');
+      return;
+    }
+    if (!phoneNum.trim()) {
+      alert('Please enter the escort or cargo officer phone number.');
+      return;
+    }
+
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const speed = Math.round((pos.coords.speed || 0) * 3.6);
+        setCurrentCoords({ lat, lng, speed });
+        setTracking(true);
+
+        try {
+          fetch(`/api/tracking/gps/${encodeURIComponent(trip?.locomotiveId || 'L2205')}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lat,
+              lng,
+              speed: speed || 45,
+              heading: pos.coords.heading || 45,
+              escortPhone: phoneNum,
+              signalQuality: 'MOBILE_PHONE_GPS_LIVE',
+              updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            }),
+          });
+        } catch {}
+
+        if (onUpdateLocation) onUpdateLocation(lat, lng, speed);
+      },
+      (err) => {
+        alert(`Device GPS Permission Error: ${err.message}. Please enable GPS Location on your device.`);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    setWatchId(id);
+  };
+
+  const stopPhoneGps = () => {
+    if (watchId !== null && typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchId);
+    }
+    setWatchId(null);
+    setTracking(false);
+  };
+
+  return (
+    <div className="bg-emerald-950 text-white rounded-2xl p-4 sm:p-5 space-y-3 shadow-md border border-emerald-800">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`w-3 h-3 rounded-full ${tracking ? 'bg-emerald-400 animate-ping' : 'bg-slate-400'}`} />
+          <h4 className="text-xs font-black uppercase tracking-wider text-emerald-100 font-mono">Mobile Phone Real-Time GPS Tracking Transmitter</h4>
+        </div>
+        <Badge text={tracking ? 'PHONE GPS LIVE 📍' : 'GPS STANDBY'} color={tracking ? 'green' : 'blue'} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="sm:col-span-2">
+          <label className="block text-[10px] font-extrabold uppercase text-emerald-300">Supervising Officer / Escort Phone Number *</label>
+          <input
+            type="tel"
+            value={phoneNum}
+            onChange={e => setPhoneNum(e.target.value)}
+            disabled={tracking}
+            placeholder="e.g. 08031112233"
+            className="w-full bg-emerald-900/90 border border-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-mono mt-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
+        </div>
+        <div className="flex items-end">
+          {!tracking ? (
+            <button onClick={startPhoneGps} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all">
+              Connect Phone GPS & Track 📍
+            </button>
+          ) : (
+            <button onClick={stopPhoneGps} className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all">
+              Disconnect Phone GPS 🛑
+            </button>
+          )}
+        </div>
+      </div>
+
+      {currentCoords && (
+        <div className="bg-emerald-900/80 p-3 rounded-xl font-mono text-[11px] flex justify-between items-center text-emerald-200 border border-emerald-700">
+          <span>Lat: <b className="text-white">{currentCoords.lat.toFixed(5)}°N</b> | Lng: <b className="text-white">{currentCoords.lng.toFixed(5)}°E</b></span>
+          <span>Device Speed: <b className="text-emerald-300">{currentCoords.speed} km/h</b></span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    PER-TRIP COMPREHENSIVE DATABASE AUDIT & MANIFEST REPORT
 ───────────────────────────────────────────────────────── */
 function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => void }) {
@@ -347,6 +453,13 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             </button>
           </div>
         </div>
+
+        {/* Live Mobile Device Phone GPS Transmitter for In-Transit Trips */}
+        {trip.status === 'IN_TRANSIT' && (
+          <div className="print:hidden">
+            <MobileGpsTracker trip={trip} />
+          </div>
+        )}
 
         {/* Supervising Officers Badges */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
@@ -1825,11 +1938,11 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           )}
 
           {view === 'in_transit' && (
-            <Section title="Trips on the Move (Live GPS Corridor Stream)" subtitle="Dispatched trips currently in corridor transit from your station">
+            <Section title="Trips on the Move (Live GPS Corridor Stream)" subtitle="Dispatched trips currently in corridor transit from your station — click any row to track">
               <TableWrap
-                headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status']}
+                headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status', 'Action']}
                 mobileCard={(t: any) => (
-                  <div className="space-y-2">
+                  <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
                     <div className="flex justify-between items-center">
                       <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
                       <Badge text={t.status} color="green" />
@@ -1837,18 +1950,20 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <p className="font-bold text-slate-900">{t.company}</p>
                     <p className="text-xs font-mono text-slate-700">{t.locomotiveId}</p>
                     <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                    <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect Audit & Phone GPS ➔</p>
                   </div>
                 )}
                 data={myInTransit}
               >
-                {myInTransit.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit.</td></tr>
+                {myInTransit.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-xs">No trips currently in transit.</td></tr>
                   : myInTransit.map(t => (
-                    <tr key={t.id} className="hover:bg-slate-50">
+                    <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
                       <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                       <td className="p-4 font-bold text-slate-900">{t.company}</td>
                       <td className="p-4 font-mono text-slate-800">{t.locomotiveId}</td>
                       <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                       <td className="p-4"><Badge text={t.status} color="green" /></td>
+                      <td className="p-4 font-bold text-[#62BC37]">Inspect Audit & Phone GPS ➔</td>
                     </tr>
                   ))}
               </TableWrap>
