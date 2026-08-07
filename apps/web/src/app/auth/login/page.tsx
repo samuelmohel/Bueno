@@ -50,6 +50,24 @@ const STATIONS: Record<string, string> = {
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const catParam = searchParams ? searchParams.get('category') : null;
+
+  useEffect(() => {
+    if (catParam === 'CUSTOMER') {
+      setUserCategory('CUSTOMER');
+      setStep(3);
+    }
+  }, [catParam]);
+
+  const handleBack = () => {
+    setError('');
+    if (step === 3 && userCategory === 'CUSTOMER') {
+      setStep(1);
+    } else if (step > 1) {
+      setStep((step - 1) as any);
+    }
+  };
 
   // Enterprise Splash Screen State
   const [showSplash, setShowSplash] = useState(true);
@@ -374,7 +392,7 @@ function LoginForm() {
             <div className="p-6 sm:p-8 text-center border-b border-slate-100 relative">
               {step > 1 && (
                 <button
-                  onClick={() => setStep((step - 1) as any)}
+                  onClick={handleBack}
                   className="absolute left-6 top-8 text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors"
                 >
                   ← Back
