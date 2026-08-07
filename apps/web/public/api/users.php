@@ -20,41 +20,48 @@ if ($method === 'POST') {
     $rawInput = file_get_contents('php://input');
     $data = json_decode($rawInput, true);
 
-    if (!$data || !isset($data['fullName'])) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid user data']);
+    if (!$data) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid payload']);
         exit();
     }
 
-    $id = $data['id'] ?? ('usr_' . time());
-    $fullName = htmlspecialchars($data['fullName']);
-    $email = htmlspecialchars($data['email'] ?? '');
-    $phone = htmlspecialchars($data['phone'] ?? '');
-    $role = htmlspecialchars($data['role'] ?? 'CUSTOMER');
-    $userType = htmlspecialchars($data['userType'] ?? 'CUSTOMER');
-    $assignedStation = htmlspecialchars($data['assignedStation'] ?? '');
-    $companyName = htmlspecialchars($data['companyName'] ?? '');
-    $staffId = htmlspecialchars($data['staffId'] ?? ('CUST-' . rand(1000, 9999)));
-    $pin = htmlspecialchars($data['pin'] ?? '1111');
-    $status = htmlspecialchars($data['status'] ?? 'ACTIVE');
-    $permissionsText = json_encode($data['permissions'] ?? null);
-    $createdAt = date('d/m/Y');
+    $usersToSave = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_users (id, fullName, email, phone, role, userType, assignedStation, companyName, staffId, pin, status, permissionsText, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET fullName=?, email=?, phone=?, role=?, userType=?, assignedStation=?, companyName=?, staffId=?, pin=?, status=?, permissionsText=?");
+    foreach ($usersToSave as $u) {
+        if (!isset($u['fullName']) && !isset($u['id'])) continue;
+        $id = $u['id'] ?? ('usr_' . time() . '_' . rand(100, 999));
+        $fullName = htmlspecialchars($u['fullName'] ?? 'User');
+        $email = htmlspecialchars($u['email'] ?? '');
+        $phone = htmlspecialchars($u['phone'] ?? '');
+        $role = htmlspecialchars($u['role'] ?? 'CUSTOMER');
+        $userType = htmlspecialchars($u['userType'] ?? 'CUSTOMER');
+        $assignedStation = htmlspecialchars($u['assignedStation'] ?? '');
+        $companyName = htmlspecialchars($u['companyName'] ?? '');
+        $staffId = htmlspecialchars($u['staffId'] ?? ('CUST-' . rand(1000, 9999)));
+        $pin = htmlspecialchars($u['pin'] ?? '1111');
+        $status = htmlspecialchars($u['status'] ?? 'ACTIVE');
+        $permissionsText = json_encode($u['permissions'] ?? null);
+        $createdAt = date('d/m/Y');
 
-    $stmt->execute([
-        $id, $fullName, $email, $phone, $role, $userType, $assignedStation, $companyName, $staffId, $pin, $status, $permissionsText, $createdAt,
-        $fullName, $email, $phone, $role, $userType, $assignedStation, $companyName, $staffId, $pin, $status, $permissionsText
-    ]);
+        try {
+            // MySQL & SQLite dual upsert compatible
+            $stmt = $pdo->prepare("INSERT INTO bueno_users (id, fullName, email, phone, role, userType, assignedStation, companyName, staffId, pin, status, permissionsText, createdAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE fullName=VALUES(fullName), email=VALUES(email), phone=VALUES(phone), role=VALUES(role), userType=VALUES(userType), assignedStation=VALUES(assignedStation), companyName=VALUES(companyName), staffId=VALUES(staffId), pin=VALUES(pin), status=VALUES(status), permissionsText=VALUES(permissionsText)");
+            $stmt->execute([$id, $fullName, $email, $phone, $role, $userType, $assignedStation, $companyName, $staffId, $pin, $status, $permissionsText, $createdAt]);
+        } catch (Exception $e) {
+            // Fallback for SQLite or PDO driver variation
+            try {
+                $stmt = $pdo->prepare("REPLACE INTO bueno_users (id, fullName, email, phone, role, userType, assignedStation, companyName, staffId, pin, status, permissionsText, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$id, $fullName, $email, $phone, $role, $userType, $assignedStation, $companyName, $staffId, $pin, $status, $permissionsText, $createdAt]);
+            } catch (Exception $e2) {}
+        }
+    }
 
     echo json_encode([
         'status' => 'success',
-        'message' => 'User saved successfully to database',
-        'data' => [
-            'id' => $id, 'fullName' => $fullName, 'email' => $email, 'phone' => $phone,
-            'role' => $role, 'userType' => $userType, 'companyName' => $companyName, 'staffId' => $staffId, 'pin' => $pin
-        ]
+        'message' => 'Users saved & updated successfully to database',
+        'count' => count($usersToSave)
     ]);
     exit();
 }

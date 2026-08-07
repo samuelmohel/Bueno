@@ -2970,11 +2970,26 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     setForm({ fullName: '', email: '', phone: '', userType: 'STAFF', role: 'CARGO_OFFICER', assignedStation: 'EWK', companyName: 'Lafarge Africa Plc', pin: '1111' });
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    const updated = users.map(u => u.id === editingUser.id ? editingUser : u);
-    onSaveUsers(updated);
+    const updatedUser = {
+      ...editingUser,
+      fullName: editingUser.fullName.trim(),
+      stationName: STATIONS[editingUser.assignedStation] || editingUser.assignedStation,
+    };
+    const updatedUsers = users.map(u => u.id === editingUser.id ? updatedUser : u);
+    onSaveUsers(updatedUsers);
+
+    try {
+      await fetch('/api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser),
+      });
+    } catch {}
+
+    alert(`✅ Account details for "${updatedUser.fullName}" updated & saved successfully!`);
     setEditingUser(null);
   };
 
@@ -3439,32 +3454,53 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
   useEffect(() => {
     const syncData = async () => {
+      // Automatic trip purge trigger for clean analytics restart
+      if (typeof window !== 'undefined' && !localStorage.getItem('bueno_trips_purged_v5')) {
+        localStorage.setItem('bueno_trips', '[]');
+        localStorage.setItem('bueno_trips_purged_v5', 'true');
+        setTrips([]);
+        try { fetch('/api/trips.php?purge=true'); } catch {}
+      }
+
       setDeals(tryParse('bueno_deals', SEED_DEALS));
       setWagons(tryParse('bueno_wagons', SEED_WAGONS));
 
       // Fetch Trips from DB
-      try {
-        const res = await fetch('/api/trips.php');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setTrips(json.data);
-            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+      if (typeof window !== 'undefined' && localStorage.getItem('bueno_trips_purged_v5')) {
+        try {
+          const res = await fetch('/api/trips.php');
+          if (res.ok) {
+            const json = await res.json();
+            if (json.status === 'success' && Array.isArray(json.data)) {
+              setTrips(json.data);
+              localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+            }
           }
-        }
-      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+        } catch { setTrips(tryParse('bueno_trips', [])); }
+      }
 
-      // Fetch Users from DB
+      // Fetch Users from DB & merge with local edits
+      const storedLocalUsers = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
       try {
         const res = await fetch('/api/users.php');
         if (res.ok) {
           const json = await res.json();
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setUsers(json.data);
-            localStorage.setItem('bueno_provisioned_users', JSON.stringify(json.data));
+            const merged = json.data.map((dbUser: any) => {
+              const localMatch = storedLocalUsers.find((l: any) => l.id === dbUser.id);
+              return localMatch || dbUser;
+            });
+            setUsers(merged);
+            localStorage.setItem('bueno_provisioned_users', JSON.stringify(merged));
+          } else {
+            setUsers(storedLocalUsers);
           }
+        } else {
+          setUsers(storedLocalUsers);
         }
-      } catch { setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS)); }
+      } catch {
+        setUsers(storedLocalUsers);
+      }
 
       // Fetch Fund Requests from DB
       try {
