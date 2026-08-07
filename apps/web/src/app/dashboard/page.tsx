@@ -38,7 +38,41 @@ const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
   };
 });
 
-const SEED_DEALS: any[] = [];
+const SEED_DEALS: any[] = [
+  {
+    id: 'DEAL-0138',
+    dealNumber: 'DEAL-0138',
+    company: 'Dangote Cement',
+    origin: 'EWK',
+    destination: 'MNY',
+    cargoType: 'Elephant Cement (50kg bags)',
+    quantity: 8000,
+    unitPrice: 1200,
+    totalPrice: 9600000,
+    assignedStation: 'EWK',
+    loadingStation: 'EWK',
+    date: '07 Aug 2026',
+    createdAt: '07 Aug 2026, 14:00',
+    createdBy: 'Admin (Folake Adeyemi)',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'DEAL-0139',
+    dealNumber: 'DEAL-0139',
+    company: 'Lafarge Africa Plc',
+    origin: 'EWK',
+    destination: 'MNY',
+    cargoType: 'Portland Cement (50kg bags)',
+    quantity: 12000,
+    unitPrice: 1200,
+    totalPrice: 14400000,
+    assignedStation: 'EWK',
+    loadingStation: 'EWK',
+    date: '07 Aug 2026, 14:15',
+    createdBy: 'Admin (Folake Adeyemi)',
+    status: 'ACTIVE',
+  },
+];
 
 const SEED_TRIPS: any[] = [];
 
@@ -1702,27 +1736,9 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             {sName(station)} Terminal Ready & Operational
                           </h4>
                           <p className="text-xs text-slate-500 font-medium mt-1">
-                            No active deals assigned to {sName(station)} right now. Click below to generate a new freight deal requisition to test wagon loading immediately.
+                            No active freight deals assigned to {sName(station)} right now. Awaiting new deal allocation from Admin/HQ.
                           </p>
                         </div>
-                        <button
-                          onClick={() => {
-                            const newDeal = {
-                              id: `DEAL-${Date.now()}`,
-                              dealNumber: `DEAL-${Math.floor(1000 + Math.random() * 9000)}`,
-                              company: 'Lafarge Africa Plc',
-                              loadingStation: station,
-                              destination: station === 'EWK' ? 'MNY' : 'EWK',
-                              cargoType: 'Elephant Cement (50kg bags)',
-                              quantity: 1600,
-                              date: new Date().toLocaleDateString('en-GB'),
-                            };
-                            saveDeals([newDeal, ...deals]);
-                          }}
-                          className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-6 py-3.5 rounded-2xl shadow-xl shadow-[#62BC37]/20 transition-all transform hover:scale-105"
-                        >
-                          + Create New Freight Deal Requisition ➔
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -3795,14 +3811,18 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
    PORTAL 4 — MD / CEO
 ═══════════════════════════════════════════════════════════ */
 function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'trips' | 'requests'>('trips');
+  const [view, setView] = useState<'trips' | 'analytics' | 'requests'>('trips');
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips]   = useState<any[]>([]);
+  const [users, setUsers]   = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
+  const [inspectingTrip, setInspectingTrip] = useState<any | null>(null);
 
   useEffect(() => {
     const syncData = async () => {
+      setUsers(tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS));
+
       try {
         const res = await fetch('/api/trips.php');
         if (res.ok) {
@@ -3853,12 +3873,19 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   };
 
   const navItems = [
-    { key: 'trips',    label: 'Executive Corridor GPS Map' },
-    { key: 'requests', label: 'Fund Requests (CEO Clearance)' },
+    { key: 'trips',     label: 'Executive Corridor GPS Map' },
+    { key: 'analytics', label: '📊 Executive Analytics & Daily Reports' },
+    { key: 'requests',  label: 'Fund Requests (CEO Clearance)' },
   ];
 
   return (
     <Shell user={{ ...user, roleLabel: 'Managing Director / CEO' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
+      {inspectingTrip && <TripAuditReportModal trip={inspectingTrip} onClose={() => setInspectingTrip(null)} />}
+
+      {view === 'analytics' && (
+        <DailyAnalyticsSection trips={trips} users={users} onInspectTrip={trip => setInspectingTrip(trip)} />
+      )}
+
       {view === 'trips' && (
         <div className="space-y-6">
           <Section title="Executive Overview — Corridor GPS Live Satellite Telemetry" subtitle="High-precision interactive train movement map across all Nigerian rail corridors">
@@ -3866,19 +3893,20 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
             <TableWrap
               headers={['Trip ID', 'Officer', 'Company', 'Route', 'Wagons Loaded', 'Status']}
               mobileCard={(t: any) => (
-                <div className="space-y-2">
+                <div className="space-y-2 cursor-pointer" onClick={() => setInspectingTrip(t)}>
                   <div className="flex justify-between items-center">
                     <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
                     <Badge text={t.status} color={t.status === 'IN_TRANSIT' ? 'green' : 'blue'} />
                   </div>
                   <p className="font-bold text-slate-900">{t.company}</p>
                   <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
+                  <p className="text-xs font-bold text-[#0E4B88] pt-1">Inspect Full Trip Audit Report ➔</p>
                 </div>
               )}
               data={trips}
             >
               {trips.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50">
+                <tr key={t.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setInspectingTrip(t)}>
                   <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
                   <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                   <td className="p-4 text-slate-700">{t.company}</td>
