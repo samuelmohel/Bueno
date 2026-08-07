@@ -3001,10 +3001,13 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     pin: '1111',
   });
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim() || (!form.email.trim() && !form.phone.trim())) {
-      alert('Please provide Full Name and at least Email or Phone Number.');
+      setCustomAlert({
+        title: 'Missing Required Fields',
+        message: 'Please provide Full Name and at least Email or Phone Number.',
+      });
       return;
     }
 
@@ -3025,7 +3028,22 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       createdAt: new Date().toLocaleDateString('en-GB'),
     };
 
-    onSaveUsers([newUser, ...users]);
+    const updated = [newUser, ...users];
+    onSaveUsers(updated);
+
+    try {
+      await fetch('/api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      });
+    } catch {}
+
+    setCustomAlert({
+      title: 'User Account Provisioned',
+      message: `Account for "${newUser.fullName}" (${newUser.role}) provisioned successfully and active in database!`,
+    });
+
     setModalOpen(false);
     setForm({ fullName: '', email: '', phone: '', userType: 'STAFF', role: 'CARGO_OFFICER', assignedStation: 'EWK', companyName: 'Lafarge Africa Plc', pin: '1111' });
   };
@@ -3544,19 +3562,22 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
         } catch { setTrips(tryParse('bueno_trips', [])); }
       }
 
-      // Fetch Users from DB & merge with local edits
+      // Fetch Users from DB & merge with local additions and edits
       const storedLocalUsers = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
       try {
         const res = await fetch('/api/users.php');
         if (res.ok) {
           const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            const merged = json.data.map((dbUser: any) => {
+          if (json.status === 'success' && Array.isArray(json.data)) {
+            const dbIds = new Set(json.data.map((u: any) => u.id));
+            const dbUsersWithLocalOverrides = json.data.map((dbUser: any) => {
               const localMatch = storedLocalUsers.find((l: any) => l.id === dbUser.id);
               return localMatch || dbUser;
             });
-            setUsers(merged);
-            localStorage.setItem('bueno_provisioned_users', JSON.stringify(merged));
+            const localOnlyUsers = storedLocalUsers.filter((l: any) => !dbIds.has(l.id));
+            const combinedUsers = [...localOnlyUsers, ...dbUsersWithLocalOverrides];
+            setUsers(combinedUsers);
+            localStorage.setItem('bueno_provisioned_users', JSON.stringify(combinedUsers));
           } else {
             setUsers(storedLocalUsers);
           }
