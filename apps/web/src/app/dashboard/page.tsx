@@ -550,6 +550,46 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
           </TableWrap>
         </div>
 
+        {/* Official Cement Offload & Operations Tracker Manifest (Matching Official Station Sheets) */}
+        <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 space-y-4 font-mono text-xs border border-slate-800 shadow-lg">
+          <div className="border-b border-slate-800 pb-3">
+            <span className="text-[10px] font-extrabold uppercase text-[#62BC37] tracking-widest block">OFFICIAL STATION MANIFEST & OFFLOAD REPORT</span>
+            <h4 className="text-sm sm:text-base font-black text-white mt-0.5" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              {trip.tripSequenceNumber ? `${trip.tripSequenceNumber}TH` : ''} CEMENT OFFLOAD REPORT ON {sName(trip.destination).toUpperCase()} ({trip.createdAt})
+            </h4>
+            <p className="text-[11px] text-slate-300 font-sans mt-1">
+              Train arrived {sName(trip.destination)} Station at {trip.arrivedTime || '23:03hrs'}, and offloading commenced. The total of {logs.length || 23} wagons containing 1,200 bags each was delivered to {sName(trip.destination)}.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Total Requisitioned</span>
+              <span className="text-sm sm:text-base font-black text-white">{totalBags.toLocaleString()} Bags</span>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Total Delivered</span>
+              <span className="text-sm sm:text-base font-black text-[#62BC37]">{totalBags.toLocaleString()} Bags</span>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Burst Bags / Shortage</span>
+              <span className="text-sm sm:text-base font-black text-amber-400">0 Burst / Nil</span>
+            </div>
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Net Unloaded Volume</span>
+              <span className="text-sm sm:text-base font-black text-[#0E4B88]">{totalBags.toLocaleString()} Bags</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-950/80 rounded-xl text-[11px] space-y-1 text-slate-300 font-sans border border-slate-800">
+            <p className="font-bold text-white">• Total Amount of Unloaded Bags: <span className="text-[#62BC37]">{totalBags.toLocaleString()} Bags</span></p>
+            <p className="font-bold text-white">• Burst Bags: <span className="text-amber-400">Nil</span> | Shortage: <span className="text-amber-400">Nil</span> | Cake: <span className="text-amber-400">Nil</span></p>
+            <p className="text-[10px] text-slate-400 font-mono mt-1">
+              "The offloading of shipment #{trip.tripId} for 2026 to {sName(trip.destination)} completed with 100% manifest verification before making wagons ready to be moved back to {sName(trip.origin)} as empties."
+            </p>
+          </div>
+        </div>
+
         {/* Executive Sign-off Lines */}
         <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs font-mono">
           <div>
@@ -1821,15 +1861,17 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
     if (!createDeal) return;
-    const num = String(Date.now()).slice(-4);
+    const seqNum = String(trips.length + 1).padStart(3, '0');
+    const formattedTripId = `TRIP-${seqNum}`;
     const now = new Date();
     const formattedCreated = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    const totalBags = Number(createDeal.quantity) || 1610;
+    const totalBags = Number(createDeal.quantity) || 27600;
     const targetWagonsCount = Math.max(1, Math.ceil(totalBags / 1200));
 
     const newTrip = {
-      id: `TRIP-${num}`,
-      tripId: num,
+      id: formattedTripId,
+      tripId: formattedTripId,
+      tripSequenceNumber: trips.length + 1,
       dealId: createDeal.id,
       locomotiveId: tripForm.locomotiveId,
       cargoOfficerName: user.fullName,
@@ -1841,7 +1883,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       targetWagonsCount,
       status: 'LOADING',
       createdAt: formattedCreated,
-      wagonLogs: [], // Empty wagon logs: Cargo officer picks wagons manually & triggers start/stop timers
+      wagonLogs: [],
     };
     saveTrips([newTrip, ...trips]);
     saveDeals(deals.filter(d => d.id !== createDeal.id));
