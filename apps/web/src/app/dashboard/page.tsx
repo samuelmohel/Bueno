@@ -165,6 +165,60 @@ function stageColor(stage: string) {
   return 'green';
 }
 
+/* ─────────────────────────────────────────────────────────
+   BRANDED ENTERPRISE POPUP NOTIFICATION & ALERT MODAL
+───────────────────────────────────────────────────────── */
+function ToastNotification({ toast, onClose }: { toast: { message: string; type?: 'success' | 'error' | 'info' } | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => onClose(), 4500);
+    return () => clearTimeout(timer);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+
+  const isError = toast.type === 'error';
+  const isInfo = toast.type === 'info';
+
+  return (
+    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] max-w-md w-[90%] sm:w-auto font-sans transition-all animate-bounce">
+      <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border text-xs sm:text-sm font-extrabold ${
+        isError ? 'bg-rose-950 text-white border-rose-700' : isInfo ? 'bg-slate-900 text-white border-slate-700' : 'bg-emerald-950 text-white border-emerald-600'
+      }`}>
+        <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black shrink-0 ${
+          isError ? 'bg-rose-600 text-white' : isInfo ? 'bg-blue-600 text-white' : 'bg-[#62BC37] text-white'
+        }`}>
+          {isError ? '✕' : isInfo ? 'ℹ' : '✓'}
+        </div>
+        <p className="flex-1 font-sans leading-snug">{toast.message}</p>
+        <button onClick={onClose} className="text-white/60 hover:text-white font-bold ml-2 text-base">✕</button>
+      </div>
+    </div>
+  );
+}
+
+function CustomAlertModal({ title, message, isOpen, onClose }: { title?: string; message: string | null; isOpen: boolean; onClose: () => void }) {
+  if (!isOpen || !message) return null;
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 space-y-4 text-center font-sans">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-100 text-[#62BC37] flex items-center justify-center font-black text-2xl border border-emerald-200 shadow-sm">
+          ✓
+        </div>
+        <div>
+          <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{title || 'Bueno Freight OS System'}</h3>
+          <p className="text-xs text-slate-600 font-medium mt-1.5 leading-relaxed whitespace-pre-line">{message}</p>
+        </div>
+        <div className="pt-2">
+          <button onClick={onClose} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all">
+            Acknowledge & Continue ➔
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
@@ -1749,6 +1803,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const [deals, setDeals]         = useState<any[]>([]);
   const [trips, setTrips]         = useState<any[]>([]);
@@ -2139,6 +2194,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       )}
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
       {addWagonModal && (
         <AddWagonModal
           isOpen={addWagonModal}
@@ -2146,7 +2202,10 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           onSaveWagon={(newWagon) => {
             const updated = [newWagon, ...wagons];
             saveWagons(updated);
-            alert(`✅ Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`);
+            setCustomAlert({
+              title: 'PXG Wagon Registered',
+              message: `Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`,
+            });
           }}
         />
       )}
@@ -2853,6 +2912,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   useEffect(() => {
     setClientRequests(tryParse('bueno_client_requests', [
@@ -2989,7 +3049,10 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       });
     } catch {}
 
-    alert(`✅ Account details for "${updatedUser.fullName}" updated & saved successfully!`);
+    setCustomAlert({
+      title: 'User Account Updated',
+      message: `Account details for "${updatedUser.fullName}" updated & saved successfully to server!`,
+    });
     setEditingUser(null);
   };
 
@@ -3400,6 +3463,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
           </div>
         </Modal>
       )}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </Section>
   );
 }
@@ -3422,6 +3486,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const [createDealModal, setCreateDealModal] = useState(false);
   const [addWagonModal, setAddWagonModal]     = useState(false);
   const [selectedReq, setSelectedReq]         = useState<any | null>(null);
+  const [customAlert, setCustomAlert]         = useState<{ title?: string; message: string } | null>(null);
 
   const [editingDeal, setEditingDeal] = useState<any | null>(null);
   const [deletingDealId, setDeletingDealId] = useState<string | null>(null);
@@ -3955,6 +4020,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       )}
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
       {addWagonModal && (
         <AddWagonModal
           isOpen={addWagonModal}
@@ -3962,7 +4028,10 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
           onSaveWagon={(newWagon) => {
             const updated = [newWagon, ...wagons];
             saveWagons(updated);
-            alert(`✅ Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`);
+            setCustomAlert({
+              title: 'PXG Wagon Registered',
+              message: `Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`,
+            });
           }}
         />
       )}
