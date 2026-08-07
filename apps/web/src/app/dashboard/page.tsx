@@ -24,19 +24,30 @@ const STATION_COORDS: Record<string, [number, number]> = {
   APT: [6.4550, 3.3610],
 };
 
-// Initial 46 Registered Wagons
-const SEED_WAGONS: any[] = Array.from({ length: 46 }, (_, i) => {
-  const id = `WG${String(i + 1).padStart(3, '0')}`;
-  const isInUse = id === 'WG001' || id === 'WG002';
-  return {
-    id,
-    capacity: 1200,
-    status: isInUse ? 'IN_TRANSIT' : 'AVAILABLE',
-    currentStation: isInUse ? 'MNY' : 'EWK',
-    addedBy: 'System Registry',
-    createdAt: '31 Jul 2026',
-  };
-});
+// 46 Official PXG Freight Wagons (Bueno Logistics Fleet)
+const OFFICIAL_PXG_CODES = [
+  "PXG 09029", "PXG 09033", "PXG 09037", "PXG 09022", "PXG 09001",
+  "PXG 09031", "PXG 09036", "PXG 09023", "PXG 09021", "PXG 09025",
+  "PXG 09008", "PXG 09019", "PXG 09055", "PXG 09038", "PXG 09004",
+  "PXG 09015", "PXG 09040", "PXG 09056", "PXG 09016", "PXG 09009",
+  "PXG 09028", "PXG 09030", "PXG 09017",
+  "PXG 09059", "PXG 09003", "PXG 09013", "PXG 09014", "PXG 09039",
+  "PXG 09012", "PXG 09010", "PXG 09026", "PXG 09005", "PXG 09041",
+  "PXG 09007", "PXG 09061", "PXG 09062", "PXG 09020", "PXG 09002",
+  "PXG 09066", "PXG 09018", "PXG 09035", "PXG 09032", "PXG 09060",
+  "PXG 09011", "PXG 09024", "PXG 09034"
+];
+
+const SEED_WAGONS: any[] = OFFICIAL_PXG_CODES.map((code, i) => ({
+  id: code,
+  capacity: 1200,
+  status: 'AVAILABLE',
+  currentStation: i < 23 ? 'EWK' : 'APT',
+  addedBy: 'System Registry',
+  createdAt: '07 Aug 2026',
+}));
+
+const SEED_TRIPS: any[] = [];
 
 const SEED_DEALS: any[] = [
   {
@@ -73,8 +84,6 @@ const SEED_DEALS: any[] = [
     status: 'ACTIVE',
   },
 ];
-
-const SEED_TRIPS: any[] = [];
 
 const DEFAULT_PROVISIONED_USERS = [
   { id: 'usr_1', fullName: 'Ade Bello', email: 'ade.bello@bueno.ng', phone: '08031112233', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-01', pin: '1111', status: 'ACTIVE' },
@@ -1718,6 +1727,13 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   useEffect(() => {
     const syncData = async () => {
+      if (typeof window !== 'undefined' && !localStorage.getItem('bueno_pxg_purged_v3')) {
+        localStorage.removeItem('bueno_trips');
+        localStorage.setItem('bueno_trips', '[]');
+        localStorage.setItem('bueno_wagons', JSON.stringify(SEED_WAGONS));
+        localStorage.setItem('bueno_pxg_purged_v3', 'true');
+      }
+
       setDeals(tryParse('bueno_deals', SEED_DEALS));
       setWagons(tryParse('bueno_wagons', SEED_WAGONS));
 
@@ -1729,9 +1745,11 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
             setTrips(json.data);
             localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+          } else {
+            setTrips([]);
           }
         }
-      } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
+      } catch { setTrips(tryParse('bueno_trips', [])); }
 
       // Fetch Fund Requests from DB
       try {
@@ -2080,15 +2098,15 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
       {addWagonModal && (
-        <Modal onClose={() => setAddWagonModal(false)}>
-          <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900">Register New Wagon</h3>
-            <form onSubmit={handleRegisterWagon} className="space-y-4">
-              <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Register Wagon ➔</button></div>
-            </form>
-          </div>
-        </Modal>
+        <AddWagonModal
+          isOpen={addWagonModal}
+          onClose={() => setAddWagonModal(false)}
+          onSaveWagon={(newWagon) => {
+            const updated = [newWagon, ...wagons];
+            saveWagons(updated);
+            alert(`✅ Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`);
+          }}
+        />
       )}
       {createDeal && (
         <Modal onClose={() => setCreateDeal(null)}>
@@ -2118,6 +2136,88 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </Modal>
       )}
     </Shell>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   REGISTER NEW PXG WAGON MODAL (ADMIN & CARGO OFFICERS)
+───────────────────────────────────────────────────────── */
+function AddWagonModal({ isOpen, onClose, onSaveWagon }: { isOpen: boolean; onClose: () => void; onSaveWagon: (newWagon: any) => void }) {
+  const [wagonCode, setWagonCode] = useState('');
+  const [capacity, setCapacity] = useState('1200');
+  const [stationCode, setStationCode] = useState('EWK');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wagonCode.trim()) {
+      alert('Please enter a valid PXG Wagon Code (e.g. PXG 09070)');
+      return;
+    }
+    const raw = wagonCode.trim().toUpperCase();
+    const formattedCode = raw.startsWith('PXG') ? raw : `PXG ${raw}`;
+    const newWagon = {
+      id: formattedCode,
+      capacity: Number(capacity) || 1200,
+      status: 'AVAILABLE',
+      currentStation: stationCode,
+      addedBy: 'Field Officer Registration',
+      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    onSaveWagon(newWagon);
+    setWagonCode('');
+    onClose();
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 space-y-4 font-sans">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Register New PXG Freight Wagon</h3>
+          <button onClick={onClose} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Official PXG Wagon Code *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. PXG 09070"
+              value={wagonCode}
+              onChange={e => setWagonCode(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Max Capacity (50kg Bags)</label>
+            <input
+              type="number"
+              required
+              value={capacity}
+              onChange={e => setCapacity(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Assigned Station Terminal</label>
+            <select
+              value={stationCode}
+              onChange={e => setStationCode(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+            >
+              {Object.entries(STATIONS).map(([code, name]) => (
+                <option key={code} value={code}>{name} ({code})</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+            <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">+ Register Wagon to Inventory ➔</button>
+          </div>
+        </form>
+      </div>
+    </Modal>
   );
 }
 
@@ -2341,7 +2441,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>Wagon Loading Progress</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[['Required Wagons', String(targetCount), 'text-slate-900'], ['Loaded Wagons', String(loadedCount), 'text-[#62BC37]'], ['Bags Loaded', totalBagsLoadedSoFar.toLocaleString(), 'text-emerald-700'], ['Progress', `${pct}%`, 'text-[#0E4B88]']].map(([l, v, c]) => (
+          {[['Maximum Required Wagons', '23 Wagons', 'text-slate-900'], ['Loaded Wagons', String(loadedCount), 'text-[#62BC37]'], ['Bags Loaded', totalBagsLoadedSoFar.toLocaleString(), 'text-emerald-700'], ['Progress', `${pct}%`, 'text-[#0E4B88]']].map(([l, v, c]) => (
             <div key={l} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
               <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
@@ -3778,15 +3878,15 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
       {addWagonModal && (
-        <Modal onClose={() => setAddWagonModal(false)}>
-          <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900">Register New Wagon (Admin)</h3>
-            <form onSubmit={handleRegisterWagon} className="space-y-4">
-              <div><label className={lc}>Wagon ID *</label><input required value={newWagonId} onChange={e => setNewWagonId(e.target.value)} placeholder="e.g. WG047" className={`${ic} uppercase font-mono`} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setAddWagonModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Add Wagon ➔</button></div>
-            </form>
-          </div>
-        </Modal>
+        <AddWagonModal
+          isOpen={addWagonModal}
+          onClose={() => setAddWagonModal(false)}
+          onSaveWagon={(newWagon) => {
+            const updated = [newWagon, ...wagons];
+            saveWagons(updated);
+            alert(`✅ Wagon ${newWagon.id} registered successfully to ${sName(newWagon.currentStation)} fleet inventory!`);
+          }}
+        />
       )}
       {createDealModal && (
         <Modal onClose={() => setCreateDealModal(false)}>
