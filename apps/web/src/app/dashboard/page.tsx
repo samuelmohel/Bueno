@@ -480,8 +480,19 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
   const logs = trip.wagonLogs || [];
   const loadingOfficer = trip.cargoOfficerName || 'Ade Bello (EWK-01)';
   const unloadingOfficer = trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)';
-  const totalBags = trip.quantity || 1610;
-  const totalTonnes = (totalBags * 50) / 1000;
+  
+  // Volume Reconciliation: Requisitioned Deal Volume vs Actual Loaded Tonnage
+  const requisitionedBags = Number(trip.quantity) || 27600;
+  const requisitionedTonnes = (requisitionedBags * 50) / 1000;
+
+  const actualLoadedBags = logs.length > 0 
+    ? logs.reduce((sum: number, w: any) => sum + (Number(w.qty) || 1200), 0)
+    : Math.min(requisitionedBags, (trip.targetWagonsCount || 23) * 1200);
+  const actualLoadedTonnes = (actualLoadedBags * 50) / 1000;
+
+  const isPartialDispatch = actualLoadedBags < requisitionedBags;
+  const balanceOutstandingBags = Math.max(0, requisitionedBags - actualLoadedBags);
+  const balanceOutstandingTonnes = (balanceOutstandingBags * 50) / 1000;
 
   const handlePrint = () => {
     window.print();
@@ -497,6 +508,7 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             <div className="flex items-center gap-2">
               <span className="font-mono font-black text-[#0E4B88] text-sm">TRIP MANIFEST AUDIT #{trip.tripId}</span>
               <Badge text={trip.status || 'COMPLETED'} color="green" />
+              {isPartialDispatch && <Badge text="PARTIAL DISPATCH FLAGGED ⚠️" color="amber" />}
             </div>
             <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
               {sName(trip.origin)} <span className="text-[#62BC37]">➔</span> {sName(trip.destination)}
@@ -516,6 +528,22 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             </button>
           </div>
         </div>
+
+        {/* Operational Discrepancy Flag Banner if Requisitioned Volume Exceeds Loaded Volume */}
+        {isPartialDispatch && (
+          <div className="bg-amber-950 text-amber-200 border border-amber-700 p-4 rounded-2xl text-xs font-sans space-y-1.5 shadow-md">
+            <div className="flex items-center gap-2 font-mono font-black text-amber-400 uppercase text-xs">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+              ⚠️ OPERATIONAL VARIANCE FLAGGED — PARTIAL DISPATCH DETECTED
+            </div>
+            <p className="leading-relaxed text-slate-200">
+              Requisitioned Deal Volume (<b className="text-white">{requisitionedBags.toLocaleString()} Bags / {requisitionedTonnes} Tonnes</b>) exceeds Actual Dispatched Rail Volume (<b className="text-white">{actualLoadedBags.toLocaleString()} Bags / {actualLoadedTonnes} Tonnes</b> across {logs.length} Wagons).
+            </p>
+            <p className="font-mono text-[11px] text-amber-300 font-bold">
+              Outstanding Balance Remaining: <span className="text-white bg-amber-900 px-2 py-0.5 rounded font-black border border-amber-700">{balanceOutstandingBags.toLocaleString()} Bags ({balanceOutstandingTonnes} T)</span> flagged for follow-up rail allocation.
+            </p>
+          </div>
+        )}
 
         {/* Live Mobile Device Phone GPS Transmitter for In-Transit Trips */}
         {trip.status === 'IN_TRANSIT' && (
@@ -555,12 +583,12 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             </span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Wagons</span>
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Dispatched Wagons</span>
             <span className="text-sm font-black text-[#0E4B88]">{logs.length} Wagons</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-            <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Volume</span>
-            <span className="text-sm font-black text-[#62BC37]">{totalBags.toLocaleString()} Bags ({totalTonnes} T)</span>
+            <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Loaded Tonnage</span>
+            <span className="text-sm font-black text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags ({actualLoadedTonnes} T)</span>
           </div>
         </div>
 
@@ -619,25 +647,30 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
               <span className="block text-[9px] uppercase text-slate-400 font-bold">Total Requisitioned</span>
-              <span className="text-sm sm:text-base font-black text-white">{totalBags.toLocaleString()} Bags</span>
+              <span className="text-sm sm:text-base font-black text-white">{requisitionedBags.toLocaleString()} Bags</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="block text-[9px] uppercase text-slate-400 font-bold">Total Delivered</span>
-              <span className="text-sm sm:text-base font-black text-[#62BC37]">{totalBags.toLocaleString()} Bags</span>
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Dispatched & Delivered</span>
+              <span className="text-sm sm:text-base font-black text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
               <span className="block text-[9px] uppercase text-slate-400 font-bold">Burst Bags / Shortage</span>
               <span className="text-sm sm:text-base font-black text-amber-400">0 Burst / Nil</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="block text-[9px] uppercase text-slate-400 font-bold">Net Unloaded Volume</span>
-              <span className="text-sm sm:text-base font-black text-[#0E4B88]">{totalBags.toLocaleString()} Bags</span>
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Outstanding Balance</span>
+              <span className={`text-sm sm:text-base font-black ${isPartialDispatch ? 'text-amber-400' : 'text-[#0E4B88]'}`}>
+                {balanceOutstandingBags > 0 ? `${balanceOutstandingBags.toLocaleString()} Bags` : 'Nil (Full)'}
+              </span>
             </div>
           </div>
 
           <div className="p-3 bg-slate-950/80 rounded-xl text-[11px] space-y-1 text-slate-300 font-sans border border-slate-800">
-            <p className="font-bold text-white">• Total Amount of Unloaded Bags: <span className="text-[#62BC37]">{totalBags.toLocaleString()} Bags</span></p>
+            <p className="font-bold text-white">• Total Amount of Unloaded Bags: <span className="text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span></p>
             <p className="font-bold text-white">• Burst Bags: <span className="text-amber-400">Nil</span> | Shortage: <span className="text-amber-400">Nil</span> | Cake: <span className="text-amber-400">Nil</span></p>
+            {isPartialDispatch && (
+              <p className="font-bold text-amber-400">• Discrepancy Note: Deal Requisition ({requisitionedBags.toLocaleString()} Bags) partial dispatch ({actualLoadedBags.toLocaleString()} Bags delivered). Balance of {balanceOutstandingBags.toLocaleString()} Bags remaining for next trip.</p>
+            )}
             <p className="text-[10px] text-slate-400 font-mono mt-1">
               "The offloading of shipment #{trip.tripId} for 2026 to {sName(trip.destination)} completed with 100% manifest verification before making wagons ready to be moved back to {sName(trip.origin)} as empties."
             </p>

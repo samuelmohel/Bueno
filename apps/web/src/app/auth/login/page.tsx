@@ -101,13 +101,16 @@ function LoginForm() {
     const splashTimer = setTimeout(() => setShowSplash(false), 1200);
 
     const syncUsers = async () => {
-      let loaded = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      let storedLocal = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      let loaded = storedLocal;
       try {
         const res = await fetch('/api/users.php');
         if (res.ok) {
           const json = await res.json();
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            loaded = json.data;
+            const dbIds = new Set(json.data.map((u: any) => u.id));
+            const localOnly = storedLocal.filter((l: any) => !dbIds.has(l.id));
+            loaded = [...localOnly, ...json.data];
             localStorage.setItem('bueno_provisioned_users', JSON.stringify(loaded));
           }
         }
@@ -137,7 +140,10 @@ function LoginForm() {
   }, []);
 
   const stationOfficers = allUsers.filter(
-    u => u.userType === 'STAFF' && u.role === 'CARGO_OFFICER' && u.assignedStation === selectedStation && u.status === 'ACTIVE'
+    u => (u.userType === 'STAFF' || u.role === 'CARGO_OFFICER') &&
+         (u.role === 'CARGO_OFFICER') &&
+         (u.assignedStation === selectedStation || u.assignedStation === STATIONS[selectedStation] || (!u.assignedStation && selectedStation === 'EWK')) &&
+         u.status !== 'DEACTIVATED'
   );
 
   useEffect(() => {
