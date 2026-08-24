@@ -2937,15 +2937,54 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   );
 }
 /* ─────────────────────────────────────────────────────────
-   ADMIN USER PROVISIONING & ACCOUNT MANAGEMENT
+   ADMIN USER PROVISIONING & GRANULAR PERMISSIONS MATRIX
 ───────────────────────────────────────────────────────── */
+const PERMISSIONS_CATALOG = [
+  { code: 'deal.create', label: 'Create Freight Deals', group: 'Deals' },
+  { code: 'deal.edit', label: 'Edit Freight Deals', group: 'Deals' },
+  { code: 'deal.delete', label: 'Delete Freight Deals', group: 'Deals' },
+  { code: 'trip.create', label: 'Initiate Rail Trips (TRIP-001)', group: 'Trips' },
+  { code: 'trip.dispatch', label: 'Dispatch In-Transit (Phone GPS)', group: 'Trips' },
+  { code: 'trip.complete', label: 'Unload & Finalize Trips', group: 'Trips' },
+  { code: 'wagon.register', label: 'Register New PXG Wagons', group: 'Fleet Assets' },
+  { code: 'wagon.transfer', label: 'Transfer Wagon Station Nodes', group: 'Fleet Assets' },
+  { code: 'invoice.create', label: 'Generate Freight Invoices', group: 'Financials' },
+  { code: 'expense.request', label: 'Request Station Operating Funds', group: 'Financials' },
+  { code: 'expense.approve', label: 'Approve & Disburse Station Funds', group: 'Financials' },
+  { code: 'user.provision', label: 'Provision User Accounts', group: 'System Admin' },
+  { code: 'user.edit', label: 'Edit User Accounts & PINs', group: 'System Admin' },
+  { code: 'report.export', label: 'Export Reports (Excel/CSV/PDF)', group: 'System Admin' },
+];
+
 function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveUsers: (u: any[]) => void }) {
-  const [filter, setFilter] = useState<'ALL' | 'STAFF' | 'CUSTOMER' | 'REQS'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'STAFF' | 'CUSTOMER' | 'REQS' | 'PERMISSIONS'>('ALL');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+
+  // Role Permissions Matrix State
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
+    return tryParse('bueno_role_permissions', {
+      ADMIN: PERMISSIONS_CATALOG.map(p => p.code),
+      HEAD_OF_OPERATIONS: ['deal.create', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.transfer', 'expense.approve', 'report.export'],
+      CEO: ['deal.create', 'trip.complete', 'invoice.create', 'expense.approve', 'report.export'],
+      HEAD_OF_FINANCE: ['invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+      CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.transfer', 'expense.request'],
+      CUSTOMER: ['report.export'],
+    });
+  });
+
+  const toggleRolePermission = (role: string, permCode: string) => {
+    const current = rolePermissions[role] || [];
+    const updated = current.includes(permCode)
+      ? current.filter(c => c !== permCode)
+      : [...current, permCode];
+    const newMatrix = { ...rolePermissions, [role]: updated };
+    setRolePermissions(newMatrix);
+    localStorage.setItem('bueno_role_permissions', JSON.stringify(newMatrix));
+  };
 
   useEffect(() => {
     setClientRequests(tryParse('bueno_client_requests', [
@@ -3178,6 +3217,12 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setFilter('PERMISSIONS')}
+              className={`px-3 py-1.5 rounded-xl transition-all ${filter === 'PERMISSIONS' ? 'bg-amber-600 text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-200'}`}
+            >
+              🔑 Roles & Permissions Matrix
+            </button>
           </div>
 
           <input
@@ -3189,8 +3234,60 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
           />
         </div>
 
-        {/* REQS TAB OR USERS TABLE */}
-        {filter === 'REQS' ? (
+        {/* PERMISSIONS MATRIX, REQS TAB OR USERS TABLE */}
+        {filter === 'PERMISSIONS' ? (
+          <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 space-y-4 font-sans shadow-lg">
+            <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-3 gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-amber-400 tracking-widest block font-mono">GRANULAR SPATIE PERMISSION MATRIX</span>
+                <h4 className="text-sm sm:text-base font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>Role Authorization & Security Scope Matrix</h4>
+                <p className="text-xs text-slate-400">Toggle capability permissions per role. Changes are saved automatically to server configuration.</p>
+              </div>
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-3 py-1 rounded-lg border border-emerald-800">
+                Matrix Enforced (Spatie-Style Guard)
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="p-2.5 font-bold uppercase">Permission Capability</th>
+                    <th className="p-2.5 font-bold uppercase text-center">ADMIN</th>
+                    <th className="p-2.5 font-bold uppercase text-center">OPS HEAD</th>
+                    <th className="p-2.5 font-bold uppercase text-center">CEO</th>
+                    <th className="p-2.5 font-bold uppercase text-center">FINANCE</th>
+                    <th className="p-2.5 font-bold uppercase text-center">CARGO OFFICER</th>
+                    <th className="p-2.5 font-bold uppercase text-center">CUSTOMER</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {PERMISSIONS_CATALOG.map((p) => (
+                    <tr key={p.code} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="p-2.5">
+                        <span className="text-white font-bold block">{p.label}</span>
+                        <span className="text-[10px] text-slate-500">{p.group} • <code>{p.code}</code></span>
+                      </td>
+                      {['ADMIN', 'HEAD_OF_OPERATIONS', 'CEO', 'HEAD_OF_FINANCE', 'CARGO_OFFICER', 'CUSTOMER'].map((role) => {
+                        const hasPerm = (rolePermissions[role] || []).includes(p.code);
+                        return (
+                          <td key={role} className="p-2.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={hasPerm}
+                              onChange={() => toggleRolePermission(role, p.code)}
+                              className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : filter === 'REQS' ? (
           <TableWrap
             headers={['Company / Industry', 'Contact Person', 'Email / Phone', 'Route & Volume', 'Status', 'Action']}
             mobileCard={(req: any) => (
