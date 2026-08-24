@@ -305,20 +305,75 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between p-4 sm:p-8 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row font-sans text-slate-900 selection:bg-[#62BC37] selection:text-white overflow-hidden">
       
-      {/* Top Header */}
-      <div className="max-w-4xl mx-auto w-full flex items-center justify-between py-2">
-        <Link href="/" className="flex items-center gap-3">
-          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-12 object-contain" />
-        </Link>
-        <Link href="/" className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors">
-          Return to Website ➔
-        </Link>
+      {/* ── LEFT SHOWCASE PANEL (Branding, Live Corridor Satellite Map & Status) ────── */}
+      <div className="lg:w-1/2 bg-slate-900 p-8 sm:p-12 lg:p-16 flex flex-col justify-between relative border-b lg:border-b-0 lg:border-r border-slate-800 text-white overflow-hidden">
+        {/* Glow Circles */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#62BC37]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#0E4B88]/20 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Top Branding */}
+        <div className="relative z-10">
+          <Link href="/" className="flex items-center gap-3 inline-flex group">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0E4B88] to-[#62BC37] p-0.5 shadow-xl group-hover:scale-105 transition-transform">
+              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-black text-xl text-white font-mono">
+                B<span className="text-[#62BC37]">360</span>
+              </div>
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-white tracking-wider" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                BUENO <span className="text-[#62BC37]">LOGISTICS</span>
+              </h1>
+              <span className="text-[10px] font-mono text-slate-400 block -mt-1 uppercase tracking-widest font-semibold">FREIGHT OS 360</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Middle Showcase Content */}
+        <div className="my-12 relative z-10 space-y-6">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-800 text-xs font-mono font-bold text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            CORRIDOR TELEMETRY & AUTHENTICATION GUARD
+          </div>
+
+          <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+            Command Control & Terminal Cargo Operations
+          </h2>
+
+          <p className="text-slate-300 text-sm leading-relaxed max-w-lg font-normal">
+            Secure role-based portal for Ewekoro Terminal, Moniya Yard Ibadan, and Apapa Port Cargo Officers, Head of Operations, CEO, Finance, and Industrial Consignees.
+          </p>
+
+          {/* Mini Live Status Pills */}
+          <div className="grid grid-cols-3 gap-3 pt-4 font-mono text-xs text-slate-300">
+            <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 text-center">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">Primary Route</span>
+              <span className="font-black text-emerald-400">EWK ➔ MNY</span>
+            </div>
+            <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 text-center">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">Active Wagons</span>
+              <span className="font-black text-amber-400">46 PXG Code</span>
+            </div>
+            <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 text-center">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">Security Scope</span>
+              <span className="font-black text-[#0E4B88]">Spatie Guard</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Link */}
+        <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 font-mono">
+          <span>© 2026 Bueno Logistics Ltd</span>
+          <Link href="/" className="text-slate-300 hover:text-white font-bold transition-colors">
+            ← Return to Website
+          </Link>
+        </div>
       </div>
 
-      {/* Main Login Card */}
-      <div className="max-w-md mx-auto w-full my-auto py-6">
+      {/* ── RIGHT AUTHENTICATION CARD PANEL ───────────────────────────── */}
+      <div className="lg:w-1/2 bg-[#F8FAFC] p-6 sm:p-10 lg:p-16 flex flex-col justify-center items-center relative overflow-y-auto">
+        <div className="max-w-md w-full my-auto">
         
         {/* BANK APP STYLE QUICK PIN UNLOCK SCREEN FOR REMEMBERED ACCOUNT */}
         {currentUser ? (
@@ -592,12 +647,9 @@ function LoginForm() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="text-center py-4 text-slate-400 text-xs font-medium">
-        &copy; {new Date().getFullYear()} Bueno Logistics Limited. All rights reserved.
-      </div>
     </div>
   );
 }
