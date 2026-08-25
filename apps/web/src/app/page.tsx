@@ -45,7 +45,7 @@ function TelemetryCard() {
       {/* Tracking ID + Client */}
       <div className="mb-5">
         <div className="font-mono text-lg font-black text-amber-400 tracking-wide">BU-TRK-8839</div>
-        <div className="text-xs font-bold text-slate-300 mt-0.5">Lafarge Africa Plc · Batch #LC-0451</div>
+        <div className="text-xs font-bold text-slate-300 mt-0.5">HUAXIN BUILDING MATERIALS NIG PLC (HBM) · Batch #LC-0451</div>
       </div>
 
       {/* Route visualization */}
@@ -109,12 +109,13 @@ export default function BuenoLogisticsHomePage() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     companyName: '',
-    industry: 'Cement & Construction',
+    product: 'CEMENT',
     contactName: '',
     email: '',
     phone: '',
-    volume: '2,000 - 10,000 Bags/Month',
-    route: 'EWK ➔ MNY (Ewekoro to Moniya)',
+    volume: '500 - 1,000 Metric Tonnes (T)',
+    trackGauge: 'STANDARD_GAUGE',
+    route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)',
     notes: '',
   });
 
@@ -134,8 +135,8 @@ export default function BuenoLogisticsHomePage() {
       const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
       const newNotif = {
         id: `notif_${Date.now()}`,
-        title: 'New Client Service Request Received',
-        body: `${form.companyName} (${form.contactName}) requested ${form.route} [${form.volume}]`,
+        title: 'New Client Consignment Note Received',
+        body: `${form.companyName} (${form.contactName}) requested ${form.product} [${form.volume}] via ${form.route}`,
         time: 'Just now',
         type: 'CLIENT_REQUEST',
         reqId: newReq.id,
@@ -148,7 +149,7 @@ export default function BuenoLogisticsHomePage() {
     setTimeout(() => {
       setSubmitted(false);
       setRequestModal(false);
-      setForm({ companyName: '', industry: 'Cement & Construction', contactName: '', email: '', phone: '', volume: '2,000 - 10,000 Bags/Month', route: 'EWK ➔ MNY (Ewekoro to Moniya)', notes: '' });
+      setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
     }, 2500);
   };
 
@@ -190,7 +191,7 @@ export default function BuenoLogisticsHomePage() {
   ];
 
   const partners = [
-    'Lafarge Africa Plc', 'Dangote Cement', 'BUA Cement Industries', 'Nigerian Railway Corporation', 'Ibeto Industries',
+    'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'Dangote Cement', 'BUA Cement Industries', 'APMT', 'MAERSKLINES', 'DHL', 'BAT (British American Tobacco)', 'DASCO',
   ];
 
   return (
@@ -520,18 +521,21 @@ export default function BuenoLogisticsHomePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
-                      Industry Category
+                      PRODUCT *
                     </label>
                     <select
-                      value={form.industry}
-                      onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                      value={form.product}
+                      onChange={(e) => setForm({ ...form, product: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     >
-                      <option value="Cement & Construction">Cement & Construction</option>
-                      <option value="FMCG & Beverages">FMCG & Beverages</option>
-                      <option value="Agriculture & Grains">Agriculture & Grains</option>
-                      <option value="Mining & Minerals">Mining & Minerals</option>
-                      <option value="Containerized Freight">Containerized Freight</option>
+                      <option value="CEMENT">CEMENT</option>
+                      <option value="GYPSUM">GYPSUM</option>
+                      <option value="CONTAINERS-IMPORT">CONTAINERS-IMPORT</option>
+                      <option value="CONTAINERS-EXPORT">CONTAINERS-EXPORT</option>
+                      <option value="WIRE COILS">WIRE COILS</option>
+                      <option value="PIPES">PIPES</option>
+                      <option value="GAS CYLINDERS">GAS CYLINDERS</option>
+                      <option value="OTHERS">OTHERS</option>
                     </select>
                   </div>
                   <div>
@@ -558,7 +562,7 @@ export default function BuenoLogisticsHomePage() {
                       required
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="logistics@purechem.ng"
+                      placeholder="logistics@hbm.ng"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     />
                   </div>
@@ -580,30 +584,36 @@ export default function BuenoLogisticsHomePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
-                      Est. Cargo Volume
+                      Est. Volume (Tonnage - Tonnes) *
                     </label>
                     <select
                       value={form.volume}
                       onChange={(e) => setForm({ ...form, volume: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     >
-                      <option value="500 - 2,000 Bags/Month">500 – 2,000 Bags/Month</option>
-                      <option value="2,000 - 10,000 Bags/Month">2,000 – 10,000 Bags/Month</option>
-                      <option value="10,000+ Bags/Month (Dedicated Train)">10,000+ Bags/Month (Full Train)</option>
+                      <option value="100 - 500 Metric Tonnes (T)">100 – 500 Metric Tonnes (T)</option>
+                      <option value="500 - 1,000 Metric Tonnes (T)">500 – 1,000 Metric Tonnes (T)</option>
+                      <option value="1,000 - 5,000 Metric Tonnes (T)">1,000 – 5,000 Metric Tonnes (T)</option>
+                      <option value="5,000+ Metric Tonnes (T)">5,000+ Metric Tonnes (Full Train)</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
-                      Corridor Route
+                      Track Gauge Corridor *
                     </label>
                     <select
                       value={form.route}
                       onChange={(e) => setForm({ ...form, route: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     >
-                      <option value="EWK ➔ MNY (Ewekoro to Moniya)">Ewekoro ➔ Moniya (Ibadan)</option>
-                      <option value="APT ➔ MNY (Apapa Port to Moniya)">Apapa Port ➔ Moniya</option>
-                      <option value="Custom Freight Route">Custom Freight Route</option>
+                      <option value="PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)">Papalanto ➔ Moniya (Standard Gauge)</option>
+                      <option value="MONI ➔ APMT (Moniya to APMT Exports - Standard Gauge)">Moniya ➔ APMT Exports (Standard Gauge)</option>
+                      <option value="APMT ➔ MONI (APMT to Moniya Imports - Standard Gauge)">APMT ➔ Moniya Imports (Standard Gauge)</option>
+                      <option value="ENL ➔ PAPA (Gypsum ENL to Papalanto - Standard Gauge)">ENL ➔ Papalanto Gypsum (Standard Gauge)</option>
+                      <option value="EWK ➔ DGB (Ewekoro to Dugbe Ibadan - Narrow Gauge)">Ewekoro ➔ Dugbe Ibadan (Narrow Gauge)</option>
+                      <option value="EWK ➔ OSB (Ewekoro to Oshogbo - Narrow Gauge)">Ewekoro ➔ Oshogbo (Narrow Gauge)</option>
+                      <option value="EWK ➔ ILR (Ewekoro to Ilorin - Narrow Gauge)">Ewekoro ➔ Ilorin (Narrow Gauge)</option>
+                      <option value="IDD ➔ APMT (Iddo to APMT Containers - Narrow Gauge)">Iddo ➔ APMT Containers (Narrow Gauge)</option>
                     </select>
                   </div>
                 </div>
