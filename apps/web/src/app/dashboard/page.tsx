@@ -1761,23 +1761,7 @@ function Shell({
           );
         })}
 
-        <div className="pt-3 mt-3 border-t border-slate-100 text-[10px] font-mono font-extrabold uppercase text-slate-400 px-3 py-1">Enterprise Portals</div>
-        <Link href="/manifest" className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-all">
-          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-          📋 Field Operations Console
-        </Link>
-        <Link href="/reports" className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-[#0E4B88] transition-all">
-          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-          📊 BI Performance Reports
-        </Link>
-        <Link href="/budget" className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-800 transition-all">
-          <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-          🎯 Budgets & Officer KPIs
-        </Link>
-        <Link href="/tracking" className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-800 transition-all">
-          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-          📍 Corridor Geofencing Map
-        </Link>
+
       </nav>
 
       <div className="p-4 border-t border-slate-100 space-y-2 bg-slate-50/60">
