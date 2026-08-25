@@ -17,19 +17,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lower case repository name
+        run: |
+          echo "IMAGE_REPO=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Build & push API
         uses: docker/build-push-action@v5
         with:
           context: apps/api
           push: true
-          tags: ghcr.io/${{ github.repository }}/api:latest
+          tags: ghcr.io/${{ env.IMAGE_REPO }}/api:latest
 
       - name: Build & push Web
         uses: docker/build-push-action@v5
         with:
           context: apps/web
           push: true
-          tags: ghcr.io/${{ github.repository }}/web:latest
+          tags: ghcr.io/${{ env.IMAGE_REPO }}/web:latest
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.API_URL }}
             NEXT_PUBLIC_WS_URL=${{ vars.WS_URL }}

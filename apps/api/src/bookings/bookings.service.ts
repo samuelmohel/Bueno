@@ -567,6 +567,7 @@ export class BookingsService {
       startTime?: string | Date;
       endTime?: string | Date;
     },
+    loadedById?: string,
   ) {
     const allocation = await this.prisma.wagonAllocation.findUnique({
       where: { id: wagonAllocationId },
