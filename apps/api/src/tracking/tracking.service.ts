@@ -161,7 +161,92 @@ export class TrackingService {
     ]);
 
     this.gateway.broadcastLocoPosition({ locoId, lat, lng, speed, heading, signalQuality, serialNumber: loco.serialNumber });
+
+    // Check corridor geofence triggers
+    await this.checkGeofenceTriggers(locoId, lat, lng);
+
     return loco;
+  }
+
+  // ─── Geofencing Engine ─────────────────────────────────────────────────────
+
+  private static readonly TERMINALS: { name: string; stationCode: string; lat: number; lng: number; radiusKm: number }[] = [
+    { name: 'Ewekoro Loading Terminal', stationCode: 'EWK', lat: 6.901, lng: 3.208, radiusKm: 3.0 },
+    { name: 'Moniya Dry Port / Yard', stationCode: 'MNY', lat: 7.525, lng: 3.910, radiusKm: 3.0 },
+    { name: 'Papalanto Siding', stationCode: 'APT', lat: 6.890, lng: 3.170, radiusKm: 3.0 },
+    { name: 'Kajola Rail Siding', stationCode: 'KJL', lat: 6.830, lng: 3.250, radiusKm: 3.0 },
+    { name: 'Abeokuta Main Interchange', stationCode: 'ABK', lat: 7.150, lng: 3.350, radiusKm: 3.0 },
+  ];
+
+  private calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371; // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  async checkGeofenceTriggers(locoId: string, lat: number, lng: number) {
+    try {
+      // Find active trips hauled by this locomotive
+      const activeAllocations = await this.prisma.wagonAllocation.findMany({
+        where: {
+          locoId,
+          booking: {
+            bookingStatus: { in: ['DEPARTED', 'IN_TRANSIT'] },
+          },
+        },
+        include: {
+          booking: { include: { route: true } },
+        },
+      });
+
+      for (const alloc of activeAllocations) {
+        const booking = alloc.booking;
+        const destTerminalName = booking.route?.destinationTerminal || '';
+
+        // Match geofence by terminal name or default to Moniya
+        const fence = TrackingService.TERMINALS.find(
+          (t) => destTerminalName.toLowerCase().includes(t.name.toLowerCase().split(' ')[0]) ||
+                 destTerminalName.toLowerCase().includes(t.stationCode.toLowerCase()),
+        ) || TrackingService.TERMINALS[1]; // Moniya Dry Port default
+
+        const dist = this.calculateDistanceKm(lat, lng, fence.lat, fence.lng);
+
+        if (dist <= fence.radiusKm) {
+          // Automatic geofence arrival triggered!
+          await this.prisma.booking.update({
+            where: { id: booking.id },
+            data: { bookingStatus: 'ARRIVED_DESTINATION' },
+          });
+
+          await this.prisma.wagonAllocation.update({
+            where: { id: alloc.id },
+            data: { arrivedAt: new Date() },
+          });
+
+          await this.prisma.bookingEvent.create({
+            data: {
+              bookingId: booking.id,
+              status: 'ARRIVED_DESTINATION',
+              title: 'Automated Geofence Arrival',
+              description: `Train reached destination geofence (${fence.name} - ${dist.toFixed(1)}km from center). Awaiting cargo unloading audit.`,
+              lat,
+              lng,
+              triggeredBy: 'GEOFENCE_ENGINE',
+            },
+          });
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
   }
 
   async getActiveBookingsForDriver(driverId: string) {

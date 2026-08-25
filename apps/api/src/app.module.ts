@@ -11,6 +11,8 @@ import { RoutesModule } from './routes/routes.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { BudgetModule } from './budget/budget.module';
 
 @Module({
   imports: [
@@ -26,6 +28,9 @@ import { NotificationsModule } from './notifications/notifications.module';
     TrackingModule,
     ChatModule,
     NotificationsModule,
+    DashboardModule,
+    BudgetModule,
   ],
 })
 export class AppModule {}
+

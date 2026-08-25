@@ -113,3 +113,40 @@ export interface LiveLocation {
   heading?: number;
   updatedAt: number;
 }
+
+export interface FeederTruckLog {
+  id: string;
+  wagonAllocationId: string;
+  truckRegNo: string;
+  driverName: string;
+  driverPhone: string;
+  transporterName: string;
+  loadingSource?: string;
+  quantityLoaded: number;
+  unit: string;
+  startTime: string;
+  endTime?: string;
+}
+
+export interface WagonUnloadAudit {
+  id: string;
+  wagonAllocationId: string;
+  intactCount: number;
+  damagedCount: number;
+  burstBagCount: number;
+  hasComplaint: boolean;
+  complaintType?: string;
+  complaintDetails?: string;
+  startTime: string;
+  endTime?: string;
+}
+
+export interface OfficerScorecard {
+  officer: User;
+  targetTrains: number;
+  achievedTrains: number;
+  ratingScore: number;
+  ratingTier: string;
+  badgeColor: string;
+}
+

@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { authApi } from '@/lib/api';
 
 function setAuthCookieAndStorage(token: string, user: any) {
   localStorage.setItem('bueno_token', token);
@@ -100,22 +101,9 @@ function LoginForm() {
     // 1.2s Splash Timer
     const splashTimer = setTimeout(() => setShowSplash(false), 1200);
 
-    const syncUsers = async () => {
-      let storedLocal = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
-      let loaded = storedLocal;
-      try {
-        const res = await fetch('/api/users.php');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            const dbIds = new Set(json.data.map((u: any) => u.id));
-            const localOnly = storedLocal.filter((l: any) => !dbIds.has(l.id));
-            loaded = [...localOnly, ...json.data];
-            localStorage.setItem('bueno_provisioned_users', JSON.stringify(loaded));
-          }
-        }
-      } catch {}
-      setAllUsers(loaded);
+    const syncUsers = () => {
+      const storedLocal = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      setAllUsers(storedLocal);
 
       try {
         const raw = localStorage.getItem('bueno_user');
@@ -197,7 +185,7 @@ function LoginForm() {
     }
   };
 
-  const handleOfficerLogin = (e: React.FormEvent) => {
+  const handleOfficerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -215,23 +203,36 @@ function LoginForm() {
       return;
     }
 
+    const fallbackEmail = selectedStation === 'EWK' ? 'cargo.ewekoro@bueno.ng' : 'cargo.moniya@bueno.ng';
+    const emailToUse = officer.email || fallbackEmail;
+
+    let token = 'token_officer_perm';
+    try {
+      const res = await authApi.login(emailToUse, 'demo1234');
+      if (res.data?.accessToken) {
+        token = res.data.accessToken;
+      }
+    } catch {
+      // Fallback for offline presentation
+    }
+
     const userProfile = {
       fullName: officer.fullName,
-      email: officer.email,
+      email: emailToUse,
       phone: officer.phone,
       role: 'CARGO_OFFICER',
-      assignedStation: officer.assignedStation,
-      stationName: STATIONS[officer.assignedStation] || officer.assignedStation,
+      assignedStation: officer.assignedStation || selectedStation,
+      stationName: STATIONS[officer.assignedStation || selectedStation] || officer.assignedStation,
       staffId: officer.staffId,
       pin: officer.pin,
-      roleLabel: `Cargo Officer — ${STATIONS[officer.assignedStation] || officer.assignedStation}`,
+      roleLabel: `Cargo Officer — ${STATIONS[officer.assignedStation || selectedStation] || officer.assignedStation}`,
     };
 
-    setAuthCookieAndStorage('token_officer_perm', userProfile);
+    setAuthCookieAndStorage(token, userProfile);
     router.push('/dashboard');
   };
 
-  const handleExecutiveLogin = (e: React.FormEvent) => {
+  const handleExecutiveLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -247,32 +248,54 @@ function LoginForm() {
       return;
     }
 
+    const emailToUse = user.email.includes('ops') ? 'ops@bueno.ng' : user.email.includes('admin') ? 'admin@bueno.ng' : 'admin@bueno.ng';
+    let token = 'token_exec_perm';
+    try {
+      const res = await authApi.login(emailToUse, 'demo1234');
+      if (res.data?.accessToken) {
+        token = res.data.accessToken;
+      }
+    } catch {
+      // Fallback for offline demo
+    }
+
     const userProfile = {
       fullName: user.fullName,
-      email: user.email,
+      email: emailToUse,
       phone: user.phone,
-      role: user.role,
+      role: user.role === 'HEAD_OF_OPERATIONS' ? 'HEAD_OF_OPERATIONS' : 'ADMIN',
       pin: user.pin,
       company: 'Bueno Logistics HQ',
       roleLabel: user.role === 'CEO' ? 'Managing Director / CEO' : user.role === 'HEAD_OF_OPERATIONS' ? 'Head of Operations' : user.role === 'HEAD_OF_FINANCE' ? 'Head of Finance' : 'Admin Officer',
     };
 
-    setAuthCookieAndStorage('token_exec_perm', userProfile);
+    setAuthCookieAndStorage(token, userProfile);
     router.push('/dashboard');
   };
 
-  const handleCustomerLogin = (cust: any) => {
+  const handleCustomerLogin = async (cust: any) => {
     setLoading(true);
+    const emailToUse = cust.companyName?.includes('Dangote') ? 'dangote@bueno.ng' : 'customer@bueno.ng';
+    let token = 'token_customer_perm';
+    try {
+      const res = await authApi.login(emailToUse, 'demo1234');
+      if (res.data?.accessToken) {
+        token = res.data.accessToken;
+      }
+    } catch {
+      // Fallback for offline demo
+    }
+
     const userProfile = {
       fullName: cust.fullName || `${cust.companyName} Logistics Desk`,
-      email: cust.email,
+      email: emailToUse,
       phone: cust.phone,
       role: 'CUSTOMER',
       companyName: cust.companyName || cust.fullName,
       pin: cust.pin || '1111',
       roleLabel: `Industrial Consignee — ${cust.companyName || cust.fullName}`,
     };
-    setAuthCookieAndStorage('token_customer_perm', userProfile);
+    setAuthCookieAndStorage(token, userProfile);
     router.push('/dashboard');
   };
 

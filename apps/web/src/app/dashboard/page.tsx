@@ -3765,7 +3765,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const persist = (key: string, val: any[], apiEndpoint?: string) => {
     localStorage.setItem(key, JSON.stringify(val));
     window.dispatchEvent(new Event('bueno_state_updated'));
-    if (apiEndpoint) {
+    if (apiEndpoint && !apiEndpoint.endsWith('.php')) {
       try {
         fetch(apiEndpoint, {
           method: 'POST',
@@ -3777,11 +3777,11 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   };
 
   const saveDeals        = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
-  const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v, '/api/requests.php'); };
+  const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
   const saveWagons       = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
-  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v, '/api/users.php'); };
-  const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v, '/api/negotiations.php'); };
-  const saveTrips        = (v: any[]) => { setTrips(v); persist('bueno_trips', v, '/api/trips.php'); };
+  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
+  const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v); };
+  const saveTrips        = (v: any[]) => { setTrips(v); persist('bueno_trips', v); };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
 

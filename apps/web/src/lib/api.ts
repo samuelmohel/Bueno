@@ -35,10 +35,11 @@ export const usersApi = {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export const dashboardApi = {
-  stats:          () => api.get('/dashboard/stats'),
-  recentBookings: () => api.get('/dashboard/recent-bookings'),
-  revenueChart:   () => api.get('/dashboard/revenue-chart'),
-  liveFleet:      () => api.get('/dashboard/live-fleet'),
+  stats:          ()                => api.get('/dashboard/stats'),
+  recentBookings: ()                => api.get('/dashboard/recent-bookings'),
+  revenueChart:   ()                => api.get('/dashboard/revenue-chart'),
+  liveFleet:      ()                => api.get('/dashboard/live-fleet'),
+  reports:        (period?: string) => api.get('/dashboard/reports', { params: { period } }),
 };
 
 // ─── Bookings (= Trips) ─────────────────────────────────────────────────────
@@ -69,6 +70,14 @@ export const cargoItemsApi = {
     api.patch(`/bookings/cargo-items/${itemId}/unload`, data),
   remove: (itemId: string) =>
     api.post(`/bookings/cargo-items/${itemId}/remove`),
+  addFeederTruck: (wagonAllocationId: string, data: any) =>
+    api.post(`/bookings/wagon-allocations/${wagonAllocationId}/feeder-truck`, data),
+  getFeederTrucks: (wagonAllocationId: string) =>
+    api.get(`/bookings/wagon-allocations/${wagonAllocationId}/feeder-trucks`),
+  submitUnloadAudit: (wagonAllocationId: string, data: any) =>
+    api.post(`/bookings/wagon-allocations/${wagonAllocationId}/unload-audit`, data),
+  getUnloadAudit: (wagonAllocationId: string) =>
+    api.get(`/bookings/wagon-allocations/${wagonAllocationId}/unload-audit`),
 };
 
 // ─── Fleet ────────────────────────────────────────────────────────────────────
@@ -132,4 +141,12 @@ export const notifApi = {
 export const chatApi = {
   messages: (bookingId: string)          => api.get(`/chat/${bookingId}`),
   send:     (bookingId: string, data: { content: string }) => api.post(`/chat/${bookingId}`, data),
+};
+
+// ─── Annual Budgeting & Officer KPI Scorecards (Mr. Niyi Spec) ────────────────
+export const budgetApi = {
+  getYearly:            (year?: number)                 => api.get('/budget/yearly', { params: { year } }),
+  setTerminalBudget:    (data: any)                     => api.post('/budget/terminal', data),
+  getOfficerScorecards: (year?: number, month?: number) => api.get('/budget/scorecards', { params: { year, month } }),
+  assignOfficerTarget:  (data: any)                     => api.post('/budget/officer-targets', data),
 };

@@ -8,6 +8,7 @@ import { BookingStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class BookingsService {
@@ -163,6 +164,10 @@ export class BookingsService {
               },
               orderBy: { createdAt: 'asc' },
             },
+            feederTruckLogs: { orderBy: { createdAt: 'asc' } },
+            unloadAudit: {
+              include: { unloadedBy: { select: { fullName: true } } },
+            },
           },
         },
         events: { orderBy: { createdAt: 'desc' } },
@@ -174,7 +179,6 @@ export class BookingsService {
   }
 
   async findById(id: string) {
-
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
@@ -197,6 +201,10 @@ export class BookingsService {
                 unloadedBy: { select: { fullName: true } },
               },
               orderBy: { createdAt: 'asc' },
+            },
+            feederTruckLogs: { orderBy: { createdAt: 'asc' } },
+            unloadAudit: {
+              include: { unloadedBy: { select: { fullName: true } } },
             },
           },
         },
@@ -264,7 +272,7 @@ export class BookingsService {
         `https://api.paystack.co/transaction/verify/${reference}`,
         { headers: { Authorization: `Bearer ${paystackKey}` } },
       );
-      verified = res.data.data.status === 'success';
+      verified = res.data?.data?.status === 'success';
     }
 
     if (verified) {
@@ -286,7 +294,73 @@ export class BookingsService {
     return { verified, bookingId: booking.id };
   }
 
-  // ─── Status ───────────────────────────────────────────────────────────────
+  async handlePaystackWebhook(signature: string, payload: any) {
+    const paystackKey = process.env.PAYSTACK_SECRET_KEY;
+    if (paystackKey && !paystackKey.includes('your_paystack') && signature) {
+      const hash = crypto
+        .createHmac('sha512', paystackKey)
+        .update(typeof payload === 'string' ? payload : JSON.stringify(payload))
+        .digest('hex');
+      if (hash !== signature) {
+        throw new ForbiddenException('Invalid webhook signature');
+      }
+    }
+
+    if (payload?.event === 'charge.success') {
+      const data = payload.data;
+      const ref = data?.reference;
+      const bookingId = data?.metadata?.bookingId;
+
+      const booking = await this.prisma.booking.findFirst({
+        where: {
+          OR: [
+            ...(bookingId ? [{ id: bookingId }] : []),
+            ...(ref ? [{ paystackReference: ref }] : []),
+          ],
+        },
+      });
+
+      if (booking && booking.paymentStatus !== 'PAID') {
+        await this.prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            paymentStatus: 'PAID',
+            bookingStatus: BookingStatus.COORDINATING,
+            paystackVerified: true,
+            paystackReference: ref || booking.paystackReference,
+          },
+        });
+        await this.prisma.bookingEvent.create({
+          data: {
+            bookingId: booking.id,
+            status: 'BOOKING_CONFIRMED',
+            title: 'Payment confirmed via webhook',
+            description: `Payment verified via Paystack Webhook. Reference: ${ref}`,
+          },
+        });
+      }
+    }
+
+    return { status: 'success' };
+  }
+
+  // ─── Status & State Machine ───────────────────────────────────────────────
+
+  private static readonly ALLOWED_TRANSITIONS: Record<string, string[]> = {
+    PENDING: ['BOOKING_CONFIRMED', 'CANCELLED'],
+    BOOKING_CONFIRMED: ['COORDINATING', 'WAGON_ALLOCATED', 'CANCELLED'],
+    COORDINATING: ['WAGON_ALLOCATED', 'CANCELLED'],
+    WAGON_ALLOCATED: ['CARGO_AT_TERMINAL', 'LOADING_IN_PROGRESS', 'CANCELLED'],
+    CARGO_AT_TERMINAL: ['LOADING_IN_PROGRESS', 'CANCELLED'],
+    LOADING_IN_PROGRESS: ['DEPARTED', 'IN_TRANSIT', 'CANCELLED'],
+    DEPARTED: ['IN_TRANSIT', 'ARRIVED_DESTINATION', 'CANCELLED'],
+    IN_TRANSIT: ['ARRIVED_DESTINATION', 'CANCELLED'],
+    ARRIVED_DESTINATION: ['UNLOADING', 'READY_FOR_COLLECTION'],
+    UNLOADING: ['READY_FOR_COLLECTION', 'COMPLETED'],
+    READY_FOR_COLLECTION: ['COMPLETED'],
+    COMPLETED: [],
+    CANCELLED: [],
+  };
 
   async updateStatus(
     id: string,
@@ -296,6 +370,19 @@ export class BookingsService {
     lat?: number,
     lng?: number,
   ) {
+    const current = await this.prisma.booking.findUnique({
+      where: { id },
+      include: { wagonAllocations: true },
+    });
+    if (!current) throw new NotFoundException('Booking not found');
+
+    const allowed = BookingsService.ALLOWED_TRANSITIONS[current.bookingStatus] || [];
+    if (!allowed.includes(status) && current.bookingStatus !== status) {
+      throw new BadRequestException(
+        `Invalid status transition from '${current.bookingStatus}' to '${status}'. Allowed next steps: ${allowed.join(', ') || 'None (Terminal state)'}`,
+      );
+    }
+
     const booking = await this.prisma.booking.update({
       where: { id },
       data: { bookingStatus: status as BookingStatus },
@@ -305,35 +392,108 @@ export class BookingsService {
       data: { bookingId: id, status, title: this.statusLabel(status), description, lat, lng, triggeredBy },
     });
 
+    // Auto-release assets when shipment completes or cancels
+    if (status === 'COMPLETED' || status === 'CANCELLED') {
+      const wagonIds = current.wagonAllocations.map((a) => a.wagonId);
+      const locoIds = current.wagonAllocations.map((a) => a.locoId).filter(Boolean) as string[];
+
+      if (wagonIds.length > 0) {
+        await this.prisma.wagon.updateMany({
+          where: { id: { in: wagonIds } },
+          data: {
+            status: 'AVAILABLE',
+            ...(status === 'COMPLETED' ? { totalTrips: { increment: 1 } } : {}),
+          },
+        });
+      }
+
+      if (locoIds.length > 0) {
+        await this.prisma.locomotive.updateMany({
+          where: { id: { in: locoIds } },
+          data: { status: 'AVAILABLE' },
+        });
+      }
+    }
+
     return booking;
   }
 
-  // ─── Allocation ───────────────────────────────────────────────────────────
+  // ─── Allocation with Atomic Concurrency Checks ─────────────────────────────
 
   async allocateWagons(
     bookingId: string,
     data: { wagonIds: string[]; locoId: string },
     allocatedBy: string,
   ) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
-    if (!booking) throw new NotFoundException('Booking not found');
-    if (data.wagonIds.length < booking.wagonsRequired) {
-      throw new BadRequestException(`Need at least ${booking.wagonsRequired} wagons`);
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const booking = await tx.booking.findUnique({ where: { id: bookingId } });
+      if (!booking) throw new NotFoundException('Booking not found');
+      if (data.wagonIds.length < booking.wagonsRequired) {
+        throw new BadRequestException(`Need at least ${booking.wagonsRequired} wagons (received ${data.wagonIds.length})`);
+      }
 
-    await this.prisma.wagon.updateMany({ where: { id: { in: data.wagonIds } }, data: { status: 'IN_USE' } });
-    await this.prisma.locomotive.update({ where: { id: data.locoId }, data: { status: 'IN_USE' } });
+      // 1. Verify all requested wagons exist and are AVAILABLE
+      const wagons = await tx.wagon.findMany({
+        where: { id: { in: data.wagonIds } },
+      });
 
-    const allocations = await Promise.all(
-      data.wagonIds.map((wagonId) =>
-        this.prisma.wagonAllocation.create({
-          data: { bookingId, wagonId, locoId: data.locoId, allocatedBy },
-        }),
-      ),
-    );
+      if (wagons.length !== data.wagonIds.length) {
+        throw new NotFoundException('One or more selected wagons could not be found');
+      }
 
-    await this.updateStatus(bookingId, 'WAGON_ALLOCATED', allocatedBy, `${data.wagonIds.length} wagon(s) and locomotive allocated`);
-    return allocations;
+      const unavailableWagon = wagons.find((w) => w.status !== 'AVAILABLE');
+      if (unavailableWagon) {
+        throw new BadRequestException(
+          `Wagon ${unavailableWagon.serialNumber} is currently '${unavailableWagon.status}' and cannot be allocated.`,
+        );
+      }
+
+      // 2. Verify locomotive exists and is AVAILABLE
+      const loco = await tx.locomotive.findUnique({ where: { id: data.locoId } });
+      if (!loco) throw new NotFoundException('Locomotive not found');
+      if (loco.status !== 'AVAILABLE') {
+        throw new BadRequestException(
+          `Locomotive ${loco.serialNumber} is currently '${loco.status}' and cannot be allocated.`,
+        );
+      }
+
+      // 3. Mark fleet assets as IN_USE
+      await tx.wagon.updateMany({
+        where: { id: { in: data.wagonIds } },
+        data: { status: 'IN_USE' },
+      });
+      await tx.locomotive.update({
+        where: { id: data.locoId },
+        data: { status: 'IN_USE' },
+      });
+
+      // 4. Create allocations
+      const allocations = await Promise.all(
+        data.wagonIds.map((wagonId) =>
+          tx.wagonAllocation.create({
+            data: { bookingId, wagonId, locoId: data.locoId, allocatedBy },
+          }),
+        ),
+      );
+
+      // 5. Update booking state to WAGON_ALLOCATED
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: { bookingStatus: BookingStatus.WAGON_ALLOCATED },
+      });
+
+      await tx.bookingEvent.create({
+        data: {
+          bookingId,
+          status: 'WAGON_ALLOCATED',
+          title: 'Wagons allocated',
+          description: `${data.wagonIds.length} wagon(s) and locomotive (${loco.serialNumber}) allocated`,
+          triggeredBy: allocatedBy,
+        },
+      });
+
+      return allocations;
+    });
   }
 
   // ─── Cargo Inventory (load / unload) ────────────────────────────────────────
@@ -389,6 +549,147 @@ export class BookingsService {
         damaged: data.damaged ?? false,
         notes: data.notes ?? item.notes,
       },
+    });
+  }
+
+  // ─── Feeder Truck Operations (Origin Terminal) ─────────────────────────────
+
+  async addFeederTruckLog(
+    wagonAllocationId: string,
+    data: {
+      truckRegNo: string;
+      driverName: string;
+      driverPhone: string;
+      transporterName: string;
+      loadingSource?: string;
+      quantityLoaded: number;
+      unit?: string;
+      startTime?: string | Date;
+      endTime?: string | Date;
+    },
+  ) {
+    const allocation = await this.prisma.wagonAllocation.findUnique({
+      where: { id: wagonAllocationId },
+      include: { booking: true },
+    });
+    if (!allocation) throw new NotFoundException('Wagon allocation not found');
+
+    const log = await this.prisma.feederTruckLog.create({
+      data: {
+        wagonAllocationId,
+        truckRegNo: data.truckRegNo.toUpperCase(),
+        driverName: data.driverName,
+        driverPhone: data.driverPhone,
+        transporterName: data.transporterName,
+        loadingSource: data.loadingSource,
+        quantityLoaded: Number(data.quantityLoaded),
+        unit: data.unit ?? 'BAGS',
+        startTime: data.startTime ? new Date(data.startTime) : new Date(),
+        endTime: data.endTime ? new Date(data.endTime) : new Date(),
+      },
+    });
+
+    // Also update/sync standard CargoItem row for the allocation
+    await this.prisma.cargoItem.create({
+      data: {
+        wagonAllocationId,
+        description: `Feeder Truck: ${data.truckRegNo} (${data.transporterName})`,
+        customerRef: data.truckRegNo,
+        unit: data.unit ?? 'BAGS',
+        loadedQty: Number(data.quantityLoaded),
+        loadedAt: log.endTime || log.startTime,
+        notes: `Source: ${data.loadingSource || 'General'} | Driver: ${data.driverName} (${data.driverPhone})`,
+      },
+    });
+
+    return log;
+  }
+
+  async getFeederTruckLogs(wagonAllocationId: string) {
+    return this.prisma.feederTruckLog.findMany({
+      where: { wagonAllocationId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // ─── Wagon Unload & Complaint Audit (Destination Yard) ────────────────────
+
+  async submitWagonUnloadAudit(
+    wagonAllocationId: string,
+    data: {
+      startTime?: string | Date;
+      endTime?: string | Date;
+      intactCount: number;
+      damagedCount?: number;
+      burstBagCount?: number;
+      hasComplaint?: boolean;
+      complaintType?: string;
+      complaintDetails?: string;
+      photoUrls?: string[] | string;
+    },
+    unloadedById: string,
+  ) {
+    const allocation = await this.prisma.wagonAllocation.findUnique({
+      where: { id: wagonAllocationId },
+      include: { cargoItems: true },
+    });
+    if (!allocation) throw new NotFoundException('Wagon allocation not found');
+
+    const photos = Array.isArray(data.photoUrls) ? JSON.stringify(data.photoUrls) : data.photoUrls;
+
+    const audit = await this.prisma.wagonUnloadAudit.upsert({
+      where: { wagonAllocationId },
+      update: {
+        startTime: data.startTime ? new Date(data.startTime) : new Date(),
+        endTime: data.endTime ? new Date(data.endTime) : new Date(),
+        intactCount: Number(data.intactCount || 0),
+        damagedCount: Number(data.damagedCount || 0),
+        burstBagCount: Number(data.burstBagCount || 0),
+        hasComplaint: data.hasComplaint ?? false,
+        complaintType: data.complaintType,
+        complaintDetails: data.complaintDetails,
+        photoUrls: photos,
+        unloadedById,
+      },
+      create: {
+        wagonAllocationId,
+        startTime: data.startTime ? new Date(data.startTime) : new Date(),
+        endTime: data.endTime ? new Date(data.endTime) : new Date(),
+        intactCount: Number(data.intactCount || 0),
+        damagedCount: Number(data.damagedCount || 0),
+        burstBagCount: Number(data.burstBagCount || 0),
+        hasComplaint: data.hasComplaint ?? false,
+        complaintType: data.complaintType,
+        complaintDetails: data.complaintDetails,
+        photoUrls: photos,
+        unloadedById,
+      },
+    });
+
+    // Automatically update the wagon's CargoItem rows
+    const totalReceived = Number(data.intactCount || 0) + Number(data.damagedCount || 0) + Number(data.burstBagCount || 0);
+    const hasDamage = Number(data.damagedCount || 0) > 0 || Number(data.burstBagCount || 0) > 0;
+
+    for (const item of allocation.cargoItems) {
+      await this.prisma.cargoItem.update({
+        where: { id: item.id },
+        data: {
+          unloadedQty: totalReceived > 0 ? totalReceived : item.loadedQty,
+          unloadedById,
+          unloadedAt: new Date(),
+          damaged: hasDamage,
+          notes: data.burstBagCount ? `${data.burstBagCount} burst bag(s) recorded. ${data.complaintDetails || ''}` : data.complaintDetails || item.notes,
+        },
+      });
+    }
+
+    return audit;
+  }
+
+  async getWagonUnloadAudit(wagonAllocationId: string) {
+    return this.prisma.wagonUnloadAudit.findUnique({
+      where: { wagonAllocationId },
+      include: { unloadedBy: { select: { fullName: true, email: true } } },
     });
   }
 

@@ -256,6 +256,62 @@ CREATE TABLE "LocoLocationHistory" (
   FOREIGN KEY ("locoId") REFERENCES "Locomotive"("id")
 );
 
+CREATE TABLE "FeederTruckLog" (
+  "id" TEXT PRIMARY KEY,
+  "wagonAllocationId" TEXT NOT NULL,
+  "truckRegNo" TEXT NOT NULL,
+  "driverName" TEXT NOT NULL,
+  "driverPhone" TEXT NOT NULL,
+  "transporterName" TEXT NOT NULL,
+  "loadingSource" TEXT,
+  "quantityLoaded" REAL NOT NULL,
+  "unit" TEXT NOT NULL DEFAULT 'BAGS',
+  "startTime" DATETIME NOT NULL,
+  "endTime" DATETIME,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY ("wagonAllocationId") REFERENCES "WagonAllocation"("id")
+);
+
+CREATE TABLE "WagonUnloadAudit" (
+  "id" TEXT PRIMARY KEY,
+  "wagonAllocationId" TEXT NOT NULL UNIQUE,
+  "startTime" DATETIME NOT NULL,
+  "endTime" DATETIME,
+  "intactCount" REAL NOT NULL DEFAULT 0,
+  "damagedCount" REAL NOT NULL DEFAULT 0,
+  "burstBagCount" REAL NOT NULL DEFAULT 0,
+  "hasComplaint" INTEGER NOT NULL DEFAULT 0,
+  "complaintType" TEXT,
+  "complaintDetails" TEXT,
+  "photoUrls" TEXT,
+  "unloadedById" TEXT,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY ("wagonAllocationId") REFERENCES "WagonAllocation"("id"),
+  FOREIGN KEY ("unloadedById") REFERENCES "User"("id")
+);
+
+CREATE TABLE "TerminalMonthlyBudget" (
+  "id" TEXT PRIMARY KEY,
+  "year" INTEGER NOT NULL,
+  "month" INTEGER NOT NULL,
+  "stationCode" TEXT NOT NULL,
+  "targetTrains" INTEGER NOT NULL,
+  "targetTonnage" REAL NOT NULL,
+  "targetRevenue" REAL NOT NULL,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE "CargoOfficerTarget" (
+  "id" TEXT PRIMARY KEY,
+  "budgetId" TEXT NOT NULL,
+  "officerId" TEXT NOT NULL,
+  "targetTrains" INTEGER NOT NULL,
+  "achievedTrains" INTEGER NOT NULL DEFAULT 0,
+  "ratingScore" REAL,
+  FOREIGN KEY ("budgetId") REFERENCES "TerminalMonthlyBudget"("id"),
+  FOREIGN KEY ("officerId") REFERENCES "User"("id")
+);
+
 CREATE INDEX "idx_booking_customer" ON "Booking"("customerId");
 CREATE INDEX "idx_booking_status" ON "Booking"("bookingStatus");
 CREATE INDEX "idx_wagonallocation_booking" ON "WagonAllocation"("bookingId");
@@ -264,6 +320,9 @@ CREATE INDEX "idx_bookingevent_booking" ON "BookingEvent"("bookingId");
 CREATE INDEX "idx_chatmessage_booking" ON "ChatMessage"("bookingId");
 CREATE INDEX "idx_notification_user" ON "Notification"("userId");
 CREATE INDEX "idx_locohistory_loco" ON "LocoLocationHistory"("locoId");
+CREATE INDEX "idx_feedertruck_allocation" ON "FeederTruckLog"("wagonAllocationId");
+CREATE INDEX "idx_budget_year_month" ON "TerminalMonthlyBudget"("year", "month");
+CREATE INDEX "idx_officer_target_user" ON "CargoOfficerTarget"("officerId");
 `);
 
 db.close();

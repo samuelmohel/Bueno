@@ -323,9 +323,122 @@ async function main() {
   await event(trip7.id, 'DEPARTED', 'Train departed', 'Train TR-LAF-101 departed Ewekoro terminal.', daysAgo(4));
   await event(trip7.id, 'ARRIVED_DESTINATION', 'Arrived at destination', 'Train arrived at Moniya terminal.', daysAgo(3));
   await event(trip7.id, 'UNLOADING', 'Unloading cargo', 'Cargo officer confirming unloaded quantities against loaded inventory.', daysAgo(3), cargoOfficerDest.id);
-  await event(trip7.id, 'COMPLETED', 'Shipment completed', 'Trip closed. 1 wagon flagged: 15 bags short/damaged — visible immediately from the same inventory record used at loading.', daysAgo(3), cargoOfficerDest.id);
+  // Feeder Truck Logs for Trip 4 & Trip 7
+  await prisma.feederTruckLog.create({
+    data: {
+      wagonAllocationId: trip4Allocs[0].id,
+      truckRegNo: 'KTU-482-XA',
+      driverName: 'Sunday Adeleke',
+      driverPhone: '+2348039911223',
+      transporterName: 'Alhaji Danladi Haulage Ltd',
+      loadingSource: 'Lafarge Silo Bay 3',
+      quantityLoaded: 1200,
+      unit: CargoUnit.BAGS,
+      startTime: hoursAgo(9.5),
+      endTime: hoursAgo(9),
+    },
+  });
+  await prisma.feederTruckLog.create({
+    data: {
+      wagonAllocationId: trip4Allocs[1].id,
+      truckRegNo: 'LSR-914-YD',
+      driverName: 'Mustapha Garba',
+      driverPhone: '+2348035544332',
+      transporterName: 'Dangote Transport Fleet',
+      loadingSource: 'Lafarge Silo Bay 1',
+      quantityLoaded: 1180,
+      unit: CargoUnit.BAGS,
+      startTime: hoursAgo(8.5),
+      endTime: hoursAgo(8),
+    },
+  });
 
-  console.log('✅ 7 trips seeded across every lifecycle stage, including a completed trip with a real loaded-vs-unloaded discrepancy');
+  // Wagon Unload Audit with Burst Bags & Wagon Complaint for Trip 7
+  await prisma.wagonUnloadAudit.create({
+    data: {
+      wagonAllocationId: trip7Allocs[0].id,
+      startTime: daysAgo(3.1),
+      endTime: daysAgo(3),
+      intactCount: 1200,
+      damagedCount: 0,
+      burstBagCount: 0,
+      hasComplaint: false,
+      unloadedById: cargoOfficerDest.id,
+    },
+  });
+
+  await prisma.wagonUnloadAudit.create({
+    data: {
+      wagonAllocationId: trip7Allocs[1].id,
+      startTime: daysAgo(3.1),
+      endTime: daysAgo(3),
+      intactCount: 1185,
+      damagedCount: 0,
+      burstBagCount: 15,
+      hasComplaint: true,
+      complaintType: 'ROOF_LEAK',
+      complaintDetails: 'Minor roof corrosion allowed rain ingress during transit, resulting in 15 burst/caked cement bags.',
+      unloadedById: cargoOfficerDest.id,
+    },
+  });
+
+  await prisma.wagonUnloadAudit.create({
+    data: {
+      wagonAllocationId: trip7Allocs[2].id,
+      startTime: daysAgo(3.1),
+      endTime: daysAgo(3),
+      intactCount: 800,
+      damagedCount: 0,
+      burstBagCount: 0,
+      hasComplaint: false,
+      unloadedById: cargoOfficerDest.id,
+    },
+  });
+
+  // ── Monthly Operational & Financial Budgets (Mr. Niyi Spec) ────────────────
+  const budgetEwkAug = await prisma.terminalMonthlyBudget.create({
+    data: {
+      year: 2026,
+      month: 8,
+      stationCode: 'EWK',
+      targetTrains: 25,
+      targetTonnage: 30000,
+      targetRevenue: 45000000,
+    },
+  });
+
+  const budgetMnyAug = await prisma.terminalMonthlyBudget.create({
+    data: {
+      year: 2026,
+      month: 8,
+      stationCode: 'MNY',
+      targetTrains: 25,
+      targetTonnage: 30000,
+      targetRevenue: 45000000,
+    },
+  });
+
+  await prisma.cargoOfficerTarget.create({
+    data: {
+      budgetId: budgetEwkAug.id,
+      officerId: cargoOfficerOrigin.id,
+      targetTrains: 15,
+      achievedTrains: 14,
+      ratingScore: 93.3,
+    },
+  });
+
+  await prisma.cargoOfficerTarget.create({
+    data: {
+      budgetId: budgetMnyAug.id,
+      officerId: cargoOfficerDest.id,
+      targetTrains: 15,
+      achievedTrains: 15,
+      ratingScore: 100.0,
+    },
+  });
+
+  console.log('✅ 7 trips seeded across every lifecycle stage, with Feeder Trucks, Burst Bag Audits, and Monthly Budgets');
 
   console.log('\n🎉 Seed complete.\n');
   console.log('Demo logins (all passwords: demo1234):');

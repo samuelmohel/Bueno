@@ -44,6 +44,8 @@ model User {
   driver          Driver?
   loadedItems     CargoItem[]    @relation("CargoItemLoadedBy")
   unloadedItems   CargoItem[]    @relation("CargoItemUnloadedBy")
+  officerTargets  CargoOfficerTarget[] @relation("UserOfficerTargets")
+  wagonAudits     WagonUnloadAudit[]   @relation("WagonAuditUnloadedBy")
 }
 
 model Driver {
@@ -211,10 +213,12 @@ model WagonAllocation {
   departedAt  DateTime?
   arrivedAt   DateTime?
 
-  booking    Booking     @relation(fields: [bookingId], references: [id])
-  wagon      Wagon       @relation(fields: [wagonId], references: [id])
-  locomotive Locomotive? @relation(fields: [locoId], references: [id])
-  cargoItems CargoItem[]
+  booking         Booking          @relation(fields: [bookingId], references: [id])
+  wagon           Wagon            @relation(fields: [wagonId], references: [id])
+  locomotive      Locomotive?      @relation(fields: [locoId], references: [id])
+  cargoItems      CargoItem[]
+  feederTruckLogs FeederTruckLog[]
+  unloadAudit     WagonUnloadAudit?
 }
 
 // ─── Cargo Inventory ────────────────────────────────────────────────────────
@@ -302,4 +306,72 @@ model LocoLocationHistory {
   heading   Float?
   timestamp DateTime @default(now())
   loco      Locomotive @relation(fields: [locoId], references: [id])
+}
+
+// ─── Feeder Truck Manifest (Handwritten Field Spec) ──────────────────────────
+
+model FeederTruckLog {
+  id                String          @id @default(cuid())
+  wagonAllocationId String
+  truckRegNo        String
+  driverName        String
+  driverPhone       String
+  transporterName   String
+  loadingSource     String?         // e.g. "Silo 4", "Plant Bay B"
+  quantityLoaded    Float
+  unit              String          @default("BAGS")
+  startTime         DateTime
+  endTime           DateTime?
+  createdAt         DateTime        @default(now())
+
+  wagonAllocation   WagonAllocation @relation(fields: [wagonAllocationId], references: [id])
+}
+
+// ─── Granular Unloading & Wagon Complaint Audit (Field Spec) ──────────────────
+
+model WagonUnloadAudit {
+  id                String          @id @default(cuid())
+  wagonAllocationId String          @unique
+  startTime         DateTime
+  endTime           DateTime?
+  
+  intactCount       Float           @default(0)
+  damagedCount      Float           @default(0)
+  burstBagCount     Float           @default(0)
+  
+  hasComplaint      Boolean         @default(false)
+  complaintType     String?         // "ROOF_LEAK", "MECHANICAL", "SEAL_BROKEN", "DIRTY_INTERIOR"
+  complaintDetails  String?
+  photoUrls         String?         // JSON array of photo URLs
+  unloadedById      String?
+  createdAt         DateTime        @default(now())
+
+  wagonAllocation   WagonAllocation @relation(fields: [wagonAllocationId], references: [id])
+  unloadedBy        User?           @relation("WagonAuditUnloadedBy", fields: [unloadedById], references: [id])
+}
+
+// ─── Operational Budget & KPI Targets (Mr. Niyi Spec) ─────────────────────────
+
+model TerminalMonthlyBudget {
+  id              String   @id @default(cuid())
+  year            Int
+  month           Int      // 1 - 12
+  stationCode     String   // "EWK", "MNY", "APT"
+  targetTrains    Int
+  targetTonnage   Float
+  targetRevenue   Float
+  createdAt       DateTime @default(now())
+
+  officerTargets  CargoOfficerTarget[]
+}
+
+model CargoOfficerTarget {
+  id              String   @id @default(cuid())
+  budgetId        String
+  officerId       String
+  targetTrains    Int
+  achievedTrains  Int      @default(0)
+  ratingScore     Float?   // e.g. 94.5%
+  budget          TerminalMonthlyBudget @relation(fields: [budgetId], references: [id])
+  officer         User                  @relation("UserOfficerTargets", fields: [officerId], references: [id])
 }

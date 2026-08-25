@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -18,4 +18,9 @@ export class DashboardController {
 
   @Get('live-fleet')
   liveFleet() { return this.dashboard.getLiveLocomotives(); }
+
+  @Get('reports')
+  reports(@Query('period') period?: 'weekly' | 'monthly' | 'quarterly' | 'annually') {
+    return this.dashboard.getPerformanceReport(period);
+  }
 }
