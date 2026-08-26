@@ -804,9 +804,11 @@ function FundRequestDetailModal({
             <div className="flex items-center gap-2">
               <span className="font-mono font-black text-[#0E4B88] text-sm">{req.id}</span>
               <Badge text={req.stage} color={stageColor(req.stage)} />
+              {req.tripNo && <span className="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg">Trip: {req.tripNo}</span>}
+              {req.vesselNo && <span className="bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg">Vessel: {req.vesselNo}</span>}
             </div>
             <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>{req.title}</h3>
-            <p className="text-xs text-slate-500">Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}</p>
+            <p className="text-xs text-slate-500">Category: <b className="text-slate-800">{req.category || 'Tarpaulin Covering'}</b> • Submitted by <b className="text-slate-800">{req.officerName}</b> ({sName(req.station)}) • {req.date}</p>
           </div>
           <div className="text-left sm:text-right">
             <span className="block text-[10px] font-extrabold uppercase text-slate-400">Requested Amount</span>
@@ -2058,8 +2060,8 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [fundsModal, setFundsModal]     = useState(false);
 
   const [newWagonId, setNewWagonId] = useState('');
-  const [tripForm, setTripForm]     = useState({ locomotiveId: '', selectedWagon: '', loadingDate: '', qty: '70', startTime: '' });
-  const [fundForm, setFundForm]     = useState({ title: '', amount: '', category: 'Equipment', description: '' });
+  const [tripForm, setTripForm]     = useState({ locomotiveId: '', selectedWagon: '', loadingDate: '', qty: '70', startTime: '', driverName: 'Engr. Kabiru Usman (NRC-DRV-102)', crewMembers: 'Sani Bello, Timothy Danjuma', monitoringOfficer: user?.fullName || 'Ade Bello' });
+  const [fundForm, setFundForm]     = useState({ title: '', amount: '', category: 'Tarpaulin Covering (₦350,000)', tripNo: 'TRIP-001', vesselNo: 'VSL-APMT-992', description: '' });
 
   const station = user?.assignedStation || 'EWK';
 
@@ -2172,6 +2174,9 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       tripSequenceNumber: trips.length + 1,
       dealId: createDeal.id,
       locomotiveId: tripForm.locomotiveId,
+      driverName: tripForm.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
+      crewMembers: tripForm.crewMembers || 'Sani Bello, Timothy Danjuma',
+      monitoringOfficer: tripForm.monitoringOfficer || user.fullName,
       cargoOfficerName: user.fullName,
       company: createDeal.company,
       origin: station,
@@ -2185,14 +2190,54 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     };
     saveTrips([newTrip, ...trips]);
     saveDeals(deals.filter(d => d.id !== createDeal.id));
+
+    // Dispatch Alerts to Origin Station, Destination Station, Client, and Insurance Group
+    try {
+      const notifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      const alerts = [
+        {
+          id: `notif_${Date.now()}_1`,
+          title: `🚂 Trip Created: ${newTrip.tripId}`,
+          body: `Loco #${newTrip.locomotiveId} assigned to ${newTrip.company}. Crew: ${newTrip.crewMembers}.`,
+          time: 'Just now',
+          type: 'TRIP_UPDATE',
+          read: false,
+        },
+        {
+          id: `notif_${Date.now()}_2`,
+          title: `🛡️ Insurance Group Alert: Freight Transit ${newTrip.tripId}`,
+          body: `Consignment for ${newTrip.company} (${newTrip.cargoType}) loaded at ${sName(station)}. Monitoring Officer: ${newTrip.monitoringOfficer}.`,
+          time: 'Just now',
+          type: 'INSURANCE_ALERT',
+          read: false,
+        }
+      ];
+      localStorage.setItem('bueno_notifications', JSON.stringify([...alerts, ...notifs]));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
+
     setCreateDeal(null); setSelectedTripId(newTrip.id); setView('trips');
   };
 
   const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    const req = { id: `REQ-${Date.now()}`, officerName: user.fullName, station, ...fundForm, amount: parseFloat(fundForm.amount) || 0, stage: 'Admin', date: new Date().toLocaleDateString('en-GB'), conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }], paymentDetails: null };
+    const req = {
+      id: `REQ-${Date.now()}`,
+      officerName: user.fullName,
+      station,
+      ...fundForm,
+      tripNo: fundForm.tripNo || 'TRIP-001',
+      vesselNo: fundForm.vesselNo || 'VSL-APMT-992',
+      amount: parseFloat(fundForm.amount) || 0,
+      stage: 'Admin',
+      date: new Date().toLocaleDateString('en-GB'),
+      conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
+      paymentDetails: null
+    };
     saveRequests([req, ...requests]);
-    setFundsModal(false); setFundForm({ title: '', amount: '', category: 'Equipment', description: '' }); setView('funds');
+    setFundsModal(false);
+    setFundForm({ title: '', amount: '', category: 'Tarpaulin Covering (₦350,000)', tripNo: 'TRIP-001', vesselNo: 'VSL-APMT-992', description: '' });
+    setView('funds');
   };
 
   const navItems = [
@@ -2458,10 +2503,33 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       {createDeal && (
         <Modal onClose={() => setCreateDeal(null)}>
           <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900">Trip Creation Form</h3>
-            <form onSubmit={handleCreateTrip} className="space-y-4">
-              <div><label className={lc}>Locomotive ID *</label><input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Begin Wagon Loading ➔</button></div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900 font-sans">Initiate Train Trip & Dispatch Crew</h3>
+              <p className="text-xs text-slate-500">Assign locomotive engine, NRC driver, crew members, and monitoring officer.</p>
+            </div>
+            <form onSubmit={handleCreateTrip} className="space-y-3.5">
+              <div>
+                <label className={lc}>Locomotive Engine ID *</label>
+                <input required value={tripForm.locomotiveId} onChange={e => setTripForm({ ...tripForm, locomotiveId: e.target.value })} placeholder="e.g. L2205 (General Electric)" className={ic} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>NRC Driver Name & Code *</label>
+                  <input required value={tripForm.driverName} onChange={e => setTripForm({ ...tripForm, driverName: e.target.value })} placeholder="e.g. Engr. Kabiru Usman (NRC-DRV-102)" className={ic} />
+                </div>
+                <div>
+                  <label className={lc}>Monitoring Officer *</label>
+                  <input required value={tripForm.monitoringOfficer} onChange={e => setTripForm({ ...tripForm, monitoringOfficer: e.target.value })} placeholder="e.g. Ade Bello" className={ic} />
+                </div>
+              </div>
+              <div>
+                <label className={lc}>Locomotive Crew Members *</label>
+                <input required value={tripForm.crewMembers} onChange={e => setTripForm({ ...tripForm, crewMembers: e.target.value })} placeholder="e.g. Sani Bello (Brakeman), Timothy Danjuma (Conductor)" className={ic} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setCreateDeal(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Begin Wagon Loading ➔</button>
+              </div>
             </form>
           </div>
         </Modal>
@@ -2469,15 +2537,58 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       {fundsModal && (
         <Modal onClose={() => setFundsModal(false)}>
           <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900">Request Funds for Station</h3>
-            <form onSubmit={handleFundRequest} className="space-y-4">
-              <div><label className={lc}>Purpose / Title *</label><input required value={fundForm.title} onChange={e => setFundForm({ ...fundForm, title: e.target.value })} placeholder="e.g. Loading Bay Crane Slings" className={ic} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={lc}>Amount (₦) *</label><input required type="number" value={fundForm.amount} onChange={e => setFundForm({ ...fundForm, amount: e.target.value })} className={`${ic} font-mono`} placeholder="85000" /></div>
-                <div><label className={lc}>Category</label><select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>{['Equipment', 'Fuel', 'Repairs', 'Maintenance', 'Emergency Purchase', 'Operational Expenses', 'Other'].map(c => <option key={c}>{c}</option>)}</select></div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900 font-sans">Request Station Operating Funds</h3>
+              <p className="text-xs text-slate-500">Fill in financial requisition details with mandatory Trip No. and Vessel No. tags.</p>
+            </div>
+            <form onSubmit={handleFundRequest} className="space-y-3.5">
+              <div>
+                <label className={lc}>Purpose / Requisition Title *</label>
+                <input required value={fundForm.title} onChange={e => setFundForm({ ...fundForm, title: e.target.value })} placeholder="e.g. Tarpaulin Covering & Loader Payments" className={ic} />
               </div>
-              <div><label className={lc}>Description *</label><textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Full justification..." /></div>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Submit Request ➔</button></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Trip No. Reference *</label>
+                  <input required value={fundForm.tripNo} onChange={e => setFundForm({ ...fundForm, tripNo: e.target.value })} placeholder="e.g. TRIP-001" className={`${ic} font-mono`} />
+                </div>
+                <div>
+                  <label className={lc}>Vessel No. Reference *</label>
+                  <input required value={fundForm.vesselNo} onChange={e => setFundForm({ ...fundForm, vesselNo: e.target.value })} placeholder="e.g. VSL-APMT-992" className={`${ic} font-mono`} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Amount (₦) *</label>
+                  <input required type="number" value={fundForm.amount} onChange={e => setFundForm({ ...fundForm, amount: e.target.value })} className={`${ic} font-mono`} placeholder="350000" />
+                </div>
+                <div>
+                  <label className={lc}>Expense Category *</label>
+                  <select value={fundForm.category} onChange={e => setFundForm({ ...fundForm, category: e.target.value })} className={ic}>
+                    {[
+                      'Tarpaulin Covering (₦350,000)',
+                      'Payloader Equipment (ENL / Papalanto)',
+                      'Excavator Equipment (Papalanto)',
+                      'NRC Freight Charges',
+                      'Loader Payments (Per Tonne)',
+                      'Back-haul Bills & Haulage',
+                      'Truck Driver Incentives',
+                      'Terminal Gate Fees (₦2,000)',
+                      'Fuel & Engine Maintenance',
+                      'Emergency Purchase',
+                      'Operational Expenses',
+                      'Other'
+                    ].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={lc}>Description & Justification *</label>
+                <textarea required rows={3} value={fundForm.description} onChange={e => setFundForm({ ...fundForm, description: e.target.value })} className={`${ic} resize-none`} placeholder="Itemized expense justification..." />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setFundsModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Submit Request ➔</button>
+              </div>
             </form>
           </div>
         </Modal>
