@@ -2834,6 +2834,15 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
   const [stoppingUnloadWagon, setStoppingUnloadWagon] = useState<any | null>(null);
   const [bagsUnloadedInput, setBagsUnloadedInput] = useState('1200');
+  const [unloadForm, setUnloadForm] = useState({
+    correctQty: '1192',
+    damageQty: '0',
+    burstBags: '0',
+    hasComplaint: false,
+    complaintNotes: '',
+    unloadStartTimeEdit: '',
+    unloadEndTimeEdit: '',
+  });
 
   if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#62BC37]">Go back</button></div>;
 
@@ -2868,7 +2877,17 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   };
 
   const handleOpenStopUnloadModal = (w: any) => {
-    setBagsUnloadedInput(String(w.qty || 1200));
+    const defaultLoadedQty = Number(w.qty || 1200);
+    setBagsUnloadedInput(String(defaultLoadedQty));
+    setUnloadForm({
+      correctQty: String(defaultLoadedQty),
+      damageQty: '0',
+      burstBags: '0',
+      hasComplaint: false,
+      complaintNotes: '',
+      unloadStartTimeEdit: w.unloadStartTime || '02:15 PM',
+      unloadEndTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
     setStoppingUnloadWagon(w);
   };
 
@@ -2877,7 +2896,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
     if (!stoppingUnloadWagon) return;
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedTime = unloadForm.unloadEndTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const mins = Math.max(1, Math.round((Date.now() - (stoppingUnloadWagon.unloadStartTimestamp || Date.now())) / 60000));
     const hours = Math.floor(mins / 60);
@@ -2889,13 +2908,41 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
       if (w.wagonId !== stoppingUnloadWagon.wagonId) return w;
       return {
         ...w,
+        unloadStartTime: unloadForm.unloadStartTimeEdit || w.unloadStartTime,
         unloadEndDate: formattedDate,
         unloadEndTime: formattedTime,
         unloadDurationStr: durationStr,
         unloadedQty: bagsUnloaded,
+        correctQty: Number(unloadForm.correctQty) || bagsUnloaded,
+        damageQty: Number(unloadForm.damageQty) || 0,
+        burstBags: Number(unloadForm.burstBags) || 0,
+        hasComplaint: unloadForm.hasComplaint,
+        complaintNotes: unloadForm.hasComplaint ? unloadForm.complaintNotes : null,
         unloadStatus: 'UNLOADED',
       };
     });
+
+    // If complaint logged, trigger insurance & discrepancy alert
+    if (unloadForm.hasComplaint) {
+      const insuranceNotif = {
+        id: `ntf_ins_${Date.now()}`,
+        title: `⚠️ Wagon Discrepancy & Insurance Alert — ${stoppingUnloadWagon.wagonId}`,
+        message: `Discrepancy logged for Wagon ${stoppingUnloadWagon.wagonId} on Trip ${trip.tripId}: ${unloadForm.damageQty} damaged, ${unloadForm.burstBags} burst bags. Notes: "${unloadForm.complaintNotes}"`,
+        targetId: trip.id,
+        targetTab: 'trips',
+        read: false,
+        createdAt: `${formattedDate}, ${formattedTime}`
+      };
+      try {
+        const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+        localStorage.setItem('bueno_notifications', JSON.stringify([insuranceNotif, ...existingNotifs]));
+        fetch('/api/notifications.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(insuranceNotif),
+        });
+      } catch {}
+    }
 
     commitLogs(updated);
     setStoppingUnloadWagon(null);
@@ -3038,7 +3085,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
                   </div>
                   <div>
                     {isUnloaded ? (
-                      <Badge text="UNLOADED ✓" color="green" />
+                      <Badge text={w.hasComplaint ? "COMPLAINT LOGGED ⚠️" : "UNLOADED ✓"} color={w.hasComplaint ? "rose" : "green"} />
                     ) : isUnloading ? (
                       <button onClick={() => handleOpenStopUnloadModal(w)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl">Stop Unload ✓</button>
                     ) : !activeUnload ? (
@@ -3047,6 +3094,16 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
                       <span className="text-[10px] text-slate-400">Waiting for active wagon</span>
                     )}
                   </div>
+
+                  {isUnloaded && (
+                    <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-[11px]">
+                      <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Verified Delivered</span><span className="font-mono font-bold text-emerald-800">{w.correctQty || w.unloadedQty || w.qty || 1200} Bags</span></div>
+                      <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Damaged Units</span><span className="font-mono font-bold text-rose-600">{w.damageQty || 0} Units</span></div>
+                      <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Burst Bags</span><span className="font-mono font-bold text-amber-700">{w.burstBags || 0} Bags</span></div>
+                      <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Complaint Flagged</span><span className={`font-extrabold ${w.hasComplaint ? 'text-rose-600' : 'text-emerald-600'}`}>{w.hasComplaint ? 'YES ⚠️' : 'NO ✓'}</span></div>
+                      <div className="col-span-2 sm:col-span-1"><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Notes / Discrepancy Reason</span><span className="text-slate-700 font-medium truncate block">{w.complaintNotes || 'Clean discharge'}</span></div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -3065,19 +3122,65 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
 
       {stoppingUnloadWagon && (
         <Modal onClose={() => setStoppingUnloadWagon(null)}>
-          <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Confirm Wagon Unloading Completion</h3>
+          <div className="p-6 space-y-4 font-sans">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Unloading Discrepancy & Complaint Audit</h3>
             <p className="text-xs text-slate-600">
-              Wagon <b>{stoppingUnloadWagon.wagonId}</b> unloading started at <b>{stoppingUnloadWagon.unloadStartDate} {stoppingUnloadWagon.unloadStartTime}</b>. Confirm bags unloaded.
+              Wagon <b>{stoppingUnloadWagon.wagonId}</b> arrived from <b>{sName(trip.origin)}</b>. Record verified quantity, damaged goods, burst bags, and complaint notes.
             </p>
             <form onSubmit={confirmStopUnloading} className="space-y-4">
-              <div>
-                <label className={lc}>Actual Bags Unloaded from {stoppingUnloadWagon.wagonId} *</label>
-                <input required type="number" min="1" max="1200" value={bagsUnloadedInput} onChange={e => setBagsUnloadedInput(e.target.value)} className={`${ic} font-mono text-base font-bold text-purple-900`} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Editable Unload Start Time</label>
+                  <input type="text" value={unloadForm.unloadStartTimeEdit} onChange={e => setUnloadForm({ ...unloadForm, unloadStartTimeEdit: e.target.value })} className={`${ic} font-mono`} placeholder="02:15 PM" />
+                </div>
+                <div>
+                  <label className={lc}>Editable Concluding Time</label>
+                  <input type="text" value={unloadForm.unloadEndTimeEdit} onChange={e => setUnloadForm({ ...unloadForm, unloadEndTimeEdit: e.target.value })} className={`${ic} font-mono`} placeholder="04:00 PM" />
+                </div>
               </div>
-              <div className="flex justify-end gap-3 pt-2">
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={lc}>Correct Delivered Count *</label>
+                  <input required type="number" min="0" value={unloadForm.correctQty} onChange={e => setUnloadForm({ ...unloadForm, correctQty: e.target.value })} className={`${ic} font-mono font-bold text-emerald-700`} />
+                </div>
+                <div>
+                  <label className={lc}>Damaged Quantity *</label>
+                  <input required type="number" min="0" value={unloadForm.damageQty} onChange={e => setUnloadForm({ ...unloadForm, damageQty: e.target.value })} className={`${ic} font-mono font-bold text-rose-600`} />
+                </div>
+                <div>
+                  <label className={lc}>Burst Bags Count *</label>
+                  <input required type="number" min="0" value={unloadForm.burstBags} onChange={e => setUnloadForm({ ...unloadForm, burstBags: e.target.value })} className={`${ic} font-mono font-bold text-amber-700`} />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900">Complaint for this Wagon?</label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                      <input type="radio" name="complaint" checked={!unloadForm.hasComplaint} onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: false })} />
+                      <span className="text-emerald-700">NO (Clean)</span>
+                    </label>
+                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                      <input type="radio" name="complaint" checked={unloadForm.hasComplaint} onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: true })} />
+                      <span className="text-rose-600">YES (Flag Discrepancy)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {unloadForm.hasComplaint && (
+                  <div>
+                    <label className={lc}>Reason for Wagon Complaint / Discrepancy *</label>
+                    <textarea required rows={2} value={unloadForm.complaintNotes} onChange={e => setUnloadForm({ ...unloadForm, complaintNotes: e.target.value })} placeholder="Describe exact damage/burst bag cause (e.g. 3 bags burst due to rough shunting near Abeokuta)..." className={`${ic} resize-none`} />
+                    <p className="text-[10px] text-rose-600 font-bold mt-1">⚠️ Selecting YES will automatically dispatch an alert notification to Admin, Origin Officer, Client, & Insurance Group.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setStoppingUnloadWagon(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Save & Stop Unload ✓</button>
+                <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">Save & Complete Unload ✓</button>
               </div>
             </form>
           </div>
