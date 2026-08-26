@@ -1882,7 +1882,7 @@ function Shell({
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
 function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'wagons' | 'funds'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
@@ -2041,6 +2041,7 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     { key: 'trips',           label: 'Trips Created (Loading)' },
     { key: 'in_transit',      label: 'Trips on the Move' },
     { key: 'incoming_unload', label: 'Incoming Consignments (Unload)' },
+    { key: 'moniya',          label: 'Moniya Container Terminal 🏗️' },
     { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: 'Request Funds' },
   ];
@@ -2243,6 +2244,8 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </TableWrap>
             </Section>
           )}
+
+          {view === 'moniya' && <MoniyaContainerPortal user={user} />}
 
           {view === 'funds' && (
             <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Request Funds</button>}>
@@ -3873,7 +3876,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics' | 'settings'>('deals');
+  const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics' | 'settings' | 'moniya'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
   const [trips, setTrips]       = useState<any[]>([]);
@@ -4121,6 +4124,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
 
   const navItems = [
     { key: 'analytics',    label: 'Operational Analytics & Daily Reports' },
+    { key: 'moniya',       label: 'Moniya Container Terminal 🏗️' },
     { key: 'deals',        label: 'Manage Deals' },
     { key: 'negotiations', label: `Client Negotiations & Chat (${negotiations.length})` },
     { key: 'trips',        label: 'All Active Trips & GPS' },
@@ -4134,6 +4138,8 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     <Shell user={{ ...user, roleLabel: 'Admin Officer' }} navItems={navItems} activeKey={view} onNav={k => setView(k as any)} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
       {inspectingTrip && <TripAuditReportModal trip={inspectingTrip} onClose={() => setInspectingTrip(null)} />}
       
+      {view === 'moniya' && <MoniyaContainerPortal user={user} />}
+
       {view === 'analytics' && (
         <DailyAnalyticsSection trips={trips} users={users} onInspectTrip={trip => setInspectingTrip(trip)} />
       )}
@@ -4893,6 +4899,414 @@ function TableWrap({ headers, children, mobileCard, data }: { headers: string[];
           <tbody className="divide-y divide-slate-100">{children}</tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   MONIYA CONTAINER TERMINAL MANAGEMENT PORTAL (STAGE 5)
+───────────────────────────────────────────────────────── */
+const SEED_CONTAINERS = [
+  { id: 'MSKU-948210-4', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-10', bay: 'Bay A', row: 'Row 1', col: 'Col 1', tier: 3, dwellDays: 16, gateStatus: 'IN_YARD' },
+  { id: 'APMT-310492-1', agent: 'APMT', size: '20ft STD', type: 'CONTAINERS-EXPORT', arrivalDate: '2026-08-20', bay: 'Bay B', row: 'Row 2', col: 'Col 3', tier: 2, dwellDays: 6, gateStatus: 'IN_YARD' },
+  { id: 'MSCU-884019-3', agent: 'MSC', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-22', bay: 'Bay A', row: 'Row 3', col: 'Col 2', tier: 1, dwellDays: 4, gateStatus: 'IN_YARD' },
+  { id: 'CMAU-102938-7', agent: 'CMA CGM', size: '40ft HC', type: 'EMPTY', arrivalDate: '2026-08-05', bay: 'Bay C', row: 'Row 1', col: 'Col 4', tier: 4, dwellDays: 21, gateStatus: 'IN_YARD' },
+  { id: 'HAPG-774029-0', agent: 'MAERSKLINES', size: '20ft STD', type: 'CONTAINERS-EXPORT', arrivalDate: '2026-08-24', bay: 'Bay B', row: 'Row 4', col: 'Col 1', tier: 1, dwellDays: 2, gateStatus: 'IN_YARD' },
+];
+
+const SEED_GATE_LOGS = [
+  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Dangote Haulage', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
+  { id: 'GT-88402', truckRegNo: 'LSD-901-AB', driverName: 'Suleiman Bello', driverPhone: '08023334455', transporter: 'Bello Logistics', containerId: 'APMT-310492-1', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 09:30 AM' },
+];
+
+function MoniyaContainerPortal({ user }: { user: any }) {
+  const [containers, setContainers] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('bueno_containers') || 'null') || SEED_CONTAINERS; }
+    catch { return SEED_CONTAINERS; }
+  });
+  const [gateLogs, setGateLogs] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('bueno_gate_logs') || 'null') || SEED_GATE_LOGS; }
+    catch { return SEED_GATE_LOGS; }
+  });
+
+  const [registerModal, setRegisterModal] = useState(false);
+  const [selectedContainer, setSelectedContainer] = useState<any | null>(null);
+  const [printedReceipt, setPrintedReceipt] = useState<any | null>(null);
+
+  const [gateForm, setGateForm] = useState({
+    truckRegNo: '',
+    driverName: '',
+    driverPhone: '',
+    transporter: 'Mainstream Haulage Ltd',
+    containerId: '',
+    agent: 'MAERSKLINES',
+    size: '40ft HC',
+    type: 'CONTAINERS-IMPORT',
+    action: 'INBOUND_RECEIVE',
+  });
+
+  const saveContainersData = (c: any[], g: any[]) => {
+    setContainers(c); setGateLogs(g);
+    try {
+      localStorage.setItem('bueno_containers', JSON.stringify(c));
+      localStorage.setItem('bueno_gate_logs', JSON.stringify(g));
+    } catch {}
+  };
+
+  const totalContainers = containers.length;
+  const importsCount = containers.filter(c => c.type === 'CONTAINERS-IMPORT').length;
+  const exportsCount = containers.filter(c => c.type === 'CONTAINERS-EXPORT').length;
+  const emptiesCount = containers.filter(c => c.type === 'EMPTY').length;
+  const totalGateRevenue = gateLogs.reduce((acc, log) => acc + (Number(log.feePaid) || 2000), 0);
+
+  // Demurrage calculation (14 days free, ₦15,000/day after)
+  const overdueContainers = containers.map(c => {
+    const freeDays = 14;
+    const overDays = Math.max(0, c.dwellDays - freeDays);
+    const demurrageDue = overDays * 15000;
+    return { ...c, overDays, demurrageDue };
+  }).filter(c => c.overDays > 0);
+
+  const handleRegisterTruck = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanContainerId = gateForm.containerId.trim().toUpperCase() || `CONT-${Date.now().toString().slice(-6)}`;
+    const passId = `GT-${Math.floor(10000 + Math.random() * 90000)}`;
+    const now = new Date();
+    const timestampStr = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    const newGateLog = {
+      id: passId,
+      truckRegNo: gateForm.truckRegNo.trim().toUpperCase(),
+      driverName: gateForm.driverName.trim(),
+      driverPhone: gateForm.driverPhone.trim(),
+      transporter: gateForm.transporter.trim(),
+      containerId: cleanContainerId,
+      action: gateForm.action,
+      feePaid: 2000,
+      timestamp: timestampStr,
+    };
+
+    let updatedContainers = [...containers];
+    if (gateForm.action === 'INBOUND_RECEIVE') {
+      const existingIdx = updatedContainers.findIndex(c => c.id === cleanContainerId);
+      const randomTier = Math.floor(Math.random() * 4) + 1;
+      const randomRow = `Row ${Math.floor(Math.random() * 5) + 1}`;
+      const randomCol = `Col ${Math.floor(Math.random() * 4) + 1}`;
+      const newContObj = {
+        id: cleanContainerId,
+        agent: gateForm.agent,
+        size: gateForm.size,
+        type: gateForm.type,
+        arrivalDate: now.toISOString().split('T')[0],
+        bay: gateForm.type === 'CONTAINERS-IMPORT' ? 'Bay A' : gateForm.type === 'CONTAINERS-EXPORT' ? 'Bay B' : 'Bay C',
+        row: randomRow,
+        col: randomCol,
+        tier: randomTier,
+        dwellDays: 1,
+        gateStatus: 'IN_YARD',
+      };
+
+      if (existingIdx >= 0) { updatedContainers[existingIdx] = newContObj; }
+      else { updatedContainers = [newContObj, ...updatedContainers]; }
+    } else {
+      updatedContainers = updatedContainers.filter(c => c.id !== cleanContainerId);
+    }
+
+    const updatedLogs = [newGateLog, ...gateLogs];
+    saveContainersData(updatedContainers, updatedLogs);
+    setRegisterModal(false);
+    setPrintedReceipt(newGateLog);
+    setGateForm({ truckRegNo: '', driverName: '', driverPhone: '', transporter: 'Mainstream Haulage Ltd', containerId: '', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', action: 'INBOUND_RECEIVE' });
+  };
+
+  return (
+    <div className="space-y-6 font-sans">
+      <div className="flex flex-wrap justify-between items-center bg-white p-5 rounded-2xl border border-slate-200 shadow-xs gap-4">
+        <div>
+          <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-widest block">MONIYA INLAND CONTAINER TERMINAL (MICT)</span>
+          <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Visual Container Stacking Yard & Gate Management Portal</h2>
+        </div>
+        <button onClick={() => setRegisterModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all flex items-center gap-2">
+          <span>+ Gate Truck Registration (₦2,000 Fee)</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+        {[
+          ['Yard Stacked Containers', `${totalContainers} TEUs`, 'text-slate-900'],
+          ['Import Cargo (Bay A)', `${importsCount} TEUs`, 'text-[#0E4B88]'],
+          ['Export Cargo (Bay B)', `${exportsCount} TEUs`, 'text-[#62BC37]'],
+          ['Empty Containers (Bay C)', `${emptiesCount} TEUs`, 'text-amber-700'],
+          ['Total Gate Revenue Collected', `₦${totalGateRevenue.toLocaleString()}`, 'text-emerald-700'],
+        ].map(([l, v, c]) => (
+          <div key={l} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400 mb-1">{l}</span>
+            <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* VISUAL 3D CONTAINER STACKING YARD GRID */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Visual 3D Container Stacking Yard (Bays A - D)</h3>
+            <p className="text-xs text-slate-500">Rows x Columns x 4-Tier Height. Click any container block to inspect yard passport & demurrage clock.</p>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-bold">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#0E4B88]" /> Import (Bay A)</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-[#62BC37]" /> Export (Bay B)</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500" /> Empty (Bay C)</span>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 pt-2">
+          {['Bay A - Import Yard', 'Bay B - Export Yard', 'Bay C - Empty Yard'].map((bayTitle, bIdx) => {
+            const bayCode = bIdx === 0 ? 'Bay A' : bIdx === 1 ? 'Bay B' : 'Bay C';
+            const bayContainers = containers.filter(c => c.bay === bayCode);
+            const bgColor = bIdx === 0 ? 'bg-blue-50/50 border-blue-200' : bIdx === 1 ? 'bg-emerald-50/50 border-emerald-200' : 'bg-amber-50/50 border-amber-200';
+            const badgeColor = bIdx === 0 ? 'bg-[#0E4B88] text-white' : bIdx === 1 ? 'bg-[#62BC37] text-white' : 'bg-amber-600 text-white';
+
+            return (
+              <div key={bayTitle} className={`border rounded-2xl p-4 space-y-3 ${bgColor}`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black uppercase text-slate-900">{bayTitle}</span>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${badgeColor}`}>{bayContainers.length} Stacked</span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(slotIdx => {
+                    const c = bayContainers[slotIdx - 1];
+                    if (!c) {
+                      return (
+                        <div key={slotIdx} className="h-16 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center text-[10px] font-mono text-slate-300">
+                          Empty
+                        </div>
+                      );
+                    }
+                    const isOverdue = c.dwellDays > 14;
+                    const blockBg = c.type === 'CONTAINERS-IMPORT' ? 'bg-[#0E4B88] text-white' : c.type === 'CONTAINERS-EXPORT' ? 'bg-[#62BC37] text-white' : 'bg-amber-500 text-slate-900';
+
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => setSelectedContainer(c)}
+                        className={`h-16 cursor-pointer rounded-xl p-2 flex flex-col justify-between shadow-xs hover:scale-105 transition-transform ${blockBg}`}
+                      >
+                        <div className="flex justify-between items-center text-[9px] font-mono font-black">
+                          <span>{c.tier}T</span>
+                          {isOverdue && <span className="bg-rose-600 text-white px-1 rounded">DEM</span>}
+                        </div>
+                        <span className="text-[10px] font-mono font-bold truncate block">{c.id}</span>
+                        <span className="text-[8px] opacity-80 block truncate">{c.agent}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* OVERDUE DEMURRAGE COUNTER TABLE */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Container Demurrage Penalty Counter</h3>
+            <p className="text-xs text-slate-500">Free Time Allowance: 14 Days | Demurrage Rate: ₦15,000 per day after 14 days.</p>
+          </div>
+          <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl">{overdueContainers.length} Overdue Containers</span>
+        </div>
+
+        <TableWrap
+          headers={['Container ID', 'Agent / Owner', 'Arrival Date', 'Dwell Time', 'Free Allowance', 'Overdue Days', 'Demurrage Due (₦)', 'Action']}
+          data={overdueContainers}
+        >
+          {overdueContainers.length === 0 ? (
+            <tr><td colSpan={8} className="p-8 text-center text-xs text-slate-400">No container demurrage overdue at Moniya Terminal. All containers within 14-day free period.</td></tr>
+          ) : (
+            overdueContainers.map(c => (
+              <tr key={c.id} className="hover:bg-slate-50 text-xs font-sans">
+                <td className="p-4 font-mono font-black text-[#0E4B88]">{c.id}</td>
+                <td className="p-4 font-bold text-slate-800">{c.agent}</td>
+                <td className="p-4 font-mono text-slate-600">{c.arrivalDate}</td>
+                <td className="p-4 font-mono font-bold text-slate-900">{c.dwellDays} Days</td>
+                <td className="p-4 text-emerald-700 font-bold">14 Days Free</td>
+                <td className="p-4 font-mono font-bold text-rose-600">{c.overDays} Days Overdue</td>
+                <td className="p-4 font-mono font-black text-rose-700 text-sm">₦{c.demurrageDue.toLocaleString()}</td>
+                <td className="p-4">
+                  <button onClick={() => alert(`Demurrage Invoice Generated for ${c.id} (${c.agent}): ₦${c.demurrageDue.toLocaleString()}`)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs">
+                    Issue Invoice 📄
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </TableWrap>
+      </div>
+
+      {/* GATE TRUCK REGISTRATION LOG */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Moniya Terminal Gate Truck Transaction Log</h3>
+            <p className="text-xs text-slate-500">Real-time log of inbound & outbound haulage trucks and gate fees collected.</p>
+          </div>
+          <button onClick={() => setRegisterModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">
+            + Gate In / Gate Out Truck
+          </button>
+        </div>
+
+        <TableWrap
+          headers={['Pass ID', 'Truck Reg No.', 'Driver Details', 'Transporter Fleet', 'Container ID', 'Gate Action', 'Gate Fee', 'Time']}
+          data={gateLogs}
+        >
+          {gateLogs.map(g => (
+            <tr key={g.id} className="hover:bg-slate-50 text-xs">
+              <td className="p-4 font-mono font-black text-[#0E4B88]">{g.id}</td>
+              <td className="p-4 font-mono font-bold text-slate-900">{g.truckRegNo}</td>
+              <td className="p-4 text-slate-800 font-medium">{g.driverName} <span className="block text-[10px] text-slate-400 font-mono">{g.driverPhone}</span></td>
+              <td className="p-4 text-slate-700">{g.transporter}</td>
+              <td className="p-4 font-mono font-bold text-slate-900">{g.containerId}</td>
+              <td className="p-4"><Badge text={g.action} color={g.action === 'INBOUND_RECEIVE' ? 'green' : 'purple'} /></td>
+              <td className="p-4 font-mono font-extrabold text-emerald-800">₦{Number(g.feePaid).toLocaleString()}</td>
+              <td className="p-4 font-mono text-slate-400">{g.timestamp}</td>
+            </tr>
+          ))}
+        </TableWrap>
+      </div>
+
+      {/* GATE TRUCK REGISTRATION MODAL */}
+      {registerModal && (
+        <Modal onClose={() => setRegisterModal(false)}>
+          <div className="p-6 space-y-4 font-sans">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Moniya Terminal Gate Truck Registration</h3>
+            <p className="text-xs text-slate-600">Register haulage truck entry/exit and generate official gate pass with ₦2,000 gate fee.</p>
+            <form onSubmit={handleRegisterTruck} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Gate Action *</label>
+                  <select value={gateForm.action} onChange={e => setGateForm({ ...gateForm, action: e.target.value })} className={ic}>
+                    <option value="INBOUND_RECEIVE">Inbound Gate-In (Receive Container)</option>
+                    <option value="OUTBOUND_DISPATCH">Outbound Gate-Out (Dispatch Container)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lc}>Truck Registration Number *</label>
+                  <input required value={gateForm.truckRegNo} onChange={e => setGateForm({ ...gateForm, truckRegNo: e.target.value })} placeholder="e.g. KJA-482-XY" className={`${ic} font-mono uppercase font-bold`} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Driver Full Name *</label>
+                  <input required value={gateForm.driverName} onChange={e => setGateForm({ ...gateForm, driverName: e.target.value })} placeholder="e.g. Garba Shehu" className={ic} />
+                </div>
+                <div>
+                  <label className={lc}>Driver Phone Number *</label>
+                  <input required value={gateForm.driverPhone} onChange={e => setGateForm({ ...gateForm, driverPhone: e.target.value })} placeholder="e.g. 08031112233" className={`${ic} font-mono`} />
+                </div>
+              </div>
+
+              <div>
+                <label className={lc}>Haulage Transporter Company *</label>
+                <input required value={gateForm.transporter} onChange={e => setGateForm({ ...gateForm, transporter: e.target.value })} placeholder="e.g. Mainstream Transporters Ltd" className={ic} />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={lc}>Container Number *</label>
+                  <input required value={gateForm.containerId} onChange={e => setGateForm({ ...gateForm, containerId: e.target.value })} placeholder="e.g. MSKU-948210-4" className={`${ic} font-mono uppercase font-bold`} />
+                </div>
+                <div>
+                  <label className={lc}>Shipping Agent</label>
+                  <select value={gateForm.agent} onChange={e => setGateForm({ ...gateForm, agent: e.target.value })} className={ic}>
+                    {['MAERSKLINES', 'APMT', 'MSC', 'CMA CGM', 'HAPAG-LLOYD', 'COSCO', 'OTHERS'].map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lc}>Container Category</label>
+                  <select value={gateForm.type} onChange={e => setGateForm({ ...gateForm, type: e.target.value })} className={ic}>
+                    <option value="CONTAINERS-IMPORT">CONTAINERS-IMPORT</option>
+                    <option value="CONTAINERS-EXPORT">CONTAINERS-EXPORT</option>
+                    <option value="EMPTY">EMPTY</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-black text-emerald-900 block">Mandatory Gate Fee</span>
+                  <span className="text-[10px] text-emerald-700">Official terminal access tariff per truck</span>
+                </div>
+                <span className="text-lg font-mono font-black text-emerald-800">₦2,000</span>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setRegisterModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">Collect ₦2,000 & Issue Gate Pass ➔</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* PRINTABLE GATE PASS RECEIPT MODAL */}
+      {printedReceipt && (
+        <Modal onClose={() => setPrintedReceipt(null)}>
+          <div className="p-6 space-y-4 font-sans text-center">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto text-xl font-bold">✓</div>
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Moniya Container Terminal Gate Pass Pass</h3>
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left text-xs space-y-2 font-mono">
+              <div className="flex justify-between border-b pb-2"><span className="text-slate-400">Pass ID:</span><span className="font-bold text-[#0E4B88]">{printedReceipt.id}</span></div>
+              <div className="flex justify-between border-b pb-2"><span className="text-slate-400">Truck Reg No:</span><span className="font-bold text-slate-900">{printedReceipt.truckRegNo}</span></div>
+              <div className="flex justify-between border-b pb-2"><span className="text-slate-400">Driver:</span><span className="font-bold text-slate-900">{printedReceipt.driverName} ({printedReceipt.driverPhone})</span></div>
+              <div className="flex justify-between border-b pb-2"><span className="text-slate-400">Container:</span><span className="font-bold text-slate-900">{printedReceipt.containerId}</span></div>
+              <div className="flex justify-between border-b pb-2"><span className="text-slate-400">Fee Paid:</span><span className="font-black text-emerald-700 text-sm">₦2,000 (PAID)</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Timestamp:</span><span className="text-slate-600">{printedReceipt.timestamp}</span></div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Print Official Gate Pass 🖨️</button>
+              <button onClick={() => setPrintedReceipt(null)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* CONTAINER YARD PASSPORT MODAL */}
+      {selectedContainer && (
+        <Modal onClose={() => setSelectedContainer(null)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-black text-[#0E4B88] uppercase">{selectedContainer.agent} SHIPPING LINE</span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Container Yard Passport: {selectedContainer.id}</h3>
+              </div>
+              <button onClick={() => setSelectedContainer(null)} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Category</span><span className="font-bold text-slate-900">{selectedContainer.type}</span></div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Container Size</span><span className="font-mono font-bold text-slate-900">{selectedContainer.size}</span></div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Yard Position</span><span className="font-mono font-bold text-[#0E4B88]">{selectedContainer.bay} | {selectedContainer.row} | {selectedContainer.col} | Tier {selectedContainer.tier}</span></div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Dwell Time</span><span className="font-mono font-bold text-slate-900">{selectedContainer.dwellDays} Days in Yard</span></div>
+            </div>
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+              <span className="text-xs font-black text-emerald-900 block">Demurrage Status</span>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                {selectedContainer.dwellDays > 14 ? (
+                  <b className="text-rose-600">OVERDUE — Demurrage Due: ₦{((selectedContainer.dwellDays - 14) * 15000).toLocaleString()} ({selectedContainer.dwellDays - 14} days overdue @ ₦15,000/day)</b>
+                ) : (
+                  <b className="text-emerald-700">Within Free Allowance ({14 - selectedContainer.dwellDays} free days remaining)</b>
+                )}
+              </p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setSelectedContainer(null)} className="bg-[#62BC37] text-white font-bold text-xs px-6 py-2.5 rounded-xl">Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
