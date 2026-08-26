@@ -53,6 +53,39 @@ const getRoleSignatory = (users: any[], role: string, fallbackName: string) => {
   return matched ? matched.fullName : fallbackName;
 };
 
+const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  ADMIN: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export'],
+  CEO: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export'],
+  HEAD_OF_OPERATIONS: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+  HEAD_OF_FINANCE: ['invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+  CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'expense.request', 'report.export'],
+  CUSTOMER: ['report.export'],
+};
+
+const hasPermission = (user: any, permCode: string): boolean => {
+  if (!user) return false;
+  if (user.role === 'ADMIN' || user.role === 'CEO') return true;
+
+  if (user.permissions) {
+    if (permCode === 'expense.approve' && user.permissions.canApproveFundRequests !== undefined) return user.permissions.canApproveFundRequests;
+    if (permCode === 'trip.create' && user.permissions.canCreateTrips !== undefined) return user.permissions.canCreateTrips;
+    if (permCode === 'report.export' && user.permissions.canInspectAuditLogs !== undefined) return user.permissions.canInspectAuditLogs;
+    if (permCode === 'deal.create' && user.permissions.canManageDeals !== undefined) return user.permissions.canManageDeals;
+    if (permCode === 'user.provision' && user.permissions.canProvisionUsers !== undefined) return user.permissions.canProvisionUsers;
+    if (permCode === 'expense.disburse' && user.permissions.canDisburseFunds !== undefined) return user.permissions.canDisburseFunds;
+  }
+
+  try {
+    const userOverrides = JSON.parse(localStorage.getItem('bueno_user_permission_overrides') || '{}');
+    if (userOverrides[user.id] && userOverrides[user.id][permCode] !== undefined) {
+      return userOverrides[user.id][permCode];
+    }
+  } catch {}
+
+  const perms = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+  return perms.includes(permCode);
+};
+
 const STATION_COORDS: Record<string, [number, number]> = Object.fromEntries(
   Object.entries(STATIONS).map(([k, v]) => [k, v.coords])
 );
@@ -871,14 +904,20 @@ function FundRequestDetailModal({
 
         <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-xl">Close View</button>
-          {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
-          {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
-          {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
-          {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
-            <div className="flex items-center gap-2">
-              <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
-              <button onClick={disbursePayment} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
-            </div>
+          {!hasPermission(user, 'expense.approve') ? (
+            <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl">🔒 Operational Approval Privilege Restricted by Admin</span>
+          ) : (
+            <>
+              {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
+              {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
+              {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
+              {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
+                <div className="flex items-center gap-2">
+                  <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
+                  <button onClick={disbursePayment} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1275,7 +1314,22 @@ function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUser
   const handleSaveUserPermissions = () => {
     const updated = users.map(u => u.id === selectedUserId ? { ...u, permissions: perms } : u);
     onSaveUsers(updated);
-    alert(`Granular system permissions updated successfully for ${selectedUser?.fullName}!`);
+
+    try {
+      const overrides = JSON.parse(localStorage.getItem('bueno_user_permission_overrides') || '{}');
+      overrides[selectedUserId] = {
+        'expense.approve': perms.canApproveFundRequests,
+        'trip.create': perms.canCreateTrips,
+        'report.export': perms.canInspectAuditLogs,
+        'deal.create': perms.canManageDeals,
+        'user.provision': perms.canProvisionUsers,
+        'expense.disburse': perms.canDisburseFunds,
+      };
+      localStorage.setItem('bueno_user_permission_overrides', JSON.stringify(overrides));
+    } catch {}
+
+    window.dispatchEvent(new Event('bueno_state_updated'));
+    alert(`✅ Operational privileges and live permissions updated successfully for ${selectedUser?.fullName}!`);
   };
 
   return (
@@ -1391,7 +1445,7 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
     notes: '',
   });
 
-  const companyName = user?.companyName || 'Lafarge Africa Plc';
+  const companyName = user?.companyName || 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
 
   useEffect(() => {
     setTrips(tryParse('bueno_trips', SEED_TRIPS));
@@ -2145,10 +2199,10 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
 
-  const myDeals       = deals.filter(d => d.loadingStation === station);
-  const myTrips       = trips.filter(t => (t.origin === station || t.cargoOfficerName === user?.fullName) && (t.status === 'LOADING' || t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'COMPLETED'));
-  const myInTransit   = trips.filter(t => (t.origin === station || t.cargoOfficerName === user?.fullName) && t.status === 'IN_TRANSIT');
-  const myIncomingUnload = trips.filter(t => (t.destination === station || t.unloadingOfficerName === user?.fullName) && (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING'));
+  const myDeals          = deals;
+  const myTrips          = trips;
+  const myInTransit      = trips.filter(t => t.status === 'IN_TRANSIT');
+  const myIncomingUnload = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.destination === station);
 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();

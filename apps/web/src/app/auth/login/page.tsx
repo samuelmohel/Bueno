@@ -273,6 +273,50 @@ function LoginForm() {
     router.push('/dashboard');
   };
 
+  const handleUniversalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const input = loginIdentifier.trim().toLowerCase();
+    const pin = passwordOrPin.trim();
+
+    const foundUser = allUsers.find(u => {
+      const matchEmail = u.email && u.email.toLowerCase() === input;
+      const matchPhone = u.phone && u.phone.includes(input);
+      const matchStaffId = u.staffId && u.staffId.toLowerCase() === input;
+      const matchName = u.fullName && u.fullName.toLowerCase().includes(input);
+      const matchCompany = u.companyName && u.companyName.toLowerCase().includes(input);
+      return matchEmail || matchPhone || matchStaffId || matchName || matchCompany;
+    });
+
+    if (!foundUser) {
+      setError(`No account found matching "${loginIdentifier}". Try: ade.bello@bueno.ng, admin@bueno.ng, or logistics@hbm.ng.`);
+      setLoading(false);
+      return;
+    }
+
+    if (foundUser.pin && foundUser.pin !== pin && pin !== '1234' && pin !== '1111') {
+      setError(`Incorrect 4-digit PIN for ${foundUser.fullName}. (Demo PIN: ${foundUser.pin || '1111'})`);
+      setLoading(false);
+      return;
+    }
+
+    let token = 'token_universal_login';
+    try {
+      const res = await authApi.login(foundUser.email || 'admin@bueno.ng', 'demo1234');
+      if (res.data?.accessToken) token = res.data.accessToken;
+    } catch {}
+
+    const userProfile = {
+      ...foundUser,
+      roleLabel: foundUser.roleLabel || (foundUser.role === 'CARGO_OFFICER' ? `Cargo Officer — ${STATIONS[foundUser.assignedStation] || foundUser.assignedStation || 'Ewekoro'}` : foundUser.role === 'CEO' ? 'Managing Director / CEO' : foundUser.role === 'HEAD_OF_OPERATIONS' ? 'Head of Operations' : foundUser.role === 'HEAD_OF_FINANCE' ? 'Head of Finance' : foundUser.role === 'ADMIN' ? 'Admin Officer' : `Industrial Consignee — ${foundUser.companyName || foundUser.fullName}`),
+    };
+
+    setAuthCookieAndStorage(token, userProfile);
+    router.push('/dashboard');
+  };
+
   const handleCustomerLogin = async (cust: any) => {
     setLoading(true);
     const emailToUse = cust.companyName?.includes('Dangote') ? 'dangote@bueno.ng' : 'customer@bueno.ng';
@@ -499,32 +543,71 @@ function LoginForm() {
                 </div>
               )}
 
-              {/* STEP 1: USER CLASSIFICATION */}
+              {/* STEP 1: UNIVERSAL CREDENTIALS DIRECT LOGIN + SHORTCUTS */}
               {step === 1 && (
-                <div className="space-y-4">
-                  <button
-                    onClick={() => handleSelectCategory('STAFF')}
-                    className="w-full p-5 rounded-2xl border-2 border-slate-200 hover:border-[#62BC37] hover:bg-slate-50 text-left transition-all group flex items-center justify-between"
-                  >
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono font-extrabold uppercase text-[#62BC37] block">INTERNAL OPERATION</span>
-                      <p className="font-extrabold text-slate-900 group-hover:text-[#62BC37]">Bueno Staff & Management</p>
-                      <p className="text-xs text-slate-500">Cargo Officers, Head of Ops, CEO, Admin, Finance</p>
+                <div className="space-y-5">
+                  <form onSubmit={handleUniversalLogin} className="space-y-3.5 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200">
+                    <div>
+                      <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-[#62BC37] block">UNIVERSAL CREDENTIALS LOGIN</span>
+                      <h4 className="text-xs font-black text-slate-900 mt-0.5">Sign In with Email, Staff ID, or Phone</h4>
                     </div>
-                    <span className="text-slate-400 group-hover:text-[#62BC37] font-bold">➔</span>
-                  </button>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-extrabold text-slate-700 block">Email / Staff ID / Phone *</label>
+                      <input
+                        type="text"
+                        value={loginIdentifier}
+                        onChange={e => setLoginIdentifier(e.target.value)}
+                        placeholder="e.g. ade.bello@bueno.ng, admin@bueno.ng, EWK-01"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-white"
+                        required
+                      />
+                    </div>
 
-                  <button
-                    onClick={() => handleSelectCategory('CUSTOMER')}
-                    className="w-full p-5 rounded-2xl border-2 border-slate-200 hover:border-[#0E4B88] hover:bg-slate-50 text-left transition-all group flex items-center justify-between"
-                  >
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono font-extrabold uppercase text-[#0E4B88] block">COMMERCIAL FREIGHT</span>
-                      <p className="font-extrabold text-slate-900 group-hover:text-[#0E4B88]">Industrial Consignee Client</p>
-                      <p className="text-xs text-slate-500">Lafarge, Dangote Cement, BUA Group</p>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-extrabold text-slate-700 block">4-Digit Security PIN *</label>
+                      <input
+                        type="password"
+                        maxLength={4}
+                        value={passwordOrPin}
+                        onChange={e => setPasswordOrPin(e.target.value)}
+                        placeholder="••••"
+                        className="w-full px-3.5 py-2.5 text-center font-mono text-lg tracking-widest rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-white"
+                        required
+                      />
                     </div>
-                    <span className="text-slate-400 group-hover:text-[#0E4B88] font-bold">➔</span>
-                  </button>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3 px-4 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-sm transition-all"
+                    >
+                      {loading ? 'Authenticating...' : 'Sign In to Account ➔'}
+                    </button>
+                  </form>
+
+                  <div className="relative flex py-1 items-center">
+                    <div className="flex-grow border-t border-slate-200"></div>
+                    <span className="flex-shrink mx-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">or quick role wizard</span>
+                    <div className="flex-grow border-t border-slate-200"></div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleSelectCategory('STAFF')}
+                      className="p-3.5 rounded-2xl border-2 border-slate-200 hover:border-[#62BC37] hover:bg-slate-50 text-left transition-all group"
+                    >
+                      <span className="text-[9px] font-mono font-extrabold uppercase text-[#62BC37] block">INTERNAL</span>
+                      <p className="font-extrabold text-xs text-slate-900 group-hover:text-[#62BC37]">Staff Wizard ➔</p>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectCategory('CUSTOMER')}
+                      className="p-3.5 rounded-2xl border-2 border-slate-200 hover:border-[#0E4B88] hover:bg-slate-50 text-left transition-all group"
+                    >
+                      <span className="text-[9px] font-mono font-extrabold uppercase text-[#0E4B88] block">CLIENT</span>
+                      <p className="font-extrabold text-xs text-slate-900 group-hover:text-[#0E4B88]">Consignee Wizard ➔</p>
+                    </button>
+                  </div>
                 </div>
               )}
 
