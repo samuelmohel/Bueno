@@ -54,11 +54,11 @@ const getRoleSignatory = (users: any[], role: string, fallbackName: string) => {
 };
 
 const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export'],
-  CEO: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export'],
-  HEAD_OF_OPERATIONS: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+  ADMIN: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export', 'yard.manage'],
+  CEO: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export', 'yard.manage'],
+  HEAD_OF_OPERATIONS: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'report.export', 'yard.manage'],
   HEAD_OF_FINANCE: ['invoice.create', 'expense.request', 'expense.approve', 'report.export'],
-  CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'expense.request', 'report.export'],
+  CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'expense.request', 'report.export', 'yard.manage'],
   CUSTOMER: ['report.export'],
 };
 
@@ -73,6 +73,7 @@ const hasPermission = (user: any, permCode: string): boolean => {
     if (permCode === 'deal.create' && user.permissions.canManageDeals !== undefined) return user.permissions.canManageDeals;
     if (permCode === 'user.provision' && user.permissions.canProvisionUsers !== undefined) return user.permissions.canProvisionUsers;
     if (permCode === 'expense.disburse' && user.permissions.canDisburseFunds !== undefined) return user.permissions.canDisburseFunds;
+    if (permCode === 'yard.manage' && user.permissions.canManageMoniyaYard !== undefined) return user.permissions.canManageMoniyaYard;
   }
 
   try {
@@ -580,6 +581,22 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
   const balanceOutstandingBags = Math.max(0, requisitionedBags - actualLoadedBags);
   const balanceOutstandingTonnes = (balanceOutstandingBags * 50) / 1000;
 
+  let totalDamagedUnits = 0;
+  let totalBurstBags = 0;
+  const complaintNotes: string[] = [];
+
+  logs.forEach((w: any) => {
+    const d = Number(w.damagedQty || w.damagedUnits || (w.notes?.toLowerCase().includes('damaged') ? 50 : 0));
+    const b = Number(w.burstBags || w.burstQty || (w.notes?.toLowerCase().includes('burst') ? 5 : 0));
+    totalDamagedUnits += d;
+    totalBurstBags += b;
+    if (w.complaintFlagged || w.discrepancyReason || d > 0 || b > 0) {
+      if (w.notes || w.discrepancyReason) {
+        complaintNotes.push(`Wagon ${w.wagonId}: ${w.notes || w.discrepancyReason}`);
+      }
+    }
+  });
+
   const handlePrint = () => {
     window.print();
   };
@@ -588,30 +605,45 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
     <Modal onClose={onClose}>
       <div className="p-4 sm:p-6 space-y-5 print:p-0 print:space-y-3 font-sans">
         
-        {/* Printable Header */}
-        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-4 gap-3">
-          <div>
+        {/* Official Printable Bueno Logo Letterhead */}
+        <div className="border-b-2 border-slate-900 pb-4 space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#0E4B88] p-1.5 shadow-md flex items-center justify-center">
+                <img src="/bueno_logo.png" alt="Bueno Logistics" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-wider" style={{ fontFamily: "'Outfit',sans-serif" }}>
+                  BUENO <span className="text-[#62BC37]">LOGISTICS LIMITED</span>
+                </h2>
+                <p className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
+                  OFFICIAL RAILWAY FREIGHT MANIFEST & FINANCIAL AUDIT CERTIFICATE
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 print:hidden">
+              <button
+                onClick={handlePrint}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5"
+              >
+                🖨️ Print Official PDF Audit Report
+              </button>
+              <button onClick={onClose} className="px-3 py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
+                Close
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 text-xs">
             <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-[#0E4B88] text-sm">TRIP MANIFEST AUDIT #{trip.tripId}</span>
+              <span className="font-mono font-black text-[#0E4B88]">TRIP MANIFEST #{trip.tripId}</span>
               <Badge text={trip.status || 'COMPLETED'} color="green" />
               {isPartialDispatch && <Badge text="PARTIAL DISPATCH FLAGGED ⚠️" color="amber" />}
             </div>
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit',sans-serif" }}>
-              {sName(trip.origin)} <span className="text-[#62BC37]">➔</span> {sName(trip.destination)}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Consignee: <b className="text-slate-900">{trip.company}</b> • Date: {trip.createdAt}</p>
-          </div>
-
-          <div className="flex gap-2 print:hidden">
-            <button
-              onClick={handlePrint}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
-            >
-              🖨️ Print Official Trip Audit
-            </button>
-            <button onClick={onClose} className="px-3 py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
-              Close
-            </button>
+            <p className="font-mono text-[11px] text-slate-500 font-bold">
+              Corridor: <b className="text-slate-900">{sName(trip.origin)} ➔ {sName(trip.destination)}</b> • Consignee: <b className="text-slate-900">{trip.company}</b>
+            </p>
           </div>
         </div>
 
@@ -736,12 +768,14 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
               <span className="text-sm sm:text-base font-black text-white">{requisitionedBags.toLocaleString()} Bags</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="block text-[9px] uppercase text-slate-400 font-bold">Dispatched & Delivered</span>
-              <span className="text-sm sm:text-base font-black text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span>
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Delivered Intact</span>
+              <span className="text-sm sm:text-base font-black text-[#62BC37]">{(actualLoadedBags - totalDamagedUnits - totalBurstBags).toLocaleString()} Bags</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="block text-[9px] uppercase text-slate-400 font-bold">Burst Bags / Shortage</span>
-              <span className="text-sm sm:text-base font-black text-amber-400">0 Burst / Nil</span>
+              <span className="block text-[9px] uppercase text-slate-400 font-bold">Damaged & Burst Units</span>
+              <span className="text-sm sm:text-base font-black text-amber-400">
+                {totalDamagedUnits + totalBurstBags > 0 ? `${totalDamagedUnits} Damaged / ${totalBurstBags} Burst` : '0 / Nil'}
+              </span>
             </div>
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
               <span className="block text-[9px] uppercase text-slate-400 font-bold">Outstanding Balance</span>
@@ -751,29 +785,52 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             </div>
           </div>
 
-          <div className="p-3 bg-slate-950/80 rounded-xl text-[11px] space-y-1 text-slate-300 font-sans border border-slate-800">
-            <p className="font-bold text-white">• Total Amount of Unloaded Bags: <span className="text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span></p>
-            <p className="font-bold text-white">• Burst Bags: <span className="text-amber-400">Nil</span> | Shortage: <span className="text-amber-400">Nil</span> | Cake: <span className="text-amber-400">Nil</span></p>
+          <div className="p-3.5 bg-slate-950/90 rounded-xl text-[11px] space-y-1.5 text-slate-300 font-sans border border-slate-800">
+            <p className="font-bold text-white">• Total Verified Unloaded Bags: <span className="text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span> | Intact Delivered: <span className="text-[#62BC37]">{(actualLoadedBags - totalDamagedUnits - totalBurstBags).toLocaleString()} Bags</span></p>
+            <p className="font-bold text-white">
+              • ⚠️ Damaged Units Reported: <span className={totalDamagedUnits > 0 ? "text-amber-400 font-black" : "text-slate-400"}>{totalDamagedUnits} Units</span> | 💥 Burst Bags Reported: <span className={totalBurstBags > 0 ? "text-rose-400 font-black" : "text-slate-400"}>{totalBurstBags} Bags</span>
+            </p>
+            {complaintNotes.length > 0 && (
+              <div className="bg-amber-950/60 p-2.5 rounded-lg border border-amber-800/80 text-[10px] text-amber-200 font-mono space-y-1">
+                <span className="font-black uppercase tracking-wider text-amber-400 block">⚠️ FLAGGED DISCREPANCY & DAMAGE COMPLAINTS ({complaintNotes.length}):</span>
+                {complaintNotes.map((note, idx) => (
+                  <p key={idx}>• {note}</p>
+                ))}
+              </div>
+            )}
             {isPartialDispatch && (
               <p className="font-bold text-amber-400">• Discrepancy Note: Deal Requisition ({requisitionedBags.toLocaleString()} Bags) partial dispatch ({actualLoadedBags.toLocaleString()} Bags delivered). Balance of {balanceOutstandingBags.toLocaleString()} Bags remaining for next trip.</p>
             )}
             <p className="text-[10px] text-slate-400 font-mono mt-1">
-              "The offloading of shipment #{trip.tripId} for 2026 to {sName(trip.destination)} completed with 100% manifest verification before making wagons ready to be moved back to {sName(trip.origin)} as empties."
+              "Offloading of shipment #{trip.tripId} completed with 100% cargo condition verification before releasing wagons back to {sName(trip.origin)}."
             </p>
           </div>
         </div>
 
-        {/* Executive Sign-off Lines */}
-        <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-4 text-xs font-mono">
-          <div>
-            <span className="text-[9px] uppercase text-slate-400 block font-bold">Terminal Loading Supervisor</span>
-            <p className="font-black text-slate-900 mt-1">{loadingOfficer}</p>
-            <p className="text-[10px] text-slate-400">Signature: ______________________</p>
-          </div>
-          <div className="text-right">
-            <span className="text-[9px] uppercase text-slate-400 block font-bold">Destination Unloading Supervisor</span>
-            <p className="font-black text-slate-900 mt-1">{unloadingOfficer}</p>
-            <p className="text-[10px] text-slate-400">Signature: ______________________</p>
+        {/* Official Mandatory Executive Signatories (CEO, Ops, & Finance) */}
+        <div className="pt-4 border-t-2 border-slate-900 space-y-3 font-mono text-xs">
+          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">OFFICIAL EXECUTIVE & OPERATIONAL SIGNATORIES CERTIFICATION</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">MANAGING DIRECTOR / CEO</span>
+              <p className="font-black text-slate-900 mt-0.5">Alhaji Bashir Umar (EXEC-01)</p>
+              <p className="text-[9px] text-slate-400">Bueno Logistics Limited HQ</p>
+              <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">SUPERVISING HEAD OF OPERATIONS</span>
+              <p className="font-black text-slate-900 mt-0.5">Babajide Sanwo (EXEC-02)</p>
+              <p className="text-[9px] text-slate-400">Bueno Freight OS Dispatch HQ</p>
+              <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[9px] uppercase text-slate-500 block font-bold">HEAD OF FINANCE / CHIEF ACCOUNTANT</span>
+              <p className="font-black text-slate-900 mt-0.5">Chinenye Nnamdi (EXEC-04)</p>
+              <p className="text-[9px] text-slate-400">Bueno Financial Control HQ</p>
+              <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
+            </div>
           </div>
         </div>
 
@@ -1282,6 +1339,7 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
 function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUsers: (v: any[]) => void }) {
   const [selectedUserId, setSelectedUserId] = useState<string>(users[0]?.id || '');
   const selectedUser = users.find(u => u.id === selectedUserId) || users[0];
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const defaultPerms = {
     canApproveFundRequests: true,
@@ -1329,7 +1387,10 @@ function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUser
     } catch {}
 
     window.dispatchEvent(new Event('bueno_state_updated'));
-    alert(`✅ Operational privileges and live permissions updated successfully for ${selectedUser?.fullName}!`);
+    setCustomAlert({
+      title: 'Operational Privileges Updated',
+      message: `Operational privileges and live permissions updated successfully for ${selectedUser?.fullName}!`,
+    });
   };
 
   return (
@@ -1390,6 +1451,7 @@ function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUser
                 { key: 'canCreateTrips', label: 'Initiate Rail Trips & Load Wagons', desc: 'Grants authority to dispatch locomotives and record wagon start/end times' },
                 { key: 'canInspectAuditLogs', label: 'Access Tonnage Analytics & Print Audit Reports', desc: 'Allows viewing and exporting per-trip wagon manifests and daily reports' },
                 { key: 'canManageDeals', label: 'Lock In Consignment Deals & Negotiate', desc: 'Grants permission to respond to industrial clients and convert chats into deals' },
+                { key: 'canManageMoniyaYard', label: 'Access Moniya Container Terminal & Gate Operations', desc: 'Allows user to view Moniya Dry Port 3D Stacking Yard and register truck gate entries' },
                 { key: 'canProvisionUsers', label: 'Provision User Accounts & Edit Credentials', desc: 'Allows creating staff/customer accounts and changing PIN codes' },
                 { key: 'canDisburseFunds', label: 'Execute Bank Disbursements & Payments', desc: 'Grants finance clearance authority to disburse approved requisitions' },
               ].map(flag => (
@@ -1420,6 +1482,7 @@ function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUser
           </div>
         </div>
       </div>
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
@@ -1434,6 +1497,7 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
   const [dealRequests, setDealRequests] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const [dealForm, setDealForm] = useState({
     loadingStation: 'EWK',
@@ -1513,7 +1577,10 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
     } catch {}
 
     setDealForm({ loadingStation: 'EWK', destination: 'MNY', cargoType: 'Elephant Cement (50kg Bags)', quantity: '5000', targetDate: '', budget: '', notes: '' });
-    alert('✅ Custom Freight Deal Request submitted! Operations & Executive Command have been notified.');
+    setCustomAlert({
+      title: 'Deal Request Submitted',
+      message: 'Custom Freight Deal Request submitted successfully! Operations & Executive Command have been notified.',
+    });
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -2207,9 +2274,13 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
-    if (wagons.some(w => w.id === wId)) { alert(`Wagon ${wId} is already registered!`); return; }
+    if (wagons.some(w => w.id === wId)) {
+      setCustomAlert({ title: 'Wagon Already Registered', message: `Wagon ${wId} is already registered in the station fleet inventory!` });
+      return;
+    }
     saveWagons([...wagons, { id: wId, capacity: 1200, status: 'AVAILABLE', currentStation: station, addedBy: user.fullName, createdAt: new Date().toLocaleDateString('en-GB') }]);
     setNewWagonId(''); setAddWagonModal(false);
+    setCustomAlert({ title: 'Wagon Registered', message: `Wagon ${wId} registered successfully at ${sName(station)} Terminal!` });
   };
 
   const handleCreateTrip = (e: React.FormEvent) => {
@@ -2775,6 +2846,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const [selWagon, setSelWagon] = useState('');
   const [stoppingWagon, setStoppingWagon] = useState<any | null>(null);
   const [bagsLoadedInput, setBagsLoadedInput] = useState('1200');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [loadingLogForm, setLoadingLogForm] = useState({
     sourceEnv: 'Silo Bay 1 - Loading Siding',
     truckRegNo: 'KJA-482-XY',
@@ -2811,12 +2883,12 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const startLoadingWagon = (e: React.FormEvent) => {
     e.preventDefault();
     if (isTripInTransit) {
-      alert('Trip is already in transit or completed! Loading is locked.');
+      setCustomAlert({ title: 'Loading Locked', message: 'Trip is already in transit or completed! Loading is locked.' });
       return;
     }
     const wId = selWagon || available[0]?.id || 'WG001';
     if (!wId) {
-      alert('No available wagon selected!');
+      setCustomAlert({ title: 'No Wagon Selected', message: 'No available wagon selected for loading!' });
       return;
     }
     const now = new Date();
@@ -2899,11 +2971,11 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
 
   const dispatchAndActivateGps = async () => {
     if (active) {
-      alert(`Wagon ${active.wagonId} is currently loading! Please stop loading before dispatching the trip.`);
+      setCustomAlert({ title: 'Wagon Still Loading', message: `Wagon ${active.wagonId} is currently loading! Please stop loading before dispatching the trip.` });
       return;
     }
     if (loadedCount < 1) {
-      alert('Please load at least 1 wagon before starting the trip!');
+      setCustomAlert({ title: 'No Wagons Loaded', message: 'Please load at least 1 wagon before starting the trip!' });
       return;
     }
 
@@ -3149,6 +3221,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
           </div>
         </Modal>
       )}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
@@ -3161,6 +3234,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
   const [stoppingUnloadWagon, setStoppingUnloadWagon] = useState<any | null>(null);
   const [bagsUnloadedInput, setBagsUnloadedInput] = useState('1200');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [unloadForm, setUnloadForm] = useState({
     correctQty: '1192',
     damageQty: '0',
@@ -3327,8 +3401,11 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
       });
     } catch {}
 
-    alert('Trip ' + trip.tripId + ' successfully COMPLETED!\n\nAll ' + logs.length + ' wagons marked UNLOADED and released to ' + sName(trip.destination) + ' fleet.\nNotifications sent to Admin, Operations Head, & CEO.');
-    onBack();
+    setCustomAlert({
+      title: 'Consignment Unloading Completed',
+      message: `Trip ${trip.tripId} successfully COMPLETED!\n\nAll ${logs.length} wagons marked UNLOADED and released to ${sName(trip.destination)} fleet inventory.\nNotifications sent to Admin, Operations Head, & CEO.`,
+    });
+    setTimeout(() => onBack(), 1800);
   };
 
   return (
@@ -3513,6 +3590,7 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
           </div>
         </Modal>
       )}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
@@ -3639,7 +3717,10 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       });
     } catch {}
 
-    alert(`✅ ${req.companyName} has been approved and provisioned as an active Industrial Client!\n\n📧 Authentic Welcome Email with 4-Digit Security PIN (1111) dispatched to: ${req.email}`);
+    setCustomAlert({
+      title: 'Client Provisioned Successfully',
+      message: `${req.companyName} has been approved and provisioned as an active Industrial Client!\n\n📧 Authentic Welcome Email with 4-Digit Security PIN (1111) dispatched to: ${req.email}`,
+    });
   };
 
   const [form, setForm] = useState({
@@ -4471,15 +4552,22 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
     const updatedNegs = negotiations.map(n => n.id === neg.id ? { ...n, status: 'ACCEPTED_DEAL_CREATED', messages: [...(n.messages || []), confirmMsg] } : n);
     saveNegotiations(updatedNegs);
 
-    alert(`✅ Deal accepted! Created official Deal #${newOfficialDeal.dealNumber} for ${neg.companyName} at ${sName(newOfficialDeal.loadingStation)} Terminal.`);
+    setCustomAlert({
+      title: 'Official Deal Created',
+      message: `Deal accepted! Created official Deal #${newOfficialDeal.dealNumber} for ${neg.companyName} at ${sName(newOfficialDeal.loadingStation)} Terminal.`,
+    });
   };
 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `WG${String(wagons.length + 1).padStart(3, '0')}`;
-    if (wagons.some(w => w.id === wId)) { alert(`Wagon ${wId} is already registered!`); return; }
+    if (wagons.some(w => w.id === wId)) {
+      setCustomAlert({ title: 'Wagon Already Registered', message: `Wagon ${wId} is already registered in the fleet inventory!` });
+      return;
+    }
     saveWagons([...wagons, { id: wId, capacity: 70, status: 'AVAILABLE', currentStation: newWagonStation, addedBy: user.fullName, createdAt: new Date().toLocaleDateString('en-GB') }]);
     setNewWagonId(''); setAddWagonModal(false);
+    setCustomAlert({ title: 'Wagon Registered', message: `Wagon ${wId} added successfully to fleet inventory at ${sName(newWagonStation)}!` });
   };
 
   const handleCreateDeal = (e: React.FormEvent) => {
@@ -5303,6 +5391,7 @@ function MoniyaContainerPortal({ user }: { user: any }) {
   const [registerModal, setRegisterModal] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<any | null>(null);
   const [printedReceipt, setPrintedReceipt] = useState<any | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const [gateForm, setGateForm] = useState({
     truckRegNo: '',
@@ -5507,7 +5596,7 @@ function MoniyaContainerPortal({ user }: { user: any }) {
                 <td className="p-4 font-mono font-bold text-rose-600">{c.overDays} Days Overdue</td>
                 <td className="p-4 font-mono font-black text-rose-700 text-sm">₦{c.demurrageDue.toLocaleString()}</td>
                 <td className="p-4">
-                  <button onClick={() => alert(`Demurrage Invoice Generated for ${c.id} (${c.agent}): ₦${c.demurrageDue.toLocaleString()}`)} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs">
+                  <button onClick={() => setCustomAlert({ title: 'Demurrage Invoice Generated', message: `Invoice created for Container ${c.id} (${c.agent}): ₦${c.demurrageDue.toLocaleString()}.\n\nBilled to: ${c.agent}\nPayment Reference: DEM-MNY-${Date.now().toString().slice(-6)}` })} className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs">
                     Issue Invoice 📄
                   </button>
                 </td>
@@ -5678,6 +5767,7 @@ function MoniyaContainerPortal({ user }: { user: any }) {
           </div>
         </Modal>
       )}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
