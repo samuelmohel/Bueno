@@ -48,6 +48,11 @@ const STATIONS: Record<string, { name: string; gauge: 'STANDARD_GAUGE' | 'NARROW
 const sName = (c: string) => STATIONS[c]?.name || c;
 const sGauge = (c: string) => STATIONS[c]?.gauge || 'STANDARD_GAUGE';
 
+const getRoleSignatory = (users: any[], role: string, fallbackName: string) => {
+  const matched = users?.find((u: any) => u.role === role && u.status === 'ACTIVE');
+  return matched ? matched.fullName : fallbackName;
+};
+
 const STATION_COORDS: Record<string, [number, number]> = Object.fromEntries(
   Object.entries(STATIONS).map(([k, v]) => [k, v.coords])
 );
@@ -1060,13 +1065,13 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
         <div className="grid grid-cols-2 gap-6 font-mono text-xs">
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase block">SUPERVISING HEAD OF OPERATIONS</span>
-            <p className="font-black text-slate-900 mt-1">Babajide Sanwo (EXEC-02)</p>
+            <p className="font-black text-slate-900 mt-1">{getRoleSignatory(users, 'HEAD_OF_OPERATIONS', 'Babajide Sanwo')} (EXEC-02)</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Bueno Freight OS Dispatch HQ</p>
             <div className="mt-4 pt-2 border-t border-slate-300 text-[10px] text-slate-400">Official Executive Signature: __________________</div>
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-500 uppercase block">MANAGING DIRECTOR / CEO</span>
-            <p className="font-black text-slate-900 mt-1">Alhaji Bashir Umar (EXEC-01)</p>
+            <p className="font-black text-slate-900 mt-1">{getRoleSignatory(users, 'CEO', 'Alhaji Bashir Umar')} (EXEC-01)</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Bueno Logistics Limited HQ</p>
             <div className="mt-4 pt-2 border-t border-slate-300 text-[10px] text-slate-400">Official Executive Signature: __________________</div>
           </div>
@@ -3379,6 +3384,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+    const oldUser = users.find(u => u.id === editingUser.id);
     const updatedUser = {
       ...editingUser,
       fullName: editingUser.fullName.trim(),
@@ -3387,6 +3393,50 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     const updatedUsers = users.map(u => u.id === editingUser.id ? updatedUser : u);
     onSaveUsers(updatedUsers);
 
+    // 1. Sync Active Logged-in User Session in localStorage ('bueno_user')
+    try {
+      const activeRaw = localStorage.getItem('bueno_user');
+      if (activeRaw) {
+        const activeUser = JSON.parse(activeRaw);
+        if (activeUser.id === updatedUser.id || activeUser.role === updatedUser.role) {
+          const updatedActiveUser = {
+            ...activeUser,
+            fullName: updatedUser.fullName,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+            assignedStation: updatedUser.assignedStation,
+            stationName: updatedUser.stationName,
+          };
+          localStorage.setItem('bueno_user', JSON.stringify(updatedActiveUser));
+        }
+      }
+    } catch {}
+
+    // 2. Cascade Name Updates Across Active System Records if Name Changed
+    if (oldUser && oldUser.fullName !== updatedUser.fullName) {
+      const oldName = oldUser.fullName;
+      const newName = updatedUser.fullName;
+
+      // Cascade Trips
+      try {
+        const trips = JSON.parse(localStorage.getItem('bueno_trips') || '[]');
+        const updatedTrips = trips.map((t: any) => {
+          let cargoOfficerName = t.cargoOfficerName === oldName ? newName : t.cargoOfficerName;
+          let unloadingOfficerName = t.unloadingOfficerName === oldName ? newName : t.unloadingOfficerName;
+          return { ...t, cargoOfficerName, unloadingOfficerName };
+        });
+        localStorage.setItem('bueno_trips', JSON.stringify(updatedTrips));
+      } catch {}
+
+      // Cascade Requests
+      try {
+        const reqs = JSON.parse(localStorage.getItem('bueno_requests') || '[]');
+        const updatedReqs = reqs.map((r: any) => r.officerName === oldName ? { ...r, officerName: newName } : r);
+        localStorage.setItem('bueno_requests', JSON.stringify(updatedReqs));
+      } catch {}
+    }
+
+    // 3. Save to server database API & Dispatch Real-Time State Update Event
     try {
       await fetch('/api/users.php', {
         method: 'POST',
@@ -3395,9 +3445,11 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       });
     } catch {}
 
+    window.dispatchEvent(new Event('bueno_state_updated'));
+
     setCustomAlert({
-      title: 'User Account Updated',
-      message: `Account details for "${updatedUser.fullName}" updated & saved successfully to server!`,
+      title: 'User Account & Signatory Updated',
+      message: `Account for "${updatedUser.fullName}" (${updatedUser.role}) updated successfully! Signatory reports and active session reflect new name immediately.`,
     });
     setEditingUser(null);
   };
