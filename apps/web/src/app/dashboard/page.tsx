@@ -2448,6 +2448,14 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
   const [selWagon, setSelWagon] = useState('');
   const [stoppingWagon, setStoppingWagon] = useState<any | null>(null);
   const [bagsLoadedInput, setBagsLoadedInput] = useState('1200');
+  const [loadingLogForm, setLoadingLogForm] = useState({
+    sourceEnv: 'Silo Bay 1 - Loading Siding',
+    truckRegNo: 'KJA-482-XY',
+    driverDetails: 'Ibrahim Garba (08031112233)',
+    transporter: 'Dangote Logistics Fleet',
+    startTimeEdit: '',
+    endTimeEdit: '',
+  });
 
   if (!trip) return <div className="p-8 text-center text-xs text-slate-400">Trip not found. <button onClick={onBack} className="underline text-[#62BC37]">Go back</button></div>;
 
@@ -2498,6 +2506,10 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       endTime: null,
       durationStr: null,
       qty: null,
+      sourceEnv: loadingLogForm.sourceEnv || 'Plant Siding Bay 1',
+      truckRegNo: loadingLogForm.truckRegNo || 'N/A',
+      driverDetails: loadingLogForm.driverDetails || 'N/A',
+      transporter: loadingLogForm.transporter || 'Consignment Logistics',
       status: 'LOADING',
       unloadStatus: 'PENDING_UNLOAD',
     };
@@ -2511,6 +2523,14 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
     const remainingBags = Math.max(0, totalBags - totalBagsLoadedSoFar);
     const defaultQty = remainingBags > 0 && remainingBags < 1200 ? remainingBags : 1200;
     setBagsLoadedInput(String(defaultQty));
+    setLoadingLogForm({
+      sourceEnv: w.sourceEnv || 'Silo Bay 1 - Loading Siding',
+      truckRegNo: w.truckRegNo || 'KJA-482-XY',
+      driverDetails: w.driverDetails || 'Ibrahim Garba (08031112233)',
+      transporter: w.transporter || 'Dangote Logistics Fleet',
+      startTimeEdit: w.startTime || '08:30 AM',
+      endTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
     setStoppingWagon(w);
   };
 
@@ -2519,7 +2539,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
     if (!stoppingWagon) return;
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedTime = loadingLogForm.endTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const mins = Math.max(1, Math.round((Date.now() - stoppingWagon.startTimestamp) / 60000));
     const hours = Math.floor(mins / 60);
@@ -2532,10 +2552,15 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       if (w.id !== stoppingWagon.id) return w;
       return {
         ...w,
+        startTime: loadingLogForm.startTimeEdit || w.startTime,
         endDate: formattedDate,
         endTime: formattedTime,
         durationStr,
         qty: bagsQty,
+        sourceEnv: loadingLogForm.sourceEnv,
+        truckRegNo: loadingLogForm.truckRegNo,
+        driverDetails: loadingLogForm.driverDetails,
+        transporter: loadingLogForm.transporter,
         status: 'LOADED',
         unloadStatus: 'PENDING_UNLOAD',
       };
@@ -2729,6 +2754,15 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
                   <span className="ml-3 font-bold text-slate-900">Duration: {w.durationStr || 'Running...'}</span>
                 </div>
                 <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'blue'} />
+
+                {w.status === 'LOADED' && (
+                  <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-[11px]">
+                    <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Source Environment</span><span className="font-bold text-slate-800">{w.sourceEnv || 'Plant Siding'}</span></div>
+                    <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Truck Reg No.</span><span className="font-mono font-black text-[#0E4B88]">{w.truckRegNo || 'N/A'}</span></div>
+                    <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Driver Name & Phone</span><span className="font-bold text-slate-800">{w.driverDetails || 'N/A'}</span></div>
+                    <div><span className="text-[9px] uppercase font-extrabold text-slate-400 block">Transporter Company</span><span className="font-bold text-slate-800">{w.transporter || 'Rail Logistics'}</span></div>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -2737,19 +2771,52 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
 
       {stoppingWagon && (
         <Modal onClose={() => setStoppingWagon(null)}>
-          <div className="p-6 space-y-4">
-            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Confirm Wagon Loading Completion</h3>
+          <div className="p-6 space-y-4 font-sans">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Wagon Loading Source Logistics & Time Audit</h3>
             <p className="text-xs text-slate-600">
-              Wagon <b>{stoppingWagon.wagonId}</b> loading started at <b>{stoppingWagon.startDate} {stoppingWagon.startTime}</b>. Enter the exact number of bags loaded into this wagon.
+              Complete loading log for Wagon <b>{stoppingWagon.wagonId}</b>. Verify start/concluding times, truck registration, driver details, and loaded quantity.
             </p>
             <form onSubmit={confirmStopLoading} className="space-y-4">
-              <div>
-                <label className={lc}>Actual Bags Loaded into {stoppingWagon.wagonId} (Max capacity: 1,200) *</label>
-                <input required type="number" min="1" max="1200" value={bagsLoadedInput} onChange={e => setBagsLoadedInput(e.target.value)} className={`${ic} font-mono text-base font-bold text-emerald-800`} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Editable Loading Start Time</label>
+                  <input type="text" value={loadingLogForm.startTimeEdit} onChange={e => setLoadingLogForm({ ...loadingLogForm, startTimeEdit: e.target.value })} className={`${ic} font-mono`} placeholder="08:30 AM" />
+                </div>
+                <div>
+                  <label className={lc}>Editable Concluding Time</label>
+                  <input type="text" value={loadingLogForm.endTimeEdit} onChange={e => setLoadingLogForm({ ...loadingLogForm, endTimeEdit: e.target.value })} className={`${ic} font-mono`} placeholder="10:15 AM" />
+                </div>
               </div>
-              <div className="flex justify-end gap-3 pt-2">
+
+              <div>
+                <label className={lc}>Source for Loading Wagon *</label>
+                <input required value={loadingLogForm.sourceEnv} onChange={e => setLoadingLogForm({ ...loadingLogForm, sourceEnv: e.target.value })} placeholder="e.g. Silo Bay 1 - Loading Siding" className={ic} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Truck Registration Number *</label>
+                  <input required value={loadingLogForm.truckRegNo} onChange={e => setLoadingLogForm({ ...loadingLogForm, truckRegNo: e.target.value })} placeholder="e.g. KJA-482-XY" className={`${ic} font-mono uppercase font-bold`} />
+                </div>
+                <div>
+                  <label className={lc}>Transporter / Haulage Company *</label>
+                  <input required value={loadingLogForm.transporter} onChange={e => setLoadingLogForm({ ...loadingLogForm, transporter: e.target.value })} placeholder="e.g. Dangote Logistics Fleet" className={ic} />
+                </div>
+              </div>
+
+              <div>
+                <label className={lc}>Driver Name & Phone Number *</label>
+                <input required value={loadingLogForm.driverDetails} onChange={e => setLoadingLogForm({ ...loadingLogForm, driverDetails: e.target.value })} placeholder="e.g. Ibrahim Garba (08031112233)" className={ic} />
+              </div>
+
+              <div>
+                <label className={lc}>Actual Quantity Loaded (Bags / Tonnes / Units) *</label>
+                <input required type="number" min="1" value={bagsLoadedInput} onChange={e => setBagsLoadedInput(e.target.value)} className={`${ic} font-mono text-base font-bold text-emerald-800`} />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setStoppingWagon(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
-                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Save & Stop Loading ✓</button>
+                <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">Save & Complete Wagon Load ✓</button>
               </div>
             </form>
           </div>
