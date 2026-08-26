@@ -7,24 +7,64 @@ import { useRouter } from 'next/navigation';
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
 ───────────────────────────────────────────────────────── */
-const STATIONS: Record<string, string> = {
-  EWK: 'Ewekoro Terminal',
-  ITO: 'Itori Junction',
-  MNY: 'Moniya Yard (Ibadan)',
-  ILR: 'Ilorin Freight Hub',
-  APT: 'Apapa Maritime Port',
-};
-const sName = (c: string) => STATIONS[c] || c;
+const STATIONS: Record<string, { name: string; gauge: 'STANDARD_GAUGE' | 'NARROW_GAUGE'; coords: [number, number] }> = {
+  // Standard Gauge Stations (Lagos to Moniya, Ibadan)
+  PAPA: { name: 'Papalanto Terminal', gauge: 'STANDARD_GAUGE', coords: [6.8974, 3.2141] },
+  MNY:  { name: 'Moniya Yard (Ibadan)', gauge: 'STANDARD_GAUGE', coords: [7.4610, 3.9470] },
+  MONI: { name: 'Moniya Yard (Ibadan)', gauge: 'STANDARD_GAUGE', coords: [7.4610, 3.9470] },
+  APT:  { name: 'Apapa Maritime Port', gauge: 'STANDARD_GAUGE', coords: [6.4550, 3.3610] },
+  APQ:  { name: 'Apapa Port', gauge: 'STANDARD_GAUGE', coords: [6.4550, 3.3610] },
+  ENL:  { name: 'ENL Terminal (APMT)', gauge: 'STANDARD_GAUGE', coords: [6.4560, 3.3620] },
+  APL:  { name: 'Apapa Local', gauge: 'STANDARD_GAUGE', coords: [6.4580, 3.3630] },
+  MBJ:  { name: 'Lagos (Mobolaji)', gauge: 'STANDARD_GAUGE', coords: [6.4474, 3.3640] },
+  MU:   { name: 'Mushin Station', gauge: 'STANDARD_GAUGE', coords: [6.5333, 3.3500] },
+  SH:   { name: 'Oshodi Station', gauge: 'STANDARD_GAUGE', coords: [6.5566, 3.3455] },
+  SG:   { name: 'Shogunle Station', gauge: 'STANDARD_GAUGE', coords: [6.5700, 3.3400] },
+  IK:   { name: 'Ikeja Station', gauge: 'STANDARD_GAUGE', coords: [6.5965, 3.3421] },
+  GE:   { name: 'Agege Station', gauge: 'STANDARD_GAUGE', coords: [6.6186, 3.3238] },
+  UJ:   { name: 'Iju Station', gauge: 'STANDARD_GAUGE', coords: [6.6667, 3.3333] },
+  GD:   { name: 'Agbado Station', gauge: 'STANDARD_GAUGE', coords: [6.6800, 3.3200] },
+  IT:   { name: 'Itoki Station', gauge: 'STANDARD_GAUGE', coords: [6.7000, 3.3100] },
+  JK:   { name: 'Ijoko Station', gauge: 'STANDARD_GAUGE', coords: [6.7200, 3.3000] },
+  KA:   { name: 'Kajola Station', gauge: 'STANDARD_GAUGE', coords: [6.7500, 3.2800] },
+  AB:   { name: 'Abeokuta Major Station', gauge: 'STANDARD_GAUGE', coords: [7.1557, 3.3458] },
+  AD:   { name: 'Omi Adio Station', gauge: 'STANDARD_GAUGE', coords: [7.3500, 3.8000] },
 
-const STATION_COORDS: Record<string, [number, number]> = {
-  EWK: [6.8974, 3.2141],
-  ITO: [6.9333, 3.3833],
-  MNY: [7.4610, 3.9470],
-  ILR: [8.4966, 4.5426],
-  APT: [6.4550, 3.3610],
+  // Narrow Gauge Stations (Western District - Lagos Terminus to Ilorin)
+  EWK:  { name: 'Ewekoro Terminal (Itori)', gauge: 'NARROW_GAUGE', coords: [6.8974, 3.2141] },
+  ITO:  { name: 'Itori Junction', gauge: 'NARROW_GAUGE', coords: [6.9333, 3.3833] },
+  DGB:  { name: 'Dugbe Station (Ibadan)', gauge: 'NARROW_GAUGE', coords: [7.3800, 3.8900] },
+  IDD:  { name: 'Iddo Lagos Terminus', gauge: 'NARROW_GAUGE', coords: [6.4700, 3.3800] },
+  EBJ:  { name: 'Ebute Metta Junction', gauge: 'NARROW_GAUGE', coords: [6.4800, 3.3700] },
+  IGS:  { name: 'Iganmu Station', gauge: 'NARROW_GAUGE', coords: [6.4650, 3.3650] },
+  OSB:  { name: 'Oshogbo Hub', gauge: 'NARROW_GAUGE', coords: [7.7710, 4.5600] },
+  ILR:  { name: 'Ilorin Freight Hub', gauge: 'NARROW_GAUGE', coords: [8.4966, 4.5426] },
+  INS:  { name: 'Inisa Station', gauge: 'NARROW_GAUGE', coords: [7.9300, 4.6500] },
+  OKK:  { name: 'Okuku Station', gauge: 'NARROW_GAUGE', coords: [8.0100, 4.6700] },
+  FFA:  { name: 'Offa Hub', gauge: 'NARROW_GAUGE', coords: [8.1500, 4.7200] },
+  JBB:  { name: 'Jebba Terminal', gauge: 'NARROW_GAUGE', coords: [9.1300, 4.8300] },
 };
 
-// 46 Official PXG Freight Wagons (Bueno Logistics Fleet)
+const sName = (c: string) => STATIONS[c]?.name || c;
+const sGauge = (c: string) => STATIONS[c]?.gauge || 'STANDARD_GAUGE';
+
+const STATION_COORDS: Record<string, [number, number]> = Object.fromEntries(
+  Object.entries(STATIONS).map(([k, v]) => [k, v.coords])
+);
+
+const WAGON_TYPES = [
+  { code: 'PXG', name: 'PXG / CGs Box Wagon', desc: 'Box-wagon for cement & 50kg bagged cargo' },
+  { code: 'OTW', name: 'OTW Oil Tank Wagon', desc: 'Oil tank wagon for petroleum products' },
+  { code: 'CBX', name: 'CBX Flat Bed Wagon', desc: 'Flat beds for containers, cars, machines, vehicles, pipes, coils' },
+  { code: 'CBX(HS)', name: 'CBX(HS) High-Sided Flat Bed', desc: 'Flat-bed wagons with high sides for jumbo bags' },
+  { code: 'ZGX', name: 'ZGX Open-Top Side Discharge', desc: 'Open top side discharging for coal & gypsum' },
+  { code: 'CHW', name: 'CHW Hopper Wagon', desc: 'Top loading, bottom discharge for ballast, coal, gypsum' },
+  { code: 'RSV', name: 'RSV Refrigerated Van', desc: 'Refrigerated van for temperature-controlled cargo' },
+  { code: 'CYG', name: 'CYG Livestock Wagon', desc: 'Cow / animal wagons' },
+  { code: 'OTHERS', name: 'Other Custom Wagon', desc: 'Custom wagon code & type specification' },
+];
+
+// Official Freight Wagons Array with Gauge & Classification Tagging
 const OFFICIAL_PXG_CODES = [
   "PXG 09029", "PXG 09033", "PXG 09037", "PXG 09022", "PXG 09001",
   "PXG 09031", "PXG 09036", "PXG 09023", "PXG 09021", "PXG 09025",
@@ -38,14 +78,22 @@ const OFFICIAL_PXG_CODES = [
   "PXG 09011", "PXG 09024", "PXG 09034"
 ];
 
-const SEED_WAGONS: any[] = OFFICIAL_PXG_CODES.map((code, i) => ({
-  id: code,
-  capacity: 1200,
-  status: 'AVAILABLE',
-  currentStation: i < 23 ? 'EWK' : 'APT',
-  addedBy: 'System Registry',
-  createdAt: '07 Aug 2026',
-}));
+const SEED_WAGONS: any[] = [
+  ...OFFICIAL_PXG_CODES.slice(0, 15).map((code) => ({
+    id: code, wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026'
+  })),
+  { id: 'CBX 4599', wagonType: 'CBX', capacity: 20, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'CBX 5012', wagonType: 'CBX', capacity: 20, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'ZGX 8799', wagonType: 'ZGX', capacity: 60, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'OTW 1042', wagonType: 'OTW', capacity: 50, status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'CHW 3300', wagonType: 'CHW', capacity: 60, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'CBX(HS) 6100', wagonType: 'CBX(HS)', capacity: 50, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'RSV 1020', wagonType: 'RSV', capacity: 40, status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'CYG 5050', wagonType: 'CYG', capacity: 30, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  ...OFFICIAL_PXG_CODES.slice(15, 38).map((code) => ({
+    id: code, wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026'
+  })),
+];
 
 const SEED_TRIPS: any[] = [];
 
@@ -2280,30 +2328,34 @@ function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => v
    REGISTER NEW PXG WAGON MODAL (ADMIN & CARGO OFFICERS)
 ───────────────────────────────────────────────────────── */
 function AddWagonModal({ isOpen, onClose, onSaveWagon }: { isOpen: boolean; onClose: () => void; onSaveWagon: (newWagon: any) => void }) {
-  const [wagonCode, setWagonCode] = useState('');
+  const [wagonPrefix, setWagonPrefix] = useState('PXG');
+  const [wagonNum, setWagonNum] = useState('');
   const [capacity, setCapacity] = useState('1200');
-  const [stationCode, setStationCode] = useState('EWK');
+  const [stationCode, setStationCode] = useState('PAPA');
+  const [gauge, setGauge] = useState<'STANDARD_GAUGE' | 'NARROW_GAUGE'>('STANDARD_GAUGE');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wagonCode.trim()) {
-      alert('Please enter a valid PXG Wagon Code (e.g. PXG 09070)');
+    if (!wagonNum.trim()) {
+      alert('Please enter a valid Wagon Identification Number (e.g. 2322)');
       return;
     }
-    const raw = wagonCode.trim().toUpperCase();
-    const formattedCode = raw.startsWith('PXG') ? raw : `PXG ${raw}`;
+    const cleanNum = wagonNum.trim().toUpperCase();
+    const formattedCode = `${wagonPrefix} ${cleanNum}`;
     const newWagon = {
       id: formattedCode,
+      wagonType: wagonPrefix,
       capacity: Number(capacity) || 1200,
       status: 'AVAILABLE',
       currentStation: stationCode,
+      gauge: gauge || sGauge(stationCode),
       addedBy: 'Field Officer Registration',
       createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     };
     onSaveWagon(newWagon);
-    setWagonCode('');
+    setWagonNum('');
     onClose();
   };
 
@@ -2311,43 +2363,71 @@ function AddWagonModal({ isOpen, onClose, onSaveWagon }: { isOpen: boolean; onCl
     <Modal onClose={onClose}>
       <div className="p-6 space-y-4 font-sans">
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-          <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Register New PXG Freight Wagon</h3>
+          <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Register New Railway Freight Wagon</h3>
           <button onClick={onClose} className="text-slate-400 font-bold hover:text-slate-700">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Official PXG Wagon Code *</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. PXG 09070"
-              value={wagonCode}
-              onChange={e => setWagonCode(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Carriage Type Code *</label>
+              <select
+                value={wagonPrefix}
+                onChange={e => setWagonPrefix(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+              >
+                {WAGON_TYPES.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Identification No. *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 2322 or 4599"
+                value={wagonNum}
+                onChange={e => setWagonNum(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+              />
+            </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Track Gauge Compatibility *</label>
+              <select
+                value={gauge}
+                onChange={e => setGauge(e.target.value as any)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+              >
+                <option value="STANDARD_GAUGE">Standard Gauge (1435mm - Moniya/Papalanto/APMT)</option>
+                <option value="NARROW_GAUGE">Narrow Gauge (1067mm - Ewekoro/Dugbe/Oshogbo)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Initial Terminal Station *</label>
+              <select
+                value={stationCode}
+                onChange={e => {
+                  setStationCode(e.target.value);
+                  setGauge(sGauge(e.target.value));
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+              >
+                {Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{s.name} ({s.gauge === 'STANDARD_GAUGE' ? 'Standard' : 'Narrow'})</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Max Capacity (50kg Bags)</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Capacity (Units / Bags / Tonnes)</label>
             <input
               type="number"
-              required
               value={capacity}
               onChange={e => setCapacity(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Assigned Station Terminal</label>
-            <select
-              value={stationCode}
-              onChange={e => setStationCode(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-            >
-              {Object.entries(STATIONS).map(([code, name]) => (
-                <option key={code} value={code}>{name} ({code})</option>
-              ))}
-            </select>
-          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button>
             <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">+ Register Wagon to Inventory ➔</button>
