@@ -1414,8 +1414,8 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
                       onChange={(e) => setDealForm({ ...dealForm, loadingStation: e.target.value })}
                       className={ic}
                     >
-                      {Object.entries(STATIONS).map(([code, name]) => (
-                        <option key={code} value={code}>{name} ({code})</option>
+                      {Object.entries(STATIONS).map(([code, s]) => (
+                        <option key={code} value={code}>{sName(code)} ({code})</option>
                       ))}
                     </select>
                   </div>
@@ -1427,8 +1427,8 @@ function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void 
                       onChange={(e) => setDealForm({ ...dealForm, destination: e.target.value })}
                       className={ic}
                     >
-                      {Object.entries(STATIONS).map(([code, name]) => (
-                        <option key={code} value={code}>{name} ({code})</option>
+                      {Object.entries(STATIONS).map(([code, s]) => (
+                        <option key={code} value={code}>{sName(code)} ({code})</option>
                       ))}
                     </select>
                   </div>
@@ -3175,7 +3175,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       role: form.userType === 'CUSTOMER' ? 'CUSTOMER' : form.role,
       userType: form.userType,
       assignedStation: form.assignedStation,
-      stationName: STATIONS[form.assignedStation] || form.assignedStation,
+      stationName: sName(form.assignedStation),
       companyName: form.userType === 'CUSTOMER' ? (form.companyName || form.fullName) : null,
       staffId: form.role === 'CARGO_OFFICER' ? `${form.assignedStation}-${num}` : `STAFF-${num}`,
       pin: form.pin || '1111',
@@ -3209,7 +3209,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     const updatedUser = {
       ...editingUser,
       fullName: editingUser.fullName.trim(),
-      stationName: STATIONS[editingUser.assignedStation] || editingUser.assignedStation,
+      stationName: sName(editingUser.assignedStation),
     };
     const updatedUsers = users.map(u => u.id === editingUser.id ? updatedUser : u);
     onSaveUsers(updatedUsers);
@@ -3586,8 +3586,8 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
                     onChange={(e) => setForm({ ...form, assignedStation: e.target.value })}
                     className={ic}
                   >
-                    {Object.entries(STATIONS).map(([code, name]) => (
-                      <option key={code} value={code}>{name} ({code})</option>
+                    {Object.entries(STATIONS).map(([code, s]) => (
+                      <option key={code} value={code}>{sName(code)} ({code})</option>
                     ))}
                   </select>
                 </div>
@@ -3664,8 +3664,8 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
                     onChange={(e) => setEditingUser({ ...editingUser, assignedStation: e.target.value })}
                     className={ic}
                   >
-                    {Object.entries(STATIONS).map(([code, name]) => (
-                      <option key={code} value={code}>{name} ({code})</option>
+                    {Object.entries(STATIONS).map(([code, s]) => (
+                      <option key={code} value={code}>{sName(code)} ({code})</option>
                     ))}
                   </select>
                 </div>
@@ -4276,8 +4276,8 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
             <form onSubmit={handleCreateDeal} className="space-y-4">
               <div><label className={lc}>Company Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Lafarge Africa Plc" className={ic} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={lc}>Loading Station</label><select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></div>
-                <div><label className={lc}>Destination</label><select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></div>
+                <div><label className={lc}>Loading Station</label><select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>
+                <div><label className={lc}>Destination</label><select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>
                 <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement" className={ic} /></div>
                 <div><label className={lc}>Quantity (Bags)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
               </div>
