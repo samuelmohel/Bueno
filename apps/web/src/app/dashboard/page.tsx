@@ -953,13 +953,16 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
 
         <div className="flex flex-wrap items-center gap-3 print:hidden">
           <select value={filterPeriod} onChange={e => setFilterPeriod(e.target.value as any)} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700">
-            <option value="today">Today (07 Aug 2026)</option>
+            <option value="today">Today (26 Aug 2026)</option>
             <option value="week">This Week</option>
-            <option value="month">This Month</option>
+            <option value="month">This Month (August 2026)</option>
+            <option value="quarter">Q3 2026 (July - Sept)</option>
+            <option value="annual">Annual 2026</option>
           </select>
           <select value={filterCorridor} onChange={e => setFilterCorridor(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700">
             <option value="ALL">All Rail Corridors</option>
             <option value="EWK_MNY">Ewekoro ➔ Moniya</option>
+            <option value="PAPA_MNY">Papalanto ➔ Moniya</option>
             <option value="APT_MNY">Apapa Port ➔ Moniya</option>
           </select>
           <button
@@ -996,6 +999,85 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
           <p className="text-xl sm:text-2xl font-black text-[#0E4B88] mt-1">{totalCorridorValueStr}</p>
           <p className="text-[11px] text-slate-500 font-sans mt-0.5 font-bold">100% Tariff Cleared</p>
         </div>
+      </div>
+
+      {/* MONTHLY STATION BUDGET BENCHMARKS (STAGE 6) */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xs">
+        <div className="flex justify-between items-center">
+          <div>
+            <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-widest block">MONTHLY TERMINAL TRAIN BENCHMARKS</span>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Station Operational Target vs Actual Completion</h3>
+          </div>
+          <span className="text-xs font-bold text-[#0E4B88] bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl font-mono">August 2026 Target Targets</span>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4 font-sans">
+          {[
+            { station: 'Papalanto Terminal (PAPA)', target: '9 - 10 Trains / Month', targetTonnage: '24,840 T', actualTrains: 9, pct: 90, status: 'ON TARGET ✓', color: 'border-emerald-200 bg-emerald-50/40 text-emerald-800' },
+            { station: 'Ewekoro Terminal (EWK)', target: '1 - 2 Trains / Month', targetTonnage: '2,760 T', actualTrains: 2, pct: 100, status: 'TARGET ACHIEVED ★', color: 'border-blue-200 bg-blue-50/40 text-blue-800' },
+            { station: 'Apapa Maritime Port (APT)', target: '12 - 15 Trains / Month', targetTonnage: '33,120 T', actualTrains: 11, pct: 85, status: '85% COMPLETED', color: 'border-purple-200 bg-purple-50/40 text-purple-800' },
+          ].map(b => (
+            <div key={b.station} className={`border rounded-2xl p-4 space-y-3 ${b.color}`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">{b.station}</h4>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Target: <b>{b.target}</b> ({b.targetTonnage})</p>
+                </div>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-white border border-slate-200 shadow-xs">{b.status}</span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[10px] font-mono font-extrabold">
+                  <span>Progress Met</span>
+                  <span>{b.actualTrains} Trains ({b.pct}%)</span>
+                </div>
+                <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                  <div className="bg-gradient-to-r from-[#0E4B88] to-[#62BC37] h-full rounded-full" style={{ width: `${b.pct}%` }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CARGO OFFICER PERFORMANCE RATINGS & SCORECARDS (STAGE 6) */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xs">
+        <div className="flex justify-between items-center">
+          <div>
+            <span className="text-[10px] font-extrabold text-[#0E4B88] uppercase tracking-widest block">OFFICER KPI SCORECARDS</span>
+            <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Cargo Officer Monthly Performance Ratings & Speed Efficiency</h3>
+          </div>
+          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">Month Ratings</span>
+        </div>
+
+        <TableWrap
+          headers={['Officer Name', 'Assigned Station', 'Target Met', 'Avg Loading Speed', 'Discrepancy Rate', 'Performance Rating', 'Badge Status']}
+          data={[
+            { name: 'Ade Bello', station: 'Ewekoro (EWK)', met: '100%', speed: '24 Mins/Wagon', discrepancy: '0.1%', rating: '⭐⭐⭐⭐⭐ 4.9 / 5.0', badge: 'TOP PERFORMER ★', color: 'green' },
+            { name: 'Samuel Okafor', station: 'Ewekoro (EWK)', met: '95%', speed: '26 Mins/Wagon', discrepancy: '0.2%', rating: '⭐⭐⭐⭐⭐ 4.8 / 5.0', badge: 'EXCELLENT ✓', color: 'blue' },
+            { name: 'Musa Ibrahim', station: 'Moniya (MNY)', met: '100%', speed: '22 Mins/Wagon', discrepancy: '0.0%', rating: '⭐⭐⭐⭐⭐ 5.0 / 5.0', badge: 'FLAWLESS ★', color: 'green' },
+            { name: 'Kassim Ahmed', station: 'Moniya (MNY)', met: '92%', speed: '28 Mins/Wagon', discrepancy: '0.3%', rating: '⭐⭐⭐⭐ 4.7 / 5.0', badge: 'ON TARGET ✓', color: 'purple' },
+            { name: 'Ngozi Eze', station: 'Apapa Port (APT)', met: '98%', speed: '25 Mins/Wagon', discrepancy: '0.1%', rating: '⭐⭐⭐⭐⭐ 4.9 / 5.0', badge: 'HIGH DISPATCH ★', color: 'green' },
+          ]}
+        >
+          {[
+            { name: 'Ade Bello', station: 'Ewekoro (EWK)', met: '100%', speed: '24 Mins/Wagon', discrepancy: '0.1%', rating: '⭐⭐⭐⭐⭐ 4.9 / 5.0', badge: 'TOP PERFORMER ★', color: 'green' },
+            { name: 'Samuel Okafor', station: 'Ewekoro (EWK)', met: '95%', speed: '26 Mins/Wagon', discrepancy: '0.2%', rating: '⭐⭐⭐⭐⭐ 4.8 / 5.0', badge: 'EXCELLENT ✓', color: 'blue' },
+            { name: 'Musa Ibrahim', station: 'Moniya (MNY)', met: '100%', speed: '22 Mins/Wagon', discrepancy: '0.0%', rating: '⭐⭐⭐⭐⭐ 5.0 / 5.0', badge: 'FLAWLESS ★', color: 'green' },
+            { name: 'Kassim Ahmed', station: 'Moniya (MNY)', met: '92%', speed: '28 Mins/Wagon', discrepancy: '0.3%', rating: '⭐⭐⭐⭐ 4.7 / 5.0', badge: 'ON TARGET ✓', color: 'purple' },
+            { name: 'Ngozi Eze', station: 'Apapa Port (APT)', met: '98%', speed: '25 Mins/Wagon', discrepancy: '0.1%', rating: '⭐⭐⭐⭐⭐ 4.9 / 5.0', badge: 'HIGH DISPATCH ★', color: 'green' },
+          ].map(o => (
+            <tr key={o.name} className="hover:bg-slate-50 text-xs font-sans">
+              <td className="p-4 font-extrabold text-slate-900">{o.name}</td>
+              <td className="p-4 font-semibold text-slate-700">{o.station}</td>
+              <td className="p-4 font-mono font-bold text-emerald-700">{o.met}</td>
+              <td className="p-4 font-mono font-bold text-amber-600">{o.speed}</td>
+              <td className="p-4 font-mono text-slate-600">{o.discrepancy}</td>
+              <td className="p-4 font-bold text-amber-600">{o.rating}</td>
+              <td className="p-4"><Badge text={o.badge} color={o.color as any} /></td>
+            </tr>
+          ))}
+        </TableWrap>
       </div>
 
       {/* Database Trip Audit Breakdown Table */}
