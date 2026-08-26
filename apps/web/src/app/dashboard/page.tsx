@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import RailTelemetryCard from '@/components/RailTelemetryCard';
+import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -597,43 +599,52 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
     }
   });
 
+  const [showManifest, setShowManifest] = useState(false);
+
   const handlePrint = () => {
     window.print();
   };
 
   return (
-    <Modal onClose={onClose}>
-      <div className="p-4 sm:p-6 space-y-5 print:p-0 print:space-y-3 font-sans">
-        
-        {/* Official Printable Bueno Logo Letterhead */}
-        <div className="border-b-2 border-slate-900 pb-4 space-y-3">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#0E4B88] p-1.5 shadow-md flex items-center justify-center">
-                <img src="/bueno_logo.png" alt="Bueno Logistics" className="w-full h-full object-contain" />
+    <>
+      <Modal onClose={onClose}>
+        <div className="p-4 sm:p-6 space-y-5 print:p-0 print:space-y-3 font-sans">
+          
+          {/* Official Printable Bueno Logo Letterhead */}
+          <div className="border-b-2 border-slate-900 pb-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#0E4B88] p-1.5 shadow-md flex items-center justify-center">
+                  <img src="/bueno_logo.png" alt="Bueno Logistics" className="w-full h-full object-contain" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-wider" style={{ fontFamily: "'Outfit',sans-serif" }}>
+                    BUENO <span className="text-[#62BC37]">LOGISTICS LIMITED</span>
+                  </h2>
+                  <p className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
+                    OFFICIAL RAILWAY FREIGHT MANIFEST & FINANCIAL AUDIT CERTIFICATE
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-wider" style={{ fontFamily: "'Outfit',sans-serif" }}>
-                  BUENO <span className="text-[#62BC37]">LOGISTICS LIMITED</span>
-                </h2>
-                <p className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
-                  OFFICIAL RAILWAY FREIGHT MANIFEST & FINANCIAL AUDIT CERTIFICATE
-                </p>
-              </div>
-            </div>
 
-            <div className="flex gap-2 print:hidden">
-              <button
-                onClick={handlePrint}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5"
-              >
-                🖨️ Print Official PDF Audit Report
-              </button>
-              <button onClick={onClose} className="px-3 py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
-                Close
-              </button>
+              <div className="flex gap-2 print:hidden">
+                <button
+                  onClick={() => setShowManifest(true)}
+                  className="bg-[#0E4B88] hover:bg-blue-900 text-white font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5"
+                >
+                  📄 Official NRC Manifest
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5"
+                >
+                  🖨️ Print Official PDF
+                </button>
+                <button onClick={onClose} className="px-3 py-2 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">
+                  Close
+                </button>
+              </div>
             </div>
-          </div>
 
           <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-100 text-xs">
             <div className="flex items-center gap-2">
@@ -833,9 +844,12 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
             </div>
           </div>
         </div>
-
       </div>
     </Modal>
+    {showManifest && (
+      <AutomatedManifestModal trip={trip} onClose={() => setShowManifest(false)} />
+    )}
+    </>
   );
 }
 
@@ -4814,9 +4828,10 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       )}
 
       {view === 'trips' && (
-        <Section title="All Active Trips (Corridor GPS Satellite Map)" subtitle="High-precision interactive map of all active rail corridor trips">
+        <Section title="All Active Trips (Corridor GPS Satellite Map & Hardware Telemetry)" subtitle="High-precision interactive map of all active rail corridor trips with hardware telemetry sensor monitoring">
           <div className="space-y-6">
             <RailCorridorGpsMap trip={trips[0] || SEED_TRIPS[0]} />
+            <RailTelemetryCard locomotiveId="L2205" />
           </div>
         </Section>
       )}

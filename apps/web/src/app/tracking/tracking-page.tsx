@@ -3,63 +3,120 @@
 import { useEffect, useState, useRef } from 'react';
 import { trackingApi } from '@/lib/api';
 import { useFleetTracking } from '@/lib/socket';
+import RailTelemetryCard from '@/components/RailTelemetryCard';
+import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 
-// ─── Nigeria rail corridor waypoints (approx) ─────────────────────────────────
-const NIGERIA_CENTER: [number, number] = [9.0820, 8.6753];
+// ─── Nigeria Rail Corridor Coordinates (Western Corridor: Apapa ➔ Ewekoro ➔ Abeokuta ➔ Moniya) ───
+const NIGERIA_CENTER: [number, number] = [6.9500, 3.3500];
 
-// ─── Status colors ────────────────────────────────────────────────────────────
+const WESTERN_CORRIDOR_WAYPOINTS: [number, number][] = [
+  [6.4500, 3.3600], // Apapa Port Terminal
+  [6.6000, 3.3400], // Agege Freight Yard
+  [6.8974, 3.2141], // Ewekoro Lafarge Siding
+  [7.1500, 3.3500], // Abeokuta Railway Station
+  [7.4800, 3.9000], // Moniya Dry Port Ibadan
+];
+
+const SEED_ACTIVE_LOCOS = [
+  {
+    id: 'L2205',
+    serialNumber: 'LOC-L2205',
+    model: 'GE C22-7i Heavy Freight Diesel-Electric',
+    status: 'IN_USE',
+    fuelLevelPercent: 82,
+    currentLat: 6.9800,
+    currentLng: 3.2800,
+    assignedDriver: { user: { fullName: 'Babatunde Adeleke (NRC Engineer)' } },
+    cargoOfficer: 'Ade Bello (EWK-01)',
+    origin: 'EWK',
+    destination: 'MNY',
+    company: 'HUAXIN BUILDING MATERIALS NIG PLC',
+    quantity: '27600',
+    tripId: 'TRIP-001',
+  },
+  {
+    id: 'L2206',
+    serialNumber: 'LOC-L2206',
+    model: 'EMD GT26CW-2 Heavy Hauler',
+    status: 'IN_USE',
+    fuelLevelPercent: 45,
+    currentLat: 7.2200,
+    currentLng: 3.5500,
+    assignedDriver: { user: { fullName: 'Samuel Okafor (NRC Engineer)' } },
+    cargoOfficer: 'Musa Ibrahim (MNY-01)',
+    origin: 'EWK',
+    destination: 'MNY',
+    company: 'Dangote Cement Industry',
+    quantity: '18400',
+    tripId: 'TRIP-002',
+  },
+  {
+    id: 'L2207',
+    serialNumber: 'LOC-L2207',
+    model: 'DF8B Rail Freight Engine',
+    status: 'AVAILABLE',
+    fuelLevelPercent: 95,
+    currentLat: 6.8974,
+    currentLng: 3.2141,
+    assignedDriver: { user: { fullName: 'Tunde Bakare (NRC Engineer)' } },
+    cargoOfficer: 'Ade Bello (EWK-01)',
+    origin: 'EWK',
+    destination: 'MNY',
+    company: 'BUA Cement Nigeria',
+    quantity: '23000',
+    tripId: 'TRIP-003',
+  },
+];
+
 const STATUS_COLOR: Record<string, string> = {
-  IN_USE:      'bg-blue-100 text-blue-700',
-  AVAILABLE:   'bg-green-100 text-green-700',
-  MAINTENANCE: 'bg-orange-100 text-orange-700',
+  IN_USE:      'bg-blue-100 text-blue-800 border-blue-200',
+  AVAILABLE:   'bg-emerald-100 text-emerald-800 border-emerald-200',
+  MAINTENANCE: 'bg-amber-100 text-amber-800 border-amber-200',
 };
 
-// ─── Loco Card ────────────────────────────────────────────────────────────────
 function LocoCard({ loco, selected, onClick }: { loco: any; selected: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-4 rounded-xl border transition-all ${
-        selected ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white hover:border-blue-200'
+      className={`w-full text-left p-3.5 rounded-2xl border transition-all ${
+        selected ? 'border-[#62BC37] bg-emerald-50/50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-semibold text-gray-800">{loco.serialNumber}</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[loco.status] ?? 'bg-gray-100 text-gray-600'}`}>
+        <span className="font-mono text-xs font-black text-slate-900">{loco.serialNumber}</span>
+        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${STATUS_COLOR[loco.status] ?? 'bg-slate-100 text-slate-600'}`}>
           {loco.status.replace(/_/g, ' ')}
         </span>
       </div>
-      <p className="text-xs text-gray-500 mt-1">{loco.model}</p>
+      <p className="text-[11px] text-slate-500 font-medium mt-1 truncate">{loco.model}</p>
       {loco.assignedDriver && (
-        <p className="text-xs text-gray-400 mt-1">🧑 {loco.assignedDriver.user?.fullName}</p>
+        <p className="text-[11px] text-slate-600 font-bold mt-1">🧑 Driver: {loco.assignedDriver.user?.fullName}</p>
       )}
-      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-        <span>⛽ {loco.fuelLevelPercent}%</span>
-        {loco.currentLat && (
-          <span className="text-green-600 font-medium">● GPS LIVE</span>
-        )}
-        {!loco.currentLat && (
-          <span className="text-gray-400">○ No GPS</span>
+      <div className="flex items-center justify-between mt-2 text-xs font-mono">
+        <span className="text-slate-600 font-bold">⛽ {loco.fuelLevelPercent}%</span>
+        {loco.currentLat ? (
+          <span className="text-[#62BC37] font-black flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-ping inline-block" />
+            LIVE SATELLITE
+          </span>
+        ) : (
+          <span className="text-slate-400 font-bold">○ Offline</span>
         )}
       </div>
     </button>
   );
 }
 
-// ─── Map Component (dynamic import to avoid SSR issues with Leaflet) ──────────
-// This component is wrapped in a dynamic import in the parent
 function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }) {
-  const mapRef    = useRef<any>(null);
-  const mapElRef  = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const mapElRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (mapRef.current) return; // already initialized
+    if (mapRef.current) return;
 
-    // Dynamically import leaflet (must run client-side only)
     import('leaflet').then((L) => {
-      // Fix default marker icon paths for Next.js
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -67,11 +124,39 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
 
-      const map = L.map(mapElRef.current!).setView(NIGERIA_CENTER, 6);
+      const map = L.map(mapElRef.current!).setView(NIGERIA_CENTER, 8);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
+        attribution: '© OpenStreetMap contributors | Bueno Railway OS Satellite Telemetry',
       }).addTo(map);
+
+      // Polyline for Western Rail Corridor
+      L.polyline(WESTERN_CORRIDOR_WAYPOINTS, {
+        color: '#0E4B88',
+        weight: 5,
+        opacity: 0.8,
+        dashArray: '10, 8',
+      }).addTo(map);
+
+      // Station Waypoint Markers
+      const stationNodes = [
+        { name: 'Apapa Maritime Port Terminal', coords: [6.4500, 3.3600] as [number, number] },
+        { name: 'Ewekoro Lafarge Siding (EWK)', coords: [6.8974, 3.2141] as [number, number] },
+        { name: 'Abeokuta Freight Hub (ABK)', coords: [7.1500, 3.3500] as [number, number] },
+        { name: 'Moniya Container Dry Port (MNY)', coords: [7.4800, 3.9000] as [number, number] },
+      ];
+
+      stationNodes.forEach(node => {
+        const circle = L.circleMarker(node.coords, {
+          radius: 8,
+          fillColor: '#62BC37',
+          color: '#ffffff',
+          weight: 2,
+          fillOpacity: 1,
+        }).addTo(map);
+
+        circle.bindPopup(`<b>${node.name}</b><br/><span style="font-size:10px;color:#666;">Active Railway Siding & Freight Hub</span>`);
+      });
 
       mapRef.current = { map, L };
     });
@@ -82,7 +167,6 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
     };
   }, []);
 
-  // Update markers whenever locos change
   useEffect(() => {
     if (!mapRef.current) return;
     const { map, L } = mapRef.current;
@@ -97,15 +181,16 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
         className: '',
         html: `
           <div style="
-            background:${isSelected ? '#2563eb' : '#1e40af'};
-            color:white; padding:4px 8px; border-radius:8px;
-            font-size:11px; font-weight:600; white-space:nowrap;
-            box-shadow:0 2px 8px rgba(0,0,0,0.3);
-            border:2px solid ${isSelected ? '#93c5fd' : 'transparent'};
+            background:${isSelected ? '#62BC37' : '#0E4B88'};
+            color:white; padding:5px 10px; border-radius:10px;
+            font-size:11px; font-weight:800; font-family:monospace; white-space:nowrap;
+            box-shadow:0 4px 12px rgba(0,0,0,0.4);
+            border:2px solid ${isSelected ? '#ffffff' : '#62BC37'};
+            display:flex; align-items:center; gap:4px;
           ">
-            🚂 ${loco.serialNumber}
+            <span>🚂</span> <span>${loco.serialNumber}</span>
           </div>`,
-        iconAnchor: [40, 20],
+        iconAnchor: [45, 20],
       });
 
       if (markersRef.current[loco.id]) {
@@ -114,18 +199,19 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
         const marker = L.marker(pos, { icon })
           .addTo(map)
           .bindPopup(`
-            <div style="min-width:160px">
-              <strong>${loco.serialNumber}</strong><br/>
-              ${loco.model}<br/>
-              Fuel: ${loco.fuelLevelPercent}%<br/>
-              Driver: ${loco.assignedDriver?.user?.fullName ?? 'Unassigned'}
+            <div style="min-width:180px; font-family:sans-serif;">
+              <strong style="color:#0E4B88;">${loco.serialNumber}</strong><br/>
+              <span style="font-size:11px; color:#444;">${loco.model}</span><br/>
+              <hr style="margin:4px 0; border:0; border-top:1px solid #eee;"/>
+              <span style="font-size:11px;">Fuel: <b>${loco.fuelLevelPercent}%</b></span><br/>
+              <span style="font-size:11px;">Driver: <b>${loco.assignedDriver?.user?.fullName ?? 'Unassigned'}</b></span><br/>
+              <span style="font-size:10px; color:#62BC37; font-weight:bold;">● GPS SATELLITE LIVE</span>
             </div>
           `);
         markersRef.current[loco.id] = marker;
       }
     });
 
-    // Pan to selected loco
     if (selectedId) {
       const sel = locos.find((l) => l.id === selectedId);
       if (sel?.currentLat) map.panTo([sel.currentLat, sel.currentLng], { animate: true });
@@ -135,18 +221,20 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
   return <div ref={mapElRef} className="w-full h-full rounded-2xl z-0" />;
 }
 
-// ─── Tracking Page ────────────────────────────────────────────────────────────
 export default function TrackingPage() {
-  const [locos, setLocos]       = useState<any[]>([]);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
-  const [loading, setLoading]   = useState(true);
+  const [locos, setLocos] = useState<any[]>(SEED_ACTIVE_LOCOS);
+  const [selectedId, setSelectedId] = useState<string | undefined>('L2205');
+  const [loading, setLoading] = useState(false);
+  const [activeManifestTrip, setActiveManifestTrip] = useState<any | null>(null);
 
-  // Initial load
   useEffect(() => {
-    trackingApi.live().then((r) => setLocos(r.data)).finally(() => setLoading(false));
+    trackingApi.live()
+      .then((r) => {
+        if (r.data && r.data.length > 0) setLocos(r.data);
+      })
+      .catch(() => {});
   }, []);
 
-  // Live GPS updates via WebSocket
   useFleetTracking((update: any) => {
     setLocos((prev) =>
       prev.map((l) =>
@@ -157,66 +245,75 @@ export default function TrackingPage() {
     );
   });
 
-  const online  = locos.filter((l) => l.currentLat);
+  const online = locos.filter((l) => l.currentLat);
   const offline = locos.filter((l) => !l.currentLat);
+  const selectedLoco = locos.find(l => l.id === selectedId) || locos[0];
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-screen lg:h-[calc(100vh-64px)] overflow-hidden font-sans bg-slate-100">
       {/* ── Sidebar ── */}
-      <aside className="w-80 flex-shrink-0 bg-gray-50 border-r border-gray-100 flex flex-col">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Live Fleet Tracking</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {online.length} online · {offline.length} offline
-          </p>
+      <aside className="w-full lg:w-96 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col max-h-[45vh] lg:max-h-full">
+        <div className="p-4 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
+          <div>
+            <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">SATELLITE FREIGHT TRACKING</span>
+            <h2 className="font-black text-sm text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>Western Rail Corridor Fleet</h2>
+          </div>
+          <span className="text-xs font-mono font-bold bg-[#62BC37] text-white px-2.5 py-1 rounded-lg">
+            {online.length} Active
+          </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {loading && (
-            <div className="flex justify-center py-10">
-              <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {online.length > 0 && (
-            <>
-              <p className="text-xs font-semibold text-gray-400 uppercase px-1 mb-1">Online</p>
+            <div className="space-y-2">
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1">Active Heavy Freight Engines</p>
               {online.map((l) => (
                 <LocoCard key={l.id} loco={l} selected={selectedId === l.id} onClick={() => setSelectedId(l.id)} />
               ))}
-            </>
+            </div>
           )}
 
           {offline.length > 0 && (
-            <>
-              <p className="text-xs font-semibold text-gray-400 uppercase px-1 mt-3 mb-1">Offline / No GPS</p>
+            <div className="space-y-2">
+              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1 mt-2">Stationary / Depot Engines</p>
               {offline.map((l) => (
                 <LocoCard key={l.id} loco={l} selected={selectedId === l.id} onClick={() => setSelectedId(l.id)} />
               ))}
-            </>
-          )}
-
-          {!loading && locos.length === 0 && (
-            <div className="text-center py-12 text-gray-400 text-sm">
-              <p className="text-3xl mb-2">🚂</p>
-              <p>No active locomotives</p>
-              <p className="text-xs mt-1">GPS pings will appear here</p>
             </div>
           )}
         </div>
+
+        {/* Generate Official Manifest Button */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-2">
+          <button
+            onClick={() => setActiveManifestTrip(selectedLoco)}
+            className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          >
+            <span>📄 Generate Official Freight Manifest</span>
+          </button>
+        </div>
       </aside>
 
-      {/* ── Map ── */}
-      <main className="flex-1 p-4 bg-gray-100">
-        {/* Load Leaflet CSS */}
+      {/* ── Main Map & Telemetry Dashboard Area ── */}
+      <main className="flex-1 p-4 flex flex-col space-y-4 overflow-y-auto min-w-0">
         <link
           rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         />
-        <div className="h-full rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+
+        {/* Interactive Satellite GPS Freight Map */}
+        <div className="h-[50vh] lg:h-[58vh] rounded-3xl overflow-hidden shadow-md border border-slate-200 relative bg-slate-900">
           <LeafletMap locos={locos} selectedId={selectedId} />
         </div>
+
+        {/* Real-time Hardware Telemetry Sensor Matrix */}
+        <RailTelemetryCard locomotiveId={selectedLoco?.id || 'L2205'} />
       </main>
+
+      {/* Automated Consignment Manifest Modal */}
+      {activeManifestTrip && (
+        <AutomatedManifestModal trip={activeManifestTrip} onClose={() => setActiveManifestTrip(null)} />
+      )}
     </div>
   );
 }
