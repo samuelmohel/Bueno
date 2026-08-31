@@ -308,6 +308,31 @@ function CustomAlertModal({ title, message, isOpen, onClose }: { title?: string;
   );
 }
 
+function EnterpriseConfirmModal({ title, message, isOpen, onConfirm, onClose }: { title?: string; message: string; isOpen: boolean; onConfirm: () => void; onClose: () => void }) {
+  if (!isOpen) return null;
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 space-y-4 text-center font-sans">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-black text-2xl border border-amber-200 shadow-sm">
+          ⚠️
+        </div>
+        <div>
+          <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{title || 'Confirm Action'}</h3>
+          <p className="text-xs text-slate-600 font-medium mt-1.5 leading-relaxed whitespace-pre-line">{message}</p>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button onClick={onClose} className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all">
+            Cancel
+          </button>
+          <button onClick={() => { onConfirm(); onClose(); }} className="w-1/2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all">
+            Proceed & Confirm
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
@@ -462,14 +487,15 @@ function MobileGpsTracker({ trip, onUpdateLocation }: { trip?: any; onUpdateLoca
   const [phoneNum, setPhoneNum] = useState(trip?.escortPhone || '08031112233');
   const [watchId, setWatchId] = useState<number | null>(null);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number; speed: number } | null>(null);
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const startPhoneGps = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert('Geolocation API is not supported by your browser/device.');
+      setCustomAlert({ title: 'Geolocation Not Supported', message: 'Geolocation API is not supported by your browser/device.' });
       return;
     }
     if (!phoneNum.trim()) {
-      alert('Please enter the escort or cargo officer phone number.');
+      setCustomAlert({ title: 'Phone Number Required', message: 'Please enter the escort or cargo officer phone number.' });
       return;
     }
 
@@ -500,7 +526,7 @@ function MobileGpsTracker({ trip, onUpdateLocation }: { trip?: any; onUpdateLoca
         if (onUpdateLocation) onUpdateLocation(lat, lng, speed);
       },
       (err) => {
-        alert(`Device GPS Permission Error: ${err.message}. Please enable GPS Location on your device.`);
+        setCustomAlert({ title: 'Device GPS Permission Error', message: `Device GPS Permission Error: ${err.message}. Please enable GPS Location on your device.` });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -556,6 +582,7 @@ function MobileGpsTracker({ trip, onUpdateLocation }: { trip?: any; onUpdateLoca
           <span>Device Speed: <b className="text-emerald-300">{currentCoords.speed} km/h</b></span>
         </div>
       )}
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
@@ -1002,6 +1029,7 @@ function FundRequestDetailModal({
 function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; users: any[]; onInspectTrip: (trip: any) => void }) {
   const [filterPeriod, setFilterPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [filterCorridor, setFilterCorridor] = useState<string>('ALL');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const totalTrips = trips.length;
   const completedTrips = trips.filter(t => t.status === 'COMPLETED').length;
@@ -1045,7 +1073,7 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
 
   const handlePrintDailyReport = () => {
     if (trips.length === 0) {
-      alert('No freight trips recorded in database yet.');
+      setCustomAlert({ title: 'No Trips Available', message: 'No freight trips recorded in database yet.' });
       return;
     }
     window.print();
@@ -1343,6 +1371,7 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
           </div>
         </div>
       </div>
+      <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );
 }
@@ -2745,13 +2774,14 @@ function AddWagonModal({ isOpen, onClose, onSaveWagon }: { isOpen: boolean; onCl
   const [capacity, setCapacity] = useState('1200');
   const [stationCode, setStationCode] = useState('PAPA');
   const [gauge, setGauge] = useState<'STANDARD_GAUGE' | 'NARROW_GAUGE'>('STANDARD_GAUGE');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!wagonNum.trim()) {
-      alert('Please enter a valid Wagon Identification Number (e.g. 2322)');
+      setCustomAlert({ title: 'Wagon Number Required', message: 'Please enter a valid Wagon Identification Number (e.g. 2322)' });
       return;
     }
     const cleanNum = wagonNum.trim().toUpperCase();
@@ -2845,6 +2875,7 @@ function AddWagonModal({ isOpen, onClose, onSaveWagon }: { isOpen: boolean; onCl
             <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md">+ Register Wagon to Inventory ➔</button>
           </div>
         </form>
+        <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
       </div>
     </Modal>
   );
@@ -3635,6 +3666,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title?: string; message: string; onConfirm: () => void } | null>(null);
 
   // Role Permissions Matrix State
   const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(() => {
@@ -3874,10 +3906,15 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
   };
 
   const deleteUser = (id: string) => {
-    if (confirm('Are you sure you want to permanently delete this user account?')) {
-      const updated = users.filter(u => u.id !== id);
-      onSaveUsers(updated);
-    }
+    const target = users.find(u => u.id === id);
+    setConfirmModal({
+      title: 'Delete User Account',
+      message: `Are you sure you want to permanently delete the user account for "${target?.fullName || id}"? This action cannot be undone.`,
+      onConfirm: () => {
+        const updated = users.filter(u => u.id !== id);
+        onSaveUsers(updated);
+      },
+    });
   };
 
   const filteredUsers = users.filter(u => {
@@ -4334,6 +4371,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
         </Modal>
       )}
       <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
+      <EnterpriseConfirmModal isOpen={!!confirmModal} message={confirmModal?.message || ''} title={confirmModal?.title} onConfirm={() => { confirmModal?.onConfirm(); setConfirmModal(null); }} onClose={() => setConfirmModal(null)} />
     </Section>
   );
 }
@@ -5394,6 +5432,7 @@ const SEED_GATE_LOGS = [
 ];
 
 function MoniyaContainerPortal({ user }: { user: any }) {
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [containers, setContainers] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('bueno_containers') || 'null') || SEED_CONTAINERS; }
     catch { return SEED_CONTAINERS; }
@@ -5406,7 +5445,6 @@ function MoniyaContainerPortal({ user }: { user: any }) {
   const [registerModal, setRegisterModal] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<any | null>(null);
   const [printedReceipt, setPrintedReceipt] = useState<any | null>(null);
-  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   const [gateForm, setGateForm] = useState({
     truckRegNo: '',

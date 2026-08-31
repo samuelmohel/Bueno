@@ -15,6 +15,7 @@ export default function FieldManifestPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   // Feeder Truck Modal State
   const [truckModal, setTruckModal] = useState<boolean>(false);
@@ -107,16 +108,22 @@ export default function FieldManifestPage() {
     loadBookingDetails(id);
   };
 
-  // Submit Feeder Truck Log
+  // Feeder Truck Log Submit
   const handleSaveFeederTruck = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
     try {
       await cargoItemsApi.addFeederTruck(selectedAllocationId, {
-        ...truckForm,
-        quantityLoaded: Number(truckForm.quantityLoaded),
+        truckRegNo: truckForm.truckRegNo,
+        driverName: truckForm.driverName,
+        driverPhone: truckForm.driverPhone,
+        transporterName: truckForm.transporterName,
+        loadingSource: truckForm.loadingSource,
+        quantityLoaded: Number(truckForm.quantityLoaded || 1200),
+        startTime: truckForm.startTime,
+        endTime: truckForm.endTime,
       });
-      setSuccessMessage(`Feeder truck ${truckForm.truckRegNo.toUpperCase()} logged successfully!`);
+      setSuccessMessage('Feeder truck loading log recorded successfully!');
       setTruckModal(false);
       setTruckForm({
         truckRegNo: '',
@@ -131,7 +138,7 @@ export default function FieldManifestPage() {
       await loadBookingDetails(selectedBookingId);
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Error saving feeder truck log');
+      setCustomAlert({ title: 'Truck Log Error', message: err.response?.data?.message || 'Error saving feeder truck log' });
     } finally {
       setActionLoading(false);
     }
@@ -157,7 +164,7 @@ export default function FieldManifestPage() {
       await loadBookingDetails(selectedBookingId);
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Error saving unload audit');
+      setCustomAlert({ title: 'Unload Audit Error', message: err.response?.data?.message || 'Error saving unload audit' });
     } finally {
       setActionLoading(false);
     }
@@ -665,6 +672,22 @@ export default function FieldManifestPage() {
             </div>
           </form>
         </Modal>
+        {customAlert && (
+          <Modal open={!!customAlert} onClose={() => setCustomAlert(null)} title={customAlert.title || 'Notification'}>
+            <div className="p-6 space-y-4 text-center font-sans">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-[#62BC37] flex items-center justify-center font-black text-xl mx-auto border border-emerald-200">
+                ✓
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{customAlert.title || 'Manifest Notification'}</h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">{customAlert.message}</p>
+              </div>
+              <button onClick={() => setCustomAlert(null)} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md">
+                Acknowledge ➔
+              </button>
+            </div>
+          </Modal>
+        )}
       </div>
     </DashboardLayout>
   );
