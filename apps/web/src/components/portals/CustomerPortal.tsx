@@ -175,6 +175,39 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
+      {/* ─── DEDICATED PRINT STYLESHEET (STAGE 4 UNIVERSAL PDF EXPORT) ─── */}
+      <style>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          header, aside, button, nav, input, select, .no-print {
+            display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+          }
+          .bg-white, .bg-slate-50 {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: none !important;
+            border-radius: 8px !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          th, td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 6px 10px !important;
+            color: #0f172a !important;
+          }
+        }
+      `}</style>
+
       {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER) ─── */}
       <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-xs">
         <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
