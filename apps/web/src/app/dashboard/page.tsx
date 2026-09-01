@@ -7,6 +7,7 @@ import RailTelemetryCard from '@/components/RailTelemetryCard';
 import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { CustomerPortal } from '@/components/portals/CustomerPortal';
+import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -2208,7 +2209,7 @@ function Shell({
 /* ═══════════════════════════════════════════════════════════
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
-function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
+function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
