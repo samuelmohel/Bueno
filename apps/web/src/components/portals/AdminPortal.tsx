@@ -1146,16 +1146,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   {filteredThreads.map((thread) => {
                     const lastMsg = thread.messages && thread.messages.length > 0 ? thread.messages[thread.messages.length - 1] : null;
                     const isSelected = activeDealId === thread.id;
+                    const hasMessages = thread.messages && thread.messages.length > 0;
 
                     return (
                       <button
                         key={thread.id}
                         onClick={() => setActiveDealId(thread.id)}
-                        className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
+                        className={`w-full text-left p-4 transition-all flex items-start gap-3 relative ${
                           isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
                         }`}
                       >
-                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm font-mono">
+                        <div className="w-10 h-10 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm font-mono">
                           {(thread.companyName || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1163,9 +1164,26 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <h4 className="text-xs font-black text-slate-900 truncate">{thread.companyName}</h4>
                             <span className="text-[9px] font-mono text-slate-400">{lastMsg?.time || thread.createdAt}</span>
                           </div>
-                          <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{thread.id}</span>
-                          <p className="text-[11px] text-slate-500 truncate mt-0.5 font-medium">
-                            {lastMsg ? `${lastMsg.sender}: ${lastMsg.text}` : 'No messages yet'}
+
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] font-mono text-[#62BC37] font-bold">{thread.email || thread.id}</span>
+                            {thread.hasUnread || thread.status === 'PENDING_REVIEW' ? (
+                              <span className="bg-[#62BC37] text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full animate-pulse shadow-xs">
+                                🟢 New Request
+                              </span>
+                            ) : thread.status === 'APPROVED_DISPATCHED' ? (
+                              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                ✓ Dispatched
+                              </span>
+                            ) : !hasMessages ? (
+                              <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-slate-200">
+                                Standby
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <p className="text-[11px] text-slate-500 truncate mt-1 font-medium">
+                            {lastMsg ? `${lastMsg.sender}: ${lastMsg.text}` : 'No messages yet • Click to send proactive quote'}
                           </p>
                         </div>
                       </button>
