@@ -177,11 +177,16 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
       {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER) ─── */}
       <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-xs">
-        <div className="w-full px-4 sm:px-8 py-3.5 flex justify-between items-center">
+        <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-lg shadow-md font-mono">
-              B
-            </div>
+            <img
+              src="/bueno_logo.png"
+              alt="Bueno Logistics"
+              className="h-10 w-auto object-contain"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
             <div>
               <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
                 COMMERCIAL FREIGHT PORTAL
