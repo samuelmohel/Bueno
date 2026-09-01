@@ -15,9 +15,10 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string;
 };
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'deals' | 'negotiations' | 'manifest' | 'billing' | 'users' | 'permissions'>('negotiations');
+  const [activeTab, setActiveTab] = useState<'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions'>('deals');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [createDealModal, setCreateDealModal] = useState(false);
 
   // Dynamic Repository State
   const [trips, setTrips] = useState<any[]>([]);
@@ -34,7 +35,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInspectionDeal, setSelectedInspectionDeal] = useState<any | null>(null);
   const [replyInput, setReplyInput] = useState('');
-  const [editingUser, setEditingUser] = useState<any | null>(null);
 
   // Dynamic Freight Deal Form
   const [newDealForm, setNewDealForm] = useState({
@@ -57,6 +57,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     assignedStation: 'EWK',
     companyName: '',
     pin: '1111',
+  });
+
+  // Granular Permissions Matrix State
+  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>({
+    ADMIN: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'financial.disburse', 'user.provision', 'report.export'],
+    HEAD_OF_OPERATIONS: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'report.export'],
+    CEO: ['financial.disburse', 'report.export', 'manifest.approve'],
+    HEAD_OF_FINANCE: ['financial.disburse', 'report.export'],
+    CARGO_OFFICER: ['manifest.approve', 'trip.dispatch'],
+    CUSTOMER: ['report.export', 'deal.negotiate'],
   });
 
   const tryParse = (key: string, fallback: any) => {
@@ -146,7 +156,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if (!activeThread) return;
 
     const newMsg = {
-      sender: user?.fullName || 'Head of Operations',
+      sender: user?.fullName || 'Alhaji Bashir Umar',
       role: 'Executive Command Desk',
       text: replyInput.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -195,7 +205,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     StateEngine.saveTrips([newTrip, ...trips]);
 
-    // Update thread status
     const updatedThreads = negotiations.map((d) =>
       d.id === dealItem.id
         ? {
@@ -204,7 +213,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             messages: [
               ...(d.messages || []),
               {
-                sender: user?.fullName || 'Head of Operations',
+                sender: user?.fullName || 'Alhaji Bashir Umar',
                 role: 'Executive Command Desk',
                 text: `CONSIGNMENT APPROVED & WAGONS ALLOCATED: Trip #${newTrip.id} has been dispatched for wagon loading at ${newTrip.origin} Siding! Assigned Loco #${newTrip.locomotiveId}.`,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -244,6 +253,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     };
 
     StateEngine.saveDeals([newDealObj, ...deals]);
+    setCreateDealModal(false);
 
     setCustomAlert({
       title: 'Commercial Freight Deal Registered',
@@ -258,6 +268,46 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       quantity: '2000',
       targetDate: '',
       notes: '',
+    });
+  };
+
+  // STAFF ACCOUNT PROVISIONING
+  const handleProvisionUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newUserId = `usr_${Date.now()}`;
+
+    const newUserObj = {
+      id: newUserId,
+      fullName: provisionForm.fullName,
+      email: provisionForm.email,
+      phone: provisionForm.phone,
+      userType: provisionForm.userType,
+      role: provisionForm.role,
+      assignedStation: provisionForm.assignedStation,
+      stationName: provisionForm.assignedStation === 'EWK' ? 'Ewekoro Terminal' : provisionForm.assignedStation === 'MNY' ? 'Moniya Yard' : 'Apapa Port',
+      companyName: provisionForm.companyName || (provisionForm.userType === 'CUSTOMER' ? provisionForm.fullName : 'Bueno Logistics HQ'),
+      staffId: `${provisionForm.assignedStation}-${Math.floor(10 + Math.random() * 89)}`,
+      pin: provisionForm.pin || '1111',
+      status: 'ACTIVE',
+    };
+
+    StateEngine.saveUsers([newUserObj, ...usersList]);
+    setUsersList([newUserObj, ...usersList]);
+
+    setCustomAlert({
+      title: 'New Account Provisioned',
+      message: `Account created for ${newUserObj.fullName} (${newUserObj.role}) with Security PIN: ${newUserObj.pin}!`,
+    });
+
+    setProvisionForm({
+      fullName: '',
+      email: '',
+      phone: '',
+      userType: 'STAFF',
+      role: 'CARGO_OFFICER',
+      assignedStation: 'EWK',
+      companyName: '',
+      pin: '1111',
     });
   };
 
@@ -296,15 +346,133 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── HEADER (WHITES & BRAND GREEN ONLY) ─── */}
+      {/* ─── CREATE NEW DEAL MODAL ─── */}
+      {createDealModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">COMMERCIAL CONTRACT REGISTRATION</span>
+                <h3 className="text-lg font-black text-slate-900">Create New Freight Deal</h3>
+              </div>
+              <button onClick={() => setCreateDealModal(false)} className="text-slate-400 font-bold hover:text-slate-900">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Industrial Consignee Client *</label>
+                <select
+                  value={newDealForm.companyName}
+                  onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                >
+                  {customerUsers.map((u) => (
+                    <option key={u.id} value={u.companyName || u.fullName}>
+                      {u.companyName || u.fullName}
+                    </option>
+                  ))}
+                  <option value="Purechem Cement Industries Ltd">Purechem Cement Industries Ltd</option>
+                  <option value="Dangote Cement Industries">Dangote Cement Industries</option>
+                  <option value="BUA Cement Industries">BUA Cement Industries</option>
+                  <option value="HUAXIN BUILDING MATERIALS PLC">HUAXIN BUILDING MATERIALS PLC</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station</label>
+                  <select
+                    value={newDealForm.loadingStation}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, loadingStation: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="EWK">Ewekoro Terminal (EWK)</option>
+                    <option value="PAPA">Papalanto Terminal (PAPA)</option>
+                    <option value="APT">Apapa Maritime Port (APT)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard</label>
+                  <input readOnly value="Moniya Yard (MNY)" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-bold" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
+                <select
+                  value={newDealForm.cargoType}
+                  onChange={(e) => setNewDealForm({ ...newDealForm, cargoType: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                >
+                  <option value="Bagged Cement (50kg)">Bagged Cement (50kg) — [Unit: Bags]</option>
+                  <option value="Bulk Gypsum">Bulk Gypsum — [Unit: Metric Tonnes MT]</option>
+                  <option value="Limestone Raw Ore">Limestone Raw Ore — [Unit: Metric Tonnes MT]</option>
+                  <option value="Clinker Bulk">Clinker Bulk — [Unit: Metric Tonnes MT]</option>
+                  <option value="Shipping Containers (20ft/40ft)">Shipping Containers — [Unit: TEU Containers]</option>
+                  <option value="AGO Diesel / Liquid Bulk">AGO Diesel / Liquid — [Unit: Liters]</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                    Quantity ({currentCargoConfig.unit}) *
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    value={newDealForm.quantity}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, quantity: e.target.value })}
+                    placeholder={`Quantity in ${currentCargoConfig.unit}...`}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Target Date</label>
+                  <input
+                    type="date"
+                    value={newDealForm.targetDate}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, targetDate: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-medium">
+                Assigned Rolling Stock: <b>{currentCargoConfig.wagonType}</b>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateDealModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                >
+                  ✓ Create Deal ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── HEADER ─── */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black px-3 py-2 rounded-xl border border-slate-700 transition-all"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-700 transition-all flex items-center gap-2"
             >
-              ☰ Command Menu
+              <span>Command Menu ☰</span>
             </button>
             <div className="w-8 h-8 rounded-xl bg-[#62BC37] text-white flex items-center justify-center font-black text-base shadow-md">
               B
@@ -319,18 +487,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
           <div className="flex items-center gap-3 relative">
             <button
-              onClick={() => setNotifOpen(!notifOpen)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 px-3 rounded-xl border border-slate-700 relative transition-all text-xs font-bold font-mono"
-            >
-              NOTIFICATIONS
-              {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#62BC37] text-white text-[9px] font-mono font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
-                  {unreadNotifCount}
-                </span>
-              )}
-            </button>
-
-            <button
               onClick={onSignOut}
               className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-700"
             >
@@ -340,9 +496,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       </header>
 
-      {/* ─── SIDEBAR DRAWER ─── */}
+      {/* ─── POP-UP SIDEBAR MENU DRAWER ─── */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex">
           <div className="w-72 bg-slate-900 text-white p-5 space-y-6 flex flex-col justify-between border-r border-slate-800 shadow-2xl">
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -354,12 +510,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <nav className="space-y-1.5 font-sans">
                 {[
-                  { id: 'negotiations', label: 'Client Negotiations (WhatsApp Chat)' },
-                  { id: 'deals', label: 'Freight Deals Management' },
-                  { id: 'telemetry', label: 'Fleet Telemetry & Corridor Status' },
+                  { id: 'deals', label: 'Commercial Deals Desk' },
+                  { id: 'negotiations', label: 'WhatsApp B2B Client Chat' },
+                  { id: 'telemetry', label: 'Fleet Telemetry & Live Satellite GPS' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
-                  { id: 'billing', label: 'Commercial Financial Ledger' },
+                  { id: 'billing', label: 'Commercial Invoices & Ledger' },
                   { id: 'users', label: 'User Directory & Account Provisioning' },
+                  { id: 'permissions', label: 'Enterprise Permissions Matrix' },
                 ].map((t) => (
                   <button
                     key={t.id}
@@ -383,15 +540,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       {/* ─── MAIN CONTENT ─── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-        {/* ─── TAB NAVIGATION BAR ─── */}
+        {/* ─── TOP TAB NAVIGATION BAR ─── */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
-            { id: 'negotiations', label: 'WhatsApp B2B Client Chat', count: negotiations.length },
             { id: 'deals', label: 'Commercial Deals Desk', count: deals.length },
-            { id: 'telemetry', label: 'Live Telemetry & GPS', count: trips.length },
+            { id: 'negotiations', label: 'WhatsApp B2B Client Chat', count: negotiations.length },
+            { id: 'telemetry', label: 'Live Telemetry & Satellite GPS', count: trips.length },
             { id: 'manifest', label: 'Cargo Manifest Audits', count: trips.length },
-            { id: 'billing', label: 'Commercial Invoices & Ledger', count: trips.length },
+            { id: 'billing', label: 'Commercial Ledger', count: trips.length },
             { id: 'users', label: 'User Directory', count: usersList.length },
+            { id: 'permissions', label: 'Permissions Matrix', count: null },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -414,279 +572,63 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           ))}
         </div>
 
-        {/* ─── TAB 1: WHATSAPP-STYLE CLIENT NEGOTIATIONS & CHAT ─── */}
-        {activeTab === 'negotiations' && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[600px] font-sans">
-            
-            {/* LEFT SIDEBAR: CLIENT CHAT THREADS LIST (3.5 COLS) */}
-            <div className="lg:col-span-4 border-r border-slate-200 bg-slate-50 flex flex-col justify-between">
-              <div>
-                <div className="p-4 bg-white border-b border-slate-200 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">WHATSAPP B2B CLIENT MESSAGING</span>
-                    <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                      {negotiations.length} Live Desks
-                    </span>
-                  </div>
-
-                  {/* SEARCH BAR */}
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search client, company or deal ID..."
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-                  />
-                </div>
-
-                {/* CLIENT THREADS LIST */}
-                <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
-                  {filteredThreads.length > 0 ? (
-                    filteredThreads.map((thread) => {
-                      const lastMsg = thread.messages && thread.messages.length > 0 ? thread.messages[thread.messages.length - 1] : null;
-                      const isSelected = activeDealId === thread.id;
-
-                      return (
-                        <button
-                          key={thread.id}
-                          onClick={() => setActiveDealId(thread.id)}
-                          className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
-                            isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
-                          }`}
-                        >
-                          <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-                            {(thread.companyName || 'C').charAt(0).toUpperCase()}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-baseline">
-                              <h4 className="text-xs font-black text-slate-900 truncate">{thread.companyName}</h4>
-                              <span className="text-[9px] font-mono text-slate-400">{lastMsg?.time || thread.createdAt}</span>
-                            </div>
-                            <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{thread.id}</span>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5 font-medium">
-                              {lastMsg ? `${lastMsg.sender}: ${lastMsg.text}` : 'No messages yet'}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="p-8 text-center text-slate-400 text-xs font-bold">No client conversations found.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3 bg-white border-t border-slate-200 text-center">
-                <span className="text-[10px] font-mono text-slate-400 font-bold">NRC ENCRYPTED B2B MESSAGING GATEWAY</span>
-              </div>
-            </div>
-
-            {/* RIGHT MAIN PANEL: ACTIVE WHATSAPP CHAT CONVERSATION VIEW (8.5 COLS) */}
-            <div className="lg:col-span-8 bg-slate-100/50 flex flex-col justify-between">
-              {activeThread ? (
-                <>
-                  {/* WHATSAPP CHAT HEADER */}
-                  <div className="p-4 bg-white border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm">
-                        {(activeThread.companyName || 'C').charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                          {activeThread.companyName}
-                        </h3>
-                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 font-mono">
-                          <span className="w-2 h-2 bg-[#62BC37] rounded-full animate-ping inline-block" />
-                          Online • B2B Logistics Desk ({activeThread.cargoType || 'Bagged Cement'})
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleApproveDealAndAllocateWagons(activeThread)}
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
-                    >
-                      <span>✓ Accept Deal & Allocate Wagons</span>
-                    </button>
-                  </div>
-
-                  {/* WHATSAPP MESSAGES CANVAS */}
-                  <div className="p-6 space-y-4 max-h-[450px] overflow-y-auto font-sans">
-                    <div className="text-center my-2">
-                      <span className="bg-white border border-slate-200 text-slate-500 font-mono text-[9px] font-bold px-3 py-1 rounded-full uppercase">
-                        End-to-End Encrypted B2B Freight Channel
-                      </span>
-                    </div>
-
-                    {(activeThread.messages || []).map((msg: any, idx: number) => {
-                      const isAdmin = !msg.role?.includes('Consignee') && !msg.sender.includes(activeThread.companyName);
-
-                      return (
-                        <div key={idx} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 shadow-sm ${
-                            isAdmin
-                              ? 'bg-[#62BC37] text-white rounded-br-none'
-                              : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
-                          }`}>
-                            <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1">
-                              <span className="font-extrabold">{msg.sender} ({msg.role || 'Client Lead'})</span>
-                              <span className="font-mono">{msg.time}</span>
-                            </div>
-                            <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
-                            <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
-                              {isAdmin ? '✓✓ Delivered' : '✓ Received'}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* WHATSAPP CHAT INPUT BAR */}
-                  <form onSubmit={handleAdminReply} className="p-4 bg-white border-t border-slate-200 flex gap-2">
-                    <input
-                      value={replyInput}
-                      onChange={(e) => setReplyInput(e.target.value)}
-                      placeholder={`Type a response to ${activeThread.companyName}...`}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-                    />
-                    <button
-                      type="submit"
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
-                    >
-                      Send Reply ➔
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <div className="text-center my-auto space-y-2 p-8">
-                  <span className="text-xs font-mono text-slate-400 font-bold block">[ NO CONVERSATION SELECTED ]</span>
-                  <h3 className="text-base font-black text-slate-900">Select a Client Conversation from the Sidebar</h3>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB 2: COMMERCIAL DEALS DESK ─── */}
+        {/* ─── TAB 1: COMMERCIAL DEALS DESK ─── */}
         {activeTab === 'deals' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-            {/* REGISTER NEW DEAL FORM */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Logistics Registration</span>
-                <h3 className="text-base font-black text-slate-900">Register Freight Deal</h3>
+          <div className="space-y-6 font-sans">
+            {/* KPI OVERVIEW CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Deals Registered</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{deals.length}</p>
+                <span className="text-[10px] text-emerald-700 font-bold">✓ Active B2B Contracts</span>
               </div>
 
-              <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Trips Dispatched</span>
+                <p className="text-2xl font-black text-emerald-700 font-mono">{trips.length}</p>
+                <span className="text-[10px] text-emerald-700 font-bold">✓ Wagon Fleet Assigned</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Rolling Stock Wagons</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{wagons.length}</p>
+                <span className="text-[10px] text-slate-500 font-bold">Active Fleet Inventory</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Client Requisitions</span>
+                <p className="text-2xl font-black text-[#62BC37] font-mono">{negotiations.length}</p>
+                <span className="text-[10px] text-emerald-700 font-bold">WhatsApp B2B Inbox</span>
+              </div>
+            </div>
+
+            {/* DEALS ACTION & DIRECTORY */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Industrial Consignee Client *</label>
-                  <select
-                    value={newDealForm.companyName}
-                    onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  >
-                    {customerUsers.map((u) => (
-                      <option key={u.id} value={u.companyName || u.fullName}>
-                        {u.companyName || u.fullName}
-                      </option>
-                    ))}
-                    <option value="Purechem Cement Industries Ltd">Purechem Cement Industries Ltd</option>
-                    <option value="Dangote Cement Industries">Dangote Cement Industries</option>
-                    <option value="BUA Cement Industries">BUA Cement Industries</option>
-                    <option value="HUAXIN BUILDING MATERIALS PLC">HUAXIN BUILDING MATERIALS PLC</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station</label>
-                    <select
-                      value={newDealForm.loadingStation}
-                      onChange={(e) => setNewDealForm({ ...newDealForm, loadingStation: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                    >
-                      <option value="EWK">Ewekoro Terminal (EWK)</option>
-                      <option value="PAPA">Papalanto Terminal (PAPA)</option>
-                      <option value="APT">Apapa Maritime Port (APT)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard</label>
-                    <input readOnly value="Moniya Yard (MNY)" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-bold" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
-                  <select
-                    value={newDealForm.cargoType}
-                    onChange={(e) => setNewDealForm({ ...newDealForm, cargoType: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  >
-                    <option value="Bagged Cement (50kg)">Bagged Cement (50kg) — [Unit: Bags]</option>
-                    <option value="Bulk Gypsum">Bulk Gypsum — [Unit: Metric Tonnes MT]</option>
-                    <option value="Limestone Raw Ore">Limestone Raw Ore — [Unit: Metric Tonnes MT]</option>
-                    <option value="Clinker Bulk">Clinker Bulk — [Unit: Metric Tonnes MT]</option>
-                    <option value="Shipping Containers (20ft/40ft)">Shipping Containers — [Unit: TEU Containers]</option>
-                    <option value="AGO Diesel / Liquid Bulk">AGO Diesel / Liquid — [Unit: Liters]</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      Quantity ({currentCargoConfig.unit}) *
-                    </label>
-                    <input
-                      required
-                      type="number"
-                      value={newDealForm.quantity}
-                      onChange={(e) => setNewDealForm({ ...newDealForm, quantity: e.target.value })}
-                      placeholder={`Enter quantity in ${currentCargoConfig.unit}...`}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Target Dispatch Date</label>
-                    <input
-                      type="date"
-                      value={newDealForm.targetDate}
-                      onChange={(e) => setNewDealForm({ ...newDealForm, targetDate: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
-                    />
-                  </div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Logistics Management</span>
+                  <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Commercial Freight Deals Directory
+                  </h3>
                 </div>
 
                 <button
-                  type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
+                  onClick={() => setCreateDealModal(true)}
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
-                  ✓ Create & Register Freight Deal
+                  <span>+ Create New Commercial Deal</span>
                 </button>
-              </form>
-            </div>
-
-            {/* DEALS DIRECTORY */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Directory</span>
-                  <h3 className="text-base font-black text-slate-900">Active Deals & Contracts</h3>
-                </div>
-                <span className="text-xs font-mono font-bold text-[#62BC37] font-mono">{deals.length} Active Contracts</span>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {deals.map((d) => {
                   const qty = Number(d.quantity) || 1610;
                   const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
                   const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
 
                   return (
-                    <div key={d.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
-                      <div className="flex justify-between items-center">
+                    <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
+                      <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                         <div>
                           <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
                           <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
@@ -718,7 +660,141 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 3: TELEMETRY ─── */}
+        {/* ─── TAB 2: WHATSAPP B2B CLIENT MESSAGING DESK ─── */}
+        {activeTab === 'negotiations' && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[600px] font-sans">
+            {/* LEFT THREADS DIRECTORY */}
+            <div className="lg:col-span-4 border-r border-slate-200 bg-slate-50 flex flex-col justify-between">
+              <div>
+                <div className="p-4 bg-white border-b border-slate-200 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">WHATSAPP B2B CLIENT MESSAGING</span>
+                    <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                      {negotiations.length} Active
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search client, company or deal ID..."
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                  />
+                </div>
+
+                <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+                  {filteredThreads.map((thread) => {
+                    const lastMsg = thread.messages && thread.messages.length > 0 ? thread.messages[thread.messages.length - 1] : null;
+                    const isSelected = activeDealId === thread.id;
+
+                    return (
+                      <button
+                        key={thread.id}
+                        onClick={() => setActiveDealId(thread.id)}
+                        className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
+                          isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                          {(thread.companyName || 'C').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline">
+                            <h4 className="text-xs font-black text-slate-900 truncate">{thread.companyName}</h4>
+                            <span className="text-[9px] font-mono text-slate-400">{lastMsg?.time || thread.createdAt}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{thread.id}</span>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5 font-medium">
+                            {lastMsg ? `${lastMsg.sender}: ${lastMsg.text}` : 'No messages yet'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT WHATSAPP CANVAS */}
+            <div className="lg:col-span-8 bg-slate-100/50 flex flex-col justify-between">
+              {activeThread ? (
+                <>
+                  <div className="p-4 bg-white border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm">
+                        {(activeThread.companyName || 'C').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                          {activeThread.companyName}
+                        </h3>
+                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 font-mono">
+                          <span className="w-2 h-2 bg-[#62BC37] rounded-full animate-ping inline-block" />
+                          Online • B2B Logistics Desk ({activeThread.cargoType || 'Bagged Cement'})
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleApproveDealAndAllocateWagons(activeThread)}
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                    >
+                      <span>✓ Accept Deal & Allocate Wagons</span>
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-4 max-h-[450px] overflow-y-auto font-sans">
+                    {(activeThread.messages || []).map((msg: any, idx: number) => {
+                      const isAdmin = !msg.role?.includes('Consignee') && !msg.sender.includes(activeThread.companyName);
+
+                      return (
+                        <div key={idx} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 shadow-sm ${
+                            isAdmin
+                              ? 'bg-[#62BC37] text-white rounded-br-none'
+                              : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
+                          }`}>
+                            <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1">
+                              <span className="font-extrabold">{msg.sender} ({msg.role || 'Client Lead'})</span>
+                              <span className="font-mono">{msg.time}</span>
+                            </div>
+                            <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
+                            <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
+                              {isAdmin ? '✓✓ Delivered' : '✓ Received'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <form onSubmit={handleAdminReply} className="p-4 bg-white border-t border-slate-200 flex gap-2">
+                    <input
+                      value={replyInput}
+                      onChange={(e) => setReplyInput(e.target.value)}
+                      placeholder={`Type a response to ${activeThread.companyName}...`}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
+                    >
+                      Send Reply ➔
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="text-center my-auto space-y-2 p-8">
+                  <span className="text-xs font-mono text-slate-400 font-bold block">[ NO CONVERSATION SELECTED ]</span>
+                  <h3 className="text-base font-black text-slate-900">Select a Client Conversation from the Sidebar</h3>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 3: LIVE TELEMETRY & SATELLITE GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6 font-sans">
             <LiveGpsMap trip={trips.find((t) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
@@ -747,7 +823,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 4: MANIFESTS ─── */}
+        {/* ─── TAB 4: MANIFEST AUDITS ─── */}
         {activeTab === 'manifest' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
             <div className="border-b border-slate-100 pb-3">
@@ -801,31 +877,159 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 6: USERS ─── */}
+        {/* ─── TAB 6: USER DIRECTORY & ACCOUNT PROVISIONING ─── */}
         {activeTab === 'users' && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+            {/* PROVISION USER FORM */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Staff & Account Provisioning</span>
+                <h3 className="text-base font-black text-slate-900">Provision New Account</h3>
+              </div>
+
+              <form onSubmit={handleProvisionUser} className="space-y-3 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Full Name *</label>
+                  <input
+                    required
+                    value={provisionForm.fullName}
+                    onChange={(e) => setProvisionForm({ ...provisionForm, fullName: e.target.value })}
+                    placeholder="e.g. Segun Alabi"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Email Address *</label>
+                    <input
+                      required
+                      type="email"
+                      value={provisionForm.email}
+                      onChange={(e) => setProvisionForm({ ...provisionForm, email: e.target.value })}
+                      placeholder="segun@bueno.ng"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Mobile Phone *</label>
+                    <input
+                      required
+                      value={provisionForm.phone}
+                      onChange={(e) => setProvisionForm({ ...provisionForm, phone: e.target.value })}
+                      placeholder="08031112233"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Role Classification</label>
+                    <select
+                      value={provisionForm.role}
+                      onChange={(e) => setProvisionForm({ ...provisionForm, role: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    >
+                      <option value="CARGO_OFFICER">Cargo Officer</option>
+                      <option value="HEAD_OF_OPERATIONS">Head of Operations</option>
+                      <option value="ADMIN">Admin Officer</option>
+                      <option value="CEO">Managing Director / CEO</option>
+                      <option value="HEAD_OF_FINANCE">Head of Finance</option>
+                      <option value="CUSTOMER">Industrial Consignee Client</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
+                    <select
+                      value={provisionForm.assignedStation}
+                      onChange={(e) => setProvisionForm({ ...provisionForm, assignedStation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    >
+                      <option value="EWK">Ewekoro Terminal</option>
+                      <option value="MNY">Moniya Yard (Ibadan)</option>
+                      <option value="APT">Apapa Maritime Port</option>
+                      <option value="HQ">Bueno HQ Command</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
+                >
+                  ✓ Provision & Activate Account
+                </button>
+              </form>
+            </div>
+
+            {/* USER DIRECTORY TABLE */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">User Directory</span>
+                  <h3 className="text-base font-black text-slate-900">Provisioned Accounts ({usersList.length})</h3>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
+                    <tr>
+                      <th className="p-3">User Name</th>
+                      <th className="p-3">Email Address</th>
+                      <th className="p-3">Role</th>
+                      <th className="p-3">Assigned Station</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {usersList.map((u, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold font-sans text-slate-900">{u.fullName}</td>
+                        <td className="p-3 text-slate-600">{u.email}</td>
+                        <td className="p-3 font-bold text-[#62BC37]">{u.role}</td>
+                        <td className="p-3 text-slate-600">{u.assignedStation || 'EWK'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 7: PERMISSIONS MATRIX ─── */}
+        {activeTab === 'permissions' && (
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">User Directory</span>
-              <h3 className="text-base font-black text-slate-900">Provisioned Accounts</h3>
+              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Spatie Access Control</span>
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Enterprise Granular Permissions Matrix
+              </h3>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
+                <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b">
                   <tr>
-                    <th className="p-3">User Name</th>
-                    <th className="p-3">Email Address</th>
-                    <th className="p-3">Role</th>
-                    <th className="p-3">Assigned Station</th>
+                    <th className="p-3">Role Classification</th>
+                    <th className="p-3">Trip Creation</th>
+                    <th className="p-3">Wagon Allocation</th>
+                    <th className="p-3">B2B Negotiations</th>
+                    <th className="p-3">Financial Disbursements</th>
+                    <th className="p-3">User Provisioning</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
-                  {usersList.map((u, idx) => (
+                  {Object.entries(permissionsMatrix).map(([roleKey, perms], idx) => (
                     <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-3 font-bold font-sans text-slate-900">{u.fullName}</td>
-                      <td className="p-3 text-slate-600">{u.email}</td>
-                      <td className="p-3 font-bold text-[#62BC37]">{u.role}</td>
-                      <td className="p-3 text-slate-600">{u.assignedStation || 'EWK'}</td>
+                      <td className="p-3 font-bold font-sans text-slate-900">{roleKey}</td>
+                      <td className="p-3">{perms.includes('trip.create') ? '✓ ALLOWED' : '—'}</td>
+                      <td className="p-3">{perms.includes('wagon.allocate') ? '✓ ALLOWED' : '—'}</td>
+                      <td className="p-3">{perms.includes('deal.negotiate') ? '✓ ALLOWED' : '—'}</td>
+                      <td className="p-3">{perms.includes('financial.disburse') ? '✓ ALLOWED' : '—'}</td>
+                      <td className="p-3">{perms.includes('user.provision') ? '✓ ALLOWED' : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

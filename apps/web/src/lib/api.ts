@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
-export const api = axios.create({ baseURL: BASE });
+export const api = axios.create({ baseURL: BASE, timeout: 1500 });
 
 // Attach JWT from localStorage on every request
 // FIX: key is "bueno_token" — matches what login page stores

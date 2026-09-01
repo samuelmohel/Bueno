@@ -307,9 +307,15 @@ function LoginForm() {
 
     let token = `token_${foundUser.id || Date.now()}`;
     try {
-      const res = await authApi.login(foundUser.email || 'admin@bueno.ng', 'demo1234');
-      if (res.data?.accessToken) token = res.data.accessToken;
-    } catch {}
+      const authPromise = authApi.login(foundUser.email || 'admin@bueno.ng', 'demo1234');
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 300));
+      const res: any = await Promise.race([authPromise, timeoutPromise]);
+      if (res && res.data?.accessToken) {
+        token = res.data.accessToken;
+      }
+    } catch {
+      // Offline fallback
+    }
 
     const userProfile = {
       ...foundUser,
