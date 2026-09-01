@@ -884,7 +884,39 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── HEADER (STRICT WHITE & BRAND GREEN PALETTE) ─── */}
+      {/* ─── DEDICATED PRINT STYLESHEET (CLEAN AUDIT EXPORT) ─── */}
+      <style>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+          }
+          header, aside, button, nav, input, select, .no-print {
+            display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+          }
+          .bg-white, .bg-slate-50 {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: none !important;
+            border-radius: 8px !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          th, td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 6px 10px !important;
+            color: #0f172a !important;
+          }
+        }
+      `}</style>
+
       {/* ─── HEADER (PURE WHITE TEXTURED HEADER WITH OFFICIAL BUENO LOGO) ─── */}
       <header className="bg-white/95 backdrop-blur-md text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
@@ -996,8 +1028,26 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* ─── TAB 0: ORIGINAL FULL EXECUTIVE REPORTS & HISTORICAL ANALYTICS (MONTH-BY-MONTH RETRIEVABLE 2-3 MONTHS AGO) ─── */}
         {activeTab === 'analytics' && (
           <div className="space-y-6 font-sans">
-            {/* HISTORICAL DATE BACK ARCHIVE FILTER BAR */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            {/* PRINT-DEDICATED EXECUTIVE DOCUMENT HEADER WITH OFFICIAL BUENO LOGO */}
+            <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <img src="/bueno_logo.png" alt="Bueno Logistics" className="h-12 w-auto object-contain" />
+                  <div>
+                    <h1 className="text-xl font-black text-slate-900">BUENO LOGISTICS LIMITED</h1>
+                    <p className="text-xs font-mono font-bold text-slate-600 uppercase">OFFICIAL EXECUTIVE CORRIDOR AUDIT REPORT</p>
+                  </div>
+                </div>
+                <div className="text-right font-mono text-xs">
+                  <p className="font-extrabold text-slate-900 uppercase">CONFIDENTIAL EXECUTIVE AUDIT</p>
+                  <p className="text-slate-600">Audit Period: {selectedMonth}</p>
+                  <p className="text-slate-600">Generated: {new Date().toLocaleDateString('en-GB')}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* HISTORICAL DATE BACK ARCHIVE FILTER BAR (HIDDEN DURING PRINT) */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
               <div>
                 <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">HISTORICAL CORRIDOR AUDIT ARCHIVE</span>
                 <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
