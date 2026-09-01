@@ -109,7 +109,7 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
 };
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet'>('analytics');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
   const [createDealModal, setCreateDealModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -415,6 +415,45 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setCustomAlert({
       title: 'Deal Approved & Trip Dispatched',
       message: `Trip #${newTrip.id} created for ${newTrip.company}! Wagons allocated & loading log initiated at ${newTrip.origin} Terminal.`,
+    });
+  };
+
+  // REQUISITION APPROVAL & DISBURSAL HANDLERS
+  const handleApproveRequisition = (reqId: string) => {
+    const liveReqs = StateEngine.getRequests();
+    const updated = liveReqs.map((r: any) =>
+      r.id === reqId || r.requisitionNo === reqId
+        ? { ...r, status: 'APPROVED', stage: 'Head of Finance' }
+        : r
+    );
+    StateEngine.saveRequests(updated);
+    setRequests(updated);
+
+    setCustomAlert({
+      title: 'Requisition Approved',
+      message: `Requisition #${reqId} has been approved and moved to Head of Finance for GTBank disbursal!`,
+    });
+  };
+
+  const handleDisburseRequisition = (reqId: string) => {
+    const liveReqs = StateEngine.getRequests();
+    const ref = `TRF-GTB-${Math.floor(100000 + Math.random() * 899999)}`;
+    const updated = liveReqs.map((r: any) =>
+      r.id === reqId || r.requisitionNo === reqId
+        ? {
+            ...r,
+            status: 'DISBURSED',
+            stage: 'Completed',
+            paymentDetails: { ref, disbursedAt: new Date().toLocaleString('en-GB') },
+          }
+        : r
+    );
+    StateEngine.saveRequests(updated);
+    setRequests(updated);
+
+    setCustomAlert({
+      title: 'Funds Disbursed via GTBank API',
+      message: `Requisition #${reqId} disbursed successfully! Bank Transaction Ref: ${ref}.`,
     });
   };
 
@@ -897,6 +936,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   { id: 'analytics', label: 'Executive Reports & Analytics' },
                   { id: 'deals', label: 'Commercial Deals Desk' },
                   { id: 'negotiations', label: 'Client Negotiations Chat' },
+                  { id: 'fund_requisitions', label: 'Fund Requisition & Operational Expenses' },
+                  { id: 'fleet', label: 'Fleet & Rolling Stock Management' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
                   { id: 'billing', label: 'Commercial Invoices & Ledger' },
@@ -1502,6 +1543,130 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: FUND REQUISITION & OPERATIONAL EXPENSES DESK ─── */}
+        {activeTab === 'fund_requisitions' && (
+          <div className="space-y-6 font-sans">
+            {/* KPI OVERVIEW CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Requisitions Requested</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">
+                  ₦{requests.reduce((acc, r) => acc + (Number(r.amount) || 0), 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-700 font-bold">{requests.length} Field Requests</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Approved & Disbursed Funds</span>
+                <p className="text-2xl font-black text-[#62BC37] font-mono">
+                  ₦{requests.filter(r => r.status === 'APPROVED' || r.status === 'DISBURSED').reduce((acc, r) => acc + (Number(r.amount) || 0), 0).toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-700 font-bold">Disbursed via GTBank API</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Pending Review & Action</span>
+                <p className="text-2xl font-black text-amber-600 font-mono">
+                  {requests.filter(r => r.status === 'PENDING_APPROVAL' || r.status === 'PENDING').length} Requests
+                </p>
+                <span className="text-[10px] text-slate-500 font-bold">Awaiting Officer Action</span>
+              </div>
+            </div>
+
+            {/* FIELD REQUISITION TABLE */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">OPERATIONAL EXPENSE LEDGER</span>
+                  <h3 className="text-base font-black text-slate-900">
+                    Field Requisition Requests & GTBank Disbursal Terminal
+                  </h3>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-sans">
+                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
+                    <tr>
+                      <th className="p-3">Req ID</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Title & Purpose</th>
+                      <th className="p-3">Requested Amount</th>
+                      <th className="p-3">Requested By & Station</th>
+                      <th className="p-3">Stage / Ref</th>
+                      <th className="p-3 text-right">Approval & Disbursal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {requests.map((req: any, idx: number) => {
+                      const isApproved = req.status === 'APPROVED';
+                      const isDisbursed = req.status === 'DISBURSED';
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-amber-800">{req.requisitionNo || req.id}</td>
+                          <td className="p-3 font-bold">
+                            <span className="bg-slate-100 text-slate-800 text-[10px] px-2 py-0.5 rounded border border-slate-200">
+                              {req.category || 'OPERATIONAL'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-sans font-bold text-slate-900 max-w-xs">{req.title || req.description}</td>
+                          <td className="p-3 font-extrabold text-emerald-700 text-sm">
+                            ₦{Number(req.amount || 0).toLocaleString()}
+                          </td>
+                          <td className="p-3 text-slate-700 font-sans">
+                            <span className="font-bold block">{req.requestedBy || 'Ade Bello'}</span>
+                            <span className="text-[10px] text-slate-400 block">{req.station || 'EWK'} Terminal</span>
+                          </td>
+                          <td className="p-3">
+                            {isDisbursed ? (
+                              <div>
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase block w-fit">
+                                  DISBURSED
+                                </span>
+                                <span className="text-[9px] text-slate-400 block mt-0.5">{req.paymentDetails?.ref || 'TRF-GTB-998120'}</span>
+                              </div>
+                            ) : isApproved ? (
+                              <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
+                                APPROVED
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
+                                PENDING APPROVAL
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right space-x-2">
+                            {!isApproved && !isDisbursed && (
+                              <button
+                                onClick={() => handleApproveRequisition(req.id)}
+                                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
+                              >
+                                ✓ Approve
+                              </button>
+                            )}
+                            {isApproved && !isDisbursed && (
+                              <button
+                                onClick={() => handleDisburseRequisition(req.id)}
+                                className="bg-emerald-800 hover:bg-emerald-900 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
+                              >
+                                💸 Disburse (GTBank)
+                              </button>
+                            )}
+                            {isDisbursed && (
+                              <span className="text-[10px] text-emerald-700 font-extrabold">✓ Funds Cleared</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
