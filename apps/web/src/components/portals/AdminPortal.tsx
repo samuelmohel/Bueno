@@ -112,7 +112,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet'>('analytics');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
   const [createDealModal, setCreateDealModal] = useState(false);
+  const [registerWagonModal, setRegisterWagonModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
+
+  const [newWagonForm, setNewWagonForm] = useState({
+    id: `PXG ${Math.floor(1000 + Math.random() * 8999)}`,
+    wagonType: 'Covered Hopper Wagon',
+    payloadCapacity: '60 MT',
+    currentStation: 'EWK',
+    gauge: 'STANDARD_GAUGE',
+  });
 
   // Historical Report State
   const [selectedMonth, setSelectedMonth] = useState('2026-09');
@@ -454,6 +463,26 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setCustomAlert({
       title: 'Funds Disbursed via GTBank API',
       message: `Requisition #${reqId} disbursed successfully! Bank Transaction Ref: ${ref}.`,
+    });
+  };
+
+  // REGISTER NEW ROLLING STOCK WAGON
+  const handleRegisterWagon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newWagonObj = {
+      id: newWagonForm.id,
+      wagonType: newWagonForm.wagonType,
+      payloadCapacity: newWagonForm.payloadCapacity,
+      status: 'AVAILABLE',
+      currentStation: newWagonForm.currentStation,
+      gauge: newWagonForm.gauge,
+    };
+    StateEngine.registerWagon(newWagonObj);
+    setWagons([newWagonObj, ...wagons]);
+    setRegisterWagonModal(false);
+    setCustomAlert({
+      title: 'New Rolling Stock Wagon Registered',
+      message: `Wagon ${newWagonObj.id} (${newWagonObj.wagonType}) registered into active fleet database at ${newWagonObj.currentStation} Terminal!`,
     });
   };
 
@@ -1670,6 +1699,182 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: FLEET & ROLLING STOCK MANAGEMENT ─── */}
+        {activeTab === 'fleet' && (
+          <div className="space-y-6 font-sans">
+            {/* KPI OVERVIEW CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Rolling Stock Fleet</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{wagons.length} Wagons</p>
+                <span className="text-[10px] text-emerald-700 font-bold">Standard & Narrow Gauge</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Available for Loading</span>
+                <p className="text-2xl font-black text-[#62BC37] font-mono">
+                  {wagons.filter(w => w.status === 'AVAILABLE').length} Wagons
+                </p>
+                <span className="text-[10px] text-emerald-700 font-bold">Ready at Sidings</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Loaded / In Transit</span>
+                <p className="text-2xl font-black text-amber-600 font-mono">
+                  {wagons.filter(w => w.status === 'LOADED' || w.status === 'IN_TRANSIT').length} Wagons
+                </p>
+                <span className="text-[10px] text-slate-500 font-bold">En-Route Corridor</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Freight Tonnage Payload</span>
+                <p className="text-2xl font-black text-emerald-700 font-mono">
+                  {wagons.reduce((acc, w) => acc + (Number(w.payloadCapacity?.replace(/\D/g, '')) || 60), 0).toLocaleString()} MT
+                </p>
+                <span className="text-[10px] text-slate-500 font-bold">Cumulative Fleet Capacity</span>
+              </div>
+            </div>
+
+            {/* FLEET MANAGEMENT TABLE */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ROLLING STOCK ASSET MANAGEMENT</span>
+                  <h3 className="text-base font-black text-slate-900">
+                    Active Wagon Inventory & Terminal Allocation
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setRegisterWagonModal(true)}
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
+                >
+                  <span>+ Register New Wagon</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-sans">
+                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
+                    <tr>
+                      <th className="p-3">Wagon ID</th>
+                      <th className="p-3">Wagon Classification</th>
+                      <th className="p-3">Payload Capacity</th>
+                      <th className="p-3">Track Gauge</th>
+                      <th className="p-3">Current Station</th>
+                      <th className="p-3 text-right">Operational Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {wagons.map((w: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-amber-800">{w.id}</td>
+                        <td className="p-3 font-sans font-bold text-slate-900">{w.wagonType || 'Covered Hopper Wagon'}</td>
+                        <td className="p-3 font-extrabold text-emerald-700">{w.payloadCapacity || '60 MT'}</td>
+                        <td className="p-3 text-slate-600">{w.gauge || 'STANDARD_GAUGE'}</td>
+                        <td className="p-3 font-bold text-slate-700">
+                          {w.currentStation === 'EWK' ? 'Ewekoro Siding (EWK)' : w.currentStation === 'MNY' ? 'Moniya Yard (MNY)' : 'Apapa Port (APT)'}
+                        </td>
+                        <td className="p-3 text-right">
+                          <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded uppercase ${
+                            w.status === 'AVAILABLE'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : w.status === 'LOADED' || w.status === 'IN_TRANSIT'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {w.status || 'AVAILABLE'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── REGISTER NEW WAGON MODAL ─── */}
+        {registerWagonModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ROLLING STOCK REGISTRATION</span>
+                  <h3 className="text-base font-black text-slate-900">Provision New Fleet Wagon</h3>
+                </div>
+                <button onClick={() => setRegisterWagonModal(false)} className="text-slate-400 font-bold hover:text-slate-900">✕</button>
+              </div>
+
+              <form onSubmit={handleRegisterWagon} className="space-y-3.5 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Registration ID *</label>
+                  <input
+                    required
+                    value={newWagonForm.id}
+                    onChange={(e) => setNewWagonForm({ ...newWagonForm, id: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Classification *</label>
+                  <select
+                    value={newWagonForm.wagonType}
+                    onChange={(e) => setNewWagonForm({ ...newWagonForm, wagonType: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  >
+                    <option value="Covered Hopper Wagon">Covered Hopper Wagon (Bagged Cement / Bulk)</option>
+                    <option value="Open Top Gondola Wagon">Open Top Gondola Wagon (Limestone / Gypsum)</option>
+                    <option value="Flatbed Container Wagon">Flatbed Container Wagon (TEU Containers)</option>
+                    <option value="Tanker Wagon">Tanker Wagon (AGO Liquid Bulk)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payload Capacity</label>
+                    <input
+                      required
+                      value={newWagonForm.payloadCapacity}
+                      onChange={(e) => setNewWagonForm({ ...newWagonForm, payloadCapacity: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
+                    <select
+                      value={newWagonForm.currentStation}
+                      onChange={(e) => setNewWagonForm({ ...newWagonForm, currentStation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                    >
+                      <option value="EWK">Ewekoro Siding (EWK)</option>
+                      <option value="MNY">Moniya Yard (MNY)</option>
+                      <option value="APT">Apapa Port (APT)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterWagonModal(false)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-2.5 rounded-xl shadow-md transition-all"
+                  >
+                    ✓ Register Wagon ➔
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
