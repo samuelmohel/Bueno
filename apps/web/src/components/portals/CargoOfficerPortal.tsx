@@ -440,6 +440,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 { id: 'loading', label: 'Cargo Loading & Waybill Terminal' },
                 { id: 'dispatch', label: 'Escort Officer Dispatch' },
                 { id: 'wagons', label: 'Wagon Fleet Inventory' },
+                { id: 'requisitions', label: 'Field Fund Requisitions' },
                 { id: 'history', label: 'Historical Inspection Audit' },
               ].map((t) => (
                 <button
