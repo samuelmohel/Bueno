@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
+import { LiveGpsMap } from '@/components/LiveGpsMap';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -719,26 +720,30 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
         {/* ─── TAB 3: TELEMETRY ─── */}
         {activeTab === 'telemetry' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
-            {trips.map((trip) => (
-              <div key={trip.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                  <div>
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.id}</span>
-                    <h3 className="text-base font-black text-slate-900">{trip.company || 'Industrial Consignee'}</h3>
-                  </div>
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase">
-                    {trip.status}
-                  </span>
-                </div>
+          <div className="space-y-6 font-sans">
+            <LiveGpsMap trip={trips.find((t) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
 
-                <div className="grid grid-cols-3 gap-3 text-xs text-center">
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{trip.origin} ➔ {trip.destination}</span></div>
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {trips.map((trip) => (
+                <div key={trip.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.id}</span>
+                      <h3 className="text-base font-black text-slate-900">{trip.company || 'Industrial Consignee'}</h3>
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase">
+                      {trip.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-xs text-center">
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-[#62BC37]">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Ade Bello'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 

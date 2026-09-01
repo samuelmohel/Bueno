@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
+import { LiveGpsMap } from '@/components/LiveGpsMap';
 
 // COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
@@ -367,6 +368,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {/* ─── TAB 2: LIVE TELEMETRY & GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6">
+            <LiveGpsMap trip={activeTrip} />
+
             {trips.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
                 {trips.map((trip) => {
