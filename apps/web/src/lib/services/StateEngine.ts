@@ -247,24 +247,6 @@ class StateEngineService {
     const current = this.getUsers();
     const updated = current.map((u) => (u.id === userId || u.email === userId ? { ...u, ...updatedFields } : u));
     this.saveUsers(updated);
-
-    // REAL-TIME SESSION AUTO-SYNC: If edited user is the active logged-in user, sync session instantly!
-    if (typeof window !== 'undefined') {
-      try {
-        const rawSession = localStorage.getItem('bueno_user');
-        if (rawSession) {
-          const sessionUser = JSON.parse(rawSession);
-          if (sessionUser.id === userId || sessionUser.email === userId || sessionUser.email === updatedFields.email) {
-            const newSession = { ...sessionUser, ...updatedFields };
-            localStorage.setItem('bueno_user', JSON.stringify(newSession));
-            document.cookie = `bueno_user=${encodeURIComponent(JSON.stringify(newSession))}; path=/; max-age=604800`;
-            window.dispatchEvent(new Event('bueno_user_updated'));
-          }
-        }
-      } catch (err) {
-        console.error('Session sync error:', err);
-      }
-    }
   }
 
   // ── PERMISSIONS MATRIX API ────────────────────────────────────────────────
