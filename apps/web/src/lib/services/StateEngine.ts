@@ -242,6 +242,82 @@ class StateEngineService {
     this.writeStorage('bueno_users', users);
     usersApi.getAll().catch(() => {});
   }
+
+  // ── ENTERPRISE CLIENT ONBOARDING & DUAL PROVISIONING ──────────────────────
+  provisionClientFromRequest(form: any): { reqId: string; staffId: string; pin: string; user: any; request: any } {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const reqId = `REQ-2026-${num}`;
+    const staffId = `CUST-${num}`;
+    const pin = '1111';
+
+    // 1. Create Requisition Object
+    const newReq = {
+      id: reqId,
+      requisitionNo: reqId,
+      companyName: form.companyName.trim(),
+      product: form.product,
+      contactName: form.contactName.trim() || `${form.companyName.trim()} Logistics Manager`,
+      email: form.email.trim(),
+      phone: form.phone.trim() || '08030000000',
+      volume: form.volume,
+      route: form.route,
+      notes: form.notes || '',
+      status: 'PENDING',
+      createdAt: new Date().toLocaleString('en-GB'),
+    };
+    const existingReqs = this.readStorage('bueno_client_requests', []);
+    this.writeStorage('bueno_client_requests', [newReq, ...existingReqs]);
+
+    // 2. Auto-Provision Customer Account
+    const newUser = {
+      id: `usr_${Date.now()}`,
+      fullName: newReq.contactName,
+      email: newReq.email,
+      phone: newReq.phone,
+      role: 'CUSTOMER',
+      userType: 'CUSTOMER',
+      companyName: newReq.companyName,
+      staffId: staffId,
+      pin: pin,
+      status: 'ACTIVE',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+    };
+    const existingUsers = this.getUsers();
+    this.saveUsers([newUser, ...existingUsers]);
+
+    // 3. Dispatch System Notification Alert for Admin & Operations
+    const existingNotifs = this.readStorage('bueno_notifications', []);
+    const newNotif = {
+      id: `notif_${Date.now()}`,
+      title: 'New Industrial Client Freight Requisition Received',
+      body: `${newReq.companyName} (${newReq.contactName}) requested ${newReq.product} [${newReq.volume}] via ${newReq.route}`,
+      time: 'Just now',
+      type: 'CLIENT_REQUEST',
+      reqId: reqId,
+      read: false,
+    };
+    this.writeStorage('bueno_notifications', [newNotif, ...existingNotifs]);
+
+    // 4. Trigger Real-time Transactional Email Webhook (cPanel send_mail API)
+    if (typeof window !== 'undefined' && newReq.email) {
+      fetch('/api/send_mail.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: newReq.email,
+          companyName: newReq.companyName,
+          contactName: newReq.contactName,
+          staffId: staffId,
+          pin: pin,
+          reqId: reqId,
+          route: newReq.route,
+          volume: newReq.volume,
+        }),
+      }).catch(() => {});
+    }
+
+    return { reqId, staffId, pin, user: newUser, request: newReq };
+  }
 }
 
 export const StateEngine = new StateEngineService();

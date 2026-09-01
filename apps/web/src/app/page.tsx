@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { StateEngine } from '@/lib/services/StateEngine';
 
 /* ── Animated Counter ────────────────────────────── */
 function Counter({ to, suffix = '', prefix = '', duration = 2000 }: { to: number; suffix?: string; prefix?: string; duration?: number }) {
@@ -107,6 +108,7 @@ function TelemetryCard() {
 export default function BuenoLogisticsHomePage() {
   const [requestModal, setRequestModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [provisionResult, setProvisionResult] = useState<any | null>(null);
   const [form, setForm] = useState({
     companyName: '',
     product: 'CEMENT',
@@ -121,36 +123,18 @@ export default function BuenoLogisticsHomePage() {
 
   const handleSubmitRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const existingReqs = JSON.parse(localStorage.getItem('bueno_client_requests') || '[]');
-      const newReq = {
-        id: `REQ-${Date.now()}`,
-        ...form,
-        status: 'PENDING',
-        createdAt: new Date().toLocaleString(),
-      };
-      localStorage.setItem('bueno_client_requests', JSON.stringify([newReq, ...existingReqs]));
+    if (!form.companyName.trim() || !form.email.trim()) return;
 
-      // Also trigger a real-time notification alert!
-      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
-      const newNotif = {
-        id: `notif_${Date.now()}`,
-        title: 'New Client Consignment Note Received',
-        body: `${form.companyName} (${form.contactName}) requested ${form.product} [${form.volume}] via ${form.route}`,
-        time: 'Just now',
-        type: 'CLIENT_REQUEST',
-        reqId: newReq.id,
-        read: false,
-      };
-      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...existingNotifs]));
-    } catch {}
-
+    const result = StateEngine.provisionClientFromRequest(form);
+    setProvisionResult(result);
     setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setRequestModal(false);
-      setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
-    }, 2500);
+  };
+
+  const handleLaunchWorkspace = () => {
+    if (provisionResult?.user) {
+      localStorage.setItem('bueno_user', JSON.stringify(provisionResult.user));
+      window.location.href = '/dashboard';
+    }
   };
 
   const steps = [
@@ -493,15 +477,81 @@ export default function BuenoLogisticsHomePage() {
               </p>
             </div>
 
-            {submitted ? (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-6 rounded-2xl text-center space-y-2">
-                <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center mx-auto text-lg font-black">
-                  ✓
+            {submitted && provisionResult ? (
+              <div className="space-y-5 text-left font-sans">
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-5 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center text-lg font-black shadow-sm">
+                      ✓
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono font-black text-emerald-800 uppercase">Docket: {provisionResult.reqId}</span>
+                      <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Requisition Transmitted & Account Active</h3>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Your freight corridor requisition for <b>{provisionResult.request.companyName}</b> has been received and registered at the Command Center.
+                  </p>
                 </div>
-                <h3 className="text-base font-black">Service Request Transmitted!</h3>
-                <p className="text-xs text-emerald-800">
-                  Your freight inquiry has been dispatched to our Operations & Admin team. An officer will contact you shortly and provision your client workspace.
-                </p>
+
+                {/* UNIQUE CLIENT CREDENTIALS CARD */}
+                <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-3 shadow-md">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase">Unique Client Credentials</span>
+                    <span className="text-[9px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800">ACTIVE SESSION</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Client Email</span>
+                      <span className="font-mono font-bold text-slate-200 truncate block">{provisionResult.user.email}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Staff / Client ID</span>
+                      <span className="font-mono font-bold text-amber-400 block">{provisionResult.staffId}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Temporary PIN</span>
+                      <span className="font-mono font-bold text-emerald-400 block">{provisionResult.pin}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Target Route</span>
+                      <span className="font-bold text-slate-300 truncate block">{provisionResult.request.route.split(' ')[0]}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center gap-2">
+                    <span>📧</span>
+                    <span>Transactional Email with PDF receipt dispatched to <b>{provisionResult.user.email}</b></span>
+                  </div>
+                </div>
+
+                {/* ACTION BUTTONS */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={handleLaunchWorkspace}
+                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🚀 Launch Industrial Client Workspace Now</span>
+                    <span>➔</span>
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all border border-slate-300"
+                    >
+                      🖨️ Print PDF Receipt
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSubmitted(false);
+                        setRequestModal(false);
+                        setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
+                      }}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 rounded-xl transition-all"
+                    >
+                      Close Window
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs font-semibold">
