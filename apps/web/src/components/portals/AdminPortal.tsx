@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'users' | 'permissions'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'deals' | 'negotiations' | 'manifest' | 'billing' | 'users' | 'permissions'>('deals');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
   // Dynamic Repository State
   const [trips, setTrips] = useState<any[]>([]);
   const [wagons, setWagons] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -19,8 +20,21 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   // Active Selected Thread / Item
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [selectedInspectionDeal, setSelectedInspectionDeal] = useState<any | null>(null);
   const [replyInput, setReplyInput] = useState('');
   const [editingUser, setEditingUser] = useState<any | null>(null);
+
+  // New Deal Creation Form
+  const [newDealForm, setNewDealForm] = useState({
+    companyName: 'Purechem Cement Industries Ltd',
+    loadingStation: 'EWK',
+    destination: 'MNY',
+    cargoType: 'Bagged Cement (50kg)',
+    quantity: '2000',
+    tariffRate: '1200',
+    targetDate: '',
+    notes: '',
+  });
 
   // New Staff Provisioning Form
   const [provisionForm, setProvisionForm] = useState({
@@ -57,6 +71,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const syncData = () => {
     setTrips(StateEngine.getTrips());
     setWagons(StateEngine.getWagons());
+    setDeals(StateEngine.getDeals());
     setRequests(tryParse('bueno_client_requests', []));
     setNegotiations(tryParse('bueno_custom_deal_negotiations', []));
     setUsersList(StateEngine.getUsers());
@@ -85,6 +100,72 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setNegotiations(updatedDeals);
     localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updatedDeals));
     window.dispatchEvent(new Event('bueno_state_updated'));
+  };
+
+  const handleCreateNewDeal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const generatedDealId = `DEAL-${Math.floor(80000 + Math.random() * 19999)}`;
+    const quantityNum = Number(newDealForm.quantity) || 2000;
+    const rateNum = Number(newDealForm.tariffRate) || 1200;
+    const totalAmount = quantityNum * rateNum;
+
+    const newDealObj = {
+      id: generatedDealId,
+      dealNumber: generatedDealId,
+      company: newDealForm.companyName,
+      companyName: newDealForm.companyName,
+      loadingStation: newDealForm.loadingStation,
+      destination: newDealForm.destination,
+      cargoType: newDealForm.cargoType,
+      quantity: quantityNum,
+      tariffRate: rateNum,
+      totalAmount: totalAmount,
+      status: 'APPROVED',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+    };
+
+    // Save to StateEngine Deals & Negotiations Thread
+    const updatedDeals = [newDealObj, ...deals];
+    StateEngine.saveDeals(updatedDeals);
+    setDeals(updatedDeals);
+
+    const autoThread = {
+      id: generatedDealId,
+      companyName: newDealForm.companyName,
+      loadingStation: newDealForm.loadingStation,
+      destination: newDealForm.destination,
+      cargoType: newDealForm.cargoType,
+      quantity: `${quantityNum} Bags`,
+      status: 'APPROVED',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+      messages: [
+        {
+          sender: user?.fullName || 'Head of Operations',
+          role: 'Head of Operations',
+          text: `Official Commercial Freight Deal Created: ${newDealForm.cargoType} (${quantityNum} Bags) via ${newDealForm.loadingStation} ➔ ${newDealForm.destination}. Rate: ₦${rateNum}/bag. Total: ₦${totalAmount.toLocaleString()}. Notes: ${newDealForm.notes || 'N/A'}`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ],
+    };
+
+    saveNegotiations([autoThread, ...negotiations]);
+
+    // Reset Form
+    setNewDealForm({
+      companyName: 'Purechem Cement Industries Ltd',
+      loadingStation: 'EWK',
+      destination: 'MNY',
+      cargoType: 'Bagged Cement (50kg)',
+      quantity: '2000',
+      tariffRate: '1200',
+      targetDate: '',
+      notes: '',
+    });
+
+    setCustomAlert({
+      title: 'Commercial Freight Deal Created & Synced',
+      message: `Deal ${generatedDealId} registered for ${newDealObj.company}! Total Billed: ₦${totalAmount.toLocaleString()}. Database & StateEngine synced.`,
+    });
   };
 
   const handleAdminReply = (e: React.FormEvent) => {
@@ -116,8 +197,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       locomotiveId: 'L2205',
       origin: deal.loadingStation || 'EWK',
       destination: deal.destination || 'MNY',
-      company: deal.companyName || 'Industrial Consignee',
-      dealNumber: deal.id,
+      company: deal.companyName || deal.company || 'Industrial Consignee',
+      dealNumber: deal.id || deal.dealNumber,
       quantity: Number(deal.quantity) || 1610,
       cargoOfficerId: 'usr_1',
       cargoOfficerName: 'Ade Bello',
@@ -159,7 +240,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     setCustomAlert({
       title: 'Deal Approved & Wagons Allocated',
-      message: `Corridor Trip ${newTrip.id} launched successfully for ${deal.companyName}! Locomotive #L2205 assigned.`,
+      message: `Corridor Trip ${newTrip.id} launched successfully for ${deal.companyName || deal.company}! Locomotive #L2205 assigned.`,
     });
   };
 
@@ -201,7 +282,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     StateEngine.saveUsers(updated);
     setUsersList(updated);
 
-    // Trigger Mail Webhook
     try {
       await fetch('/api/send_mail.php', {
         method: 'POST',
@@ -235,6 +315,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     localStorage.setItem('bueno_permissions_matrix', JSON.stringify(updatedMatrix));
   };
 
+  const customerUsers = usersList.filter((u) => u.userType === 'CUSTOMER' || u.role === 'CUSTOMER');
   const activeDeal = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
@@ -257,6 +338,55 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             >
               Acknowledge & Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SINGLE-DEAL CONTRACT INSPECTION MODAL ─── */}
+      {selectedInspectionDeal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full border border-slate-200 shadow-2xl space-y-5 font-sans max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-lg">
+                  B
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-blue-700 uppercase block">BUENO LOGISTICS • OFFICIAL COMMERCIAL AGREEMENT</span>
+                  <h3 className="text-lg font-black text-slate-900">{selectedInspectionDeal.dealNumber || selectedInspectionDeal.id}</h3>
+                </div>
+              </div>
+              <button onClick={() => setSelectedInspectionDeal(null)} className="text-slate-400 hover:text-slate-900 font-extrabold text-base">
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Industrial Consignee</span><span className="font-black text-slate-900">{selectedInspectionDeal.company || selectedInspectionDeal.companyName}</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor Route</span><span className="font-bold text-slate-900">{selectedInspectionDeal.loadingStation || 'EWK'} ➔ {selectedInspectionDeal.destination || 'MNY'}</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span><span className="font-bold text-slate-900">{selectedInspectionDeal.cargoType}</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{selectedInspectionDeal.quantity} Bags</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Quoted Tariff Rate</span><span className="font-mono font-bold text-blue-700">₦{selectedInspectionDeal.tariffRate || 1200} / Bag</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Total Freight Amount</span><span className="font-mono font-black text-slate-900 text-sm">₦{(selectedInspectionDeal.totalAmount || (Number(selectedInspectionDeal.quantity) * 1200)).toLocaleString()}</span></div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+              >
+                Print Deal Contract (PDF)
+              </button>
+              <button
+                onClick={() => {
+                  handleApproveDealAndAllocateWagons(selectedInspectionDeal);
+                  setSelectedInspectionDeal(null);
+                }}
+                className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+              >
+                Approve & Launch Corridor Trip
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -296,7 +426,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               )}
             </button>
 
-            {/* FLOATING NOTIFICATION POPOVER OVERLAY (FIXED OVERLAP BUG) */}
+            {/* FLOATING NOTIFICATION POPOVER OVERLAY */}
             {notifOpen && (
               <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white text-slate-900 rounded-3xl border border-slate-200 shadow-2xl z-50 p-4 space-y-3 font-sans">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -356,6 +486,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <nav className="space-y-1.5 font-sans">
                 {[
+                  { id: 'deals', label: 'Commercial Deals Management' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Corridor Status' },
                   { id: 'negotiations', label: 'Client Requisitions & Negotiations' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
@@ -392,6 +523,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* TAB BUTTON STRIP */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
+            { id: 'deals', label: 'Commercial Deals', count: deals.length },
             { id: 'telemetry', label: 'Fleet Telemetry', count: trips.length },
             { id: 'negotiations', label: 'Requisitions & Negotiations', count: negotiations.length },
             { id: 'manifest', label: 'Cargo Manifests', count: trips.length },
@@ -419,6 +551,165 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </button>
           ))}
         </div>
+
+        {/* ─── TAB 0: COMMERCIAL DEALS MANAGEMENT DESK ─── */}
+        {activeTab === 'deals' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+            {/* CREATE NEW DEAL FORM */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Deal Creation</span>
+                <h3 className="text-base font-black text-slate-900">Register New Freight Agreement</h3>
+              </div>
+
+              <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Industrial Consignee Client *</label>
+                  <select
+                    value={newDealForm.companyName}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    {customerUsers.map((u) => (
+                      <option key={u.id} value={u.companyName || u.fullName}>
+                        {u.companyName || u.fullName}
+                      </option>
+                    ))}
+                    <option value="Purechem Cement Industries Ltd">Purechem Cement Industries Ltd</option>
+                    <option value="Dangote Cement Industries">Dangote Cement Industries</option>
+                    <option value="BUA Cement Industries">BUA Cement Industries</option>
+                    <option value="HUAXIN BUILDING MATERIALS PLC">HUAXIN BUILDING MATERIALS PLC</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station</label>
+                    <select
+                      value={newDealForm.loadingStation}
+                      onChange={(e) => setNewDealForm({ ...newDealForm, loadingStation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    >
+                      <option value="EWK">Ewekoro Terminal (EWK)</option>
+                      <option value="PAPA">Papalanto Terminal (PAPA)</option>
+                      <option value="APT">Apapa Maritime Port (APT)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard</label>
+                    <input readOnly value="Moniya Yard (MNY)" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-bold" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
+                  <input
+                    required
+                    value={newDealForm.cargoType}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, cargoType: e.target.value })}
+                    placeholder="e.g. Bagged Cement (50kg)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Quantity (Bags)</label>
+                    <input
+                      required
+                      type="number"
+                      value={newDealForm.quantity}
+                      onChange={(e) => setNewDealForm({ ...newDealForm, quantity: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tariff Rate (NGN/Bag)</label>
+                    <input
+                      required
+                      type="number"
+                      value={newDealForm.tariffRate}
+                      onChange={(e) => setNewDealForm({ ...newDealForm, tariffRate: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Special Contract Terms & Notes</label>
+                  <textarea
+                    rows={2}
+                    value={newDealForm.notes}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, notes: e.target.value })}
+                    placeholder="e.g. Guaranteed siding slot for 23 hopper wagons..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
+                >
+                  ✓ Save Deal & Sync to Repository Database
+                </button>
+              </form>
+            </div>
+
+            {/* LIVE COMMERCIAL DEALS DIRECTORY */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Database Deal Ledger</span>
+                  <h3 className="text-base font-black text-slate-900">Commercial Deals Directory ({deals.length})</h3>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[520px] overflow-y-auto">
+                {deals.map((d) => {
+                  const qty = Number(d.quantity) || 1610;
+                  const rate = Number(d.tariffRate) || 1200;
+                  const total = d.totalAmount || qty * rate;
+
+                  return (
+                    <div key={d.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-mono font-bold text-blue-700 text-[10px] uppercase block">{d.dealNumber || d.id}</span>
+                          <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
+                        </div>
+                        <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
+                          {d.status || 'APPROVED'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} Bags</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Total Tariff</span><span className="font-mono font-black text-slate-900">₦{total.toLocaleString()}</span></div>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => setSelectedInspectionDeal(d)}
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 rounded-xl transition-all"
+                        >
+                          View Full Deal Contract Inspection
+                        </button>
+                        <button
+                          onClick={() => handleApproveDealAndAllocateWagons(d)}
+                          className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl transition-all"
+                        >
+                          Launch Trip ➔
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── TAB 1: TELEMETRY ─── */}
         {activeTab === 'telemetry' && (
@@ -541,7 +832,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">NRC Official Consignment Waybills</span>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">NRC Official Consignment Manifests</span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Terminal Waybills & Cargo Audits</h3>
               </div>
               <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all">
