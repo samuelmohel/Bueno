@@ -390,8 +390,43 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         </div>
       </header>
 
-      {/* ─── MAIN CONTAINER (100% FULL SCREEN WIDTH) ─── */}
-      <main className="w-full px-4 sm:px-8 py-6 space-y-6">
+      {/* ─── DYNAMIC LAYOUT WITH PINNED LEFT SIDEBAR (STAGE 2 STANDARDIZATION) ─── */}
+      <div className="flex w-full min-h-[calc(100vh-65px)]">
+        {/* PURE WHITE PINNED LEFT SIDEBAR */}
+        <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
+          <div className="space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
+                <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">CARGO OFFICER</span>
+              </div>
+            </div>
+
+            <nav className="space-y-1.5 font-sans">
+              {[
+                { id: 'loading', label: 'Cargo Loading & Waybill Terminal' },
+                { id: 'dispatch', label: 'Escort Officer Dispatch' },
+                { id: 'wagons', label: 'Wagon Fleet Inventory' },
+                { id: 'history', label: 'Historical Inspection Audit' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id as any)}
+                  className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
+                    activeTab === t.id
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        {/* MAIN CANVAS */}
+        <main className="flex-1 p-6 space-y-6 min-w-0">
         {/* ACTIVE TRIP SELECTOR BANNER */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -805,6 +840,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }
