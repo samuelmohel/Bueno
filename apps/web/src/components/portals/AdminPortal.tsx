@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import PerformanceReportsPage from '@/app/reports/page';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -14,109 +15,14 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string;
   'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon', auditMetric: 'Ullage Loss (L)' },
 };
 
-// HISTORICAL MONTHLY ARCHIVED TRIPS (2-3 MONTHS RETRIEVABLE BACK HISTORY)
-const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
-  '2026-09': StateEngine.getTrips(),
-  '2026-08': [
-    {
-      id: 'TRP-AUG-041',
-      tripId: 'TRP-AUG-041',
-      locomotiveId: 'L2205',
-      origin: 'EWK',
-      destination: 'MNY',
-      company: 'Purechem Cement Industries Ltd',
-      dealNumber: 'DEAL-AUG-881',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
-      quantity: 1600,
-      cargoOfficerName: 'Ade Bello',
-      unloadingOfficerName: 'Musa Ibrahim',
-      status: 'COMPLETED',
-      dispatchTime: '15 Aug 2026, 09:00 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-901' },
-        { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-902' },
-      ],
-      damages: { damagedUnits: 1, burstBags: 1, complaintNotes: ['1 burst bag at Moniya Bay 2'] },
-    },
-    {
-      id: 'TRP-AUG-042',
-      tripId: 'TRP-AUG-042',
-      locomotiveId: 'L2208',
-      origin: 'APT',
-      destination: 'MNY',
-      company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-      dealNumber: 'DEAL-AUG-882',
-      cargoType: 'Bulk Gypsum',
-      unitOfMeasure: 'Metric Tonnes (MT)',
-      wagonType: 'Open Top Gondola Wagon',
-      quantity: 2300,
-      cargoOfficerName: 'Ngozi Eze',
-      unloadingOfficerName: 'Kassim Ahmed',
-      status: 'COMPLETED',
-      dispatchTime: '22 Aug 2026, 10:15 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 4401', loadedAt: '09:00 AM', bagsCount: '115 MT', sealNumber: 'SEAL-AUG-910' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-    },
-  ],
-  '2026-07': [
-    {
-      id: 'TRP-JUL-032',
-      tripId: 'TRP-JUL-032',
-      locomotiveId: 'L2205',
-      origin: 'PAPA',
-      destination: 'MNY',
-      company: 'Dangote Cement Industries',
-      dealNumber: 'DEAL-JUL-701',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
-      quantity: 1800,
-      cargoOfficerName: 'Samuel Okafor',
-      unloadingOfficerName: 'Musa Ibrahim',
-      status: 'COMPLETED',
-      dispatchTime: '18 Jul 2026, 08:30 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 1101', loadedAt: '07:30 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-JUL-701' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-    },
-  ],
-  '2026-06': [
-    {
-      id: 'TRP-JUN-019',
-      tripId: 'TRP-JUN-019',
-      locomotiveId: 'L2201',
-      origin: 'EWK',
-      destination: 'MNY',
-      company: 'BUA Cement Industries',
-      dealNumber: 'DEAL-JUN-602',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
-      quantity: 1400,
-      cargoOfficerName: 'Ade Bello',
-      unloadingOfficerName: 'Musa Ibrahim',
-      status: 'COMPLETED',
-      dispatchTime: '10 Jun 2026, 07:45 AM',
-      wagonLogs: [],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-    },
-  ],
-};
-
-export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
+export function AdminPortal({ user: initialUser, onSignOut }: { user: any; onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions'>('analytics');
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [createDealModal, setCreateDealModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // Historical Report State
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
-  const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annually'>('monthly');
+  // REAL-TIME SESSION SYNCED USER STATE
+  const [activeUser, setActiveUser] = useState<any>(initialUser);
 
   // Dynamic Repository State
   const [trips, setTrips] = useState<any[]>([]);
@@ -125,7 +31,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [requests, setRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
   // Active Selected Thread & Search
@@ -177,21 +82,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const liveUsers = StateEngine.getUsers();
     const liveReqs = tryParse('bueno_client_requests', []);
     const liveDealsNeg = tryParse('bueno_custom_deal_negotiations', []);
-    const liveNotifs = tryParse('bueno_notifications', []);
     const livePerms = StateEngine.getPermissions();
     const liveSettings = StateEngine.getSettings();
+
+    // REAL-TIME HEADER SESSION SYNC: Re-read active session user from localStorage
+    const storedSession = tryParse('bueno_user', null);
+    if (storedSession) {
+      setActiveUser(storedSession);
+    }
 
     setTrips(liveTrips);
     setWagons(liveWagons);
     setDeals(liveDeals);
     setRequests(liveReqs);
     setUsersList(liveUsers);
-    setNotifications(liveNotifs);
     setPermissionsMatrix(livePerms);
     setSystemSettings(liveSettings);
-
-    // Update current month historical archives
-    HISTORICAL_MONTHLY_ARCHIVES['2026-09'] = liveTrips;
 
     // Merge Requisitions into Client Negotiations Chat Threads
     let mergedThreads = [...liveDealsNeg];
@@ -233,9 +139,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     syncData();
     window.addEventListener('storage', syncData);
     window.addEventListener('bueno_state_updated', syncData);
+    window.addEventListener('bueno_user_updated', syncData);
     return () => {
       window.removeEventListener('storage', syncData);
       window.removeEventListener('bueno_state_updated', syncData);
+      window.removeEventListener('bueno_user_updated', syncData);
     };
   }, []);
 
@@ -254,7 +162,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if (!activeThread) return;
 
     const newMsg = {
-      sender: user?.fullName || 'Alhaji Bashir Umar',
+      sender: activeUser?.fullName || 'Alhaji Bashir Umar',
       role: 'Executive Command Desk',
       text: replyInput.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -311,7 +219,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             messages: [
               ...(d.messages || []),
               {
-                sender: user?.fullName || 'Alhaji Bashir Umar',
+                sender: activeUser?.fullName || 'Alhaji Bashir Umar',
                 role: 'Executive Command Desk',
                 text: `CONSIGNMENT APPROVED & WAGONS ALLOCATED: Trip #${newTrip.id} has been dispatched for wagon loading at ${newTrip.origin} Siding! Assigned Loco #${newTrip.locomotiveId}.`,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -347,7 +255,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       unitOfMeasure: conf.unit,
       wagonType: conf.wagonType,
       createdAt: new Date().toLocaleDateString('en-GB'),
-      createdBy: user?.fullName || 'Alhaji Bashir Umar',
+      createdBy: activeUser?.fullName || 'Alhaji Bashir Umar',
     };
 
     StateEngine.saveDeals([newDealObj, ...deals]);
@@ -399,18 +307,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
-  // EDIT EXISTING USER ACCOUNT
+  // EDIT EXISTING USER ACCOUNT WITH INSTANT SESSION RE-SYNC
   const handleSaveUserEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
+    // Updates master database AND triggers active session update if editing current user!
     StateEngine.updateUser(editingUser.id, editingUser);
     setUsersList(usersList.map((u) => (u.id === editingUser.id ? editingUser : u)));
     setEditingUser(null);
 
     setCustomAlert({
-      title: 'User Account Updated',
-      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated successfully in database!`,
+      title: 'User Account Updated & Synced',
+      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated! Header & session synced in real-time.`,
     });
   };
 
@@ -451,17 +360,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   const currentCargoConfig = COMMODITY_CONFIG[newDealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon' };
   const customerUsers = usersList.filter((u) => u.userType === 'CLIENT' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE');
-
-  // HISTORICAL REPORT AUDIT DATA SELECTION
-  const activeReportTrips = HISTORICAL_MONTHLY_ARCHIVES[selectedMonth] || trips;
-  const totalReportBags = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure === 'Bags' ? t.quantity || 0 : 0), 0);
-  const totalReportMT = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure?.includes('Tonnes') ? t.quantity || 0 : 0), 0);
-  const totalReportDamages = activeReportTrips.reduce((acc, t) => acc + (t.damages?.damagedUnits || t.damages?.burstBags || 0), 0);
-  const totalReportRevenue = activeReportTrips.reduce((acc, t) => {
-    const q = t.quantity || 1600;
-    const rate = t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200;
-    return acc + q * rate;
-  }, 0);
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
@@ -727,13 +625,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── HEADER (STRICT WHITE & BRAND GREEN PALETTE) ─── */}
-      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
+      {/* ─── HEADER (STRICT PURE WHITE & BRAND GREEN PALETTE ONLY) ─── */}
+      <header className="bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-700 transition-all flex items-center gap-2"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
             >
               <span>{sidebarOpen ? 'Hide Menu ☰' : 'Command Menu ☰'}</span>
             </button>
@@ -747,23 +645,23 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
                   EXECUTIVE COMMAND HQ
                 </span>
-                <h1 className="text-sm font-black tracking-wider text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                   BUENO LOGISTICS
                 </h1>
               </div>
             </div>
           </div>
 
-          {/* SYNCED LOGGED IN USER DETAILS */}
+          {/* DYNAMIC INSTANT-SYNCED USER DETAILS */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">
-              <span className="text-xs font-extrabold text-white block">{user?.fullName || 'Alhaji Bashir Umar'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
+              <span className="text-xs font-extrabold text-slate-900 block">{activeUser?.fullName || 'Alhaji Bashir Umar'}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{activeUser?.roleLabel || activeUser?.role || 'Executive Command HQ'}</span>
             </div>
 
             <button
               onClick={onSignOut}
-              className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-700"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-200"
             >
               Sign Out
             </button>
@@ -773,9 +671,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
       {/* ─── DYNAMIC LAYOUT WITH PURE WHITE LEFT SIDEBAR (CLEAN, SHARP, NO BLUR) ─── */}
       <div className="flex max-w-7xl mx-auto min-h-[calc(100vh-65px)]">
-        {/* ─── PURE WHITE & BRAND GREEN LEFT SIDEBAR DRAWER ─── */}
+        {/* ─── PURE WHITE & BRAND GREEN LEFT SIDEBAR ─── */}
         {sidebarOpen && (
-          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm transition-all font-sans">
+          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-xs transition-all font-sans">
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
@@ -823,135 +721,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* ─── MAIN CONTENT CANVAS (SHIFTS CLEANLY, SHARP & UNBLURRED) ─── */}
         <main className="flex-1 p-6 space-y-6 min-w-0">
 
-        {/* ─── TAB 0: ORIGINAL FULL EXECUTIVE REPORTS & HISTORICAL ANALYTICS (MONTH-BY-MONTH RETRIEVABLE 2-3 MONTHS AGO) ─── */}
+        {/* ─── TAB 0: ORIGINAL UNTOUCHED FULL PERFORMANCE REPORTS & ANALYTICS PAGE ─── */}
         {activeTab === 'analytics' && (
-          <div className="space-y-6 font-sans">
-            {/* HISTORICAL DATE BACK ARCHIVE FILTER BAR */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">HISTORICAL CORRIDOR AUDIT ARCHIVE</span>
-                <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Executive Reports & Date Back History
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Month Picker for 2-3 Months Ago Historical Search */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 font-mono">Retrievable Month:</span>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-                  >
-                    <option value="2026-09">September 2026 (Current)</option>
-                    <option value="2026-08">August 2026 (1 Month Ago)</option>
-                    <option value="2026-07">July 2026 (2 Months Ago)</option>
-                    <option value="2026-06">June 2026 (3 Months Ago)</option>
-                  </select>
-                </div>
-
-                {/* Period Selector */}
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                  {(['weekly', 'monthly', 'quarterly', 'annually'] as const).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setSelectedPeriod(p)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold capitalize transition-all ${
-                        selectedPeriod === p ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => window.print()}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
-                >
-                  <span>Export Audit Report (PDF)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* TOP ANALYTICS HIGHLIGHT CARDS FOR SELECTED HISTORICAL MONTH */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Gross Tariff Revenue ({selectedMonth})</span>
-                <p className="text-2xl font-black text-slate-900 font-mono">₦{totalReportRevenue.toLocaleString()}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">✓ Disbursed Freight Value</span>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bagged Cement Volume</span>
-                <p className="text-2xl font-black text-[#62BC37] font-mono">{totalReportBags.toLocaleString()} Bags</p>
-                <span className="text-[10px] text-emerald-700 font-bold">Covered Hopper Wagons</span>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bulk Raw Material Payload</span>
-                <p className="text-2xl font-black text-slate-900 font-mono">{totalReportMT.toLocaleString()} MT</p>
-                <span className="text-[10px] text-slate-500 font-bold">Gypsum & Limestone Ore</span>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Recorded Discrepancies / Defects</span>
-                <p className="text-2xl font-black text-rose-600 font-mono">{totalReportDamages} Defect(s)</p>
-                <span className="text-[10px] text-slate-500 font-bold">Burst Bag Tally</span>
-              </div>
-            </div>
-
-            {/* ITEMIZED HISTORICAL CORRIDOR AUDIT TABLE */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">HISTORICAL CONSIGNMENT LEDGER</span>
-                  <h3 className="text-base font-black text-slate-900">
-                    Archived Trips & Consignment Audits for {selectedMonth}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-sans">
-                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
-                    <tr>
-                      <th className="p-3">Trip ID</th>
-                      <th className="p-3">Consignee Client</th>
-                      <th className="p-3">Commodity & Unit</th>
-                      <th className="p-3">Payload Volume</th>
-                      <th className="p-3">Dispatch Date</th>
-                      <th className="p-3">Defects / Burst Bags</th>
-                      <th className="p-3">Audit Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {activeReportTrips.map((t, idx) => {
-                      const qty = Number(t.quantity) || 1600;
-                      const unit = t.unitOfMeasure || (t.cargoType?.includes('Gypsum') || t.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                      const damages = t.damages?.damagedUnits || t.damages?.burstBags || 0;
-
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-amber-800">{t.id || t.tripId}</td>
-                          <td className="p-3 font-bold font-sans text-slate-900">{t.company}</td>
-                          <td className="p-3 font-sans font-bold text-slate-700">{t.cargoType || 'Bagged Cement'}</td>
-                          <td className="p-3 font-extrabold text-emerald-700">{qty.toLocaleString()} {unit}</td>
-                          <td className="p-3 text-slate-600">{t.dispatchTime || 'Today'}</td>
-                          <td className="p-3 font-extrabold text-rose-600">{damages}</td>
-                          <td className="p-3">
-                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 py-0.5 rounded uppercase">
-                              {t.status || 'COMPLETED'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 overflow-hidden">
+            <PerformanceReportsPage />
           </div>
         )}
 
@@ -1007,7 +780,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 {deals.map((d) => {
                   const qty = Number(d.quantity) || 1610;
                   const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                  const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
 
                   return (
                     <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
@@ -1180,7 +952,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* ─── TAB 3: LIVE TELEMETRY & SATELLITE GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6 font-sans">
-            <LiveGpsMap trip={trips.find((t) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
+            <LiveGpsMap trip={trips.find((t) => t.status === 'IN_TRANSIT') || trips[0]} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {trips.map((trip) => (

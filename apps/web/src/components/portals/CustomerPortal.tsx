@@ -159,7 +159,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
       {/* ─── HEADER (CLEAN WHITES & BRAND GREEN) ─── */}
-      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
+      <header className="bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-lg shadow-md font-mono">
@@ -169,7 +169,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
                 BUENO LOGISTICS • CONSIGNEE DESK
               </span>
-              <h1 className="text-sm font-black tracking-wider text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 {companyName}
               </h1>
             </div>
@@ -178,7 +178,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           <div className="flex items-center gap-3">
             <button
               onClick={onSignOut}
-              className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-700"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-200"
             >
               Sign Out
             </button>
