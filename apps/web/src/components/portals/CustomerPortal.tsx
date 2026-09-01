@@ -162,12 +162,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#62BC37] text-white flex items-center justify-center font-black text-base shadow-md">
+            <div className="w-9 h-9 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-lg shadow-md font-mono">
               B
             </div>
             <div>
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">INDUSTRIAL CONSIGNEE PORTAL</span>
-              <h1 className="text-base font-black tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                BUENO LOGISTICS • CONSIGNEE DESK
+              </span>
+              <h1 className="text-sm font-black tracking-wider text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 {companyName}
               </h1>
             </div>

@@ -392,16 +392,16 @@ function LoginForm() {
         {/* Top Branding */}
         <div className="relative z-10">
           <Link href="/" className="flex items-center gap-3 inline-flex group">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0E4B88] to-[#62BC37] p-0.5 shadow-xl group-hover:scale-105 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-[#62BC37] p-0.5 shadow-xl group-hover:scale-105 transition-transform">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-black text-xl text-white font-mono">
-                B<span className="text-[#62BC37]">360</span>
+                B
               </div>
             </div>
             <div>
               <h1 className="text-xl font-black text-white tracking-wider" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 BUENO <span className="text-[#62BC37]">LOGISTICS</span>
               </h1>
-              <span className="text-[10px] font-mono text-slate-400 block -mt-1 uppercase tracking-widest font-semibold">FREIGHT OS 360</span>
+              <span className="text-[10px] font-mono text-slate-400 block -mt-1 uppercase tracking-widest font-semibold">FREIGHT CORRIDOR DESK</span>
             </div>
           </Link>
         </div>

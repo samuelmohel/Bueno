@@ -243,6 +243,28 @@ class StateEngineService {
     usersApi.getAll().catch(() => {});
   }
 
+  updateUser(userId: string, updatedFields: any): void {
+    const current = this.getUsers();
+    const updated = current.map((u) => (u.id === userId || u.email === userId ? { ...u, ...updatedFields } : u));
+    this.saveUsers(updated);
+  }
+
+  // ── PERMISSIONS MATRIX API ────────────────────────────────────────────────
+  getPermissions(): Record<string, string[]> {
+    return this.readStorage('bueno_permissions_matrix', {
+      ADMIN: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'financial.disburse', 'user.provision', 'report.export'],
+      HEAD_OF_OPERATIONS: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'report.export'],
+      CEO: ['financial.disburse', 'report.export', 'manifest.approve'],
+      HEAD_OF_FINANCE: ['financial.disburse', 'report.export'],
+      CARGO_OFFICER: ['manifest.approve', 'trip.dispatch'],
+      CUSTOMER: ['report.export', 'deal.negotiate'],
+    });
+  }
+
+  savePermissions(matrix: Record<string, string[]>): void {
+    this.writeStorage('bueno_permissions_matrix', matrix);
+  }
+
   // ── ENTERPRISE CLIENT ONBOARDING & DUAL PROVISIONING ──────────────────────
   provisionClientFromRequest(form: any): { reqId: string; staffId: string; pin: string; user: any; request: any } {
     const num = Math.floor(1000 + Math.random() * 9000);

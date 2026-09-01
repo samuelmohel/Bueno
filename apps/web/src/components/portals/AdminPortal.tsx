@@ -15,10 +15,10 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string;
 };
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions'>('deals');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions'>('analytics');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [createDealModal, setCreateDealModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
 
   // Dynamic Repository State
   const [trips, setTrips] = useState<any[]>([]);
@@ -33,7 +33,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // Active Selected Thread & Search
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedInspectionDeal, setSelectedInspectionDeal] = useState<any | null>(null);
   const [replyInput, setReplyInput] = useState('');
 
   // Dynamic Freight Deal Form
@@ -60,27 +59,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
 
   // Granular Permissions Matrix State
-  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>({
-    ADMIN: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'financial.disburse', 'user.provision', 'report.export'],
-    HEAD_OF_OPERATIONS: ['trip.create', 'trip.dispatch', 'wagon.allocate', 'deal.negotiate', 'manifest.approve', 'report.export'],
-    CEO: ['financial.disburse', 'report.export', 'manifest.approve'],
-    HEAD_OF_FINANCE: ['financial.disburse', 'report.export'],
-    CARGO_OFFICER: ['manifest.approve', 'trip.dispatch'],
-    CUSTOMER: ['report.export', 'deal.negotiate'],
-  });
-
-  // System Settings State
+  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getPermissions());
   const [systemSettings, setSystemSettings] = useState(() => StateEngine.getSettings());
-
-  const handleToggleAdminNegotiations = (enabled: boolean) => {
-    const updated = { ...systemSettings, allowAdminClientNegotiations: enabled };
-    setSystemSettings(updated);
-    StateEngine.saveSettings(updated);
-    setCustomAlert({
-      title: 'Permissions & Settings Updated',
-      message: `Admin access to Client Negotiations Chat is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
-    });
-  };
 
   const tryParse = (key: string, fallback: any) => {
     if (typeof window === 'undefined') return fallback;
@@ -100,6 +80,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const liveReqs = tryParse('bueno_client_requests', []);
     const liveDealsNeg = tryParse('bueno_custom_deal_negotiations', []);
     const liveNotifs = tryParse('bueno_notifications', []);
+    const livePerms = StateEngine.getPermissions();
+    const liveSettings = StateEngine.getSettings();
 
     setTrips(liveTrips);
     setWagons(liveWagons);
@@ -107,8 +89,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setRequests(liveReqs);
     setUsersList(liveUsers);
     setNotifications(liveNotifs);
+    setPermissionsMatrix(livePerms);
+    setSystemSettings(liveSettings);
 
-    // Merge Requisitions into WhatsApp Chat Threads
+    // Merge Requisitions into Client Negotiations Chat Threads
     let mergedThreads = [...liveDealsNeg];
     if (liveReqs.length > 0) {
       liveReqs.forEach((req: any) => {
@@ -160,7 +144,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     window.dispatchEvent(new Event('bueno_state_updated'));
   };
 
-  // SEND WHATSAPP-STYLE ADMIN REPLY
+  // SEND CLIENT NEGOTIATIONS REPLY
   const handleAdminReply = (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyInput.trim() || !activeDealId) return;
@@ -183,8 +167,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setReplyInput('');
 
     setCustomAlert({
-      title: 'Reply Sent to Client',
-      message: `Your message has been delivered to ${activeThread.companyName}'s WhatsApp desk in real-time.`,
+      title: 'Negotiation Reply Delivered',
+      message: `Your message has been delivered to ${activeThread.companyName}'s negotiation desk in real-time.`,
     });
   };
 
@@ -272,16 +256,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       title: 'Commercial Freight Deal Registered',
       message: `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}.`,
     });
-
-    setNewDealForm({
-      companyName: 'Purechem Cement Industries Ltd',
-      loadingStation: 'EWK',
-      destination: 'MNY',
-      cargoType: 'Bagged Cement (50kg)',
-      quantity: '2000',
-      targetDate: '',
-      notes: '',
-    });
   };
 
   // STAFF ACCOUNT PROVISIONING
@@ -324,6 +298,48 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
+  // EDIT EXISTING USER ACCOUNT
+  const handleSaveUserEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    StateEngine.updateUser(editingUser.id, editingUser);
+    setUsersList(usersList.map((u) => (u.id === editingUser.id ? editingUser : u)));
+    setEditingUser(null);
+
+    setCustomAlert({
+      title: 'User Account Updated',
+      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated successfully in database!`,
+    });
+  };
+
+  // TOGGLE GRANULAR PERMISSION IN MATRIX
+  const handleTogglePermission = (roleKey: string, permKey: string) => {
+    const currentPerms = permissionsMatrix[roleKey] || [];
+    const exists = currentPerms.includes(permKey);
+    const updatedRolePerms = exists ? currentPerms.filter((p) => p !== permKey) : [...currentPerms, permKey];
+
+    const updatedMatrix = { ...permissionsMatrix, [roleKey]: updatedRolePerms };
+    setPermissionsMatrix(updatedMatrix);
+    StateEngine.savePermissions(updatedMatrix);
+
+    setCustomAlert({
+      title: 'Permissions Matrix Updated',
+      message: `Permission "${permKey}" for role ${roleKey} has been ${exists ? 'REVOKED' : 'GRANTED'} & synced!`,
+    });
+  };
+
+  // TOGGLE ADMIN NEGOTIATIONS ACCESS
+  const handleToggleAdminNegotiations = (enabled: boolean) => {
+    const updated = { ...systemSettings, allowAdminClientNegotiations: enabled };
+    setSystemSettings(updated);
+    StateEngine.saveSettings(updated);
+    setCustomAlert({
+      title: 'Permissions & Settings Updated',
+      message: `Admin access to Client Negotiations Chat is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
+    });
+  };
+
   const activeThread = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
   const filteredThreads = negotiations.filter(
     (n) =>
@@ -334,7 +350,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   const currentCargoConfig = COMMODITY_CONFIG[newDealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon' };
   const customerUsers = usersList.filter((u) => u.userType === 'CLIENT' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE');
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+
+  // ANALYTICS & METRICS CALCULATIONS
+  const totalVolumeBags = trips.reduce((acc, t) => acc + (t.unitOfMeasure === 'Bags' ? t.quantity || 0 : 0), 0);
+  const totalVolumeMT = trips.reduce((acc, t) => acc + (t.unitOfMeasure?.includes('Tonnes') ? t.quantity || 0 : 0), 0);
+  const totalRevenueNaira = trips.reduce((acc, t) => {
+    const q = t.quantity || 1600;
+    const rate = t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200;
+    return acc + q * rate;
+  }, 0);
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
@@ -355,6 +379,129 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             >
               Acknowledge & Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── EDIT USER ACCOUNT MODAL ─── */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">USER ACCOUNT MANAGEMENT</span>
+                <h3 className="text-lg font-black text-slate-900">Edit Provisioned User Account</h3>
+              </div>
+              <button onClick={() => setEditingUser(null)} className="text-slate-400 font-bold hover:text-slate-900">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserEdit} className="space-y-3 text-xs font-semibold">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Full Name *</label>
+                <input
+                  required
+                  value={editingUser.fullName}
+                  onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Email Address *</label>
+                  <input
+                    required
+                    type="email"
+                    value={editingUser.email}
+                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Mobile Phone *</label>
+                  <input
+                    required
+                    value={editingUser.phone}
+                    onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Role Classification</label>
+                  <select
+                    value={editingUser.role}
+                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="CARGO_OFFICER">Cargo Officer</option>
+                    <option value="HEAD_OF_OPERATIONS">Head of Operations</option>
+                    <option value="ADMIN">Admin Officer</option>
+                    <option value="CEO">Managing Director / CEO</option>
+                    <option value="HEAD_OF_FINANCE">Head of Finance</option>
+                    <option value="CUSTOMER">Industrial Consignee Client</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
+                  <select
+                    value={editingUser.assignedStation || 'EWK'}
+                    onChange={(e) => setEditingUser({ ...editingUser, assignedStation: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="EWK">Ewekoro Terminal</option>
+                    <option value="MNY">Moniya Yard (Ibadan)</option>
+                    <option value="APT">Apapa Maritime Port</option>
+                    <option value="HQ">Bueno HQ Command</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security PIN</label>
+                  <input
+                    value={editingUser.pin || '1111'}
+                    onChange={(e) => setEditingUser({ ...editingUser, pin: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Status</label>
+                  <select
+                    value={editingUser.status || 'ACTIVE'}
+                    onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                    <option value="DEACTIVATED">DEACTIVATED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                >
+                  ✓ Save Account Corrections ➔
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -477,9 +624,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── HEADER ─── */}
+      {/* ─── HEADER (STRICT WHITE & BRAND GREEN PALETTE) ─── */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -487,18 +634,30 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             >
               <span>Command Menu ☰</span>
             </button>
-            <div className="w-8 h-8 rounded-xl bg-[#62BC37] text-white flex items-center justify-center font-black text-base shadow-md">
-              B
-            </div>
-            <div>
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">EXECUTIVE COMMAND HQ</span>
-              <h1 className="text-sm font-black tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                BUENO FREIGHT OS 360
-              </h1>
+
+            {/* BRAND LOGO: BRAND GREEN B ICON + BUENO LOGISTICS */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-lg shadow-md font-mono">
+                B
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                  EXECUTIVE COMMAND HQ
+                </span>
+                <h1 className="text-sm font-black tracking-wider text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  BUENO LOGISTICS
+                </h1>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 relative">
+          {/* SYNCED LOGGED IN USER DETAILS */}
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:block text-right">
+              <span className="text-xs font-extrabold text-white block">{user?.fullName || 'Alhaji Bashir Umar'}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
+            </div>
+
             <button
               onClick={onSignOut}
               className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-700"
@@ -509,20 +668,35 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       </header>
 
-      {/* ─── POP-UP SIDEBAR MENU DRAWER ─── */}
+      {/* ─── POP-UP SIDEBAR MENU DRAWER (STAYS OPEN ON TAB CLICK, CLOSES ONLY ON CLOSE BTN OR OUTSIDE CLICK) ─── */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex">
-          <div className="w-72 bg-slate-900 text-white p-5 space-y-6 flex flex-col justify-between border-r border-slate-800 shadow-2xl">
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <div
+            className="w-80 bg-slate-900 text-white p-5 space-y-6 flex flex-col justify-between border-r border-slate-800 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                <span className="text-xs font-mono font-bold text-[#62BC37] uppercase">Command Navigation</span>
-                <button onClick={() => setSidebarOpen(false)} className="text-slate-400 hover:text-white text-sm font-bold">
-                  ✕
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-[#62BC37] text-white flex items-center justify-center font-black text-xs">
+                    B
+                  </div>
+                  <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase">BUENO COMMAND DIRECTORY</span>
+                </div>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1 rounded-xl text-xs font-extrabold border border-slate-700"
+                >
+                  ✕ Close Menu
                 </button>
               </div>
 
               <nav className="space-y-1.5 font-sans">
                 {[
+                  { id: 'analytics', label: 'Executive Analytics & KPI Command' },
                   { id: 'deals', label: 'Commercial Deals Desk' },
                   { id: 'negotiations', label: 'Client Negotiations Chat' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Live Satellite GPS' },
@@ -533,10 +707,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 ].map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => {
-                      setActiveTab(t.id as any);
-                      setSidebarOpen(false);
-                    }}
+                    onClick={() => setActiveTab(t.id as any)}
                     className={`w-full text-left px-4 py-3 rounded-xl font-extrabold text-xs transition-all ${
                       activeTab === t.id ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-300 hover:bg-slate-800'
                     }`}
@@ -552,10 +723,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-
         {/* ─── TOP TAB NAVIGATION BAR ─── */}
         <div className="flex overflow-x-auto gap-2 bg-[#F8FAFC] p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
+            { id: 'analytics', label: 'Executive Analytics', count: null },
             { id: 'deals', label: 'Commercial Deals Desk', count: deals.length },
             { id: 'negotiations', label: 'Client Negotiations Chat', count: negotiations.length },
             { id: 'telemetry', label: 'Live Telemetry & Satellite GPS', count: trips.length },
@@ -584,6 +755,102 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </button>
           ))}
         </div>
+
+        {/* ─── TAB 0: EXECUTIVE ANALYTICS & KPI COMMAND DASHBOARD ─── */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6 font-sans">
+            {/* TOP ANALYTICS HIGHLIGHTS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Gross Freight Revenue</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">₦{totalRevenueNaira.toLocaleString()}</p>
+                <span className="text-[10px] text-emerald-700 font-bold">✓ Total Disbursed Tariffs</span>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Total Haulage Volume (Bags)</span>
+                <p className="text-2xl font-black text-[#62BC37] font-mono">{totalVolumeBags.toLocaleString()} Bags</p>
+                <span className="text-[10px] text-emerald-700 font-bold">Bagged Cement Cargo</span>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bulk Raw Materials (MT)</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{totalVolumeMT.toLocaleString()} MT</p>
+                <span className="text-[10px] text-slate-500 font-bold">Gypsum & Limestone Ore</span>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Turnaround Efficiency</span>
+                <p className="text-2xl font-black text-emerald-700 font-mono">98.4%</p>
+                <span className="text-[10px] text-emerald-700 font-bold">EWK ➔ MNY Rail Corridor</span>
+              </div>
+            </div>
+
+            {/* DETAILED EXECUTIVE ANALYTICS BREAKDOWN & CHARTS */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR PERFORMANCE ANALYTICS</span>
+                  <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Bueno Logistics Freight Operations Audit
+                  </h3>
+                </div>
+                <button
+                  onClick={() => window.print()}
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-3 rounded-xl transition-all shadow-md"
+                >
+                  Print Executive Analytics (PDF)
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* COMMODITY DISTRIBUTION BREAKDOWN */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Commodity Volume Distribution</h4>
+                  <div className="space-y-2 font-mono text-xs">
+                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-900">Bagged Cement (50kg)</span>
+                      <span className="font-extrabold text-[#62BC37]">{totalVolumeBags.toLocaleString()} Bags</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-900">Bulk Gypsum & Limestone</span>
+                      <span className="font-extrabold text-slate-900">{totalVolumeMT.toLocaleString()} MT</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-900">Shipping Containers (20ft/40ft)</span>
+                      <span className="font-extrabold text-emerald-700">45 TEUs</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                      <span className="font-bold text-slate-900">AGO Diesel Liquid Bulk</span>
+                      <span className="font-extrabold text-slate-900">90,000 Liters</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CORRIDOR STATION METRICS */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Terminal Station Activity</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center font-mono">
+                      <div>
+                        <span className="font-bold text-slate-900 block">Ewekoro Terminal (EWK)</span>
+                        <span className="text-[10px] text-slate-500">Origin Siding Operations</span>
+                      </div>
+                      <span className="font-bold text-[#62BC37]">{trips.filter(t => t.origin === 'EWK').length} Dispatches</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center font-mono">
+                      <div>
+                        <span className="font-bold text-slate-900 block">Moniya Yard Ibadan (MNY)</span>
+                        <span className="text-[10px] text-slate-500">Destination Discharge Yard</span>
+                      </div>
+                      <span className="font-bold text-emerald-700">{trips.filter(t => t.destination === 'MNY').length} Arrivals</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ─── TAB 1: COMMERCIAL DEALS DESK ─── */}
         {activeTab === 'deals' && (
@@ -673,7 +940,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 2: WHATSAPP B2B CLIENT MESSAGING DESK ─── */}
+        {/* ─── TAB 2: CLIENT NEGOTIATIONS CHAT ─── */}
         {activeTab === 'negotiations' && (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[600px] font-sans">
             {/* LEFT THREADS DIRECTORY */}
@@ -709,7 +976,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
                         }`}
                       >
-                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm font-mono">
                           {(thread.companyName || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -729,13 +996,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
 
-            {/* RIGHT WHATSAPP CANVAS */}
+            {/* RIGHT CANVAS */}
             <div className="lg:col-span-8 bg-slate-100/50 flex flex-col justify-between">
               {activeThread ? (
                 <>
                   <div className="p-4 bg-white border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm font-mono">
                         {(activeThread.companyName || 'C').charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -768,9 +1035,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               ? 'bg-[#62BC37] text-white rounded-br-none'
                               : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
                           }`}>
-                            <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1">
+                            <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1 font-mono">
                               <span className="font-extrabold">{msg.sender} ({msg.role || 'Client Lead'})</span>
-                              <span className="font-mono">{msg.time}</span>
+                              <span>{msg.time}</span>
                             </div>
                             <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
                             <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
@@ -840,7 +1107,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {activeTab === 'manifest' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
             <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official NRC Consignment Manifests</span>
+              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
               <h3 className="text-base font-black text-slate-900">Cargo Loading & Unloading Tally Audits</h3>
             </div>
 
@@ -890,7 +1157,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 6: USER DIRECTORY & ACCOUNT PROVISIONING ─── */}
+        {/* ─── TAB 6: USER DIRECTORY & EDITABLE PROVISIONING ─── */}
         {activeTab === 'users' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
             {/* PROVISION USER FORM */}
@@ -977,11 +1244,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </form>
             </div>
 
-            {/* USER DIRECTORY TABLE */}
+            {/* USER DIRECTORY TABLE WITH EDIT BUTTONS */}
             <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">User Directory</span>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Editable User Directory</span>
                   <h3 className="text-base font-black text-slate-900">Provisioned Accounts ({usersList.length})</h3>
                 </div>
               </div>
@@ -993,7 +1260,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <th className="p-3">User Name</th>
                       <th className="p-3">Email Address</th>
                       <th className="p-3">Role</th>
-                      <th className="p-3">Assigned Station</th>
+                      <th className="p-3">Station</th>
+                      <th className="p-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
@@ -1003,6 +1271,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <td className="p-3 text-slate-600">{u.email}</td>
                         <td className="p-3 font-bold text-[#62BC37]">{u.role}</td>
                         <td className="p-3 text-slate-600">{u.assignedStation || 'EWK'}</td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1012,13 +1288,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 7: PERMISSIONS MATRIX ─── */}
+        {/* ─── TAB 7: EDITABLE PERMISSIONS MATRIX ─── */}
         {activeTab === 'permissions' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="border-b border-slate-100 pb-3">
               <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Spatie Access Control</span>
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                Enterprise Granular Permissions Matrix
+                Interactive & Editable Permissions Matrix
               </h3>
             </div>
 
@@ -1045,29 +1321,58 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
 
+            {/* EDITABLE PERMISSIONS CHECKBOX MATRIX */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b">
                   <tr>
                     <th className="p-3">Role Classification</th>
-                    <th className="p-3">Trip Creation</th>
-                    <th className="p-3">Wagon Allocation</th>
-                    <th className="p-3">B2B Negotiations</th>
-                    <th className="p-3">Financial Disbursements</th>
-                    <th className="p-3">User Provisioning</th>
+                    <th className="p-3 text-center">Trip Creation</th>
+                    <th className="p-3 text-center">Wagon Allocation</th>
+                    <th className="p-3 text-center">B2B Negotiations</th>
+                    <th className="p-3 text-center">Financial Disbursements</th>
+                    <th className="p-3 text-center">User Provisioning</th>
+                    <th className="p-3 text-center">Report Export</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
-                  {Object.entries(permissionsMatrix).map(([roleKey, perms], idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="p-3 font-bold font-sans text-slate-900">{roleKey}</td>
-                      <td className="p-3">{perms.includes('trip.create') ? '✓ ALLOWED' : '—'}</td>
-                      <td className="p-3">{perms.includes('wagon.allocate') ? '✓ ALLOWED' : '—'}</td>
-                      <td className="p-3">{perms.includes('deal.negotiate') ? '✓ ALLOWED' : '—'}</td>
-                      <td className="p-3">{perms.includes('financial.disburse') ? '✓ ALLOWED' : '—'}</td>
-                      <td className="p-3">{perms.includes('user.provision') ? '✓ ALLOWED' : '—'}</td>
-                    </tr>
-                  ))}
+                  {[
+                    { key: 'ADMIN', label: 'Admin Officer (ADMIN)' },
+                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations' },
+                    { key: 'CEO', label: 'Managing Director / CEO' },
+                    { key: 'HEAD_OF_FINANCE', label: 'Head of Finance' },
+                    { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
+                    { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
+                  ].map(({ key, label }) => {
+                    const perms = permissionsMatrix[key] || [];
+
+                    return (
+                      <tr key={key} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold font-sans text-slate-900">{label}</td>
+                        {[
+                          { pKey: 'trip.create', pLabel: 'Create Trip' },
+                          { pKey: 'wagon.allocate', pLabel: 'Wagons' },
+                          { pKey: 'deal.negotiate', pLabel: 'Negotiate' },
+                          { pKey: 'financial.disburse', pLabel: 'Finance' },
+                          { pKey: 'user.provision', pLabel: 'Users' },
+                          { pKey: 'report.export', pLabel: 'Reports' },
+                        ].map(({ pKey }) => {
+                          const isChecked = perms.includes(pKey);
+
+                          return (
+                            <td key={pKey} className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleTogglePermission(key, pKey)}
+                                className="w-4 h-4 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
