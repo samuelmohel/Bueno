@@ -318,6 +318,18 @@ class StateEngineService {
 
     return { reqId, staffId, pin, user: newUser, request: newReq };
   }
+
+  // ─── Settings Repository ──────────────────────────────────────────────────
+  getSettings(): { allowAdminClientNegotiations: boolean; autoDispatchEmail: boolean } {
+    return this.readStorage('bueno_system_settings', {
+      allowAdminClientNegotiations: true,
+      autoDispatchEmail: true,
+    });
+  }
+
+  saveSettings(settings: any): void {
+    this.writeStorage('bueno_system_settings', settings);
+  }
 }
 
 export const StateEngine = new StateEngineService();

@@ -618,7 +618,7 @@ export default function BuenoLogisticsHomePage() {
                   </div>
                   <div>
                     <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
-                      Phone / WhatsApp *
+                      Phone / Contact Number *
                     </label>
                     <input
                       type="text"

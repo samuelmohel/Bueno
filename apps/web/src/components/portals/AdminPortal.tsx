@@ -69,6 +69,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     CUSTOMER: ['report.export', 'deal.negotiate'],
   });
 
+  // System Settings State
+  const [systemSettings, setSystemSettings] = useState(() => StateEngine.getSettings());
+
+  const handleToggleAdminNegotiations = (enabled: boolean) => {
+    const updated = { ...systemSettings, allowAdminClientNegotiations: enabled };
+    setSystemSettings(updated);
+    StateEngine.saveSettings(updated);
+    setCustomAlert({
+      title: 'Permissions & Settings Updated',
+      message: `Admin access to Client Negotiations Chat is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
+    });
+  };
+
   const tryParse = (key: string, fallback: any) => {
     if (typeof window === 'undefined') return fallback;
     try {
@@ -511,7 +524,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <nav className="space-y-1.5 font-sans">
                 {[
                   { id: 'deals', label: 'Commercial Deals Desk' },
-                  { id: 'negotiations', label: 'WhatsApp B2B Client Chat' },
+                  { id: 'negotiations', label: 'Client Negotiations Chat' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Live Satellite GPS' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
                   { id: 'billing', label: 'Commercial Invoices & Ledger' },
@@ -541,10 +554,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ─── TOP TAB NAVIGATION BAR ─── */}
-        <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
+        <div className="flex overflow-x-auto gap-2 bg-[#F8FAFC] p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
             { id: 'deals', label: 'Commercial Deals Desk', count: deals.length },
-            { id: 'negotiations', label: 'WhatsApp B2B Client Chat', count: negotiations.length },
+            { id: 'negotiations', label: 'Client Negotiations Chat', count: negotiations.length },
             { id: 'telemetry', label: 'Live Telemetry & Satellite GPS', count: trips.length },
             { id: 'manifest', label: 'Cargo Manifest Audits', count: trips.length },
             { id: 'billing', label: 'Commercial Ledger', count: trips.length },
@@ -598,7 +611,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Client Requisitions</span>
                 <p className="text-2xl font-black text-[#62BC37] font-mono">{negotiations.length}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">WhatsApp B2B Inbox</span>
+                <span className="text-[10px] text-emerald-700 font-bold">Client Negotiations Inbox</span>
               </div>
             </div>
 
@@ -668,7 +681,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div>
                 <div className="p-4 bg-white border-b border-slate-200 space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">WHATSAPP B2B CLIENT MESSAGING</span>
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">CLIENT NEGOTIATIONS MESSAGING DESK</span>
                     <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
                       {negotiations.length} Active
                     </span>
@@ -1007,6 +1020,29 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Enterprise Granular Permissions Matrix
               </h3>
+            </div>
+
+            {/* SYSTEM SETTINGS TOGGLES */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 font-sans">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">Admin Negotiations Access Control</h4>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    Allow Admin Officers (`ADMIN`) to view and participate in Client Negotiations Chat alongside Head of Operations (`HEAD_OF_OPERATIONS`).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold font-mono ${systemSettings.allowAdminClientNegotiations ? 'text-emerald-700' : 'text-slate-400'}`}>
+                    {systemSettings.allowAdminClientNegotiations ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={systemSettings.allowAdminClientNegotiations}
+                    onChange={(e) => handleToggleAdminNegotiations(e.target.checked)}
+                    className="w-5 h-5 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="overflow-x-auto">

@@ -215,7 +215,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {/* ─── TAB NAVIGATION BAR ─── */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
-            { id: 'negotiations', label: 'WhatsApp B2B Freight Desk', count: negotiations.length },
+            { id: 'negotiations', label: 'Client Negotiations Chat', count: negotiations.length },
             { id: 'telemetry', label: 'Live Telemetry & GPS', count: trips.length },
             { id: 'manifest', label: 'Cargo Manifest & Tally Audits', count: trips.length },
             { id: 'billing', label: 'Freight Invoices & Ledger', count: trips.length },
