@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import RailTelemetryCard from '@/components/RailTelemetryCard';
 import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 import { StateEngine } from '@/lib/services/StateEngine';
+import { CustomerPortal } from '@/components/portals/CustomerPortal';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -1532,9 +1533,9 @@ function AdminSettingsSection({ users, onSaveUsers }: { users: any[]; onSaveUser
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PORTAL 6 — CUSTOMER / INDUSTRIAL CONSIGNEE
+   PORTAL 6 — LEGACY INLINE CUSTOMER PORTAL (SHADOW REMOVED)
 ═══════════════════════════════════════════════════════════ */
-function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
+function LegacyCustomerPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [view, setView] = useState<'tracking' | 'negotiation' | 'alerts' | 'history'>('tracking');
   const [menuOpen, setMenuOpen] = useState(false);
   const [trips, setTrips] = useState<any[]>([]);
