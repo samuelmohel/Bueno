@@ -17,7 +17,7 @@ import {
 
 type Period = 'weekly' | 'monthly' | 'quarterly' | 'annually';
 
-// HISTORICAL ARCHIVED TRIPS (Dating back 3 months: Aug 2026, Jul 2026, Jun 2026)
+// HISTORICAL ARCHIVED TRIPS (With Multi-Commodity Units: Bags vs Metric Tonnes MT)
 const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
   '2026-09': StateEngine.getTrips(),
   '2026-08': [
@@ -29,15 +29,18 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       destination: 'MNY',
       company: 'Purechem Cement Industries Ltd',
       dealNumber: 'DEAL-AUG-881',
+      cargoType: 'Bagged Cement (50kg)',
+      unitOfMeasure: 'Bags',
+      wagonType: 'Covered Hopper Wagon',
       quantity: 1600,
       cargoOfficerName: 'Ade Bello',
       unloadingOfficerName: 'Musa Ibrahim',
       status: 'COMPLETED',
       dispatchTime: '15 Aug 2026, 09:00 AM',
       wagonLogs: [
-        { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-901' },
-        { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-902' },
-        { wagonId: 'PXG 2324', loadedAt: '08:40 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-903' },
+        { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-901' },
+        { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-902' },
+        { wagonId: 'PXG 2324', loadedAt: '08:40 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-903' },
       ],
       damages: { damagedUnits: 0, burstBags: 1, complaintNotes: ['1 burst bag at Moniya Siding Bay 2'] },
     },
@@ -47,16 +50,19 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       locomotiveId: 'L2208',
       origin: 'APT',
       destination: 'MNY',
-      company: 'HUAXIN BUILDING MATERIALS NIG PLC',
+      company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
       dealNumber: 'DEAL-AUG-882',
+      cargoType: 'Bulk Gypsum',
+      unitOfMeasure: 'Metric Tonnes (MT)',
+      wagonType: 'Open Top Gondola Wagon',
       quantity: 2300,
       cargoOfficerName: 'Ngozi Eze',
       unloadingOfficerName: 'Kassim Ahmed',
       status: 'COMPLETED',
       dispatchTime: '22 Aug 2026, 10:15 AM',
       wagonLogs: [
-        { wagonId: 'PXG 4401', loadedAt: '09:00 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-910' },
-        { wagonId: 'PXG 4402', loadedAt: '09:15 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-911' },
+        { wagonId: 'PXG 4401', loadedAt: '09:00 AM', bagsCount: '115 MT', sealNumber: 'SEAL-AUG-910' },
+        { wagonId: 'PXG 4402', loadedAt: '09:15 AM', bagsCount: '115 MT', sealNumber: 'SEAL-AUG-911' },
       ],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     },
@@ -70,14 +76,17 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       destination: 'MNY',
       company: 'Dangote Cement Industries',
       dealNumber: 'DEAL-JUL-701',
+      cargoType: 'Bagged Cement (50kg)',
+      unitOfMeasure: 'Bags',
+      wagonType: 'Covered Hopper Wagon',
       quantity: 1800,
       cargoOfficerName: 'Samuel Okafor',
       unloadingOfficerName: 'Musa Ibrahim',
       status: 'COMPLETED',
       dispatchTime: '18 Jul 2026, 08:30 AM',
       wagonLogs: [
-        { wagonId: 'PXG 1101', loadedAt: '07:30 AM', bagsCount: 70, sealNumber: 'SEAL-JUL-701' },
-        { wagonId: 'PXG 1102', loadedAt: '07:45 AM', bagsCount: 70, sealNumber: 'SEAL-JUL-702' },
+        { wagonId: 'PXG 1101', loadedAt: '07:30 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-JUL-701' },
+        { wagonId: 'PXG 1102', loadedAt: '07:45 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-JUL-702' },
       ],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     },
@@ -91,16 +100,19 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       destination: 'MNY',
       company: 'BUA Cement Industries',
       dealNumber: 'DEAL-JUN-601',
+      cargoType: 'Bulk Gypsum',
+      unitOfMeasure: 'Metric Tonnes (MT)',
+      wagonType: 'Open Top Gondola Wagon',
       quantity: 1500,
       cargoOfficerName: 'Tunde Bakare',
       unloadingOfficerName: 'Kassim Ahmed',
       status: 'COMPLETED',
       dispatchTime: '10 Jun 2026, 09:45 AM',
       wagonLogs: [
-        { wagonId: 'PXG 0901', loadedAt: '08:45 AM', bagsCount: 70, sealNumber: 'SEAL-JUN-601' },
-        { wagonId: 'PXG 0902', loadedAt: '09:00 AM', bagsCount: 70, sealNumber: 'SEAL-JUN-602' },
+        { wagonId: 'PXG 0901', loadedAt: '08:45 AM', bagsCount: '75 MT', sealNumber: 'SEAL-JUN-601' },
+        { wagonId: 'PXG 0902', loadedAt: '09:00 AM', bagsCount: '75 MT', sealNumber: 'SEAL-JUN-602' },
       ],
-      damages: { damagedUnits: 0, burstBags: 2, complaintNotes: ['2 burst bags logged during unloading'] },
+      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: ['Zero spillage logged at weighbridge'] },
     },
   ],
 };
@@ -116,7 +128,6 @@ export default function PerformanceReportsPage() {
   const loadReport = (selectedPeriod: Period, targetMonth: string) => {
     setLoading(true);
 
-    // Fetch Trips from Archive for target month
     const monthTrips = HISTORICAL_ARCHIVED_TRIPS[targetMonth] || StateEngine.getTrips();
     setTrips(monthTrips);
     if (monthTrips.length > 0) {
@@ -168,9 +179,9 @@ export default function PerformanceReportsPage() {
       ['Gross Freight Revenue (NGN)', data.financial?.grossFreightRevenue || 0],
       ['Total Fuel Expenditure (NGN)', data.financial?.totalFuelCost || 0],
       ['Net Freight Margin (NGN)', data.financial?.netFreightMargin || 0],
-      ['Total Loaded Bags', data.operational?.totalLoadedBags || 0],
-      ['Intact Delivered Bags', data.operational?.totalIntactDeliveredBags || 0],
-      ['Burst / Damaged Bags', data.operational?.totalBurstBags || 0],
+      ['Total Loaded Quantity', data.operational?.totalLoadedBags || 0],
+      ['Intact Delivered Quantity', data.operational?.totalIntactDeliveredBags || 0],
+      ['Transit Defect / Spillage', data.operational?.totalBurstBags || 0],
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + rows.map((e) => e.join(',')).join('\n');
@@ -186,6 +197,8 @@ export default function PerformanceReportsPage() {
   const formatNgn = (num: number) => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(num || 0);
   };
+
+  const selectedUnit = selectedTrip?.unitOfMeasure || (selectedTrip?.cargoType?.includes('Gypsum') ? 'Metric Tonnes (MT)' : 'Bags');
 
   return (
     <DashboardLayout>
@@ -249,20 +262,20 @@ export default function PerformanceReportsPage() {
             {/* KPI Overview Cards for Target Month */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
-                <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Total Origin Bags Loaded</span>
-                <p className="text-xl font-black text-gray-900 font-mono">{(data.operational?.totalLoadedBags || 0).toLocaleString()} Bags</p>
+                <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Total Origin Cargo Loaded</span>
+                <p className="text-xl font-black text-gray-900 font-mono">{(data.operational?.totalLoadedBags || 0).toLocaleString()} Bags / MT</p>
                 <span className="text-[10px] text-emerald-700 font-bold block">✓ Audited for {archiveMonth}</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Intact Unloaded at Destination</span>
-                <p className="text-xl font-black text-emerald-800 font-mono">{(data.operational?.totalIntactDeliveredBags || 0).toLocaleString()} Bags</p>
+                <p className="text-xl font-black text-emerald-800 font-mono">{(data.operational?.totalIntactDeliveredBags || 0).toLocaleString()} Bags / MT</p>
                 <span className="text-[10px] text-emerald-700 font-bold block">✓ Clearance Passed</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
-                <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Transit Burst / Defective Bags</span>
-                <p className="text-xl font-black text-rose-600 font-mono">{data.operational?.totalBurstBags} Bags</p>
+                <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Transit Defect / Spillage Rate</span>
+                <p className="text-xl font-black text-rose-600 font-mono">{data.operational?.totalBurstBags} Logged</p>
                 <span className="text-[10px] text-rose-700 font-bold block">Defect Rate: {data.operational?.burstDefectRate}</span>
               </div>
 
@@ -297,7 +310,7 @@ export default function PerformanceReportsPage() {
               </div>
             </div>
 
-            {/* SINGLE-TRIP RECONCILIATION DOCKET (HISTORICAL RETRIEVAL VIEW) */}
+            {/* SINGLE-TRIP RECONCILIATION DOCKET (DYNAMIC COMMODITY UNITS VIEW) */}
             {selectedTrip && (
               <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 space-y-6">
                 {/* DOCKET HEADER */}
@@ -335,12 +348,12 @@ export default function PerformanceReportsPage() {
                     <span className="font-bold text-gray-900">{selectedTrip.origin || 'EWK'} ➔ {selectedTrip.destination || 'MNY'}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-bold text-gray-400 block">Locomotive Unit</span>
-                    <span className="font-mono font-bold text-blue-700">{selectedTrip.locomotiveId || 'L2205'}</span>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block">Cargo Commodity</span>
+                    <span className="font-bold text-blue-900">{selectedTrip.cargoType || 'Bagged Cement (50kg)'}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] uppercase font-bold text-gray-400 block">Consignment Total</span>
-                    <span className="font-mono font-bold text-emerald-700">{selectedTrip.quantity || 1600} Bags ({(selectedTrip.quantity || 1600) * 0.05} MT)</span>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block">Consignment Payload ({selectedUnit})</span>
+                    <span className="font-mono font-bold text-emerald-700">{selectedTrip.quantity || 1600} {selectedUnit}</span>
                   </div>
                 </div>
 
@@ -360,20 +373,20 @@ export default function PerformanceReportsPage() {
                           <th className="p-3">Wagon ID</th>
                           <th className="p-3">Loading Time</th>
                           <th className="p-3">Applied Security Seal #</th>
-                          <th className="p-3">Loaded Bags Count</th>
+                          <th className="p-3">Loaded Quantity ({selectedUnit})</th>
                           <th className="p-3">Seal Condition</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-mono">
                         {(selectedTrip.wagonLogs || [
-                          { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-                          { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
+                          { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9801' },
+                          { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9802' },
                         ]).map((w: any, idx: number) => (
                           <tr key={idx} className="hover:bg-gray-50">
                             <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
                             <td className="p-3 text-gray-600">{w.loadedAt}</td>
                             <td className="p-3 font-bold text-gray-900">{w.sealNumber}</td>
-                            <td className="p-3 font-extrabold text-blue-900">{w.bagsCount || 70} Bags</td>
+                            <td className="p-3 font-extrabold text-blue-900">{w.bagsCount || `70 ${selectedUnit}`}</td>
                             <td className="p-3 font-sans text-emerald-700 font-bold">✓ APPLIED & LOCKED</td>
                           </tr>
                         ))}
@@ -395,25 +408,24 @@ export default function PerformanceReportsPage() {
                           <th className="p-3">Wagon ID</th>
                           <th className="p-3">Unseal Time</th>
                           <th className="p-3">Verified Seal #</th>
-                          <th className="p-3">Intact Bags Unloaded</th>
-                          <th className="p-3">Burst Bags</th>
+                          <th className="p-3">Intact Delivered ({selectedUnit})</th>
+                          <th className="p-3">Transit Discrepancy</th>
                           <th className="p-3">Yard Clearance</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-mono">
                         {(selectedTrip.wagonLogs || [
-                          { wagonId: 'PXG 2322', loadedAt: '03:15 PM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-                          { wagonId: 'PXG 2323', loadedAt: '03:30 PM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
+                          { wagonId: 'PXG 2322', loadedAt: '03:15 PM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9801' },
+                          { wagonId: 'PXG 2323', loadedAt: '03:30 PM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9802' },
                         ]).map((w: any, idx: number) => {
                           const burst = selectedTrip.damages?.burstBags && idx === 0 ? selectedTrip.damages.burstBags : 0;
-                          const intact = (w.bagsCount || 70) - burst;
                           return (
                             <tr key={idx} className="hover:bg-gray-50">
                               <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
                               <td className="p-3 text-gray-600">03:{15 + idx * 15} PM</td>
                               <td className="p-3 font-bold text-gray-900">{w.sealNumber}</td>
-                              <td className="p-3 font-extrabold text-emerald-800">{intact} Bags</td>
-                              <td className="p-3 font-extrabold text-rose-600">{burst} Bags</td>
+                              <td className="p-3 font-extrabold text-emerald-800">{w.bagsCount || `70 ${selectedUnit}`}</td>
+                              <td className="p-3 font-extrabold text-rose-600">{burst > 0 ? `${burst} ${selectedUnit}` : '0'}</td>
                               <td className="p-3 font-sans text-emerald-700 font-bold">✓ CLEARED TO SIDING BAY 4</td>
                             </tr>
                           );
@@ -431,9 +443,9 @@ export default function PerformanceReportsPage() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{selectedTrip.quantity || 1600} Bags</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.quantity || 1600) - (selectedTrip.damages?.burstBags || 0)} Bags</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Damaged / Burst Bags</span><span className="font-mono font-bold text-rose-400">{selectedTrip.damages?.burstBags || 0} Bags</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{selectedTrip.quantity || 1600} {selectedUnit}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.quantity || 1600) - (selectedTrip.damages?.burstBags || 0)} {selectedUnit}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Transit Discrepancy</span><span className="font-mono font-bold text-rose-400">{selectedTrip.damages?.burstBags || 0} {selectedUnit}</span></div>
                     <div><span className="text-[9px] uppercase text-slate-400 block">Tariff Billed</span><span className="font-mono font-bold text-amber-400">₦{((selectedTrip.quantity || 1600) * 1200).toLocaleString()}</span></div>
                   </div>
                 </div>

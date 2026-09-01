@@ -3,6 +3,16 @@
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 
+// COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
+export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
+  'Bagged Cement (50kg)': { unit: 'Bags', wagonType: 'Covered Hopper Wagon' },
+  'Bulk Gypsum': { unit: 'Metric Tonnes (MT)', wagonType: 'Open Top Gondola Wagon' },
+  'Limestone Raw Ore': { unit: 'Metric Tonnes (MT)', wagonType: 'Bottom Dumper Wagon' },
+  'Clinker Bulk': { unit: 'Metric Tonnes (MT)', wagonType: 'Gondola Wagon' },
+  'Shipping Containers (20ft/40ft)': { unit: 'Containers (TEU)', wagonType: 'Flatbed Container Wagon' },
+  'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon' },
+};
+
 export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('telemetry');
   const [trips, setTrips] = useState<any[]>([]);
@@ -17,7 +27,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     loadingStation: 'EWK',
     destination: 'MNY',
     cargoType: 'Bagged Cement (50kg)',
-    quantity: '5000',
+    quantity: '2000',
     targetDate: '',
     notes: '',
   });
@@ -35,15 +45,15 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     }
   };
 
+  const currentCargoConfig = COMMODITY_CONFIG[dealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon' };
+
   const syncData = () => {
-    // Dynamically resolve Head of Operations Name from StateEngine
     const allUsers = StateEngine.getUsers();
     const opsUser = allUsers.find((u) => u.role === 'HEAD_OF_OPERATIONS');
     if (opsUser && opsUser.fullName) {
       setOpsLeadName(opsUser.fullName);
     }
 
-    // 1. Fetch & Filter Trips strictly for THIS Company
     const allTrips = StateEngine.getTrips();
     const companyTrips = allTrips.filter(
       (t) =>
@@ -52,7 +62,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     );
     setTrips(companyTrips);
 
-    // 2. Fetch & Filter Requisitions strictly for THIS Company / Email
     const allReqs = tryParse('bueno_client_requests', []);
     const companyReqs = allReqs.filter(
       (r: any) =>
@@ -61,7 +70,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     );
     setClientRequests(companyReqs);
 
-    // 3. Fetch & Filter Custom Negotiations strictly for THIS Company
     const allDeals = tryParse('bueno_custom_deal_negotiations', []);
     const companyDeals = allDeals.filter(
       (d: any) =>
@@ -82,7 +90,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         loadingStation: req.route?.includes('EWK') ? 'EWK' : 'PAPA',
         destination: 'MNY',
         cargoType: `${req.product || 'Cement'} (${req.volume || 'Bulk Haulage'})`,
-        quantity: req.volume || '1,000 Tonnes',
+        quantity: req.volume || '2,000 Bags',
         status: 'UNDER_OPERATIONS_REVIEW',
         createdAt: req.createdAt || 'Just now',
         messages: [
@@ -240,19 +248,19 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 <span className="text-[9px] block text-slate-400 mt-1">{latestReq ? `Docket: ${latestReq.id || 'Active'}` : 'Submitted'}</span>
               </div>
 
-              <div className={`p-3 rounded-2xl border ${activeTrip ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-800 text-slate-400'}`}>
+              <div className={`p-3 rounded-2xl border ${activeTrip ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
                 <div className="text-[10px] font-black uppercase text-emerald-400">Step 02</div>
                 <div className="text-xs font-bold mt-0.5">Wagon & Loco Allocation</div>
                 <span className="text-[9px] block text-slate-400 mt-1">{activeTrip ? `Loco #${activeTrip.locomotiveId || 'L2205'}` : 'Pending Allocation'}</span>
               </div>
 
-              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'IN_TRANSIT' || activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-800 text-slate-400'}`}>
+              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'IN_TRANSIT' || activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
                 <div className="text-[10px] font-black uppercase text-emerald-400">Step 03</div>
                 <div className="text-xs font-bold mt-0.5">Siding Loading & Tally</div>
-                <span className="text-[9px] block text-slate-400 mt-1">{activeTrip ? `${activeTrip.quantity || 1600} Bags Sealed` : 'Awaiting Dispatch'}</span>
+                <span className="text-[9px] block text-slate-400 mt-1">{activeTrip ? `${activeTrip.quantity || 1600} ${activeTrip.unitOfMeasure || 'Bags'} Sealed` : 'Awaiting Dispatch'}</span>
               </div>
 
-              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-800 text-slate-400'}`}>
+              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
                 <div className="text-[10px] font-black uppercase text-emerald-400">Step 04</div>
                 <div className="text-xs font-bold mt-0.5">Moniya Yard Arrival & Audit</div>
                 <span className="text-[9px] block text-slate-400 mt-1">{activeTrip?.status === 'COMPLETED' ? 'Clearing Complete' : 'En Route'}</span>
@@ -267,7 +275,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             { id: 'telemetry', label: 'Live Telemetry & GPS', count: trips.length },
             { id: 'negotiations', label: 'Corridor Negotiations & Chat', count: negotiations.length },
             { id: 'manifest', label: 'Cargo Manifest & Tally Audits', count: trips.length },
-            { id: 'billing', label: 'Freight Invoices & Tariff', count: trips.length },
+            { id: 'billing', label: 'Freight Invoices & Ledger', count: trips.length },
             { id: 'account', label: 'Corporate Account Settings', count: null },
           ].map((tab) => (
             <button
@@ -296,66 +304,70 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           <div className="space-y-6">
             {trips.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {trips.map((trip) => (
-                  <div key={trip.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
-                    <div className="bg-slate-900 text-white p-5 space-y-3">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                        <div>
-                          <span className="text-[10px] font-mono font-bold text-amber-400 uppercase block">{trip.id}</span>
-                          <h3 className="text-base font-black text-slate-100">{trip.company || companyName}</h3>
+                {trips.map((trip) => {
+                  const unit = trip.unitOfMeasure || (trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
+
+                  return (
+                    <div key={trip.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
+                      <div className="bg-slate-900 text-white p-5 space-y-3">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-amber-400 uppercase block">{trip.id}</span>
+                            <h3 className="text-base font-black text-slate-100">{trip.company || companyName}</h3>
+                          </div>
+                          <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border font-mono ${
+                            trip.status === 'IN_TRANSIT' ? 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse' : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                          }`}>
+                            {trip.status}
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border font-mono ${
-                          trip.status === 'IN_TRANSIT' ? 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse' : 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                        }`}>
-                          {trip.status}
-                        </span>
+
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[9px] uppercase text-slate-400 font-bold block">Locomotive</span>
+                            <span className="font-mono font-bold text-emerald-400">{trip.locomotiveId || 'L2205'}</span>
+                          </div>
+                          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[9px] uppercase text-slate-400 font-bold block">Corridor</span>
+                            <span className="font-bold text-slate-200">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
+                          </div>
+                          <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[9px] uppercase text-slate-400 font-bold block">Consignment ({unit})</span>
+                            <span className="font-mono font-bold text-amber-400">{trip.quantity || 1610} {unit}</span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                          <span className="text-[9px] uppercase text-slate-400 font-bold block">Locomotive</span>
-                          <span className="font-mono font-bold text-emerald-400">{trip.locomotiveId || 'L2205'}</span>
+                      <div className="p-5 space-y-4 font-sans text-xs">
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                          <div className="flex justify-between items-center text-slate-600 font-bold text-[11px]">
+                            <span>Dispatch: {trip.dispatchTime || '24 Aug 2026, 09:30 AM'}</span>
+                            <span className="text-emerald-700 font-mono">Speed: 74 km/h</span>
+                          </div>
+                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden relative">
+                            <div className="h-full bg-gradient-to-r from-[#62BC37] to-amber-500 rounded-full" style={{ width: trip.status === 'COMPLETED' ? '100%' : '65%' }} />
+                          </div>
                         </div>
-                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                          <span className="text-[9px] uppercase text-slate-400 font-bold block">Corridor</span>
-                          <span className="font-bold text-slate-200">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
-                        </div>
-                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                          <span className="text-[9px] uppercase text-slate-400 font-bold block">Consignment</span>
-                          <span className="font-mono font-bold text-amber-400">{trip.quantity || 1610} Bags</span>
+
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block">Assigned Wagons & Security Seal Verification</span>
+                          <div className="space-y-1.5">
+                            {(trip.wagonLogs || [
+                              { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
+                              { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
+                            ]).map((w: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                                <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
+                                <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
+                                <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || '70'} {unit})</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
-
-                    <div className="p-5 space-y-4 font-sans text-xs">
-                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                        <div className="flex justify-between items-center text-slate-600 font-bold text-[11px]">
-                          <span>Dispatch: {trip.dispatchTime || '24 Aug 2026, 09:30 AM'}</span>
-                          <span className="text-emerald-700 font-mono">Speed: 74 km/h</span>
-                        </div>
-                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden relative">
-                          <div className="h-full bg-gradient-to-r from-[#62BC37] to-amber-500 rounded-full" style={{ width: trip.status === 'COMPLETED' ? '100%' : '65%' }} />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block">Assigned Wagons & Security Seal Verification</span>
-                        <div className="space-y-1.5">
-                          {(trip.wagonLogs || [
-                            { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-                            { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-                          ]).map((w: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                              <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
-                              <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
-                              <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || 70} bags)</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4">
@@ -475,26 +487,29 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
             <div className="space-y-4">
               {trips.length > 0 ? (
-                trips.map((trip) => (
-                  <div key={trip.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-[#0E4B88] uppercase">{trip.id}</span>
-                        <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
+                trips.map((trip) => {
+                  const unit = trip.unitOfMeasure || (trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
+                  return (
+                    <div key={trip.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-[#0E4B88] uppercase">{trip.id}</span>
+                          <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
+                        </div>
+                        <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all">
+                          Download Official Waybill (PDF)
+                        </button>
                       </div>
-                      <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all">
-                        Download Official Waybill (PDF)
-                      </button>
-                    </div>
 
-                    <div className="grid grid-cols-4 gap-3 text-xs text-center">
-                      <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Manifest Loaded</span><span className="font-mono font-bold text-slate-900">{trip.quantity || 1610} Bags</span></div>
-                      <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Intact Delivered</span><span className="font-mono font-bold text-emerald-700">{trip.quantity || 1610} Bags</span></div>
-                      <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Burst Bags</span><span className="font-mono font-bold text-rose-600">{trip.damages?.burstBags || 0} Bags</span></div>
-                      <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Audit Clearance</span><span className="font-extrabold text-emerald-700">✓ PASSED</span></div>
+                      <div className="grid grid-cols-4 gap-3 text-xs text-center">
+                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Manifest Loaded</span><span className="font-mono font-bold text-slate-900">{trip.quantity || 1610} {unit}</span></div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Intact Delivered</span><span className="font-mono font-bold text-emerald-700">{trip.quantity || 1610} {unit}</span></div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Discrepancy</span><span className="font-mono font-bold text-rose-600">0</span></div>
+                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Audit Clearance</span><span className="font-extrabold text-emerald-700">✓ PASSED</span></div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-10 text-slate-500 space-y-2">
                   <span className="text-xs font-mono font-bold block text-slate-400">[ MANIFEST EMPTY ]</span>
@@ -505,28 +520,30 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           </div>
         )}
 
-        {/* ─── TAB 4: FREIGHT INVOICES & TARIFF ─── */}
+        {/* ─── TAB 4: FREIGHT INVOICES ─── */}
         {activeTab === 'billing' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Billing</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Invoices & Tariff Ledger</h3>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Invoices</span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Invoices & Freight Ledger</h3>
               </div>
-              <span className="text-xs font-bold text-slate-500 font-mono">Standard Tariff: ₦1,200 / Bag</span>
             </div>
 
             <div className="space-y-4">
               {trips.length > 0 ? (
                 trips.map((trip) => {
-                  const bags = trip.quantity || 1610;
-                  const freightAmount = bags * 1200;
+                  const qty = trip.quantity || 1610;
+                  const unit = trip.unitOfMeasure || 'Bags';
+                  const rate = unit.includes('Tonnes') ? 24000 : 1200;
+                  const freightAmount = qty * rate;
+
                   return (
                     <div key={trip.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center">
                       <div>
                         <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">INVOICE #{trip.id.replace('TRP-', 'INV-')}</span>
                         <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">{bags.toLocaleString()} Bags • Corridor: {trip.origin} ➔ {trip.destination}</p>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{qty.toLocaleString()} {unit} • Corridor: {trip.origin} ➔ {trip.destination}</p>
                       </div>
                       <div className="text-right space-y-1">
                         <span className="text-base font-black text-slate-900 block font-mono">₦{freightAmount.toLocaleString()}</span>
