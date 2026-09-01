@@ -317,8 +317,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   const saveNegotiations = (updatedThreads: any[]) => {
     setNegotiations(updatedThreads);
-    localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updatedThreads));
-    window.dispatchEvent(new Event('bueno_state_updated'));
+    StateEngine.saveNegotiations(updatedThreads);
   };
 
   // SEND CLIENT NEGOTIATIONS REPLY
