@@ -24,14 +24,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [replyInput, setReplyInput] = useState('');
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // New Deal Creation Form
+  // New Pure Freight Deal Form (NO BILLING/TARIFF FIELDS)
   const [newDealForm, setNewDealForm] = useState({
     companyName: 'Purechem Cement Industries Ltd',
     loadingStation: 'EWK',
     destination: 'MNY',
     cargoType: 'Bagged Cement (50kg)',
     quantity: '2000',
-    tariffRate: '1200',
     targetDate: '',
     notes: '',
   });
@@ -106,8 +105,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     e.preventDefault();
     const generatedDealId = `DEAL-${Math.floor(80000 + Math.random() * 19999)}`;
     const quantityNum = Number(newDealForm.quantity) || 2000;
-    const rateNum = Number(newDealForm.tariffRate) || 1200;
-    const totalAmount = quantityNum * rateNum;
 
     const newDealObj = {
       id: generatedDealId,
@@ -118,8 +115,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       destination: newDealForm.destination,
       cargoType: newDealForm.cargoType,
       quantity: quantityNum,
-      tariffRate: rateNum,
-      totalAmount: totalAmount,
+      targetDate: newDealForm.targetDate || new Date().toLocaleDateString('en-GB'),
+      notes: newDealForm.notes,
       status: 'APPROVED',
       createdAt: new Date().toLocaleDateString('en-GB'),
     };
@@ -142,7 +139,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {
           sender: user?.fullName || 'Head of Operations',
           role: 'Head of Operations',
-          text: `Official Commercial Freight Deal Created: ${newDealForm.cargoType} (${quantityNum} Bags) via ${newDealForm.loadingStation} ➔ ${newDealForm.destination}. Rate: ₦${rateNum}/bag. Total: ₦${totalAmount.toLocaleString()}. Notes: ${newDealForm.notes || 'N/A'}`,
+          text: `Freight Transport Deal Registered: ${newDealForm.cargoType} (${quantityNum} Bags) via ${newDealForm.loadingStation} ➔ ${newDealForm.destination}. Target Date: ${newDealForm.targetDate || 'Immediate'}. Notes: ${newDealForm.notes || 'N/A'}`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ],
@@ -157,14 +154,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       destination: 'MNY',
       cargoType: 'Bagged Cement (50kg)',
       quantity: '2000',
-      tariffRate: '1200',
       targetDate: '',
       notes: '',
     });
 
     setCustomAlert({
-      title: 'Commercial Freight Deal Created & Synced',
-      message: `Deal ${generatedDealId} registered for ${newDealObj.company}! Total Billed: ₦${totalAmount.toLocaleString()}. Database & StateEngine synced.`,
+      title: 'Freight Deal Registered & Synced',
+      message: `Deal ${generatedDealId} registered for ${newDealObj.company}! Database & StateEngine synced successfully.`,
     });
   };
 
@@ -342,7 +338,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── SINGLE-DEAL CONTRACT INSPECTION MODAL ─── */}
+      {/* ─── SINGLE-DEAL INSPECTION MODAL (PURE FREIGHT DETAILS - NO BILLING) ─── */}
       {selectedInspectionDeal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-2xl w-full border border-slate-200 shadow-2xl space-y-5 font-sans max-h-[90vh] overflow-y-auto">
@@ -352,7 +348,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   B
                 </div>
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-blue-700 uppercase block">BUENO LOGISTICS • OFFICIAL COMMERCIAL AGREEMENT</span>
+                  <span className="text-[10px] font-mono font-bold text-blue-700 uppercase block">BUENO LOGISTICS • FREIGHT DEAL AGREEMENT</span>
                   <h3 className="text-lg font-black text-slate-900">{selectedInspectionDeal.dealNumber || selectedInspectionDeal.id}</h3>
                 </div>
               </div>
@@ -365,17 +361,24 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Industrial Consignee</span><span className="font-black text-slate-900">{selectedInspectionDeal.company || selectedInspectionDeal.companyName}</span></div>
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor Route</span><span className="font-bold text-slate-900">{selectedInspectionDeal.loadingStation || 'EWK'} ➔ {selectedInspectionDeal.destination || 'MNY'}</span></div>
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span><span className="font-bold text-slate-900">{selectedInspectionDeal.cargoType}</span></div>
-              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{selectedInspectionDeal.quantity} Bags</span></div>
-              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Quoted Tariff Rate</span><span className="font-mono font-bold text-blue-700">₦{selectedInspectionDeal.tariffRate || 1200} / Bag</span></div>
-              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Total Freight Amount</span><span className="font-mono font-black text-slate-900 text-sm">₦{(selectedInspectionDeal.totalAmount || (Number(selectedInspectionDeal.quantity) * 1200)).toLocaleString()}</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Consignment Volume</span><span className="font-mono font-bold text-emerald-700">{selectedInspectionDeal.quantity} Bags</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Target Dispatch Date</span><span className="font-mono font-bold text-slate-900">{selectedInspectionDeal.targetDate || selectedInspectionDeal.createdAt}</span></div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Agreement Status</span><span className="font-mono font-bold text-blue-700">{selectedInspectionDeal.status || 'APPROVED'}</span></div>
             </div>
+
+            {selectedInspectionDeal.notes && (
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                <span className="text-[9px] uppercase font-bold text-slate-400 block">Contract Terms & Notes</span>
+                <p className="text-slate-700 font-medium mt-0.5">{selectedInspectionDeal.notes}</p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <button
                 onClick={() => window.print()}
                 className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
               >
-                Print Deal Contract (PDF)
+                Print Deal Docket (PDF)
               </button>
               <button
                 onClick={() => {
@@ -413,7 +416,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
 
           <div className="flex items-center gap-3 relative">
-            {/* FLOATING NOTIFICATION BELL BUTTON */}
             <button
               onClick={() => setNotifOpen(!notifOpen)}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 rounded-xl border border-slate-700 relative transition-all"
@@ -426,7 +428,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               )}
             </button>
 
-            {/* FLOATING NOTIFICATION POPOVER OVERLAY */}
             {notifOpen && (
               <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white text-slate-900 rounded-3xl border border-slate-200 shadow-2xl z-50 p-4 space-y-3 font-sans">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
@@ -486,7 +487,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <nav className="space-y-1.5 font-sans">
                 {[
-                  { id: 'deals', label: 'Commercial Deals Management' },
+                  { id: 'deals', label: 'Freight Deals Management' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Corridor Status' },
                   { id: 'negotiations', label: 'Client Requisitions & Negotiations' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
@@ -523,7 +524,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* TAB BUTTON STRIP */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
-            { id: 'deals', label: 'Commercial Deals', count: deals.length },
+            { id: 'deals', label: 'Freight Deals', count: deals.length },
             { id: 'telemetry', label: 'Fleet Telemetry', count: trips.length },
             { id: 'negotiations', label: 'Requisitions & Negotiations', count: negotiations.length },
             { id: 'manifest', label: 'Cargo Manifests', count: trips.length },
@@ -552,19 +553,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           ))}
         </div>
 
-        {/* ─── TAB 0: COMMERCIAL DEALS MANAGEMENT DESK ─── */}
+        {/* ─── TAB 0: FREIGHT DEALS MANAGEMENT DESK (PURE FREIGHT DETAILS - NO BILLING) ─── */}
         {activeTab === 'deals' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
             {/* CREATE NEW DEAL FORM */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Deal Creation</span>
-                <h3 className="text-base font-black text-slate-900">Register New Freight Agreement</h3>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Freight Transport Registration</span>
+                <h3 className="text-base font-black text-slate-900">Register Freight Deal</h3>
               </div>
 
               <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Industrial Consignee Client *</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Industrial Consignee Client *</label>
                   <select
                     value={newDealForm.companyName}
                     onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
@@ -624,19 +625,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tariff Rate (NGN/Bag)</label>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Target Dispatch Date</label>
                     <input
-                      required
-                      type="number"
-                      value={newDealForm.tariffRate}
-                      onChange={(e) => setNewDealForm({ ...newDealForm, tariffRate: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                      type="date"
+                      value={newDealForm.targetDate}
+                      onChange={(e) => setNewDealForm({ ...newDealForm, targetDate: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Special Contract Terms & Notes</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Special Terms & Notes</label>
                   <textarea
                     rows={2}
                     value={newDealForm.notes}
@@ -655,20 +655,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </form>
             </div>
 
-            {/* LIVE COMMERCIAL DEALS DIRECTORY */}
+            {/* LIVE FREIGHT DEALS DIRECTORY */}
             <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Database Deal Ledger</span>
-                  <h3 className="text-base font-black text-slate-900">Commercial Deals Directory ({deals.length})</h3>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Database Freight Ledger</span>
+                  <h3 className="text-base font-black text-slate-900">Freight Deals Directory ({deals.length})</h3>
                 </div>
               </div>
 
               <div className="space-y-3 max-h-[520px] overflow-y-auto">
                 {deals.map((d) => {
                   const qty = Number(d.quantity) || 1610;
-                  const rate = Number(d.tariffRate) || 1200;
-                  const total = d.totalAmount || qty * rate;
 
                   return (
                     <div key={d.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
@@ -682,11 +680,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
                         <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} Bags</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Total Tariff</span><span className="font-mono font-black text-slate-900">₦{total.toLocaleString()}</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Consignment Volume</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} Bags</span></div>
                       </div>
 
                       <div className="flex gap-2 pt-1">
@@ -694,7 +691,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           onClick={() => setSelectedInspectionDeal(d)}
                           className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 rounded-xl transition-all"
                         >
-                          View Full Deal Contract Inspection
+                          View Deal Details
                         </button>
                         <button
                           onClick={() => handleApproveDealAndAllocateWagons(d)}
