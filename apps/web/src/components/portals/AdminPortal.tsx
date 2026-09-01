@@ -3,6 +3,16 @@
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 
+// ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
+export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
+  'Bagged Cement (50kg)': { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' },
+  'Bulk Gypsum': { unit: 'Metric Tonnes (MT)', wagonType: 'Open Top Gondola Wagon', auditMetric: 'Transit Shrinkage (MT)' },
+  'Limestone Raw Ore': { unit: 'Metric Tonnes (MT)', wagonType: 'Bottom Dumper Wagon', auditMetric: 'Spillage Loss (MT)' },
+  'Clinker Bulk': { unit: 'Metric Tonnes (MT)', wagonType: 'Gondola Wagon', auditMetric: 'Weight Deviation (MT)' },
+  'Shipping Containers (20ft/40ft)': { unit: 'Containers (TEU)', wagonType: 'Flatbed Container Wagon', auditMetric: 'Seal Integrity' },
+  'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon', auditMetric: 'Ullage Loss (L)' },
+};
+
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'deals' | 'negotiations' | 'manifest' | 'billing' | 'users' | 'permissions'>('deals');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,7 +34,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [replyInput, setReplyInput] = useState('');
   const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // New Pure Freight Deal Form (NO BILLING/TARIFF FIELDS)
+  // Dynamic Freight Deal Form
   const [newDealForm, setNewDealForm] = useState({
     companyName: 'Purechem Cement Industries Ltd',
     loadingStation: 'EWK',
@@ -35,7 +45,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     notes: '',
   });
 
-  // New Staff Provisioning Form
+  // Staff Provisioning Form
   const [provisionForm, setProvisionForm] = useState({
     fullName: '',
     email: '',
@@ -101,6 +111,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     window.dispatchEvent(new Event('bueno_state_updated'));
   };
 
+  const currentCargoConfig = COMMODITY_CONFIG[newDealForm.cargoType] || { unit: 'Units', wagonType: 'General Wagon', auditMetric: 'Discrepancy' };
+
   const handleCreateNewDeal = (e: React.FormEvent) => {
     e.preventDefault();
     const generatedDealId = `DEAL-${Math.floor(80000 + Math.random() * 19999)}`;
@@ -114,6 +126,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       loadingStation: newDealForm.loadingStation,
       destination: newDealForm.destination,
       cargoType: newDealForm.cargoType,
+      unitOfMeasure: currentCargoConfig.unit,
+      wagonType: currentCargoConfig.wagonType,
       quantity: quantityNum,
       targetDate: newDealForm.targetDate || new Date().toLocaleDateString('en-GB'),
       notes: newDealForm.notes,
@@ -121,7 +135,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       createdAt: new Date().toLocaleDateString('en-GB'),
     };
 
-    // Save to StateEngine Deals & Negotiations Thread
     const updatedDeals = [newDealObj, ...deals];
     StateEngine.saveDeals(updatedDeals);
     setDeals(updatedDeals);
@@ -132,14 +145,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       loadingStation: newDealForm.loadingStation,
       destination: newDealForm.destination,
       cargoType: newDealForm.cargoType,
-      quantity: `${quantityNum} Bags`,
+      quantity: `${quantityNum} ${currentCargoConfig.unit}`,
       status: 'APPROVED',
       createdAt: new Date().toLocaleDateString('en-GB'),
       messages: [
         {
           sender: user?.fullName || 'Head of Operations',
           role: 'Head of Operations',
-          text: `Freight Transport Deal Registered: ${newDealForm.cargoType} (${quantityNum} Bags) via ${newDealForm.loadingStation} ➔ ${newDealForm.destination}. Target Date: ${newDealForm.targetDate || 'Immediate'}. Notes: ${newDealForm.notes || 'N/A'}`,
+          text: `Freight Transport Deal Registered: ${newDealForm.cargoType} [${quantityNum} ${currentCargoConfig.unit}] via ${newDealForm.loadingStation} ➔ ${newDealForm.destination}. Assigned Wagon Type: ${currentCargoConfig.wagonType}. Notes: ${newDealForm.notes || 'N/A'}`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ],
@@ -147,7 +160,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     saveNegotiations([autoThread, ...negotiations]);
 
-    // Reset Form
     setNewDealForm({
       companyName: 'Purechem Cement Industries Ltd',
       loadingStation: 'EWK',
@@ -160,7 +172,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     setCustomAlert({
       title: 'Freight Deal Registered & Synced',
-      message: `Deal ${generatedDealId} registered for ${newDealObj.company}! Database & StateEngine synced successfully.`,
+      message: `Deal ${generatedDealId} registered for ${newDealObj.company} [${quantityNum} ${currentCargoConfig.unit}]! Database & StateEngine synced.`,
     });
   };
 
@@ -186,6 +198,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleApproveDealAndAllocateWagons = (deal: any) => {
     const availableWagons = wagons.filter((w) => w.status === 'AVAILABLE');
     const allocatedWagons = availableWagons.slice(0, 3);
+    const cargoConf = COMMODITY_CONFIG[deal.cargoType] || { unit: 'Bags', wagonType: 'Hopper Wagon' };
 
     const newTrip = {
       id: `TRP-${Date.now().toString().slice(-4)}`,
@@ -195,6 +208,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       destination: deal.destination || 'MNY',
       company: deal.companyName || deal.company || 'Industrial Consignee',
       dealNumber: deal.id || deal.dealNumber,
+      cargoType: deal.cargoType,
+      unitOfMeasure: cargoConf.unit,
       quantity: Number(deal.quantity) || 1610,
       cargoOfficerId: 'usr_1',
       cargoOfficerName: 'Ade Bello',
@@ -205,7 +220,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         wagonId: w.id,
         status: 'LOADED',
         loadedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        bagsCount: 70,
+        bagsCount: cargoConf.unit.includes('Tonnes') ? '70 MT' : '70 Bags',
         sealNumber: `SEAL-BN-${9800 + idx}`,
       })),
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
@@ -214,7 +229,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const updatedTrips = [newTrip, ...trips];
     StateEngine.saveTrips(updatedTrips);
 
-    // Update Deal Status
     const updatedDeals = negotiations.map((d) =>
       d.id === deal.id
         ? {
@@ -225,7 +239,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               {
                 sender: user?.fullName || 'Operations Command',
                 role: 'Head of Operations',
-                text: `Deal Approved! Allocated Locomotive #L2205 and ${allocatedWagons.length} PXG Hopper Wagons. Dispatching corridor transport now.`,
+                text: `Deal Approved! Allocated Locomotive #L2205 and ${allocatedWagons.length} ${cargoConf.wagonType}s. Dispatching corridor transport now.`,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               },
             ],
@@ -236,7 +250,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     setCustomAlert({
       title: 'Deal Approved & Wagons Allocated',
-      message: `Corridor Trip ${newTrip.id} launched successfully for ${deal.companyName || deal.company}! Locomotive #L2205 assigned.`,
+      message: `Corridor Trip ${newTrip.id} launched successfully for ${deal.companyName || deal.company}! Allocated ${allocatedWagons.length} ${cargoConf.wagonType}s.`,
     });
   };
 
@@ -338,7 +352,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
-      {/* ─── SINGLE-DEAL INSPECTION MODAL (PURE FREIGHT DETAILS - NO BILLING) ─── */}
+      {/* ─── SINGLE-DEAL INSPECTION MODAL ─── */}
       {selectedInspectionDeal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-2xl w-full border border-slate-200 shadow-2xl space-y-5 font-sans max-h-[90vh] overflow-y-auto">
@@ -361,8 +375,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Industrial Consignee</span><span className="font-black text-slate-900">{selectedInspectionDeal.company || selectedInspectionDeal.companyName}</span></div>
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor Route</span><span className="font-bold text-slate-900">{selectedInspectionDeal.loadingStation || 'EWK'} ➔ {selectedInspectionDeal.destination || 'MNY'}</span></div>
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Cargo Commodity</span><span className="font-bold text-slate-900">{selectedInspectionDeal.cargoType}</span></div>
-              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Consignment Volume</span><span className="font-mono font-bold text-emerald-700">{selectedInspectionDeal.quantity} Bags</span></div>
-              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Target Dispatch Date</span><span className="font-mono font-bold text-slate-900">{selectedInspectionDeal.targetDate || selectedInspectionDeal.createdAt}</span></div>
+              <div>
+                <span className="text-[9px] uppercase font-bold text-slate-400 block">Volume ({selectedInspectionDeal.unitOfMeasure || 'Units'})</span>
+                <span className="font-mono font-bold text-emerald-700">{selectedInspectionDeal.quantity} {selectedInspectionDeal.unitOfMeasure || 'Units'}</span>
+              </div>
+              <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Assigned Wagon Type</span><span className="font-mono font-bold text-blue-700">{selectedInspectionDeal.wagonType || 'Standard Freight Wagon'}</span></div>
               <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Agreement Status</span><span className="font-mono font-bold text-blue-700">{selectedInspectionDeal.status || 'APPROVED'}</span></div>
             </div>
 
@@ -553,7 +570,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           ))}
         </div>
 
-        {/* ─── TAB 0: FREIGHT DEALS MANAGEMENT DESK (PURE FREIGHT DETAILS - NO BILLING) ─── */}
+        {/* ─── TAB 0: FREIGHT DEALS MANAGEMENT DESK (DYNAMIC MULTI-COMMODITY UNITS) ─── */}
         {activeTab === 'deals' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
             {/* CREATE NEW DEAL FORM */}
@@ -604,23 +621,31 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
-                  <input
-                    required
+                  <select
                     value={newDealForm.cargoType}
                     onChange={(e) => setNewDealForm({ ...newDealForm, cargoType: e.target.value })}
-                    placeholder="e.g. Bagged Cement (50kg)"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  />
+                  >
+                    <option value="Bagged Cement (50kg)">Bagged Cement (50kg) — [Unit: Bags]</option>
+                    <option value="Bulk Gypsum">Bulk Gypsum — [Unit: Metric Tonnes MT]</option>
+                    <option value="Limestone Raw Ore">Limestone Raw Ore — [Unit: Metric Tonnes MT]</option>
+                    <option value="Clinker Bulk">Clinker Bulk — [Unit: Metric Tonnes MT]</option>
+                    <option value="Shipping Containers (20ft/40ft)">Shipping Containers — [Unit: TEU Containers]</option>
+                    <option value="AGO Diesel / Liquid Bulk">AGO Diesel / Liquid — [Unit: Liters]</option>
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Quantity (Bags)</label>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      Quantity ({currentCargoConfig.unit}) *
+                    </label>
                     <input
                       required
                       type="number"
                       value={newDealForm.quantity}
                       onChange={(e) => setNewDealForm({ ...newDealForm, quantity: e.target.value })}
+                      placeholder={`Enter quantity in ${currentCargoConfig.unit}...`}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
                     />
                   </div>
@@ -635,13 +660,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </div>
                 </div>
 
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[10px] space-y-0.5">
+                  <span className="font-bold text-slate-500 uppercase block">Logistics Allocation Rule:</span>
+                  <span className="font-extrabold text-blue-700 block">Wagon Type: {currentCargoConfig.wagonType}</span>
+                  <span className="text-slate-600 block">Tally Audit Metric: {currentCargoConfig.auditMetric}</span>
+                </div>
+
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Special Terms & Notes</label>
                   <textarea
                     rows={2}
                     value={newDealForm.notes}
                     onChange={(e) => setNewDealForm({ ...newDealForm, notes: e.target.value })}
-                    placeholder="e.g. Guaranteed siding slot for 23 hopper wagons..."
+                    placeholder="e.g. Weighbridge gross tare ticket required at Ewekoro siding..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
                   />
                 </div>
@@ -667,6 +698,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="space-y-3 max-h-[520px] overflow-y-auto">
                 {deals.map((d) => {
                   const qty = Number(d.quantity) || 1610;
+                  const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
+                  const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
 
                   return (
                     <div key={d.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
@@ -683,12 +716,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
                         <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
                         <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Consignment Volume</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} Bags</span></div>
+                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume ({unit})</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} {unit}</span></div>
                       </div>
 
                       <div className="flex gap-2 pt-1">
                         <button
-                          onClick={() => setSelectedInspectionDeal(d)}
+                          onClick={() => setSelectedInspectionDeal({ ...d, unitOfMeasure: unit, wagonType: wagon })}
                           className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 rounded-xl transition-all"
                         >
                           View Deal Details
@@ -726,7 +759,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="grid grid-cols-3 gap-3 text-xs text-center">
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{trip.origin} ➔ {trip.destination}</span></div>
-                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} Bags</span></div>
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
                 </div>
               </div>
             ))}
@@ -849,9 +882,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </div>
 
                   <div className="grid grid-cols-4 gap-3 text-xs text-center">
-                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Loaded</span><span className="font-mono font-bold text-slate-900">{t.quantity} Bags</span></div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Delivered Intact</span><span className="font-mono font-bold text-emerald-700">{t.quantity} Bags</span></div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Burst Bags</span><span className="font-mono font-bold text-rose-600">0 Bags</span></div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Loaded</span><span className="font-mono font-bold text-slate-900">{t.quantity} {t.unitOfMeasure || 'Bags'}</span></div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Delivered Intact</span><span className="font-mono font-bold text-emerald-700">{t.quantity} {t.unitOfMeasure || 'Bags'}</span></div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Discrepancy</span><span className="font-mono font-bold text-rose-600">0</span></div>
                     <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Status</span><span className="font-extrabold text-emerald-700">✓ CLEARED</span></div>
                   </div>
                 </div>
@@ -880,7 +913,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <div>
                       <span className="font-mono font-bold text-slate-400 uppercase text-[10px]">INVOICE #{trip.id.replace('TRP-', 'INV-')}</span>
                       <h4 className="font-black text-slate-900">{trip.company || 'Industrial Consignee'}</h4>
-                      <span className="text-slate-500 font-mono text-[10px]">{bags.toLocaleString()} Bags • Corridor: {trip.origin} ➔ {trip.destination}</span>
+                      <span className="text-slate-500 font-mono text-[10px]">{bags.toLocaleString()} {trip.unitOfMeasure || 'Bags'} • Corridor: {trip.origin} ➔ {trip.destination}</span>
                     </div>
                     <div className="text-right">
                       <span className="font-mono font-extrabold text-slate-900 block text-sm">₦{total.toLocaleString()}</span>
