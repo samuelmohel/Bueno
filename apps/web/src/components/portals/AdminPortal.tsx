@@ -773,9 +773,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
       {/* ─── DYNAMIC LAYOUT WITH PURE WHITE LEFT SIDEBAR (CLEAN, SHARP, NO BLUR) ─── */}
       <div className="flex max-w-7xl mx-auto min-h-[calc(100vh-65px)]">
-        {/* ─── PURE WHITE & BRAND GREEN LEFT SIDEBAR DRAWER ─── */}
+        {/* ─── PURE WHITE & BRAND GREEN LEFT SIDEBAR (PINNED & STICKY ON SCROLL) ─── */}
         {sidebarOpen && (
-          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm transition-all font-sans">
+          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm transition-all font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
