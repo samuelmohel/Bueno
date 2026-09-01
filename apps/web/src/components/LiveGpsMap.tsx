@@ -41,22 +41,24 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
   const [useGoogleMaps, setUseGoogleMaps] = useState<boolean>(false);
 
   // Dynamic Live Telemetry State
-  const [progress, setProgress] = useState<number>(trip?.progressPercent || 45);
-  const [speed, setSpeed] = useState<number>(trip?.speedKmh || 74);
+  const hasOfficer = !!(trip?.monitoringOfficerName || trip?.escortPhone || trip?.escortBadgeId);
+
+  const [progress, setProgress] = useState<number>(hasOfficer ? (trip?.progressPercent || 45) : 0);
+  const [speed, setSpeed] = useState<number>(hasOfficer ? (trip?.speedKmh || 74) : 0);
   const [battery, setBattery] = useState<number>(94);
-  const [signal, setSignal] = useState<string>('4G LTE / Satellite Ping');
+  const [signal, setSignal] = useState<string>(hasOfficer ? '4G LTE / Satellite Ping' : 'Awaiting Officer Login');
   const [lastPing, setLastPing] = useState<string>('Just now');
   const [showCallModal, setShowCallModal] = useState<boolean>(false);
   const [smsSent, setSmsSent] = useState<boolean>(false);
 
   // Monitoring Officer Details
   const officer: MonitoringOfficer = {
-    name: trip?.monitoringOfficerName || trip?.cargoOfficerName || 'Inspector Segun Alabi',
-    phone: trip?.monitoringOfficerPhone || trip?.escortPhone || '+234 803 777 9900',
-    badgeId: trip?.escortBadgeId || 'NRC-ESC-2026-08',
-    batteryLevel: `${battery}%`,
+    name: hasOfficer ? (trip?.monitoringOfficerName || trip?.cargoOfficerName || 'Assigned Officer') : 'AWAITING DISPATCH',
+    phone: hasOfficer ? (trip?.monitoringOfficerPhone || trip?.escortPhone || 'N/A') : 'N/A',
+    badgeId: hasOfficer ? (trip?.escortBadgeId || 'NRC-ESC-2026') : 'UNASSIGNED',
+    batteryLevel: hasOfficer ? `${battery}%` : '0%',
     signalStrength: signal,
-    deviceStatus: 'ACTIVE_GPS',
+    deviceStatus: hasOfficer ? 'ACTIVE_GPS' : 'OFFLINE',
     lastPingTime: lastPing,
   };
 
@@ -77,24 +79,27 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
     }
   }, []);
 
-  // Smooth Live GPS Ping Jitter Simulation (Simulates Live Officer Phone Movement)
+  // HTML5 Device Geolocation & Live Movement Stream
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 98) return 98;
-        return Number((prev + 0.15).toFixed(2));
-      });
+    if (!hasOfficer) {
+      setSpeed(0);
+      setProgress(0);
+      return;
+    }
 
-      setSpeed((prev) => {
-        const jitter = (Math.random() - 0.5) * 4;
-        return Math.max(40, Math.min(85, Math.round(prev + jitter)));
-      });
-
-      setLastPing(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const spd = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 68;
+          setSpeed(spd > 0 ? spd : 68);
+          setLastPing(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        },
+        () => {},
+        { enableHighAccuracy: true }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [hasOfficer]);
 
   const currentWaypointIndex = Math.min(
     CORRIDOR_WAYPOINTS.length - 1,
