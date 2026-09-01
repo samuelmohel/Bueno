@@ -14,7 +14,7 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string 
 };
 
 export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('negotiations');
   const [trips, setTrips] = useState<any[]>([]);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
@@ -22,15 +22,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const [chatInput, setChatInput] = useState('');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [opsLeadName, setOpsLeadName] = useState('Head of Operations');
-
-  const [dealForm, setDealForm] = useState({
-    loadingStation: 'EWK',
-    destination: 'MNY',
-    cargoType: 'Bagged Cement (50kg)',
-    quantity: '2000',
-    targetDate: '',
-    notes: '',
-  });
 
   const companyName = user?.companyName || user?.fullName || 'Industrial Consignee Client';
   const clientEmail = user?.email || '';
@@ -44,8 +35,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       return fallback;
     }
   };
-
-  const currentCargoConfig = COMMODITY_CONFIG[dealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon' };
 
   const syncData = () => {
     const allUsers = StateEngine.getUsers();
@@ -160,19 +149,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
     saveNegotiations(updatedDeals);
     setChatInput('');
-
-    try {
-      const notifs = tryParse('bueno_notifications', []);
-      const newNotif = {
-        id: `notif_${Date.now()}`,
-        title: `New Message from ${companyName}`,
-        body: `"${chatInput.trim()}"`,
-        time: 'Just now',
-        type: 'CLIENT_CHAT',
-        read: false,
-      };
-      localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
-    } catch {}
   };
 
   const activeDeal = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
@@ -181,11 +157,11 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
-      {/* ─── HEADER ─── */}
+      {/* ─── HEADER (CLEAN WHITES & BRAND GREEN) ─── */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-lg shadow-md">
+            <div className="w-8 h-8 rounded-xl bg-[#62BC37] text-white flex items-center justify-center font-black text-base shadow-md">
               B
             </div>
             <div>
@@ -197,13 +173,9 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:block text-right">
-              <span className="text-xs font-bold text-slate-200 block">{user?.fullName || 'Freight Manager'}</span>
-              <span className="text-[10px] text-slate-400 font-mono">{user?.email || 'Active Client Session'}</span>
-            </div>
             <button
               onClick={onSignOut}
-              className="bg-rose-600/90 hover:bg-rose-600 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-sm"
+              className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-700"
             >
               Sign Out
             </button>
@@ -214,13 +186,13 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       {/* ─── MAIN CONTAINER ─── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-        {/* ─── B2B ONBOARDING & REQUISITION STEPPER BANNER ─── */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl space-y-5">
+        {/* ─── B2B CONSIGNEE LIFECYCLE BANNER ─── */}
+        <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl space-y-5">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="bg-emerald-950 text-emerald-300 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-800 uppercase">
-                  VERIFIED CORPORATE CONSIGNEE
+                  VERIFIED B2B CONSIGNEE
                 </span>
                 <span className="text-slate-400 text-xs font-mono">ID: {user?.staffId || 'CUST-2026'}</span>
               </div>
@@ -237,43 +209,13 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               </div>
             </div>
           </div>
-
-          {/* 4-STEP CONSIGNMENT PROGRESS TRACKER */}
-          <div>
-            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-3">Live Consignment Lifecycle Progress</span>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className={`p-3 rounded-2xl border ${latestReq ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-800 text-slate-400'}`}>
-                <div className="text-[10px] font-black uppercase text-emerald-400">Step 01</div>
-                <div className="text-xs font-bold mt-0.5">Requisition Registered</div>
-                <span className="text-[9px] block text-slate-400 mt-1">{latestReq ? `Docket: ${latestReq.id || 'Active'}` : 'Submitted'}</span>
-              </div>
-
-              <div className={`p-3 rounded-2xl border ${activeTrip ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
-                <div className="text-[10px] font-black uppercase text-emerald-400">Step 02</div>
-                <div className="text-xs font-bold mt-0.5">Wagon & Loco Allocation</div>
-                <span className="text-[9px] block text-slate-400 mt-1">{activeTrip ? `Loco #${activeTrip.locomotiveId || 'L2205'}` : 'Pending Allocation'}</span>
-              </div>
-
-              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'IN_TRANSIT' || activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
-                <div className="text-[10px] font-black uppercase text-emerald-400">Step 03</div>
-                <div className="text-xs font-bold mt-0.5">Siding Loading & Tally</div>
-                <span className="text-[9px] block text-slate-400 mt-1">{activeTrip ? `${activeTrip.quantity || 1600} ${activeTrip.unitOfMeasure || 'Bags'} Sealed` : 'Awaiting Dispatch'}</span>
-              </div>
-
-              <div className={`p-3 rounded-2xl border ${activeTrip?.status === 'COMPLETED' ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-slate-950/80 border-slate-400'}`}>
-                <div className="text-[10px] font-black uppercase text-emerald-400">Step 04</div>
-                <div className="text-xs font-bold mt-0.5">Moniya Yard Arrival & Audit</div>
-                <span className="text-[9px] block text-slate-400 mt-1">{activeTrip?.status === 'COMPLETED' ? 'Clearing Complete' : 'En Route'}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* ─── TAB NAVIGATION ─── */}
+        {/* ─── TAB NAVIGATION BAR ─── */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
+            { id: 'negotiations', label: 'WhatsApp B2B Freight Desk', count: negotiations.length },
             { id: 'telemetry', label: 'Live Telemetry & GPS', count: trips.length },
-            { id: 'negotiations', label: 'Corridor Negotiations & Chat', count: negotiations.length },
             { id: 'manifest', label: 'Cargo Manifest & Tally Audits', count: trips.length },
             { id: 'billing', label: 'Freight Invoices & Ledger', count: trips.length },
             { id: 'account', label: 'Corporate Account Settings', count: null },
@@ -299,11 +241,134 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           ))}
         </div>
 
-        {/* ─── TAB 1: LIVE TELEMETRY & GPS ─── */}
+        {/* ─── TAB 1: WHATSAPP-STYLE B2B CHAT DESK FOR CLIENT ─── */}
+        {activeTab === 'negotiations' && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px] font-sans">
+            
+            {/* THREAD LIST SIDEBAR (4 COLS) */}
+            <div className="lg:col-span-4 border-r border-slate-200 bg-slate-50 flex flex-col justify-between">
+              <div>
+                <div className="p-4 bg-white border-b border-slate-200 space-y-1">
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider block">YOUR FREIGHT REQUISITIONS</span>
+                  <h3 className="text-sm font-black text-slate-900 font-sans">Active Corridor Conversations</h3>
+                </div>
+
+                <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+                  {negotiations.map((deal) => {
+                    const isSelected = activeDealId === deal.id;
+                    const lastMsg = deal.messages && deal.messages.length > 0 ? deal.messages[deal.messages.length - 1] : null;
+
+                    return (
+                      <button
+                        key={deal.id}
+                        onClick={() => setActiveDealId(deal.id)}
+                        className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
+                          isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                          B
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[10px] font-mono font-bold text-[#62BC37]">{deal.id}</span>
+                            <span className="text-[9px] font-mono text-slate-400">{lastMsg?.time || 'Today'}</span>
+                          </div>
+                          <h4 className="text-xs font-black text-slate-900 mt-0.5 truncate">{deal.cargoType}</h4>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5 font-medium">
+                            {lastMsg ? lastMsg.text : 'Conversation active'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE WHATSAPP CHAT CANVAS (8 COLS) */}
+            <div className="lg:col-span-8 bg-slate-100/50 flex flex-col justify-between">
+              {activeDeal ? (
+                <>
+                  {/* HEADER */}
+                  <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm">
+                        B
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                          Operations Command ({opsLeadName})
+                        </h3>
+                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 font-mono">
+                          <span className="w-2 h-2 bg-[#62BC37] rounded-full animate-ping inline-block" />
+                          Online • Direct Corridor Communication Channel
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-3 py-1 rounded-xl">
+                      {activeDeal.id}
+                    </span>
+                  </div>
+
+                  {/* MESSAGES BODY */}
+                  <div className="p-6 space-y-4 max-h-[420px] overflow-y-auto font-sans">
+                    {(activeDeal.messages || []).map((msg: any, idx: number) => {
+                      const isMe = msg.role === 'Industrial Consignee' || msg.sender.includes(companyName);
+
+                      return (
+                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 shadow-sm ${
+                            isMe
+                              ? 'bg-[#62BC37] text-white rounded-br-none'
+                              : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
+                          }`}>
+                            <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1">
+                              <span className="font-extrabold">{msg.sender} ({msg.role || 'Ops Command'})</span>
+                              <span className="font-mono">{msg.time}</span>
+                            </div>
+                            <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
+                            <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
+                              {isMe ? '✓✓ Sent' : '✓ Received'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* INPUT */}
+                  <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-200 flex gap-2">
+                    <input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder={`Type a message to Operations Command (${opsLeadName})...`}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
+                    >
+                      Send Message ➔
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="text-center my-auto space-y-2 p-8">
+                  <span className="text-xs font-mono text-slate-400 font-bold block">[ NO SELECTION ]</span>
+                  <h3 className="text-base font-black text-slate-900">Select a Requisition to View Messages</h3>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 2: LIVE TELEMETRY & GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6">
             {trips.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
                 {trips.map((trip) => {
                   const unit = trip.unitOfMeasure || (trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
 
@@ -312,12 +377,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       <div className="bg-slate-900 text-white p-5 space-y-3">
                         <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                           <div>
-                            <span className="text-[10px] font-mono font-bold text-amber-400 uppercase block">{trip.id}</span>
+                            <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase block">{trip.id}</span>
                             <h3 className="text-base font-black text-slate-100">{trip.company || companyName}</h3>
                           </div>
-                          <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border font-mono ${
-                            trip.status === 'IN_TRANSIT' ? 'bg-amber-950 text-amber-300 border-amber-800 animate-pulse' : 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                          }`}>
+                          <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase font-mono">
                             {trip.status}
                           </span>
                         </div>
@@ -332,37 +395,25 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             <span className="font-bold text-slate-200">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
                           </div>
                           <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[9px] uppercase text-slate-400 font-bold block">Consignment ({unit})</span>
-                            <span className="font-mono font-bold text-amber-400">{trip.quantity || 1610} {unit}</span>
+                            <span className="text-[9px] uppercase text-slate-400 font-bold block">Payload ({unit})</span>
+                            <span className="font-mono font-bold text-[#62BC37]">{trip.quantity || 1610} {unit}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-5 space-y-4 font-sans text-xs">
-                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
-                          <div className="flex justify-between items-center text-slate-600 font-bold text-[11px]">
-                            <span>Dispatch: {trip.dispatchTime || '24 Aug 2026, 09:30 AM'}</span>
-                            <span className="text-emerald-700 font-mono">Speed: 74 km/h</span>
-                          </div>
-                          <div className="h-2 bg-slate-200 rounded-full overflow-hidden relative">
-                            <div className="h-full bg-gradient-to-r from-[#62BC37] to-amber-500 rounded-full" style={{ width: trip.status === 'COMPLETED' ? '100%' : '65%' }} />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
+                      <div className="p-5 space-y-3 text-xs">
+                        <div className="space-y-1.5">
                           <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block">Assigned Wagons & Security Seal Verification</span>
-                          <div className="space-y-1.5">
-                            {(trip.wagonLogs || [
-                              { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-                              { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-                            ]).map((w: any, idx: number) => (
-                              <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                                <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
-                                <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
-                                <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || '70'} {unit})</span>
-                              </div>
-                            ))}
-                          </div>
+                          {(trip.wagonLogs || [
+                            { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
+                            { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
+                          ]).map((w: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                              <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
+                              <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
+                              <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || '70'} {unit})</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -370,14 +421,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 })}
               </div>
             ) : (
-              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4">
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4 font-sans">
                 <div className="w-12 h-12 bg-emerald-50 text-[#62BC37] rounded-2xl flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
                   GPS
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>No Active Corridor Haulage Trips Yet</h3>
-                  <p className="text-xs text-slate-600 max-w-md mx-auto mt-1">
-                    Your account has been provisioned successfully! Once Operations approves your requisition and allocates wagons, your live satellite telemetry will stream here in real time.
+                  <h3 className="text-lg font-black text-slate-900">No Active Corridor Haulage Trips Yet</h3>
+                  <p className="text-xs text-slate-600 max-w-md mx-auto mt-1 font-medium">
+                    Your account is active. Once Operations approves your requisition and allocates wagons, live satellite telemetry will stream here.
                   </p>
                 </div>
               </div>
@@ -385,137 +436,29 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           </div>
         )}
 
-        {/* ─── TAB 2: CORRIDOR NEGOTIATIONS & CHAT DESK ─── */}
-        {activeTab === 'negotiations' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* THREAD LIST */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 space-y-3">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Your Freight Requisitions</h3>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono font-bold">{negotiations.length} Threads</span>
-              </div>
-
-              <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                {negotiations.map((deal) => (
-                  <button
-                    key={deal.id}
-                    onClick={() => setActiveDealId(deal.id)}
-                    className={`w-full text-left p-3.5 rounded-2xl border transition-all ${
-                      activeDealId === deal.id
-                        ? 'bg-emerald-50/70 border-emerald-300 shadow-sm'
-                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono font-bold text-[#0E4B88]">{deal.id}</span>
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded uppercase">{deal.status || 'UNDER_REVIEW'}</span>
-                    </div>
-                    <h4 className="text-xs font-black text-slate-900 mt-1 truncate">{deal.cargoType}</h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5 font-mono">{deal.quantity} • {deal.createdAt}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* LIVE ISOLATED CHAT BOX */}
-            <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between min-h-[550px]">
-              {activeDeal ? (
-                <>
-                  <div>
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Direct Command Communication Channel</span>
-                        <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                          {activeDeal.cargoType} ({activeDeal.quantity})
-                        </h3>
-                      </div>
-                      <span className="text-xs font-bold text-slate-500 font-mono bg-slate-100 px-3 py-1 rounded-xl">{companyName}</span>
-                    </div>
-
-                    <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2">
-                      {(activeDeal.messages || []).map((msg: any, idx: number) => {
-                        const isMe = msg.role === 'Industrial Consignee' || msg.sender.includes(companyName);
-                        return (
-                          <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 ${
-                              isMe ? 'bg-[#0E4B88] text-white rounded-br-none' : 'bg-slate-100 text-slate-900 rounded-bl-none border border-slate-200'
-                            }`}>
-                              <div className="flex justify-between items-center gap-3 text-[9px] opacity-80 border-b border-white/10 pb-1">
-                                <span className="font-bold">{msg.sender} ({msg.role || 'Ops Command'})</span>
-                                <span className="font-mono">{msg.time}</span>
-                              </div>
-                              <p className="leading-relaxed whitespace-pre-line font-medium mt-1">{msg.text}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleSendMessage} className="pt-4 border-t border-slate-100 flex gap-2">
-                    <input
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder={`Type a message to Operations Command (${opsLeadName})...`}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-                    />
-                    <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all">
-                      Send Message ➔
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <div className="text-center my-auto space-y-3">
-                  <span className="text-sm font-mono font-bold text-slate-400 block">[ NO SELECTION ]</span>
-                  <h3 className="text-base font-black text-slate-900">Select a Freight Requisition to View Messages</h3>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB 3: CARGO MANIFEST & TALLY AUDITS ─── */}
+        {/* ─── TAB 3: CARGO MANIFEST ─── */}
         {activeTab === 'manifest' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official NRC Consignment Manifests</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Cargo Loading & Unloading Tally Audits</h3>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Cargo Loading & Unloading Audits</h3>
               </div>
-              <span className="text-xs font-bold text-slate-500 font-mono">{trips.length} Total Haulages</span>
             </div>
 
-            <div className="space-y-4">
-              {trips.length > 0 ? (
-                trips.map((trip) => {
-                  const unit = trip.unitOfMeasure || (trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                  return (
-                    <div key={trip.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="text-[10px] font-mono font-bold text-[#0E4B88] uppercase">{trip.id}</span>
-                          <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
-                        </div>
-                        <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all">
-                          Download Official Waybill (PDF)
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-3 text-xs text-center">
-                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Manifest Loaded</span><span className="font-mono font-bold text-slate-900">{trip.quantity || 1610} {unit}</span></div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Intact Delivered</span><span className="font-mono font-bold text-emerald-700">{trip.quantity || 1610} {unit}</span></div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Discrepancy</span><span className="font-mono font-bold text-rose-600">0</span></div>
-                        <div className="bg-white p-3 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Audit Clearance</span><span className="font-extrabold text-emerald-700">✓ PASSED</span></div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-10 text-slate-500 space-y-2">
-                  <span className="text-xs font-mono font-bold block text-slate-400">[ MANIFEST EMPTY ]</span>
-                  <p className="text-xs font-bold">No cargo manifests generated yet. Manifests will appear here as your trains complete loading.</p>
+            <div className="space-y-3 font-mono text-xs">
+              {trips.map((t) => (
+                <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-slate-400 font-bold text-[10px] uppercase">{t.id}</span>
+                    <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
+                    <p className="text-slate-500 font-sans text-xs">{t.origin} ➔ {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
+                  </div>
+                  <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
+                    Print Manifest (PDF)
+                  </button>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         )}
@@ -523,51 +466,38 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {/* ─── TAB 4: FREIGHT INVOICES ─── */}
         {activeTab === 'billing' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Invoices</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Invoices & Freight Ledger</h3>
-              </div>
+            <div className="border-b border-slate-100 pb-3">
+              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Invoices</span>
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Freight Invoices & Ledger</h3>
             </div>
 
-            <div className="space-y-4">
-              {trips.length > 0 ? (
-                trips.map((trip) => {
-                  const qty = trip.quantity || 1610;
-                  const unit = trip.unitOfMeasure || 'Bags';
-                  const rate = unit.includes('Tonnes') ? 24000 : 1200;
-                  const freightAmount = qty * rate;
-
-                  return (
-                    <div key={trip.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">INVOICE #{trip.id.replace('TRP-', 'INV-')}</span>
-                        <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">{qty.toLocaleString()} {unit} • Corridor: {trip.origin} ➔ {trip.destination}</p>
-                      </div>
-                      <div className="text-right space-y-1">
-                        <span className="text-base font-black text-slate-900 block font-mono">₦{freightAmount.toLocaleString()}</span>
-                        <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold font-mono px-2 py-0.5 rounded uppercase">PAID & DISBURSED</span>
-                      </div>
+            <div className="space-y-3 font-mono text-xs">
+              {trips.map((t) => {
+                const amount = (t.quantity || 1600) * (t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200);
+                return (
+                  <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-400 font-bold text-[10px] uppercase">INV-{t.id}</span>
+                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
+                      <p className="text-slate-500 font-sans text-xs">{t.quantity} {t.unitOfMeasure || 'Bags'} Tariff</p>
                     </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-10 text-slate-500 space-y-2">
-                  <span className="text-xs font-mono font-bold block text-slate-400">[ INVOICES EMPTY ]</span>
-                  <p className="text-xs font-bold">No commercial invoices generated yet. Invoices will automatically generate upon wagon dispatch.</p>
-                </div>
-              )}
+                    <div className="text-right">
+                      <span className="font-black text-slate-900 text-sm block">₦{amount.toLocaleString()}</span>
+                      <span className="bg-emerald-100 text-emerald-800 font-bold text-[9px] px-2 py-0.5 rounded uppercase">DISBURSED</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* ─── TAB 5: CORPORATE ACCOUNT SETTINGS ─── */}
+        {/* ─── TAB 5: ACCOUNT SETTINGS ─── */}
         {activeTab === 'account' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm max-w-2xl mx-auto space-y-5 font-sans">
             <div className="border-b border-slate-100 pb-3">
               <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Corporate Desk Settings</span>
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Account Credentials & Contact Officers</h3>
+              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Account Credentials</h3>
             </div>
 
             <div className="space-y-4 text-xs font-semibold">
@@ -583,16 +513,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 <div>
                   <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Official Business Email</label>
                   <input readOnly value={user?.email || clientEmail} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-900" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Staff / Client Account ID</label>
-                  <input readOnly value={user?.staffId || 'CUST-2026'} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-amber-600" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">4-Digit Security PIN</label>
-                  <input readOnly value={user?.pin || '1111'} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-emerald-600" />
                 </div>
               </div>
             </div>
