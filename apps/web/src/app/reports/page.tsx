@@ -11,32 +11,128 @@ import {
   Building2,
   CheckCircle2,
   AlertTriangle,
-  Search,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 
 type Period = 'weekly' | 'monthly' | 'quarterly' | 'annually';
 
+// HISTORICAL ARCHIVED TRIPS (Dating back 3 months: Aug 2026, Jul 2026, Jun 2026)
+const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
+  '2026-09': StateEngine.getTrips(),
+  '2026-08': [
+    {
+      id: 'TRP-AUG-041',
+      tripId: 'TRP-AUG-041',
+      locomotiveId: 'L2205',
+      origin: 'EWK',
+      destination: 'MNY',
+      company: 'Purechem Cement Industries Ltd',
+      dealNumber: 'DEAL-AUG-881',
+      quantity: 1600,
+      cargoOfficerName: 'Ade Bello',
+      unloadingOfficerName: 'Musa Ibrahim',
+      status: 'COMPLETED',
+      dispatchTime: '15 Aug 2026, 09:00 AM',
+      wagonLogs: [
+        { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-901' },
+        { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-902' },
+        { wagonId: 'PXG 2324', loadedAt: '08:40 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-903' },
+      ],
+      damages: { damagedUnits: 0, burstBags: 1, complaintNotes: ['1 burst bag at Moniya Siding Bay 2'] },
+    },
+    {
+      id: 'TRP-AUG-042',
+      tripId: 'TRP-AUG-042',
+      locomotiveId: 'L2208',
+      origin: 'APT',
+      destination: 'MNY',
+      company: 'HUAXIN BUILDING MATERIALS NIG PLC',
+      dealNumber: 'DEAL-AUG-882',
+      quantity: 2300,
+      cargoOfficerName: 'Ngozi Eze',
+      unloadingOfficerName: 'Kassim Ahmed',
+      status: 'COMPLETED',
+      dispatchTime: '22 Aug 2026, 10:15 AM',
+      wagonLogs: [
+        { wagonId: 'PXG 4401', loadedAt: '09:00 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-910' },
+        { wagonId: 'PXG 4402', loadedAt: '09:15 AM', bagsCount: 70, sealNumber: 'SEAL-AUG-911' },
+      ],
+      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+    },
+  ],
+  '2026-07': [
+    {
+      id: 'TRP-JUL-032',
+      tripId: 'TRP-JUL-032',
+      locomotiveId: 'L2205',
+      origin: 'PAPA',
+      destination: 'MNY',
+      company: 'Dangote Cement Industries',
+      dealNumber: 'DEAL-JUL-701',
+      quantity: 1800,
+      cargoOfficerName: 'Samuel Okafor',
+      unloadingOfficerName: 'Musa Ibrahim',
+      status: 'COMPLETED',
+      dispatchTime: '18 Jul 2026, 08:30 AM',
+      wagonLogs: [
+        { wagonId: 'PXG 1101', loadedAt: '07:30 AM', bagsCount: 70, sealNumber: 'SEAL-JUL-701' },
+        { wagonId: 'PXG 1102', loadedAt: '07:45 AM', bagsCount: 70, sealNumber: 'SEAL-JUL-702' },
+      ],
+      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+    },
+  ],
+  '2026-06': [
+    {
+      id: 'TRP-JUN-019',
+      tripId: 'TRP-JUN-019',
+      locomotiveId: 'L2201',
+      origin: 'EWK',
+      destination: 'MNY',
+      company: 'BUA Cement Industries',
+      dealNumber: 'DEAL-JUN-601',
+      quantity: 1500,
+      cargoOfficerName: 'Tunde Bakare',
+      unloadingOfficerName: 'Kassim Ahmed',
+      status: 'COMPLETED',
+      dispatchTime: '10 Jun 2026, 09:45 AM',
+      wagonLogs: [
+        { wagonId: 'PXG 0901', loadedAt: '08:45 AM', bagsCount: 70, sealNumber: 'SEAL-JUN-601' },
+        { wagonId: 'PXG 0902', loadedAt: '09:00 AM', bagsCount: 70, sealNumber: 'SEAL-JUN-602' },
+      ],
+      damages: { damagedUnits: 0, burstBags: 2, complaintNotes: ['2 burst bags logged during unloading'] },
+    },
+  ],
+};
+
 export default function PerformanceReportsPage() {
   const [period, setPeriod] = useState<Period>('monthly');
+  const [archiveMonth, setArchiveMonth] = useState<string>('2026-09');
   const [data, setData] = useState<any>(null);
   const [trips, setTrips] = useState<any[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loadReport = (selectedPeriod: Period) => {
+  const loadReport = (selectedPeriod: Period, targetMonth: string) => {
     setLoading(true);
-    const liveTrips = StateEngine.getTrips();
-    setTrips(liveTrips);
-    if (liveTrips.length > 0 && !selectedTrip) {
-      setSelectedTrip(liveTrips[0]);
+
+    // Fetch Trips from Archive for target month
+    const monthTrips = HISTORICAL_ARCHIVED_TRIPS[targetMonth] || StateEngine.getTrips();
+    setTrips(monthTrips);
+    if (monthTrips.length > 0) {
+      setSelectedTrip(monthTrips[0]);
+    } else {
+      setSelectedTrip(null);
     }
 
     const multiplier = selectedPeriod === 'weekly' ? 0.25 : selectedPeriod === 'monthly' ? 1.0 : selectedPeriod === 'quarterly' ? 3.0 : 12.0;
-    const grossRev = Math.round(452600000 * multiplier);
-    const fuelCost = Math.round(188400000 * multiplier);
+    const monthFactor = targetMonth === '2026-09' ? 1.0 : targetMonth === '2026-08' ? 0.95 : targetMonth === '2026-07' ? 0.90 : 0.85;
+
+    const grossRev = Math.round(452600000 * multiplier * monthFactor);
+    const fuelCost = Math.round(188400000 * multiplier * monthFactor);
     const netMargin = grossRev - fuelCost;
-    const trains = Math.max(liveTrips.length, Math.round(27 * multiplier));
-    const tonnage = Math.round(74520 * multiplier);
+    const trains = Math.max(monthTrips.length, Math.round(27 * multiplier * monthFactor));
+    const tonnage = Math.round(74520 * multiplier * monthFactor);
 
     setData({
       financial: {
@@ -48,31 +144,27 @@ export default function PerformanceReportsPage() {
       },
       operational: {
         totalTrainsRun: trains,
-        completedTrips: liveTrips.filter(t => t.status === 'COMPLETED').length || trains,
+        completedTrips: monthTrips.filter((t) => t.status === 'COMPLETED').length || trains,
         totalTonnageHauled: tonnage,
         totalLoadedBags: tonnage * 20,
-        totalIntactDeliveredBags: (tonnage * 20) - 24,
+        totalIntactDeliveredBags: tonnage * 20 - 24,
         totalBurstBags: 24,
         burstDefectRate: '0.016%',
-      },
-      stationStats: {
-        'Papalanto Terminal (PAPA)': { trains: Math.round(10 * multiplier), tonnage: Math.round(27600 * multiplier), revenue: Math.round(167400000 * multiplier) },
-        'Apapa Maritime Port (APT)': { trains: Math.round(15 * multiplier), tonnage: Math.round(41400 * multiplier), revenue: Math.round(251100000 * multiplier) },
-        'Ewekoro Terminal (EWK)': { trains: Math.round(2 * multiplier), tonnage: Math.round(5520 * multiplier), revenue: Math.round(34100000 * multiplier) },
       },
     });
     setLoading(false);
   };
 
   useEffect(() => {
-    loadReport(period);
-  }, [period]);
+    loadReport(period, archiveMonth);
+  }, [period, archiveMonth]);
 
   const handleExportCSV = () => {
     if (!data) return;
     const rows = [
       ['Metric', 'Value'],
       ['Reporting Period', period.toUpperCase()],
+      ['Archive Month', archiveMonth],
       ['Gross Freight Revenue (NGN)', data.financial?.grossFreightRevenue || 0],
       ['Total Fuel Expenditure (NGN)', data.financial?.totalFuelCost || 0],
       ['Net Freight Margin (NGN)', data.financial?.netFreightMargin || 0],
@@ -85,7 +177,7 @@ export default function PerformanceReportsPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Bueno_Freight_Audit_Report_${period}.csv`);
+    link.setAttribute('download', `Bueno_Freight_Audit_Report_${archiveMonth}_${period}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -103,31 +195,33 @@ export default function PerformanceReportsPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full uppercase">
-                AUDITED DISPATCH ENGINE
+                HISTORICAL AUDITED ARCHIVE
               </span>
               <span className="text-gray-400 text-xs font-mono">• NRC LICENSE: NRC/RAIL/2026/089</span>
             </div>
             <h1 className="text-2xl font-black text-gray-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
-              End-to-End Loading & Unloading Tally Audits
+              Freight Performance & Historical Report Retrieval
             </h1>
             <p className="text-xs text-gray-500">
-              Reconciled origin siding loading logs, seal integrity verification, and destination yard discharge tallies.
+              Query past monthly corridor audit records, per-wagon loading logs, and executive signature dockets.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="bg-gray-100 p-1 rounded-2xl flex items-center border border-gray-200">
-              {(['weekly', 'monthly', 'quarterly', 'annually'] as Period[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${
-                    period === p ? 'bg-white text-gray-900 shadow-xs font-black' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+            {/* HISTORICAL MONTH RETRIEVAL DROPDOWN */}
+            <div className="flex items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded-2xl text-xs font-bold font-mono">
+              <Calendar size={14} className="text-emerald-400" />
+              <span>Report Archive:</span>
+              <select
+                value={archiveMonth}
+                onChange={(e) => setArchiveMonth(e.target.value)}
+                className="bg-slate-800 text-white font-bold rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#62BC37]"
+              >
+                <option value="2026-09">September 2026 (Current)</option>
+                <option value="2026-08">August 2026 (1 Month Ago)</option>
+                <option value="2026-07">July 2026 (2 Months Ago)</option>
+                <option value="2026-06">June 2026 (3 Months Ago)</option>
+              </select>
             </div>
 
             <button
@@ -143,7 +237,7 @@ export default function PerformanceReportsPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
             >
               <Printer size={14} />
-              Print Single-Trip Audit PDF
+              Print Historical PDF Report
             </button>
           </div>
         </div>
@@ -152,18 +246,18 @@ export default function PerformanceReportsPage() {
           <PageLoader />
         ) : (
           <div className="space-y-6">
-            {/* KPI Overview Cards */}
+            {/* KPI Overview Cards for Target Month */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Total Origin Bags Loaded</span>
                 <p className="text-xl font-black text-gray-900 font-mono">{(data.operational?.totalLoadedBags || 0).toLocaleString()} Bags</p>
-                <span className="text-[10px] text-emerald-700 font-bold block">✓ Verified at Origin Siding</span>
+                <span className="text-[10px] text-emerald-700 font-bold block">✓ Audited for {archiveMonth}</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Intact Unloaded at Destination</span>
                 <p className="text-xl font-black text-emerald-800 font-mono">{(data.operational?.totalIntactDeliveredBags || 0).toLocaleString()} Bags</p>
-                <span className="text-[10px] text-emerald-700 font-bold block">✓ Destination Yard Clearance</span>
+                <span className="text-[10px] text-emerald-700 font-bold block">✓ Clearance Passed</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
@@ -175,15 +269,15 @@ export default function PerformanceReportsPage() {
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Gross Invoiced Freight</span>
                 <p className="text-xl font-black text-blue-900 font-mono">{formatNgn(data.financial?.grossFreightRevenue)}</p>
-                <span className="text-[10px] text-blue-700 font-bold block">Standard Tariff: ₦1,200/Bag</span>
+                <span className="text-[10px] text-blue-700 font-bold block">Tariff Billed</span>
               </div>
             </div>
 
-            {/* SELECTOR STRIP FOR TRIPS */}
+            {/* SELECTOR STRIP FOR TRIPS IN THIS HISTORICAL MONTH */}
             <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm space-y-3">
               <div className="flex justify-between items-center border-b border-gray-100 pb-2">
-                <span className="text-xs font-black text-gray-900 uppercase">Select Trip Docket for Full Audit Inspection</span>
-                <span className="text-[10px] font-mono text-blue-700 font-bold">{trips.length} Active Corridor Trips</span>
+                <span className="text-xs font-black text-gray-900 uppercase">Archived Trip Dockets for {archiveMonth}</span>
+                <span className="text-[10px] font-mono text-blue-700 font-bold">{trips.length} Archived Corridor Trips</span>
               </div>
 
               <div className="flex overflow-x-auto gap-2">
@@ -203,7 +297,7 @@ export default function PerformanceReportsPage() {
               </div>
             </div>
 
-            {/* SINGLE-TRIP RECONCILIATION DOCKET (DETAILED INSPECTION VIEW) */}
+            {/* SINGLE-TRIP RECONCILIATION DOCKET (HISTORICAL RETRIEVAL VIEW) */}
             {selectedTrip && (
               <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 space-y-6">
                 {/* DOCKET HEADER */}
@@ -214,9 +308,9 @@ export default function PerformanceReportsPage() {
                         B
                       </div>
                       <div>
-                        <span className="text-[10px] font-mono font-bold text-blue-700 uppercase">BUENO LOGISTICS LIMITED • OFFICIAL TRIP DOCKET</span>
+                        <span className="text-[10px] font-mono font-bold text-blue-700 uppercase">BUENO LOGISTICS LIMITED • HISTORICAL ARCHIVED AUDIT</span>
                         <h2 className="text-xl font-black text-gray-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                          Audit Report: {selectedTrip.id} ({selectedTrip.company || 'Industrial Consignee'})
+                          Audit Docket: {selectedTrip.id} ({selectedTrip.company || 'Industrial Consignee'})
                         </h2>
                       </div>
                     </div>
@@ -226,7 +320,7 @@ export default function PerformanceReportsPage() {
                     <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-bold uppercase block mb-1">
                       {selectedTrip.status || 'COMPLETED'}
                     </span>
-                    <span className="text-gray-500 text-[10px]">Dispatch: {selectedTrip.dispatchTime || '24 Aug 2026'}</span>
+                    <span className="text-gray-500 text-[10px]">Dispatch: {selectedTrip.dispatchTime || '15 Aug 2026'}</span>
                   </div>
                 </div>
 
@@ -242,11 +336,11 @@ export default function PerformanceReportsPage() {
                   </div>
                   <div>
                     <span className="text-[9px] uppercase font-bold text-gray-400 block">Locomotive Unit</span>
-                    <span className="font-mono font-bold text-blue-700">{selectedTrip.locomotiveId || 'L2205 (3000HP AGO)'}</span>
+                    <span className="font-mono font-bold text-blue-700">{selectedTrip.locomotiveId || 'L2205'}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase font-bold text-gray-400 block">Consignment Total</span>
-                    <span className="font-mono font-bold text-emerald-700">{selectedTrip.quantity || 1610} Bags ({(selectedTrip.quantity || 1610) * 0.05} MT)</span>
+                    <span className="font-mono font-bold text-emerald-700">{selectedTrip.quantity || 1600} Bags ({(selectedTrip.quantity || 1600) * 0.05} MT)</span>
                   </div>
                 </div>
 
@@ -274,7 +368,6 @@ export default function PerformanceReportsPage() {
                         {(selectedTrip.wagonLogs || [
                           { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
                           { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-                          { wagonId: 'PXG 2324', loadedAt: '08:40 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9803' },
                         ]).map((w: any, idx: number) => (
                           <tr key={idx} className="hover:bg-gray-50">
                             <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
@@ -311,7 +404,6 @@ export default function PerformanceReportsPage() {
                         {(selectedTrip.wagonLogs || [
                           { wagonId: 'PXG 2322', loadedAt: '03:15 PM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
                           { wagonId: 'PXG 2323', loadedAt: '03:30 PM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-                          { wagonId: 'PXG 2324', loadedAt: '03:45 PM', bagsCount: 70, sealNumber: 'SEAL-BN-9803' },
                         ]).map((w: any, idx: number) => {
                           const burst = selectedTrip.damages?.burstBags && idx === 0 ? selectedTrip.damages.burstBags : 0;
                           const intact = (w.bagsCount || 70) - burst;
@@ -334,15 +426,15 @@ export default function PerformanceReportsPage() {
                 {/* EXECUTIVE RECONCILIATION SUMMARY */}
                 <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 text-xs">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Reconciled Audit Discrepancy Summary</span>
-                    <span className="text-[10px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800">100% RECONCILED</span>
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Reconciled Historical Audit Summary</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800">ARCHIVED & VERIFIED</span>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{selectedTrip.quantity || 1610} Bags</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.quantity || 1610) - (selectedTrip.damages?.burstBags || 0)} Bags</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{selectedTrip.quantity || 1600} Bags</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.quantity || 1600) - (selectedTrip.damages?.burstBags || 0)} Bags</span></div>
                     <div><span className="text-[9px] uppercase text-slate-400 block">Damaged / Burst Bags</span><span className="font-mono font-bold text-rose-400">{selectedTrip.damages?.burstBags || 0} Bags</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Tariff Billed</span><span className="font-mono font-bold text-amber-400">₦{((selectedTrip.quantity || 1610) * 1200).toLocaleString()}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Tariff Billed</span><span className="font-mono font-bold text-amber-400">₦{((selectedTrip.quantity || 1600) * 1200).toLocaleString()}</span></div>
                   </div>
                 </div>
 
