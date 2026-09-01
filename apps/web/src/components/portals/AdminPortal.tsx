@@ -940,7 +940,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               />
               <div>
                 <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
-                  {user?.role === 'HEAD_OF_OPERATIONS' ? 'OPERATIONS COMMAND HQ' : user?.role === 'HEAD_OF_FINANCE' ? 'FINANCE HQ DESK' : user?.role === 'CEO' || user?.role === 'MD' ? 'CEO & MD COMMAND HQ' : 'EXECUTIVE COMMAND HQ'}
+                  {user?.role === 'HEAD_OF_OPERATIONS' ? 'OPERATIONS COMMAND HQ' : (user?.role === 'HEAD_OF_FINANCE' || user?.role === 'ACCOUNTANT') ? 'FINANCE HQ DESK' : user?.role === 'CEO' || user?.role === 'MD' ? 'CEO & MD COMMAND HQ' : 'EXECUTIVE COMMAND HQ'}
                 </span>
                 <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                   BUENO LOGISTICS
