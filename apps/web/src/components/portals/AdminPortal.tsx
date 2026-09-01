@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StateEngine } from '@/lib/services/StateEngine';
+import { StateEngine, DEFAULT_ROLE_TAB_PERMISSIONS } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
@@ -166,7 +166,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
 
   // Granular Permissions Matrix State
-  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getPermissions());
+  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getRolePermissions());
   const [systemSettings, setSystemSettings] = useState(() => StateEngine.getSettings());
 
   const tryParse = (key: string, fallback: any) => {
@@ -571,18 +571,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
-  // TOGGLE GRANULAR PERMISSION IN MATRIX
+  // TOGGLE GRANULAR TAB & ACTION PERMISSION IN MATRIX
   const handleTogglePermission = (roleKey: string, permKey: string) => {
-    const currentPerms = permissionsMatrix[roleKey] || [];
+    const currentPerms = permissionsMatrix[roleKey] || DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || [];
     const exists = currentPerms.includes(permKey);
     const updatedRolePerms = exists ? currentPerms.filter((p) => p !== permKey) : [...currentPerms, permKey];
 
     const updatedMatrix = { ...permissionsMatrix, [roleKey]: updatedRolePerms };
     setPermissionsMatrix(updatedMatrix);
-    StateEngine.savePermissions(updatedMatrix);
+    StateEngine.saveRolePermissions(updatedMatrix);
 
     setCustomAlert({
-      title: 'Permissions Matrix Updated',
+      title: 'Permissions Matrix Saved to Database',
       message: `Permission "${permKey}" for role ${roleKey} has been ${exists ? 'REVOKED' : 'GRANTED'} & synced!`,
     });
   };
@@ -1004,7 +1004,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   { id: 'billing', label: 'Commercial Invoices & Ledger' },
                   { id: 'users', label: 'User Directory & Account Provisioning' },
                   { id: 'permissions', label: 'Enterprise Permissions Matrix' },
-                ].map((t) => (
+                ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setActiveTab(t.id as any)}
@@ -2089,16 +2089,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
             {/* EDITABLE PERMISSIONS CHECKBOX MATRIX */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b">
+              <table className="w-full text-left text-xs border border-slate-200 rounded-2xl">
+                <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b border-slate-200">
                   <tr>
-                    <th className="p-3">Role Classification</th>
-                    <th className="p-3 text-center">Trip Creation</th>
-                    <th className="p-3 text-center">Wagon Allocation</th>
-                    <th className="p-3 text-center">B2B Negotiations</th>
-                    <th className="p-3 text-center">Financial Disbursements</th>
-                    <th className="p-3 text-center">User Provisioning</th>
-                    <th className="p-3 text-center">Report Export</th>
+                    <th className="p-3.5 whitespace-nowrap">Role Classification</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Executive Analytics</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Commercial Deals</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Negotiations Chat</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Fund Requisitions</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Fleet Management</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Telemetry GPS</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Cargo Manifests</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Invoices & Ledger</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">User Provisioning</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Permissions Matrix</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
@@ -2110,28 +2114,32 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
                     { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
                   ].map(({ key, label }) => {
-                    const perms = permissionsMatrix[key] || [];
+                    const perms = permissionsMatrix[key] || DEFAULT_ROLE_TAB_PERMISSIONS[key] || [];
 
                     return (
-                      <tr key={key} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold font-sans text-slate-900">{label}</td>
+                      <tr key={key} className="hover:bg-slate-50 transition-all">
+                        <td className="p-3.5 font-bold font-sans text-slate-900 whitespace-nowrap">{label}</td>
                         {[
-                          { pKey: 'trip.create', pLabel: 'Create Trip' },
-                          { pKey: 'wagon.allocate', pLabel: 'Wagons' },
-                          { pKey: 'deal.negotiate', pLabel: 'Negotiate' },
-                          { pKey: 'financial.disburse', pLabel: 'Finance' },
-                          { pKey: 'user.provision', pLabel: 'Users' },
-                          { pKey: 'report.export', pLabel: 'Reports' },
-                        ].map(({ pKey }) => {
-                          const isChecked = perms.includes(pKey);
+                          'analytics',
+                          'deals',
+                          'negotiations',
+                          'fund_requisitions',
+                          'fleet',
+                          'telemetry',
+                          'manifest',
+                          'billing',
+                          'users',
+                          'permissions',
+                        ].map((tId) => {
+                          const isChecked = perms.includes(tId);
 
                           return (
-                            <td key={pKey} className="p-3 text-center">
+                            <td key={tId} className="p-3.5 text-center">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => handleTogglePermission(key, pKey)}
-                                className="w-4 h-4 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
+                                onChange={() => handleTogglePermission(key, tId)}
+                                className="w-4.5 h-4.5 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
                               />
                             </td>
                           );

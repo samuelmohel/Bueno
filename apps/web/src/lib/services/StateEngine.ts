@@ -386,6 +386,37 @@ class StateEngineService {
   saveSettings(settings: any): void {
     this.writeStorage('bueno_system_settings', settings);
   }
+
+  // ─── PERMISSIONS MATRIX & TAB ACCESS API ─────────────────────────────────
+  getRolePermissions(): Record<string, string[]> {
+    return this.readStorage('bueno_role_permissions', DEFAULT_ROLE_TAB_PERMISSIONS);
+  }
+
+  saveRolePermissions(matrix: Record<string, string[]>): void {
+    this.writeStorage('bueno_role_permissions', matrix);
+  }
+
+  canUserAccessTab(user: any, tabId: string): boolean {
+    if (!user) return false;
+    const role = user.role || 'GUEST';
+    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+
+    const matrix = this.getRolePermissions();
+    const allowedTabs = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role] || [];
+    return allowedTabs.includes(tabId);
+  }
 }
+
+export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
+  ADMIN: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
+  CEO: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
+  MD: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
+  HEAD_OF_OPERATIONS: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest'],
+  HEAD_OF_FINANCE: ['analytics', 'fund_requisitions', 'billing'],
+  ACCOUNTANT: ['analytics', 'fund_requisitions', 'billing'],
+  CARGO_OFFICER: ['loading', 'unloading', 'dispatch', 'wagons', 'requisitions', 'telemetry', 'manifest', 'history'],
+  CUSTOMER: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
+  CONSIGNEE: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
+};
 
 export const StateEngine = new StateEngineService();

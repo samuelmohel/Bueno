@@ -442,7 +442,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 { id: 'wagons', label: 'Wagon Fleet Inventory' },
                 { id: 'requisitions', label: 'Field Fund Requisitions' },
                 { id: 'history', label: 'Historical Inspection Audit' },
-              ].map((t) => (
+              ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
                 <button
                   key={t.id}
                   onClick={() => setActiveTab(t.id as any)}
