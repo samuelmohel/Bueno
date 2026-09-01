@@ -8,6 +8,7 @@ import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { CustomerPortal } from '@/components/portals/CustomerPortal';
 import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
+import { AdminPortal } from '@/components/portals/AdminPortal';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -4382,7 +4383,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
 /* ═══════════════════════════════════════════════════════════
    PORTAL 2 — ADMIN OFFICER
 ═══════════════════════════════════════════════════════════ */
-function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
+function LegacyAdminPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [view, setView] = useState<'deals' | 'negotiations' | 'trips' | 'wagons' | 'requests' | 'users' | 'analytics' | 'settings' | 'moniya'>('deals');
   const [menuOpen, setMenuOpen] = useState(false);
   const [deals, setDeals]       = useState<any[]>([]);
