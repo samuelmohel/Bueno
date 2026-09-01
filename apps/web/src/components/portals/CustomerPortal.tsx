@@ -132,10 +132,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || !activeDealId) return;
-
-    const activeDeal = negotiations.find((n) => n.id === activeDealId);
-    if (!activeDeal) return;
+    if (!chatInput.trim()) return;
 
     const newMsg = {
       sender: user?.fullName || `${companyName} Logistics Desk`,
@@ -144,9 +141,29 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const updatedDeals = negotiations.map((d) =>
-      d.id === activeDealId ? { ...d, messages: [...(d.messages || []), newMsg] } : d
-    );
+    let updatedDeals: any[] = [];
+    if (activeDealId && negotiations.some((n) => n.id === activeDealId)) {
+      updatedDeals = negotiations.map((d) =>
+        d.id === activeDealId ? { ...d, email: clientEmail.toLowerCase(), messages: [...(d.messages || []), newMsg] } : d
+      );
+    } else {
+      const threadId = `DEAL-NEG-${Date.now()}`;
+      const newThread = {
+        id: threadId,
+        companyName: companyName,
+        email: clientEmail.toLowerCase(),
+        contactName: user?.fullName || companyName,
+        loadingStation: 'EWK',
+        destination: 'MNY',
+        cargoType: 'Bagged Cement (50kg)',
+        quantity: '2,000 Bags',
+        status: 'IN_NEGOTIATION',
+        createdAt: 'Today',
+        messages: [newMsg],
+      };
+      updatedDeals = [newThread, ...negotiations];
+      setActiveDealId(threadId);
+    }
 
     saveNegotiations(updatedDeals);
     setChatInput('');

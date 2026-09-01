@@ -193,39 +193,115 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     // Update current month historical archives
     HISTORICAL_MONTHLY_ARCHIVES['2026-09'] = liveTrips;
 
-    // Merge Requisitions into Client Negotiations Chat Threads
-    let mergedThreads = [...liveDealsNeg];
+    // BUILD MASTER CLIENT NEGOTIATION THREADS FOR ALL REGISTERED CLIENTS (KEYED BY EMAIL)
+    const clientUsers = liveUsers.filter(
+      (u: any) => u.userType === 'CUSTOMER' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE'
+    );
+
+    const mergedMap = new Map<string, any>();
+
+    // 1. Initialize Thread for Every Registered Client User
+    clientUsers.forEach((client: any) => {
+      const clientEmail = (client.email || '').toLowerCase();
+      if (!clientEmail) return;
+
+      mergedMap.set(clientEmail, {
+        id: `DEAL-NEG-${client.id}`,
+        companyName: client.companyName || client.fullName,
+        email: clientEmail,
+        contactName: client.fullName,
+        phone: client.phone || 'N/A',
+        loadingStation: 'EWK',
+        destination: 'MNY',
+        cargoType: 'Bagged Cement (50kg)',
+        quantity: '2,000 Bags',
+        status: 'REGISTERED_CLIENT',
+        createdAt: client.createdAt || 'Active Account',
+        messages: [],
+        hasUnread: false,
+      });
+    });
+
+    // 2. Merge Web Requisitions
     if (liveReqs.length > 0) {
       liveReqs.forEach((req: any) => {
-        const exists = mergedThreads.some((d) => d.id === req.id || d.id === `DEAL-NEG-${req.id}`);
-        if (!exists) {
-          mergedThreads.unshift({
-            id: `DEAL-NEG-${req.id || Date.now()}`,
-            companyName: req.companyName || req.contactName || 'Industrial Consignee Client',
-            email: req.email || '',
-            contactName: req.contactName || 'Logistics Lead',
-            loadingStation: req.route?.includes('EWK') ? 'EWK' : 'PAPA',
-            destination: 'MNY',
-            cargoType: req.product || 'Bagged Cement (50kg)',
-            quantity: req.volume || '2,000 Bags',
-            status: 'PENDING_REVIEW',
-            createdAt: req.createdAt || 'Today',
-            messages: [
-              {
-                sender: req.contactName || 'Consignee Client',
-                role: 'Industrial Consignee',
-                text: `Requisition Note Submitted: Requesting freight haulage for ${req.product || 'Cement'} [${req.volume || '2,000 Bags'}] via ${req.route || 'EWK ➔ MNY'}. Notes: ${req.notes || 'None'}`,
-                time: req.createdAt || 'Today',
-              },
-            ],
-          });
+        const reqEmail = (req.email || '').toLowerCase();
+        if (!reqEmail) return;
+
+        const existing = mergedMap.get(reqEmail) || {
+          id: `DEAL-NEG-${req.id || Date.now()}`,
+          companyName: req.companyName || req.contactName || 'Industrial Consignee Client',
+          email: reqEmail,
+          contactName: req.contactName || 'Logistics Lead',
+          phone: req.phone || '',
+          loadingStation: req.route?.includes('EWK') ? 'EWK' : req.route?.includes('APT') ? 'APT' : 'PAPA',
+          destination: 'MNY',
+          cargoType: req.product || 'Bagged Cement (50kg)',
+          quantity: req.volume || '2,000 Bags',
+          status: 'PENDING_REVIEW',
+          createdAt: req.createdAt || 'Today',
+          messages: [],
+          hasUnread: true,
+        };
+
+        const reqMsg = {
+          sender: req.contactName || 'Consignee Client',
+          role: 'Industrial Consignee',
+          text: `Requisition Note Submitted: Requesting freight haulage for ${req.product || 'Cement'} [${req.volume || '2,000 Bags'}] via ${req.route || 'EWK ➔ MNY'}. Notes: ${req.notes || 'None'}`,
+          time: req.createdAt || 'Today',
+        };
+
+        const hasReqMsg = (existing.messages || []).some((m: any) => m.text?.includes('Requisition Note Submitted'));
+        if (!hasReqMsg) {
+          existing.messages = [reqMsg, ...(existing.messages || [])];
         }
+        existing.status = 'PENDING_REVIEW';
+        existing.hasUnread = true;
+        mergedMap.set(reqEmail, existing);
       });
     }
 
-    setNegotiations(mergedThreads);
-    if (mergedThreads.length > 0 && !activeDealId) {
-      setActiveDealId(mergedThreads[0].id);
+    // 3. Merge Live Deal Chat Messages from Storage
+    if (liveDealsNeg.length > 0) {
+      liveDealsNeg.forEach((deal: any) => {
+        const dealEmail = (deal.email || '').toLowerCase();
+        const existing = (dealEmail && mergedMap.get(dealEmail)) || {
+          id: deal.id,
+          companyName: deal.companyName || deal.contactName || 'Industrial Client',
+          email: dealEmail || `client_${Date.now()}@bueno.ng`,
+          contactName: deal.contactName || deal.companyName,
+          phone: deal.phone || '',
+          loadingStation: deal.loadingStation || 'EWK',
+          destination: deal.destination || 'MNY',
+          cargoType: deal.cargoType || 'Bagged Cement (50kg)',
+          quantity: deal.quantity || '2,000 Bags',
+          status: deal.status || 'IN_NEGOTIATION',
+          createdAt: deal.createdAt || 'Today',
+          messages: deal.messages || [],
+          hasUnread: true,
+        };
+
+        if (deal.messages && deal.messages.length > 0) {
+          // Deduplicate messages
+          const existingTexts = new Set((existing.messages || []).map((m: any) => m.text));
+          deal.messages.forEach((m: any) => {
+            if (!existingTexts.has(m.text)) {
+              existing.messages.push(m);
+            }
+          });
+        }
+
+        if (deal.status) existing.status = deal.status;
+        const targetKey = dealEmail || existing.email;
+        mergedMap.set(targetKey, existing);
+      });
+    }
+
+    const finalThreads = Array.from(mergedMap.values());
+    setNegotiations(finalThreads);
+
+    if (finalThreads.length > 0 && (!activeDealId || !finalThreads.some((t) => t.id === activeDealId))) {
+      setActiveDealId(finalThreads[0].id);
     }
   };
 

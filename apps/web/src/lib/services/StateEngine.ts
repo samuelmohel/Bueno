@@ -209,6 +209,15 @@ class StateEngineService {
     this.writeStorage('bueno_deals', deals);
   }
 
+  // ── NEGOTIATIONS API ──────────────────────────────────────────────────────
+  getNegotiations(): any[] {
+    return this.readStorage('bueno_custom_deal_negotiations', []);
+  }
+
+  saveNegotiations(negotiations: any[]): void {
+    this.writeStorage('bueno_custom_deal_negotiations', negotiations);
+  }
+
   // ── REQUISITIONS API ──────────────────────────────────────────────────────
   getRequests(): any[] {
     return this.readStorage('bueno_requests', SEED_REQUESTS);
@@ -307,7 +316,32 @@ class StateEngineService {
     const existingUsers = this.getUsers();
     this.saveUsers([newUser, ...existingUsers]);
 
-    // 3. Dispatch System Notification Alert for Admin & Operations
+    // 3. Auto-Initialize Client Negotiation Thread in Database
+    const initialThread = {
+      id: `DEAL-NEG-${newReq.id}`,
+      companyName: newReq.companyName,
+      email: newReq.email.toLowerCase(),
+      contactName: newReq.contactName,
+      loadingStation: newReq.route?.includes('EWK') ? 'EWK' : newReq.route?.includes('APT') ? 'APT' : 'PAPA',
+      destination: 'MNY',
+      cargoType: newReq.product,
+      quantity: newReq.volume,
+      status: 'PENDING_REVIEW',
+      createdAt: newReq.createdAt,
+      messages: [
+        {
+          sender: newReq.contactName,
+          role: 'Industrial Consignee',
+          text: `Requisition Note Submitted: Requesting freight haulage for ${newReq.product} [${newReq.volume}] via ${newReq.route}. Notes: ${newReq.notes || 'None'}`,
+          time: newReq.createdAt,
+        },
+      ],
+    };
+    const existingDeals = this.readStorage('bueno_custom_deal_negotiations', []);
+    const filteredOther = existingDeals.filter((d: any) => d.email?.toLowerCase() !== newReq.email.toLowerCase());
+    this.writeStorage('bueno_custom_deal_negotiations', [initialThread, ...filteredOther]);
+
+    // 4. Dispatch System Notification Alert for Admin & Operations
     const existingNotifs = this.readStorage('bueno_notifications', []);
     const newNotif = {
       id: `notif_${Date.now()}`,
