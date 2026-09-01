@@ -11,7 +11,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState<any | null>(null);
+  const [opsLeadName, setOpsLeadName] = useState('Head of Operations');
 
   const [dealForm, setDealForm] = useState({
     loadingStation: 'EWK',
@@ -25,7 +25,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const companyName = user?.companyName || user?.fullName || 'Industrial Consignee Client';
   const clientEmail = user?.email || '';
 
-  // Helper for safe JSON parsing
   const tryParse = (key: string, fallback: any) => {
     if (typeof window === 'undefined') return fallback;
     try {
@@ -36,7 +35,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     }
   };
 
-  useEffect(() => {
+  const syncData = () => {
+    // Dynamically resolve Head of Operations Name from StateEngine
+    const allUsers = StateEngine.getUsers();
+    const opsUser = allUsers.find((u) => u.role === 'HEAD_OF_OPERATIONS');
+    if (opsUser && opsUser.fullName) {
+      setOpsLeadName(opsUser.fullName);
+    }
+
     // 1. Fetch & Filter Trips strictly for THIS Company
     const allTrips = StateEngine.getTrips();
     const companyTrips = allTrips.filter(
@@ -65,9 +71,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
     if (companyDeals.length > 0) {
       setNegotiations(companyDeals);
-      setActiveDealId(companyDeals[0].id);
+      if (!activeDealId) setActiveDealId(companyDeals[0].id);
     } else if (companyReqs.length > 0) {
-      // Auto-initialize clean isolated negotiation thread from client's requisition!
       const req = companyReqs[0];
       const autoDeal = {
         id: `DEAL-NEG-${req.id || Date.now()}`,
@@ -88,7 +93,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             time: req.createdAt || 'Just now',
           },
           {
-            sender: 'Babajide Sanwo',
+            sender: opsUser?.fullName || 'Head of Operations',
             role: 'Head of Operations',
             text: `Welcome ${companyName}! Requisition #${req.id || 'REQ-2026'} is received at Operations Command. We are reviewing locomotive capacity and wagon siding availability at Ewekoro/Papalanto.`,
             time: 'System Auto-Response',
@@ -101,7 +106,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     } else {
       setNegotiations([]);
     }
-  }, [companyName, clientEmail, user]);
+  };
+
+  useEffect(() => {
+    syncData();
+    window.addEventListener('storage', syncData);
+    window.addEventListener('bueno_state_updated', syncData);
+    return () => {
+      window.removeEventListener('storage', syncData);
+      window.removeEventListener('bueno_state_updated', syncData);
+    };
+  }, [companyName, clientEmail]);
 
   const saveNegotiations = (updatedCompanyDeals: any[]) => {
     setNegotiations(updatedCompanyDeals);
@@ -114,6 +129,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         )
     );
     localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([...updatedCompanyDeals, ...otherDeals]));
+    window.dispatchEvent(new Event('bueno_state_updated'));
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -137,7 +153,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     saveNegotiations(updatedDeals);
     setChatInput('');
 
-    // Trigger Admin Notification Alert
     try {
       const notifs = tryParse('bueno_notifications', []);
       const newNotif = {
@@ -150,37 +165,6 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       };
       localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
     } catch {}
-  };
-
-  const handleCreateNewDeal = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newDeal = {
-      id: `DEAL-NEG-${Date.now()}`,
-      companyName,
-      email: clientEmail,
-      contactName: user?.fullName || 'Logistics Lead',
-      ...dealForm,
-      status: 'UNDER_OPERATIONS_REVIEW',
-      createdAt: new Date().toLocaleDateString('en-GB'),
-      messages: [
-        {
-          sender: user?.fullName || `${companyName} Desk`,
-          role: 'Industrial Consignee',
-          text: `New Corridor Freight Request: ${dealForm.cargoType} (${dealForm.quantity} Bags) from ${dealForm.loadingStation} to ${dealForm.destination}. Target Date: ${dealForm.targetDate || 'Immediate'}. Notes: ${dealForm.notes || 'N/A'}`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ],
-    };
-
-    const updated = [newDeal, ...negotiations];
-    saveNegotiations(updated);
-    setActiveDealId(newDeal.id);
-    setDealForm({ loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: '5000', targetDate: '', notes: '' });
-
-    setCustomAlert({
-      title: 'Deal Request Transmitted',
-      message: 'New freight corridor request sent to Head of Operations & Command Center successfully!',
-    });
   };
 
   const activeDeal = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
@@ -241,7 +225,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <div className="w-3 h-3 bg-[#62BC37] rounded-full animate-ping" />
               <div className="text-xs">
                 <span className="text-slate-400 block text-[10px] font-bold uppercase">Assigned Operations Lead</span>
-                <span className="font-extrabold text-slate-200">Babajide Sanwo (Head of Operations)</span>
+                <span className="font-extrabold text-slate-200">{opsLeadName}</span>
               </div>
             </div>
           </div>
@@ -280,11 +264,11 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {/* ─── TAB NAVIGATION ─── */}
         <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
           {[
-            { id: 'telemetry', label: '🛰️ Live Telemetry & GPS', count: trips.length },
-            { id: 'negotiations', label: '💬 Corridor Negotiations & Chat', count: negotiations.length },
-            { id: 'manifest', label: '📦 Cargo Manifest & Tally Audits', count: trips.length },
-            { id: 'billing', label: '💳 Freight Invoices & Tariff', count: trips.length },
-            { id: 'account', label: '🏢 Corporate Account Settings', count: null },
+            { id: 'telemetry', label: 'Live Telemetry & GPS', count: trips.length },
+            { id: 'negotiations', label: 'Corridor Negotiations & Chat', count: negotiations.length },
+            { id: 'manifest', label: 'Cargo Manifest & Tally Audits', count: trips.length },
+            { id: 'billing', label: 'Freight Invoices & Tariff', count: trips.length },
+            { id: 'account', label: 'Corporate Account Settings', count: null },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -375,8 +359,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               </div>
             ) : (
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4">
-                <div className="w-16 h-16 bg-emerald-50 text-[#62BC37] rounded-3xl flex items-center justify-center font-black text-2xl mx-auto border border-emerald-200">
-                  🛰️
+                <div className="w-12 h-12 bg-emerald-50 text-[#62BC37] rounded-2xl flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
+                  GPS
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>No Active Corridor Haulage Trips Yet</h3>
@@ -460,7 +444,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     <input
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Type a message to Head of Operations (Babajide Sanwo)..."
+                      placeholder={`Type a message to Operations Command (${opsLeadName})...`}
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     />
                     <button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all">
@@ -470,7 +454,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 </>
               ) : (
                 <div className="text-center my-auto space-y-3">
-                  <span className="text-3xl block">💬</span>
+                  <span className="text-sm font-mono font-bold text-slate-400 block">[ NO SELECTION ]</span>
                   <h3 className="text-base font-black text-slate-900">Select a Freight Requisition to View Messages</h3>
                 </div>
               )}
@@ -499,7 +483,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         <h4 className="text-sm font-black text-slate-900">{trip.company || companyName}</h4>
                       </div>
                       <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all">
-                        🖨️ Download Official Waybill (PDF)
+                        Download Official Waybill (PDF)
                       </button>
                     </div>
 
@@ -513,7 +497,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 ))
               ) : (
                 <div className="text-center py-10 text-slate-500 space-y-2">
-                  <span className="text-3xl block">📋</span>
+                  <span className="text-xs font-mono font-bold block text-slate-400">[ MANIFEST EMPTY ]</span>
                   <p className="text-xs font-bold">No cargo manifests generated yet. Manifests will appear here as your trains complete loading.</p>
                 </div>
               )}
@@ -553,7 +537,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 })
               ) : (
                 <div className="text-center py-10 text-slate-500 space-y-2">
-                  <span className="text-3xl block">💳</span>
+                  <span className="text-xs font-mono font-bold block text-slate-400">[ INVOICES EMPTY ]</span>
                   <p className="text-xs font-bold">No commercial invoices generated yet. Invoices will automatically generate upon wagon dispatch.</p>
                 </div>
               )}
