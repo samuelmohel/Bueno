@@ -61,11 +61,11 @@ export const SEED_TRIPS = [
 ];
 
 export const SEED_WAGONS = [
-  { id: 'PXG 2322', wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
-  { id: 'PXG 2323', wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
-  { id: 'PXG 2324', wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
-  { id: 'PXG 4401', wagonType: 'PXG', capacity: 1200, status: 'IN_TRANSIT', currentStation: 'APT', gauge: 'STANDARD_GAUGE' },
-  { id: 'PXG 4402', wagonType: 'PXG', capacity: 1200, status: 'IN_TRANSIT', currentStation: 'APT', gauge: 'STANDARD_GAUGE' },
+  { id: 'PXG 2322', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
+  { id: 'PXG 2323', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
+  { id: 'GND 4401', wagonType: 'Open Top Gondola Wagon', payloadCapacity: '70 MT', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE' },
+  { id: 'FLT 9011', wagonType: 'Flatbed Container Wagon', payloadCapacity: '2 TEU Containers', status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE' },
+  { id: 'TNK 8801', wagonType: 'Tanker Wagon', payloadCapacity: '45,000 Liters', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE' },
 ];
 
 export const SEED_DEALS = [
