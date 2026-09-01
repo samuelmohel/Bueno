@@ -5866,12 +5866,11 @@ export default function Dashboard() {
 
   const role = user.role;
 
-  if (role === 'CARGO_OFFICER')      return <CargoOfficerPortal user={user} onSignOut={signOut} />;
-  if (role === 'ADMIN')              return <AdminPortal         user={user} onSignOut={signOut} />;
-  if (role === 'HEAD_OF_OPERATIONS') return <OpsPortal           user={user} onSignOut={signOut} />;
-  if (role === 'CEO' || role === 'MD') return <CEOPortal          user={user} onSignOut={signOut} />;
-  if (role === 'HEAD_OF_FINANCE')    return <AccountantPortal    user={user} onSignOut={signOut} />;
+  if (role === 'CARGO_OFFICER') return <CargoOfficerPortal user={user} onSignOut={signOut} />;
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
+
+  // ALL COMMAND & HQ DESKS (CEO, HEAD OF OPERATIONS, HEAD OF FINANCE, ADMIN) SHARE MASTER ADMIN PORTAL
+  return <AdminPortal user={user} onSignOut={signOut} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-slate-900 text-center">
