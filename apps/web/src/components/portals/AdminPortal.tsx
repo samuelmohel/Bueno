@@ -305,13 +305,27 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     }
   };
 
+  const [currentUser, setCurrentUser] = useState<any>(user);
+
   useEffect(() => {
     syncData();
+    const syncUser = () => {
+      const activeStr = typeof window !== 'undefined' ? localStorage.getItem('bueno_user') : null;
+      if (activeStr) {
+        try {
+          setCurrentUser(JSON.parse(activeStr));
+        } catch {}
+      }
+    };
+    syncUser();
+
     window.addEventListener('storage', syncData);
     window.addEventListener('bueno_state_updated', syncData);
+    window.addEventListener('bueno_user_updated', syncUser);
     return () => {
       window.removeEventListener('storage', syncData);
       window.removeEventListener('bueno_state_updated', syncData);
+      window.removeEventListener('bueno_user_updated', syncUser);
     };
   }, []);
 
@@ -832,8 +846,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           {/* SYNCED LOGGED IN USER DETAILS */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">
-              <span className="text-xs font-extrabold text-white block">{user?.fullName || 'Alhaji Bashir Umar'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
+              <span className="text-xs font-extrabold text-white block">{currentUser?.fullName || user?.fullName || 'Alhaji Bashir Umar'}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{currentUser?.roleLabel || currentUser?.role || user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
             </div>
 
             <button
