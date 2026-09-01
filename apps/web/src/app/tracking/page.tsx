@@ -66,14 +66,14 @@ function TrackingContent() {
             trainNumber: 'TR-EWK-102',
             dealId: 'CN-2026-0451',
             trackingId: 'BU-TRK-8839',
-            clientName: 'Lafarge Africa Plc',
+            clientName: 'Purechem Cement Industries Ltd',
             origin: 'EWK',
             destination: 'MNY',
             status: 'IN_TRANSIT',
             loco: 'L2205 (General Electric 3000HP)',
             wagons: ['PXG-08135', 'PXG-08151'],
             loadedQty: 1600,
-            cargoType: 'Elephant Cement (50kg bags)',
+            cargoType: 'Bagged Cement (50kg bags)',
           };
         } else if (term === 'BU-TRK-7712' || term === 'CN-2026-0438') {
           foundDeal = {
@@ -105,7 +105,7 @@ function TrackingContent() {
             trainNumber: 'TR-APT-301',
             dealId: 'CN-2026-0390',
             trackingId: 'BU-TRK-4412',
-            clientName: 'Lafarge Africa Plc',
+            clientName: 'HUAXIN BUILDING MATERIALS NIG PLC',
             origin: 'APT',
             destination: 'MNY',
             status: 'ARRIVED',

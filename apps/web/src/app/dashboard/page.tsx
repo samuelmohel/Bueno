@@ -1327,7 +1327,7 @@ function DailyAnalyticsSection({ trips, users, onInspectTrip }: { trips: any[]; 
                 <span className="font-black text-[#0E4B88] block">{t.tripId || `T10${idx + 1}`}</span>
                 <span className="text-[10px] text-slate-500 font-bold">Loco #{t.locomotiveId || 'L2205'}</span>
               </td>
-              <td className="p-3.5 font-bold text-slate-900">{t.company || 'Lafarge Africa Plc'}</td>
+              <td className="p-3.5 font-bold text-slate-900">{t.company || t.companyName || 'Industrial Consignee'}</td>
               <td className="p-3.5 font-mono text-slate-700">
                 {sName(t.origin)} ➔ {sName(t.destination)}
               </td>

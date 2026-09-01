@@ -13,7 +13,7 @@ export const SEED_TRIPS = [
     locomotiveId: 'L2205',
     origin: 'EWK',
     destination: 'MNY',
-    company: 'Lafarge Africa Plc',
+    company: 'Purechem Cement Industries Ltd',
     dealNumber: 'DEAL-88210',
     quantity: 1610,
     cargoOfficerId: 'usr_1',
@@ -69,7 +69,7 @@ export const SEED_WAGONS = [
 ];
 
 export const SEED_DEALS = [
-  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Lafarge Africa Plc', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Elephant Cement (50kg)', quantity: 1610, createdAt: '20 Aug 2026' },
+  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Purechem Cement Industries Ltd', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: 1610, createdAt: '20 Aug 2026' },
   { id: 'dl_2', dealNumber: 'DEAL-99412', company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', loadingStation: 'APT', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg)', quantity: 2300, createdAt: '22 Aug 2026' },
 ];
 
