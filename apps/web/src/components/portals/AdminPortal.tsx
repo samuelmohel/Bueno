@@ -919,7 +919,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
       {/* ─── HEADER (PURE WHITE TEXTURED HEADER WITH OFFICIAL BUENO LOGO) ─── */}
       <header className="bg-white/95 backdrop-blur-md text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+        <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -966,8 +966,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       </header>
 
-      {/* ─── DYNAMIC LAYOUT WITH PURE WHITE LEFT SIDEBAR (CLEAN, SHARP, NO BLUR) ─── */}
-      <div className="flex max-w-7xl mx-auto min-h-[calc(100vh-65px)]">
+      {/* ─── DYNAMIC LAYOUT WITH PURE WHITE LEFT SIDEBAR (FLUID 100% FULL SCREEN WIDTH) ─── */}
+      <div className="flex w-full min-h-[calc(100vh-65px)]">
         {/* ─── PURE WHITE & BRAND GREEN LEFT SIDEBAR (PINNED & STICKY ON SCROLL) ─── */}
         {sidebarOpen && (
           <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm transition-all font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
