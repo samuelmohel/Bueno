@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authApi } from '@/lib/api';
+import { StateEngine } from '@/lib/services/StateEngine';
 
 function setAuthCookieAndStorage(token: string, user: any) {
   localStorage.setItem('bueno_token', token);
@@ -102,7 +103,7 @@ function LoginForm() {
     const splashTimer = setTimeout(() => setShowSplash(false), 1200);
 
     const syncUsers = () => {
-      const storedLocal = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      const storedLocal = StateEngine.getUsers();
       setAllUsers(storedLocal);
 
       try {
@@ -281,7 +282,8 @@ function LoginForm() {
     const input = loginIdentifier.trim().toLowerCase();
     const pin = passwordOrPin.trim();
 
-    const foundUser = allUsers.find(u => {
+    const latestUsers = StateEngine.getUsers();
+    const foundUser = latestUsers.find(u => {
       const matchEmail = u.email && u.email.toLowerCase() === input;
       const matchPhone = u.phone && u.phone.includes(input);
       const matchStaffId = u.staffId && u.staffId.toLowerCase() === input;
@@ -291,18 +293,19 @@ function LoginForm() {
     });
 
     if (!foundUser) {
-      setError(`No account found matching "${loginIdentifier}". Try: ade.bello@bueno.ng, admin@bueno.ng, or logistics@hbm.ng.`);
+      setError(`No account found matching "${loginIdentifier}". Please check your Email Address, Staff/Client ID, or Phone number.`);
       setLoading(false);
       return;
     }
 
-    if (foundUser.pin && foundUser.pin !== pin && pin !== '1234' && pin !== '1111') {
-      setError(`Incorrect 4-digit PIN for ${foundUser.fullName}. (Demo PIN: ${foundUser.pin || '1111'})`);
+    const expectedPin = foundUser.pin || '1111';
+    if (pin && pin !== expectedPin && pin !== '1234' && pin !== '1111') {
+      setError(`Incorrect 4-digit PIN for ${foundUser.fullName || foundUser.companyName}. (Security PIN: ${expectedPin})`);
       setLoading(false);
       return;
     }
 
-    let token = 'token_universal_login';
+    let token = `token_${foundUser.id || Date.now()}`;
     try {
       const res = await authApi.login(foundUser.email || 'admin@bueno.ng', 'demo1234');
       if (res.data?.accessToken) token = res.data.accessToken;

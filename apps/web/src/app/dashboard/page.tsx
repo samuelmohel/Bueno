@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import RailTelemetryCard from '@/components/RailTelemetryCard';
 import AutomatedManifestModal from '@/components/AutomatedManifestModal';
+import { StateEngine } from '@/lib/services/StateEngine';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -4453,7 +4454,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
       }
 
       // Fetch Users from DB & merge with local additions and edits
-      const storedLocalUsers = tryParse('bueno_provisioned_users', DEFAULT_PROVISIONED_USERS);
+      const storedLocalUsers = StateEngine.getUsers();
       try {
         const res = await fetch('/api/users.php');
         if (res.ok) {
@@ -4467,7 +4468,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
             const localOnlyUsers = storedLocalUsers.filter((l: any) => !dbIds.has(l.id));
             const combinedUsers = [...localOnlyUsers, ...dbUsersWithLocalOverrides];
             setUsers(combinedUsers);
-            localStorage.setItem('bueno_provisioned_users', JSON.stringify(combinedUsers));
+            StateEngine.saveUsers(combinedUsers);
           } else {
             setUsers(storedLocalUsers);
           }
@@ -4539,7 +4540,7 @@ function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) 
   const saveDeals        = (v: any[]) => { setDeals(v); persist('bueno_deals', v); };
   const saveRequests     = (v: any[]) => { setRequests(v); persist('bueno_requests', v); };
   const saveWagons       = (v: any[]) => { setWagons(v); persist('bueno_wagons', v); };
-  const saveUsers        = (v: any[]) => { setUsers(v); persist('bueno_provisioned_users', v); };
+  const saveUsers        = (v: any[]) => { setUsers(v); StateEngine.saveUsers(v); };
   const saveNegotiations = (v: any[]) => { setNegotiations(v); persist('bueno_custom_deal_negotiations', v); };
   const saveTrips        = (v: any[]) => { setTrips(v); persist('bueno_trips', v); };
 
