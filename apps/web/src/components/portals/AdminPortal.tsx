@@ -364,11 +364,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     saveNegotiations(updatedThreads);
     setReplyInput('');
-
-    setCustomAlert({
-      title: 'Negotiation Reply Delivered',
-      message: `Your message has been delivered to ${activeThread.companyName}'s negotiation desk in real-time.`,
-    });
   };
 
   // APPROVE DEAL & ALLOCATE WAGONS
