@@ -575,9 +575,33 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // TOGGLE GRANULAR TAB & ACTION PERMISSION IN MATRIX
   const handleTogglePermission = (roleKey: string, permKey: string) => {
     const fullMatrix = StateEngine.getRolePermissions();
-    const currentPerms = fullMatrix[roleKey] !== undefined ? fullMatrix[roleKey] : (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || []);
-    const exists = currentPerms.includes(permKey);
-    const updatedRolePerms = exists ? currentPerms.filter((p) => p !== permKey) : [...currentPerms, permKey];
+    const currentPerms = fullMatrix[roleKey] || DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || [];
+
+    const tabAliases: Record<string, string[]> = {
+      deals: ['deals', 'loading'],
+      trips: ['trips', 'loading'],
+      in_transit: ['in_transit', 'dispatch', 'telemetry'],
+      incoming_unload: ['incoming_unload', 'unloading'],
+      wagons: ['wagons', 'fleet'],
+      funds: ['funds', 'requisitions', 'fund_requisitions'],
+      fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
+      telemetry: ['telemetry', 'dispatch', 'in_transit'],
+      fleet: ['fleet', 'wagons'],
+      loading: ['loading', 'deals', 'trips'],
+      dispatch: ['dispatch', 'in_transit', 'telemetry'],
+      unloading: ['unloading', 'incoming_unload'],
+      requisitions: ['requisitions', 'funds', 'fund_requisitions'],
+    };
+
+    const keysToToggle = tabAliases[permKey] || [permKey];
+    const isCurrentlyChecked = keysToToggle.some((k) => currentPerms.includes(k));
+
+    let updatedRolePerms: string[];
+    if (isCurrentlyChecked) {
+      updatedRolePerms = currentPerms.filter((p) => !keysToToggle.includes(p));
+    } else {
+      updatedRolePerms = Array.from(new Set([...currentPerms, ...keysToToggle]));
+    }
 
     const updatedMatrix = { ...fullMatrix, [roleKey]: updatedRolePerms };
     setPermissionsMatrix(updatedMatrix);
@@ -2124,7 +2148,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
                     { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
                   ].map(({ key, label }) => {
-                    const perms = permissionsMatrix[key] !== undefined ? permissionsMatrix[key] : (DEFAULT_ROLE_TAB_PERMISSIONS[key] || []);
+                    const rolePerms = permissionsMatrix[key] || DEFAULT_ROLE_TAB_PERMISSIONS[key] || [];
 
                     return (
                       <tr key={key} className="hover:bg-slate-50 transition-all">
@@ -2147,7 +2171,23 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           'wagons',
                           'funds',
                         ].map((tId) => {
-                          const isChecked = perms.includes(tId);
+                          const tabAliases: Record<string, string[]> = {
+                            deals: ['deals', 'loading'],
+                            trips: ['trips', 'loading'],
+                            in_transit: ['in_transit', 'dispatch', 'telemetry'],
+                            incoming_unload: ['incoming_unload', 'unloading'],
+                            wagons: ['wagons', 'fleet'],
+                            funds: ['funds', 'requisitions', 'fund_requisitions'],
+                            fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
+                            telemetry: ['telemetry', 'dispatch', 'in_transit'],
+                            fleet: ['fleet', 'wagons'],
+                            loading: ['loading', 'deals', 'trips'],
+                            dispatch: ['dispatch', 'in_transit', 'telemetry'],
+                            unloading: ['unloading', 'incoming_unload'],
+                            requisitions: ['requisitions', 'funds', 'fund_requisitions'],
+                          };
+                          const checkKeys = tabAliases[tId] || [tId];
+                          const isChecked = checkKeys.some((k) => rolePerms.includes(k));
 
                           return (
                             <td key={tId} className="p-3.5 text-center">

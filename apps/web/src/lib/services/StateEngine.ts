@@ -402,12 +402,20 @@ class StateEngineService {
   getRolePermissions(): Record<string, string[]> {
     const stored = this.readStorage('bueno_role_permissions', null);
     if (!stored || typeof stored !== 'object') {
-      return { ...DEFAULT_ROLE_TAB_PERMISSIONS };
+      return JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
     }
-    return {
-      ...DEFAULT_ROLE_TAB_PERMISSIONS,
-      ...(stored as Record<string, string[]>),
-    };
+
+    const merged: Record<string, string[]> = {};
+    Object.keys(DEFAULT_ROLE_TAB_PERMISSIONS).forEach((roleKey) => {
+      const storedArray = (stored as any)[roleKey];
+      if (Array.isArray(storedArray) && storedArray.length > 0) {
+        merged[roleKey] = storedArray;
+      } else {
+        merged[roleKey] = [...(DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || [])];
+      }
+    });
+
+    return merged;
   }
 
   saveRolePermissions(matrix: Record<string, string[]>): void {
