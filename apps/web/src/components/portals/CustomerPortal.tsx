@@ -386,7 +386,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             { id: 'manifest', label: 'Cargo Manifest & Tally Audits', count: trips.length },
             { id: 'billing', label: 'Freight Invoices & Ledger', count: trips.length },
             { id: 'account', label: 'Corporate Account Settings', count: null },
-          ].map((tab) => (
+          ].filter((tab) => StateEngine.canUserAccessTab(user, tab.id)).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}

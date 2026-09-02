@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import RailTelemetryCard from '@/components/RailTelemetryCard';
 import AutomatedManifestModal from '@/components/AutomatedManifestModal';
-import { StateEngine } from '@/lib/services/StateEngine';
+import { StateEngine, TAB_TO_CAPABILITY } from '@/lib/services/StateEngine';
 import { CustomerPortal } from '@/components/portals/CustomerPortal';
 import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
 import { AdminPortal } from '@/components/portals/AdminPortal';
@@ -2398,23 +2398,31 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     setView('funds');
   };
 
-  const [permissionsVersion, setPermissionsVersion] = useState(0);
+  const [rolePerms, setRolePerms] = useState<string[]>(() => {
+    const m = StateEngine.getRolePermissions();
+    return m[user?.role] || [];
+  });
 
   useEffect(() => {
     StateEngine.syncRemote();
     const interval = setInterval(() => {
       StateEngine.syncRemote();
-    }, 5000);
+    }, 2000);
 
-    const handlePermUpdate = () => setPermissionsVersion((v) => v + 1);
+    const handlePermUpdate = () => {
+      const m = StateEngine.getRolePermissions();
+      setRolePerms(m[user?.role] || []);
+    };
     window.addEventListener('bueno_permissions_updated', handlePermUpdate);
     window.addEventListener('bueno_state_updated', handlePermUpdate);
+    window.addEventListener('storage', handlePermUpdate);
     return () => {
       clearInterval(interval);
       window.removeEventListener('bueno_permissions_updated', handlePermUpdate);
       window.removeEventListener('bueno_state_updated', handlePermUpdate);
+      window.removeEventListener('storage', handlePermUpdate);
     };
-  }, []);
+  }, [user?.role]);
 
   const navItems = [
     { key: 'deals',           label: 'Latest Deals (Loading)' },
@@ -2426,7 +2434,10 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: 'Request Funds' },
     { key: 'manifest',        label: 'Cargo Manifests' },
-  ].filter((item) => StateEngine.canUserAccessTab(user, item.key));
+  ].filter((item) => {
+    const capability = TAB_TO_CAPABILITY[item.key] || item.key;
+    return rolePerms.includes(capability);
+  });
 
   useEffect(() => {
     const allowedKeys = navItems.map((n) => n.key);

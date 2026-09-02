@@ -251,6 +251,21 @@ class StateEngineService {
           }
         }
       }
+
+      // 5. Sync Role Permissions Matrix with Database API
+      const permsRes = await fetch('/api/permissions.php').catch(() => null);
+      if (permsRes && permsRes.ok) {
+        const permsJson = await permsRes.json().catch(() => null);
+        if (permsJson && permsJson.status === 'success' && permsJson.matrix && typeof permsJson.matrix === 'object') {
+          const localPerms = this.getRolePermissions();
+          if (JSON.stringify(permsJson.matrix) !== JSON.stringify(localPerms)) {
+            this.writeStorage('bueno_role_permissions', permsJson.matrix);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new Event('bueno_permissions_updated'));
+            }
+          }
+        }
+      }
     } catch {}
   }
 
@@ -509,14 +524,27 @@ class StateEngineService {
 
   seedPermissionsIfVersionMismatch(): void {
     if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('bueno_permissions_version');
-    if (stored !== PERMISSIONS_SCHEMA_VERSION) {
-      localStorage.removeItem('bueno_role_permissions');
+    const stored = localStorage.getItem('bueno_role_permissions');
+    if (!stored) {
       localStorage.setItem('bueno_role_permissions', JSON.stringify(
         JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS))
       ));
       localStorage.setItem('bueno_permissions_version', PERMISSIONS_SCHEMA_VERSION);
     }
+    // Asynchronously fetch latest permissions from SQL API to ensure instant synchronization
+    fetch('/api/permissions.php')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json && json.status === 'success' && json.matrix && typeof json.matrix === 'object') {
+          const current = localStorage.getItem('bueno_role_permissions');
+          if (JSON.stringify(json.matrix) !== current) {
+            localStorage.setItem('bueno_role_permissions', JSON.stringify(json.matrix));
+            window.dispatchEvent(new Event('bueno_permissions_updated'));
+            window.dispatchEvent(new Event('bueno_state_updated'));
+          }
+        }
+      })
+      .catch(() => {});
   }
 
   getRolePermissions(): Record<string, string[]> {
@@ -526,8 +554,7 @@ class StateEngineService {
     }
     const merged: Record<string, string[]> = {};
     Object.keys(DEFAULT_ROLE_TAB_PERMISSIONS).forEach((roleKey) => {
-      const storedArray = stored[roleKey];
-      merged[roleKey] = Array.isArray(storedArray) ? storedArray : [...DEFAULT_ROLE_TAB_PERMISSIONS[roleKey]];
+      merged[roleKey] = Array.isArray(stored[roleKey]) ? stored[roleKey] : [...DEFAULT_ROLE_TAB_PERMISSIONS[roleKey]];
     });
     return merged;
   }
