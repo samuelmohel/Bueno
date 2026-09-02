@@ -18,8 +18,22 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
   const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'wagons' | 'history'>('loading');
   const [trips, setTrips] = useState<any[]>([]);
   const [wagons, setWagons] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>('');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+
+  // TRIP CREATION FROM DEALS STATE
+  const [createTripModalDeal, setCreateTripModalDeal] = useState<any | null>(null);
+  const [tripForm, setTripForm] = useState({
+    locomotiveId: 'L2205',
+    wagonId1: 'PXG 2322',
+    wagonId2: 'PXG 2323',
+    weighbridgeGrossMt: '80.5',
+    seal1: 'SEAL-BN-9801',
+    seal2: 'SEAL-BN-9802',
+    escortName: 'Inspector Segun Alabi',
+    badgeId: 'NRC-ESC-2026-08',
+  });
 
   // DISPATCH ESCORT MODAL STATE
   const [dispatchModalTrip, setDispatchModalTrip] = useState<any | null>(null);
@@ -35,7 +49,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     wagonId: 'PXG 2322',
     cargoType: 'Bagged Cement (50kg)',
     quantity: '70',
-    sealNumber: `SEAL-BN-${Math.floor(9000 + Math.random() * 999)}`,
+    sealNumber: 'SEAL-BN-9801',
     feederTruckNo: 'TRK-KJA-981-XP',
     weighbridgeGrossMt: '80.5',
     notes: '',
@@ -69,6 +83,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const liveTrips = StateEngine.getTrips();
     setTrips(liveTrips);
     setWagons(StateEngine.getWagons());
+    setDeals(StateEngine.getDeals());
     if (liveTrips.length > 0 && !selectedTripId) {
       setSelectedTripId(liveTrips[0].id);
     }
@@ -137,6 +152,53 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     });
   };
 
+  // 1B. CREATE TRIP FROM APPROVED COMMERCIAL DEAL
+  const handleCreateTripFromDeal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createTripModalDeal) return;
+
+    const deal = createTripModalDeal;
+    const dealCargoType = deal?.cargoType || 'Bagged Cement (50kg)';
+    const unitLabel = COMMODITY_CONFIG[dealCargoType]?.unit || 'Bags';
+    const wagonTypeLabel = COMMODITY_CONFIG[dealCargoType]?.wagonType || 'Covered Hopper Wagon';
+
+    const newTrip = {
+      id: 'TRP-' + Math.floor(1000 + Math.random() * 8999),
+      tripId: 'TRP-' + Math.floor(1000 + Math.random() * 8999),
+      locomotiveId: tripForm.locomotiveId || 'L2205',
+      origin: deal.loadingStation || station || 'EWK',
+      destination: deal.destination || 'MNY',
+      company: deal.companyName || deal.company || 'Consignee Client',
+      dealNumber: deal.dealNumber || deal.id,
+      cargoType: dealCargoType,
+      unitOfMeasure: unitLabel,
+      wagonType: wagonTypeLabel,
+      quantity: Number(deal.quantity) || 1600,
+      cargoOfficerName: user?.fullName || 'Ade Bello',
+      unloadingOfficerName: 'Musa Ibrahim',
+      escortOfficerName: tripForm.escortName || 'Inspector Segun Alabi',
+      escortBadgeId: tripForm.badgeId || 'NRC-ESC-2026-08',
+      status: 'LOADING',
+      dispatchTime: new Date().toLocaleString('en-GB'),
+      wagonLogs: [
+        { wagonId: tripForm.wagonId1 || 'PXG 2322', status: 'LOADED', loadedAt: 'Just now', bagsCount: '70 ' + unitLabel, sealNumber: tripForm.seal1 || 'SEAL-BN-9801', weighbridgeGrossMt: tripForm.weighbridgeGrossMt || '80.5' },
+        { wagonId: tripForm.wagonId2 || 'PXG 2323', status: 'LOADED', loadedAt: 'Just now', bagsCount: '70 ' + unitLabel, sealNumber: tripForm.seal2 || 'SEAL-BN-9802', weighbridgeGrossMt: tripForm.weighbridgeGrossMt || '80.5' },
+      ],
+      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+    };
+
+    StateEngine.saveTrips([newTrip, ...trips]);
+    setTrips([newTrip, ...trips]);
+    setCreateTripModalDeal(null);
+    setSelectedTripId(newTrip.id);
+    setActiveTab('loading');
+
+    setCustomAlert({
+      title: 'Freight Trip Created & Waybill Issued',
+      message: 'Trip #' + newTrip.id + ' created for ' + newTrip.company + ' at ' + newTrip.origin + ' Siding!',
+    });
+  };
+
   // 2. DISPATCH TRAIN WITH ON-BOARD ESCORT OFFICER & LIVE GPS TELEMETRY
   const handleConfirmDispatchWithEscort = (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +210,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       monitoringOfficerPhone: escortForm.officerPhone,
       escortPhone: escortForm.officerPhone,
       escortBadgeId: escortForm.badgeId,
-      dispatchTime: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+      dispatchTime: new Date().toLocaleString('en-GB'),
     });
 
     setDispatchModalTrip(null);
@@ -223,7 +285,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
     setCustomAlert({
       title: 'New Wagon Registered to Fleet Repository',
-      message: `Wagon ${newWagonObj.id} [${newWagonObj.wagonType}] registered with Payload Capacity of ${newWagonObj.payloadCapacity} at Station ${newWagonObj.currentStation}!`,
+      message: 'Wagon ' + newWagonObj.id + ' registered at Station ' + newWagonObj.currentStation + '!',
     });
 
     setNewWagonForm({
@@ -353,7 +415,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       )}
 
       {/* ─── DEDICATED PRINT STYLESHEET (STAGE 4 UNIVERSAL PDF EXPORT) ─── */}
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           body {
             background: #ffffff !important;
@@ -383,7 +445,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             color: #0f172a !important;
           }
         }
-      `}</style>
+      ` }} />
 
       {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER) ─── */}
       <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-xs">
@@ -536,7 +598,56 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
         {/* ─── TAB 1: ORIGIN SIDING LOADING ─── */}
         {activeTab === 'loading' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+          <div className="space-y-6 font-sans">
+            {/* ─── APPROVED DEALS QUEUE FOR TRIP CREATION ─── */}
+            {deals.length > 0 && (
+              <div className="bg-[#1E293B] text-white p-6 rounded-3xl shadow-lg border border-slate-700 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-700 pb-3">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
+                      COMMERCIAL DISPATCH DESK QUEUE
+                    </span>
+                    <h3 className="text-base font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                      Approved Deals Awaiting Freight Trip Creation ({deals.length} Commercial Deals)
+                    </h3>
+                  </div>
+                  <span className="text-xs bg-[#62BC37]/20 text-[#62BC37] font-mono font-bold px-3 py-1 rounded-full border border-[#62BC37]/40">
+                    ● Live Siding Pipeline
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {deals.map((deal, idx) => (
+                    <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
+                          <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
+                        </div>
+                        <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                          APPROVED
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-300 space-y-1 font-mono">
+                        <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
+                        <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{deal.quantity} Units</span></p>
+                        <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} ➔ {deal.destination || 'MNY'}</span></p>
+                      </div>
+
+                      <button
+                        onClick={() => setCreateTripModalDeal(deal)}
+                        className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+                      >
+                        ⚡ Create & Launch Freight Trip
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LOADING FORM */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
@@ -648,7 +759,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* ─── TAB 2: LIVE TRAIN DISPATCH & LIVE GPS SATELLITE MAP ─── */}
         {activeTab === 'dispatch' && (
@@ -870,6 +982,141 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── MODAL: CREATE & DISPATCH FREIGHT TRIP FROM DEAL ─── */}
+        {createTripModalDeal && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full border border-slate-200 shadow-2xl space-y-5">
+              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
+                    OPERATIONAL DISPATCH TERMINAL
+                  </span>
+                  <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Create & Launch Freight Trip — {createTripModalDeal.companyName || createTripModalDeal.company}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    Deal Ref: <span className="font-bold text-slate-900">{createTripModalDeal.dealNumber || createTripModalDeal.id}</span> • Corridor: <span className="font-bold text-amber-700">{createTripModalDeal.loadingStation || 'EWK'} ➔ {createTripModalDeal.destination || 'MNY'}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCreateTripModalDeal(null)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-black border border-slate-200"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateTripFromDeal} className="space-y-4 text-xs font-semibold">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Locomotive ID *</label>
+                    <input
+                      required
+                      value={tripForm.locomotiveId}
+                      onChange={(e) => setTripForm({ ...tripForm, locomotiveId: e.target.value })}
+                      placeholder="e.g. L2205"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Weighbridge Gross (MT) *</label>
+                    <input
+                      required
+                      value={tripForm.weighbridgeGrossMt}
+                      onChange={(e) => setTripForm({ ...tripForm, weighbridgeGrossMt: e.target.value })}
+                      placeholder="e.g. 80.5"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Allocated Wagon #1 *</label>
+                    <select
+                      value={tripForm.wagonId1}
+                      onChange={(e) => setTripForm({ ...tripForm, wagonId1: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    >
+                      {wagons.map((w, idx) => (
+                        <option key={idx} value={w.id}>{w.id} ({w.wagonType || 'Covered Hopper'})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security Seal #1 *</label>
+                    <input
+                      required
+                      value={tripForm.seal1}
+                      onChange={(e) => setTripForm({ ...tripForm, seal1: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-amber-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Allocated Wagon #2 *</label>
+                    <select
+                      value={tripForm.wagonId2}
+                      onChange={(e) => setTripForm({ ...tripForm, wagonId2: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    >
+                      {wagons.map((w, idx) => (
+                        <option key={idx} value={w.id}>{w.id} ({w.wagonType || 'Covered Hopper'})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security Seal #2 *</label>
+                    <input
+                      required
+                      value={tripForm.seal2}
+                      onChange={(e) => setTripForm({ ...tripForm, seal2: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-amber-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Escort Officer Name</label>
+                    <input
+                      value={tripForm.escortName}
+                      onChange={(e) => setTripForm({ ...tripForm, escortName: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Badge / Phone Ping</label>
+                    <input
+                      value={tripForm.badgeId}
+                      onChange={(e) => setTripForm({ ...tripForm, badgeId: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreateTripModalDeal(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-3 rounded-xl shadow-md transition-all"
+                  >
+                    ⚡ Launch Freight Trip & Issue Waybill
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
