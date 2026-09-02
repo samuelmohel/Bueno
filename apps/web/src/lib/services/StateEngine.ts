@@ -390,6 +390,7 @@ class StateEngineService {
     };
     const existingReqs = this.readStorage('bueno_client_requests', []);
     this.writeStorage('bueno_client_requests', [newReq, ...existingReqs]);
+    this.postRemote('/api/client_requests.php', newReq);
 
     // 2. Auto-Provision Customer Account
     const newUser = {
@@ -432,19 +433,22 @@ class StateEngineService {
     const existingDeals = this.readStorage('bueno_custom_deal_negotiations', []);
     const filteredOther = existingDeals.filter((d: any) => d.email?.toLowerCase() !== newReq.email.toLowerCase());
     this.writeStorage('bueno_custom_deal_negotiations', [initialThread, ...filteredOther]);
+    this.postRemote('/api/negotiations.php', initialThread);
 
     // 4. Dispatch System Notification Alert for Admin & Operations
     const existingNotifs = this.readStorage('bueno_notifications', []);
     const newNotif = {
       id: `notif_${Date.now()}`,
       title: 'New Industrial Client Freight Requisition Received',
-      body: `${newReq.companyName} (${newReq.contactName}) requested ${newReq.product} [${newReq.volume}] via ${newReq.route}`,
-      time: 'Just now',
-      type: 'CLIENT_REQUEST',
-      reqId: reqId,
+      body: `${newReq.companyName} submitted a new freight request for ${newReq.product} [${newReq.volume}] via ${newReq.route}.`,
+      time: newReq.createdAt,
+      type: 'CLIENT_REQUISITION',
+      targetId: initialThread.id,
+      targetTab: 'negotiations',
       read: false,
     };
     this.writeStorage('bueno_notifications', [newNotif, ...existingNotifs]);
+    this.postRemote('/api/notifications.php', newNotif);
 
     // 5. Sync Role Permissions with Database API
     (async () => {

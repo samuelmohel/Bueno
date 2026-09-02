@@ -128,7 +128,7 @@ export default function PerformanceReportsPage() {
   const loadReport = (selectedPeriod: Period, targetMonth: string) => {
     setLoading(true);
 
-    const monthTrips = HISTORICAL_ARCHIVED_TRIPS[targetMonth] || StateEngine.getTrips();
+    const monthTrips = targetMonth === '2026-09' ? StateEngine.getTrips() : (HISTORICAL_ARCHIVED_TRIPS[targetMonth] || []);
     setTrips(monthTrips);
     if (monthTrips.length > 0) {
       setSelectedTrip(monthTrips[0]);

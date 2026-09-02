@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // cPanel & SQLite Unified Production Database Helper
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -104,26 +104,50 @@ function initTables($pdo) {
         createdAt VARCHAR(100)
     )");
 
-    // 5. Trips & GPS Telemetry Table
+    // 5. Comprehensive Trips & Consist Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_trips (
         id VARCHAR(100) PRIMARY KEY,
         tripId VARCHAR(100),
+        dealNumber VARCHAR(100),
         locomotiveId VARCHAR(100),
         cargoOfficerName VARCHAR(255),
         unloadingOfficerName VARCHAR(255),
+        escortOfficerName VARCHAR(255),
+        escortPhone VARCHAR(100),
+        escortWagonId VARCHAR(100),
         company VARCHAR(255),
+        clientEmail VARCHAR(255),
         cargoType VARCHAR(255),
+        unitOfMeasure VARCHAR(50) DEFAULT 'Bags',
+        wagonType VARCHAR(100) DEFAULT 'Covered Hopper Wagon',
         quantity VARCHAR(100),
         origin VARCHAR(50),
         destination VARCHAR(50),
-        status VARCHAR(50),
-        curLat REAL,
-        curLng REAL,
+        status VARCHAR(50) DEFAULT 'LOADING',
+        curLat REAL DEFAULT 6.8974,
+        curLng REAL DEFAULT 3.2141,
+        speed INT DEFAULT 0,
+        departedAt VARCHAR(100),
+        completedAt VARCHAR(100),
+        dispatchTime VARCHAR(100),
+        tripRevenue REAL DEFAULT 0,
+        tripCost REAL DEFAULT 0,
         wagonLogsText TEXT,
+        feederTrucksText TEXT,
+        damagesText TEXT,
+        unloadLogsText TEXT,
         createdAt VARCHAR(100)
     )");
 
-    // 6. Fund Requests & Approval Conversations Table
+    // Schema migration helper for existing tables
+    $tripColumns = ['dealNumber', 'escortOfficerName', 'escortPhone', 'escortWagonId', 'clientEmail', 'unitOfMeasure', 'wagonType', 'speed', 'departedAt', 'completedAt', 'dispatchTime', 'tripRevenue', 'tripCost', 'feederTrucksText', 'damagesText', 'unloadLogsText'];
+    foreach ($tripColumns as $col) {
+        try {
+            $pdo->exec("ALTER TABLE bueno_trips ADD COLUMN {$col} TEXT");
+        } catch (Exception $e) {}
+    }
+
+    // 6. Fund Requests Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_fund_requests (
         id VARCHAR(100) PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
@@ -132,7 +156,7 @@ function initTables($pdo) {
         amount REAL,
         category VARCHAR(100),
         description TEXT,
-        stage VARCHAR(100),
+        stage VARCHAR(100) DEFAULT 'PENDING_OPS',
         conversationText TEXT,
         paymentDetailsText TEXT,
         date VARCHAR(100)
@@ -161,6 +185,58 @@ function initTables($pdo) {
         targetId VARCHAR(200),
         targetTab VARCHAR(100),
         readInt INT DEFAULT 0
+    )");
+
+    // 9. Role Permissions Matrix Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_role_permissions (
+        roleKey VARCHAR(100) PRIMARY KEY,
+        permissionsJson TEXT NOT NULL,
+        updatedAt VARCHAR(100)
+    )");
+
+    // 10. System Settings Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_system_settings (
+        settingKey VARCHAR(100) PRIMARY KEY,
+        settingValue TEXT NOT NULL,
+        updatedAt VARCHAR(100)
+    )");
+
+    // 11. Commercial Invoices Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_invoices (
+        id VARCHAR(100) PRIMARY KEY,
+        invoiceNumber VARCHAR(100),
+        dealId VARCHAR(100),
+        companyName VARCHAR(255),
+        cargoType VARCHAR(255),
+        route VARCHAR(255),
+        totalBags INT DEFAULT 0,
+        totalTonnes REAL DEFAULT 0,
+        ratePerTonne REAL DEFAULT 0,
+        subtotal REAL DEFAULT 0,
+        tax REAL DEFAULT 0,
+        totalAmount REAL DEFAULT 0,
+        amountPaid REAL DEFAULT 0,
+        balance REAL DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'UNPAID',
+        itemsText TEXT,
+        issueDate VARCHAR(100),
+        dueDate VARCHAR(100)
+    )");
+
+    // 12. GPS Logs Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_gps_logs (
+        id VARCHAR(100) PRIMARY KEY,
+        tripId VARCHAR(100),
+        locomotiveId VARCHAR(100),
+        lat REAL,
+        lng REAL,
+        speed INT DEFAULT 0,
+        heading REAL DEFAULT 0,
+        accuracy REAL DEFAULT 3,
+        batteryLevel INT DEFAULT 100,
+        officerPhone VARCHAR(50),
+        signalQuality VARCHAR(50) DEFAULT 'MOBILE_PHONE_GPS_LIVE',
+        timestamp VARCHAR(100)
     )");
 
     // Seed 46 Dedicated Covered Hopper Wagons if empty
