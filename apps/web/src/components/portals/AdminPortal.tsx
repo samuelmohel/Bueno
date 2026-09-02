@@ -2093,16 +2093,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b border-slate-200">
                   <tr>
                     <th className="p-3.5 whitespace-nowrap">Role Classification</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Executive Analytics</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Commercial Deals</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Negotiations Chat</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Analytics</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Deals Queue</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Negotiations</th>
                     <th className="p-3.5 text-center whitespace-nowrap">Fund Requisitions</th>
                     <th className="p-3.5 text-center whitespace-nowrap">Fleet Management</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Telemetry GPS</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Cargo Manifests</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Invoices & Ledger</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">User Provisioning</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Permissions Matrix</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Live Telemetry</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Manifests</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Invoices</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Users</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Permissions</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Trips Created</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">In Transit</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Incoming Unload</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Moniya Terminal</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Wagon Fleet</th>
+                    <th className="p-3.5 text-center whitespace-nowrap">Request Funds</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
@@ -2114,7 +2120,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
                     { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
                   ].map(({ key, label }) => {
-                    const perms = permissionsMatrix[key] || DEFAULT_ROLE_TAB_PERMISSIONS[key] || [];
+                    const perms = permissionsMatrix[key] !== undefined ? permissionsMatrix[key] : (DEFAULT_ROLE_TAB_PERMISSIONS[key] || []);
 
                     return (
                       <tr key={key} className="hover:bg-slate-50 transition-all">
@@ -2130,6 +2136,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           'billing',
                           'users',
                           'permissions',
+                          'trips',
+                          'in_transit',
+                          'incoming_unload',
+                          'moniya',
+                          'wagons',
+                          'funds',
                         ].map((tId) => {
                           const isChecked = perms.includes(tId);
 

@@ -77,13 +77,6 @@ export const SEED_WAGONS = [
       createdAt: '07 Aug 2026',
     };
   }),
-
-  // NRC Spot / Ad-Hoc Wagons (On-Demand Spot Allocation)
-  { id: 'PXG 2322', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT (1,200 Bags)', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'PXG 2323', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT (1,200 Bags)', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'GND 4401', wagonType: 'Open Top Gondola Wagon', payloadCapacity: '70 MT', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '12 Aug 2026' },
-  { id: 'FLT 9011', wagonType: 'Flatbed Container Wagon', payloadCapacity: '2 TEU Containers', status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '15 Aug 2026' },
-  { id: 'TNK 8801', wagonType: 'Tanker Wagon', payloadCapacity: '45,000 Liters', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '18 Aug 2026' },
 ];
 
 export const SEED_DEALS = [
@@ -417,24 +410,31 @@ class StateEngineService {
   canUserAccessTab(user: any, tabId: string): boolean {
     if (!user) return false;
     const role = user.role || 'GUEST';
-    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
 
     const matrix = this.getRolePermissions();
-    const allowedTabs = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role] || [];
-    return allowedTabs.includes(tabId);
+    const rolePerms = matrix[role];
+
+    // If role permissions exist in database matrix, strictly check if tabId is included
+    if (rolePerms !== undefined && Array.isArray(rolePerms)) {
+      return rolePerms.includes(tabId);
+    }
+
+    // Fallback to default matrix
+    const defaultPerms = DEFAULT_ROLE_TAB_PERMISSIONS[role] || [];
+    return defaultPerms.includes(tabId);
   }
 }
 
 export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
-  CEO: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
-  MD: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions'],
-  HEAD_OF_OPERATIONS: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest'],
-  HEAD_OF_FINANCE: ['analytics', 'fund_requisitions', 'billing'],
-  ACCOUNTANT: ['analytics', 'fund_requisitions', 'billing'],
-  CARGO_OFFICER: ['loading', 'unloading', 'dispatch', 'wagons', 'requisitions', 'telemetry', 'manifest', 'history', 'deals', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'funds'],
-  CUSTOMER: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
-  CONSIGNEE: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
+  ADMIN: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds'],
+  CEO: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds'],
+  MD: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds'],
+  HEAD_OF_OPERATIONS: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds'],
+  HEAD_OF_FINANCE: ['analytics', 'fund_requisitions', 'billing', 'funds'],
+  ACCOUNTANT: ['analytics', 'fund_requisitions', 'billing', 'funds'],
+  CARGO_OFFICER: ['deals', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds', 'loading', 'unloading', 'dispatch', 'requisitions', 'telemetry', 'manifest', 'history'],
+  CUSTOMER: ['negotiations', 'telemetry', 'manifest', 'billing', 'account', 'deals'],
+  CONSIGNEE: ['negotiations', 'telemetry', 'manifest', 'billing', 'account', 'deals'],
 };
 
 export const StateEngine = new StateEngineService();

@@ -2191,7 +2191,7 @@ function Shell({
                   return (
                     <button
                       key={item.key}
-                      onClick={() => { onNav(item.key); setMenuOpen(false); }}
+                      onClick={() => { onNav(item.key); if (typeof window !== 'undefined' && window.innerWidth < 1024) setMenuOpen(false); }}
                       className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
                         isActive
                           ? 'bg-[#62BC37] text-white shadow-md'
