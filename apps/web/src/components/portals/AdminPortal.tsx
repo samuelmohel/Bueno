@@ -187,7 +187,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const liveReqs = tryParse('bueno_client_requests', []);
     const liveDealsNeg = tryParse('bueno_custom_deal_negotiations', []);
     const liveNotifs = tryParse('bueno_notifications', []);
-    const livePerms = StateEngine.getPermissions();
+    const livePerms = StateEngine.getRolePermissions();
     const liveSettings = StateEngine.getSettings();
 
     setTrips(liveTrips);
@@ -2148,7 +2148,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
                     { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
                   ].map(({ key, label }) => {
-                    const rolePerms = permissionsMatrix[key] || DEFAULT_ROLE_TAB_PERMISSIONS[key] || [];
+                    const rawPerms = permissionsMatrix ? permissionsMatrix[key] : undefined;
+                    const rolePerms = (Array.isArray(rawPerms) && rawPerms.length > 0) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] || []);
 
                     return (
                       <tr key={key} className="hover:bg-slate-50 transition-all">
