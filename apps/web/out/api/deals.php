@@ -30,8 +30,8 @@ if ($method === 'POST') {
 
     $deals = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("REPLACE INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, createdBy, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, status, tripId, createdBy, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($deals as $d) {
         $id = $d['id'] ?? ('DEAL-' . rand(100, 999));
@@ -41,11 +41,13 @@ if ($method === 'POST') {
         $destination = htmlspecialchars($d['destination'] ?? 'MNY');
         $cargoType = htmlspecialchars($d['cargoType'] ?? 'Cement');
         $quantity = htmlspecialchars($d['quantity'] ?? '1610');
+        $status = htmlspecialchars($d['status'] ?? 'ACTIVE');
+        $tripId = isset($d['tripId']) ? htmlspecialchars($d['tripId']) : null;
         $createdBy = htmlspecialchars($d['createdBy'] ?? 'Admin');
         $createdAt = htmlspecialchars($d['createdAt'] ?? date('d/m/Y H:i'));
 
         $stmt->execute([
-            $id, $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $createdBy, $createdAt
+            $id, $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $status, $tripId, $createdBy, $createdAt
         ]);
     }
 

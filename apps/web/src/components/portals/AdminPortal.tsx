@@ -119,19 +119,34 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
 function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose: () => void }) {
   if (!trip) return null;
   const wagonLogs: any[] = trip.wagonLogs || [];
-  const totalWagons = wagonLogs.length || 10;
-  const totalBagsLoaded = wagonLogs.reduce((acc, w) => acc + (Number(w.qty) || (trip.unitOfMeasure?.includes('Tonnes') ? 60 : 1200)), 0);
-  const totalDamages = trip.damages?.damagedUnits || trip.damages?.burstBags || wagonLogs.reduce((acc, w) => acc + (Number(w.damageQty || 0) + Number(w.burstBags || 0)), 0);
-  const qty = Number(trip.quantity) || totalBagsLoaded || 1600;
-  const unit = trip.unitOfMeasure || (trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-  const revenue = trip.tripRevenue || (qty * (unit.includes('Tonnes') ? 24000 : 1200));
-  const operatingCost = trip.tripCost || 185000;
+  const totalWagons = wagonLogs.length;
+  const isBulkTonnes = trip.unitOfMeasure?.includes('Tonnes') || trip.unitOfMeasure?.includes('MT') || trip.cargoType?.includes('Gypsum') || trip.cargoType?.includes('Limestone');
+  const defaultUnitCapacity = isBulkTonnes ? 60 : 1200;
+  const unit = trip.unitOfMeasure || (isBulkTonnes ? 'Metric Tonnes (MT)' : 'Bags');
+
+  // Exact summation from wagon-by-wagon logs
+  const totalLoadedQty = wagonLogs.reduce((acc, w) => acc + (Number(w.qty) || defaultUnitCapacity), 0);
+  const totalBurstBags = wagonLogs.reduce((acc, w) => acc + (Number(w.burstBags) || 0), 0) || Number(trip.damages?.burstBags) || 0;
+  const totalDamagesQty = wagonLogs.reduce((acc, w) => acc + (Number(w.damageQty) || 0), 0) || Number(trip.damages?.damagedUnits) || 0;
+  const totalDefects = totalBurstBags + totalDamagesQty;
+  const totalIntactDischarged = wagonLogs.reduce((acc, w) => acc + (Number(w.correctQty) || (Number(w.qty) || defaultUnitCapacity) - (Number(w.burstBags || 0) + Number(w.damageQty || 0))), 0) || Math.max(0, (Number(trip.quantity) || totalLoadedQty) - totalDefects);
+  const qty = Number(trip.quantity) || totalLoadedQty || (isBulkTonnes ? 720 : 14400);
+
+  // Collect all discrepancy inspection notes
+  const wagonNotes = wagonLogs.map((w) => w.complaintNotes).filter(Boolean);
+  const overallNote = typeof trip.damages?.complaintNotes === 'string' ? trip.damages.complaintNotes : Array.isArray(trip.damages?.complaintNotes) ? trip.damages.complaintNotes.join('; ') : '';
+  const combinedRemarks = Array.from(new Set([...wagonNotes, overallNote].filter(Boolean))).join('; ');
+
+  // Commercial financial validation
+  const hasExplicitBilling = Boolean(trip.tripRevenue || trip.invoicedAmount);
+  const revenue = Number(trip.tripRevenue || trip.invoicedAmount || 0);
+  const operatingCost = Number(trip.tripCost || 0);
   const netMargin = revenue - operatingCost;
-  const marginPct = revenue > 0 ? ((netMargin / revenue) * 100).toFixed(1) : '92.3';
+  const marginPct = revenue > 0 ? ((netMargin / revenue) * 100).toFixed(1) : '0.0';
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto font-sans">
-      <div className="bg-white rounded-3xl max-w-4xl w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-6 max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-5xl w-full border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-6 max-h-[92vh] overflow-y-auto">
         
         {/* PRINT HEADER WITH BUENO LOGO */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b-2 border-slate-900 gap-4">
@@ -174,7 +189,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           </div>
         </div>
 
-        {/* CORRIDOR TRANSIT & GPS TELEMETRY AUDIT */}
+        {/* 1. CORRIDOR TRANSIT & GPS TELEMETRY AUDIT */}
         <div className="space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h4 className="text-xs font-black uppercase text-slate-900 font-mono">1. Corridor Transit Timeline & GPS Telemetry</h4>
@@ -183,59 +198,72 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Loading & Departure</span>
-              <p className="font-bold text-slate-900">{trip.dispatchTime || trip.departedAt || '09:15 AM'}</p>
+              <p className="font-bold text-slate-900">{trip.departedAt || trip.dispatchTime || '09:15 AM'}</p>
               <span className="text-[10px] text-slate-500">Origin Station: {trip.origin || 'EWK'}</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Arrival & Discharge</span>
-              <p className="font-bold text-slate-900">{trip.completedAt || '01:30 PM (Estimated)'}</p>
+              <p className="font-bold text-slate-900">{trip.completedAt || 'In Transit / Arrived'}</p>
               <span className="text-[10px] text-slate-500">Destination: {trip.destination || 'MNY'}</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Supervising Escort Officer</span>
-              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Officer Segun Alabi'}</p>
+              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Ade Bello'}</p>
               <span className="text-[10px] text-emerald-700">Phone: {trip.escortPhone || '08031112233'}</span>
             </div>
           </div>
         </div>
 
-        {/* WAGON CONSIST & LOADING TALLIES TABLE */}
+        {/* 2. WAGON CONSIST LOADING & FEEDER TRUCK TALLIES TABLE */}
         <div className="space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h4 className="text-xs font-black uppercase text-slate-900 font-mono">2. Wagon Consist Loading & Feeder Truck Tallies</h4>
-            <span className="text-[10px] font-bold text-slate-500 font-mono">{wagonLogs.length} Wagons Manifested</span>
+            <span className="text-[10px] font-bold text-slate-500 font-mono">{wagonLogs.length} Wagon(s) Loaded & Manifested</span>
           </div>
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-slate-100 text-slate-700 text-[10px] uppercase font-bold border-b border-slate-200">
                 <tr>
-                  <th className="p-2.5">Wagon ID</th>
-                  <th className="p-2.5">Feeder Truck / Source</th>
+                  <th className="p-2.5"># / Wagon ID</th>
+                  <th className="p-2.5">Feeder Truck Plate</th>
+                  <th className="p-2.5">Driver & Contact</th>
+                  <th className="p-2.5">Loading Siding / Bay</th>
+                  <th className="p-2.5">Loading Time (Duration)</th>
                   <th className="p-2.5">Volume Loaded</th>
-                  <th className="p-2.5">Loading Time</th>
                   <th className="p-2.5">Security Seal No.</th>
-                  <th className="p-2.5 text-right">Discharge Status</th>
+                  <th className="p-2.5 text-right">Loading Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {wagonLogs.length > 0 ? wagonLogs.map((w: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-bold text-amber-800">{w.wagonId}</td>
-                    <td className="p-2.5 text-slate-700">{w.feederTruckPlate || `Truck Plate #${idx + 1}`}</td>
-                    <td className="p-2.5 font-bold text-emerald-700">{w.qty || (unit.includes('Tonnes') ? '60 MT' : '1,200 Bags')}</td>
-                    <td className="p-2.5 text-slate-600">{w.loadedAt || w.startTime || '08:30 AM'} ({w.durationStr || '25 mins'})</td>
-                    <td className="p-2.5 text-slate-800 font-bold">{w.sealNumber || `SEAL-${trip.origin || 'EWK'}-${1000 + idx}`}</td>
-                    <td className="p-2.5 text-right">
-                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase ${
-                        w.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {w.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED' ? 'DISCHARGED' : 'SEALED'}
-                      </span>
-                    </td>
-                  </tr>
-                )) : (
+                {wagonLogs.length > 0 ? wagonLogs.map((w: any, idx: number) => {
+                  const primaryTruck = (w.feederTrucks && w.feederTrucks[0]) || {};
+                  const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || `TRK-KJA-98${idx + 1}-XP`;
+                  const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || 'N/A'})` : 'Ibrahim Garba (08031112233)');
+                  const sidingStr = w.sourceEnv || `${trip.origin || 'EWK'} Silo Bay #${(idx % 3) + 1}`;
+                  const timeRange = w.startTime && w.endTime ? `${w.startTime} ➔ ${w.endTime}` : (w.startTime || '08:30 AM');
+                  const durationStr = w.durationStr || '25 mins';
+                  const loadedQty = Number(w.qty) || defaultUnitCapacity;
+                  const sealNo = w.sealNumber || `SEAL-${trip.origin || 'EWK'}-${9801 + idx}`;
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="p-2.5 font-bold text-amber-800">{idx + 1}. {w.wagonId}</td>
+                      <td className="p-2.5 font-bold text-slate-900">{truckPlate}</td>
+                      <td className="p-2.5 text-slate-600 text-[11px]">{driverStr}</td>
+                      <td className="p-2.5 text-slate-600">{sidingStr}</td>
+                      <td className="p-2.5 text-slate-700 font-semibold">{timeRange} <span className="text-slate-400">({durationStr})</span></td>
+                      <td className="p-2.5 font-extrabold text-emerald-700">{loadedQty.toLocaleString()} {unit}</td>
+                      <td className="p-2.5 text-slate-800 font-bold">{sealNo}</td>
+                      <td className="p-2.5 text-right">
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
+                          ✓ LOADED
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }) : (
                   <tr>
-                    <td colSpan={6} className="p-4 text-center text-slate-400">Consist details synced from corridor manifest.</td>
+                    <td colSpan={8} className="p-6 text-center text-slate-400">No wagon loading tallies recorded yet for this trip.</td>
                   </tr>
                 )}
               </tbody>
@@ -243,57 +271,133 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           </div>
         </div>
 
-        {/* DESTINATION DISCHARGE & QUALITY AUDIT */}
+        {/* 3. DESTINATION YARD DISCHARGE & QUALITY AUDIT */}
         <div className="space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-            <h4 className="text-xs font-black uppercase text-slate-900 font-mono">3. Destination Yard Discharge & Quality Audit</h4>
+            <h4 className="text-xs font-black uppercase text-slate-900 font-mono">3. Destination Yard Discharge & Quality Defect Audit</h4>
             <span className="text-[10px] font-bold text-slate-500 font-mono">Station: {trip.destination || 'MNY'} Yard</span>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-mono">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Intact Goods Discharged</span>
-              <p className="font-extrabold text-emerald-700 text-base">{(qty - totalDamages).toLocaleString()} {unit}</p>
+              <p className="font-extrabold text-emerald-700 text-base">{totalIntactDischarged.toLocaleString()} {unit}</p>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Burst Bags / Damages</span>
-              <p className="font-extrabold text-rose-600 text-base">{totalDamages} Unit(s)</p>
+              <p className="font-extrabold text-rose-600 text-base">{totalDefects} Unit(s)</p>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Transit Defect Rate</span>
-              <p className="font-extrabold text-slate-900 text-base">{((totalDamages / (qty || 1)) * 100).toFixed(2)}%</p>
+              <p className="font-extrabold text-slate-900 text-base">{((totalDefects / (qty || 1)) * 100).toFixed(2)}%</p>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Receiving Officer</span>
               <p className="font-bold text-slate-800">{trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)'}</p>
             </div>
           </div>
-          {trip.damages?.complaintNotes && (
+
+          {combinedRemarks && (
             <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 text-xs text-rose-900 font-sans">
-              <b>Recorded Discrepancy Note:</b> "{trip.damages.complaintNotes}"
+              <b>Recorded Inspection & Discrepancy Remarks:</b> "{combinedRemarks}"
+            </div>
+          )}
+
+          {/* PER-WAGON UNLOADING BREAKDOWN TABLE */}
+          {wagonLogs.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-purple-50 text-purple-900 text-[10px] uppercase font-bold border-b border-purple-100">
+                  <tr>
+                    <th className="p-2.5">Wagon ID</th>
+                    <th className="p-2.5">Destination Unloading Bay</th>
+                    <th className="p-2.5">Unload Time (Duration)</th>
+                    <th className="p-2.5">Intact Discharged</th>
+                    <th className="p-2.5">Damaged / Burst Bags</th>
+                    <th className="p-2.5">Discrepancy / Inspection Remark</th>
+                    <th className="p-2.5 text-right">Discharge Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {wagonLogs.map((w: any, idx: number) => {
+                    const sidingBay = w.sidingBay || `${trip.destination || 'MNY'} Warehouse Bay #${(idx % 4) + 1}`;
+                    const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} ➔ ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
+                    const durationStr = w.unloadDurationStr || '20 mins';
+                    const loadedQty = Number(w.qty) || defaultUnitCapacity;
+                    const burst = Number(w.burstBags || 0);
+                    const dmg = Number(w.damageQty || 0);
+                    const totalWagonDefect = burst + dmg;
+                    const intact = Number(w.correctQty) || Math.max(0, loadedQty - totalWagonDefect);
+                    const remark = w.complaintNotes || (totalWagonDefect > 0 ? `${totalWagonDefect} burst/damaged units logged` : 'Discharged 100% Intact');
+                    const isUnloaded = w.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED';
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-bold text-amber-800">{w.wagonId}</td>
+                        <td className="p-2.5 text-slate-700">{sidingBay}</td>
+                        <td className="p-2.5 text-slate-700 font-semibold">{timeRange} <span className="text-slate-400">({durationStr})</span></td>
+                        <td className="p-2.5 font-extrabold text-emerald-700">{intact.toLocaleString()} {unit}</td>
+                        <td className="p-2.5 font-extrabold">
+                          {totalWagonDefect > 0 ? (
+                            <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black">{totalWagonDefect} Defect(s)</span>
+                          ) : (
+                            <span className="text-slate-400">0 Defects</span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-slate-700 font-sans text-[11px]">{remark}</td>
+                        <td className="p-2.5 text-right">
+                          <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase ${
+                            isUnloaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {isUnloaded ? '✓ DISCHARGED' : '⏳ PENDING'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
-        {/* TRIP FINANCIAL PERFORMANCE */}
+        {/* 4. CORRIDOR FINANCIAL PERFORMANCE LEDGER */}
         <div className="space-y-3">
           <div className="flex justify-between items-center border-b border-slate-100 pb-2">
             <h4 className="text-xs font-black uppercase text-slate-900 font-mono">4. Corridor Financial Performance Ledger</h4>
-            <span className="text-[10px] font-bold text-emerald-700 font-mono">Commercial B2B Tariff</span>
+            <span className={`text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full ${
+              hasExplicitBilling ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {hasExplicitBilling ? 'Commercial B2B Tariff Invoiced' : 'Pending Commercial Tariff Reconciliation'}
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
-            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
-              <span className="text-[9px] uppercase text-emerald-800 font-bold block">Gross Invoiced Tariff Revenue</span>
-              <p className="text-xl font-black text-emerald-900 mt-1">₦{revenue.toLocaleString()}</p>
+
+          {hasExplicitBilling ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
+                <span className="text-[9px] uppercase text-emerald-800 font-bold block">Gross Invoiced Tariff Revenue</span>
+                <p className="text-xl font-black text-emerald-900 mt-1">₦{revenue.toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <span className="text-[9px] uppercase text-slate-500 font-bold block">Direct Operational Requisitions</span>
+                <p className="text-xl font-black text-slate-900 mt-1">₦{operatingCost.toLocaleString()}</p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200">
+                <span className="text-[9px] uppercase text-purple-800 font-bold block">Net Corridor Operating Margin</span>
+                <p className="text-xl font-black text-purple-900 mt-1">₦{netMargin.toLocaleString()} <span className="text-xs font-bold font-sans text-purple-700">({marginPct}%)</span></p>
+              </div>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <span className="text-[9px] uppercase text-slate-500 font-bold block">Direct Operational Requisitions</span>
-              <p className="text-xl font-black text-slate-900 mt-1">₦{operatingCost.toLocaleString()}</p>
+          ) : (
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-1 font-sans">
+              <div className="flex items-center gap-2 text-slate-800 font-bold">
+                <span className="text-amber-500 font-black">ⓘ</span>
+                <span>Commercial Tariff Billing Notice</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Freight billing tariff and commercial operational expenditure ledger for this trip are pending finalization by the Commercial Finance desk.
+              </p>
             </div>
-            <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200">
-              <span className="text-[9px] uppercase text-purple-800 font-bold block">Net Corridor Operating Margin</span>
-              <p className="text-xl font-black text-purple-900 mt-1">₦{netMargin.toLocaleString()} <span className="text-xs font-bold font-sans text-purple-700">({marginPct}%)</span></p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* EXECUTIVE CERTIFICATION & ACTION BUTTONS */}
@@ -599,7 +703,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       origin: dealItem.loadingStation || 'EWK',
       destination: dealItem.destination || 'MNY',
       company: dealItem.companyName || dealItem.company,
-      dealNumber: dealItem.id,
+      dealNumber: dealItem.id || dealItem.dealNumber,
       cargoType: dealItem.cargoType,
       unitOfMeasure: unitLabel,
       wagonType: wagonTypeLabel,
@@ -608,14 +712,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       unloadingOfficerName: 'Musa Ibrahim',
       status: 'LOADING',
       dispatchTime: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-      wagonLogs: [
-        { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: 'Just now', bagsCount: `70 ${unitLabel}`, sealNumber: 'SEAL-BN-9801' },
-        { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: 'Just now', bagsCount: `70 ${unitLabel}`, sealNumber: 'SEAL-BN-9802' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+      wagonLogs: [],
+      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: '' },
     };
 
     StateEngine.saveTrips([newTrip, ...trips]);
+    setTrips([newTrip, ...trips]);
+
+    // Update deal in SQL database to TRIP_CREATED so it leaves Deals tab
+    const currentDeals = StateEngine.getDeals();
+    const updatedDeals = currentDeals.map((d: any) =>
+      d.id === dealItem.id || d.dealNumber === dealItem.id
+        ? { ...d, status: 'TRIP_CREATED', tripId: newTrip.id }
+        : d
+    );
+    StateEngine.saveDeals(updatedDeals);
+    setDeals(updatedDeals);
 
     const updatedThreads = negotiations.map((d) =>
       d.id === dealItem.id
@@ -1643,40 +1755,46 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {deals.map((d) => {
-                  const qty = Number(d.quantity) || 1610;
-                  const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                  const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
+                {deals.filter((d) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED').length === 0 ? (
+                  <div className="col-span-2 p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-medium text-xs">
+                    No active deals awaiting trip creation. All commercial deals have been launched into operational trips.
+                  </div>
+                ) : (
+                  deals.filter((d) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED').map((d) => {
+                    const qty = Number(d.quantity) || 1610;
+                    const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
+                    const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
 
-                  return (
-                    <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
-                      <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                        <div>
-                          <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
-                          <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
+                    return (
+                      <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
+                        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                          <div>
+                            <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
+                            <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
+                          </div>
+                          <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
+                            {d.status || 'APPROVED'}
+                          </span>
                         </div>
-                        <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
-                          {d.status || 'APPROVED'}
-                        </span>
-                      </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
-                        <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume ({unit})</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} {unit}</span></div>
-                      </div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
+                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
+                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
+                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume ({unit})</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} {unit}</span></div>
+                        </div>
 
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={() => handleApproveDealAndAllocateWagons(d)}
-                          className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm"
-                        >
-                          Launch Corridor Trip ➔
-                        </button>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleApproveDealAndAllocateWagons(d)}
+                            className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm"
+                          >
+                            Launch Corridor Trip ➔
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

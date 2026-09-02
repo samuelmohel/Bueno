@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // cPanel & SQLite Unified Production Database Helper
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -100,9 +100,14 @@ function initTables($pdo) {
         destination VARCHAR(50),
         cargoType VARCHAR(255),
         quantity VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        tripId VARCHAR(100),
         createdBy VARCHAR(255),
         createdAt VARCHAR(100)
     )");
+
+    try { $pdo->exec("ALTER TABLE bueno_deals ADD COLUMN status VARCHAR(50) DEFAULT 'ACTIVE'"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE bueno_deals ADD COLUMN tripId VARCHAR(100)"); } catch (Exception $e) {}
 
     // 5. Comprehensive Trips & Consist Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_trips (

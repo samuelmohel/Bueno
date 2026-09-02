@@ -2292,7 +2292,7 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
 
-  const myDeals          = deals;
+  const myDeals          = deals.filter((d: any) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED');
   const myTrips          = trips;
   const myInTransit      = trips.filter(t => t.status === 'IN_TRANSIT');
   const myIncomingUnload = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.destination === station);
@@ -2340,7 +2340,14 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
       wagonLogs: [],
     };
     saveTrips([newTrip, ...trips]);
-    saveDeals(deals.filter(d => d.id !== createDeal.id));
+
+    // Update Deal status to TRIP_CREATED and link tripId
+    const updatedDeals = deals.map((d: any) =>
+      d.id === createDeal.id
+        ? { ...d, status: 'TRIP_CREATED', tripId: newTrip.id }
+        : d
+    );
+    saveDeals(updatedDeals);
 
     // Dispatch Alerts to Origin Station, Destination Station, Client, and Insurance Group
     try {
@@ -4158,6 +4165,10 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
     const now = new Date();
     const completedTimestamp = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
+    const totalDamagedUnits = logs.reduce((acc: number, w: any) => acc + (Number(w.damageQty) || 0), 0);
+    const totalBurstBags = logs.reduce((acc: number, w: any) => acc + (Number(w.burstBags) || 0), 0);
+    const allComplaintNotes = Array.from(new Set(logs.map((w: any) => w.complaintNotes).filter(Boolean)));
+
     const updatedTrips = trips.map((t: any) =>
       t.id === trip.id
         ? {
@@ -4166,6 +4177,11 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
             completedAt: completedTimestamp,
             unloadingOfficerName: user.fullName,
             wagonLogs: logs,
+            damages: {
+              damagedUnits: totalDamagedUnits,
+              burstBags: totalBurstBags,
+              complaintNotes: allComplaintNotes.join('; '),
+            },
           }
         : t
     );

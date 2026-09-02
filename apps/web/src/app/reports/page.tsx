@@ -370,33 +370,48 @@ export default function PerformanceReportsPage() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-gray-100 text-gray-700 font-mono font-bold text-[10px] uppercase border-b">
                         <tr>
-                          <th className="p-3">Wagon ID</th>
-                          <th className="p-3">Loading Time</th>
-                          <th className="p-3">Applied Security Seal #</th>
-                          <th className="p-3">Loaded Quantity ({selectedUnit})</th>
-                          <th className="p-3">Seal Condition</th>
+                          <th className="p-3"># / Wagon ID</th>
+                          <th className="p-3">Feeder Truck Plate</th>
+                          <th className="p-3">Driver & Contact</th>
+                          <th className="p-3">Loading Time (Duration)</th>
+                          <th className="p-3">Security Seal #</th>
+                          <th className="p-3">Loaded Qty ({selectedUnit})</th>
+                          <th className="p-3 text-right">Seal Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-mono">
-                        {(selectedTrip.wagonLogs || [
-                          { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9801' },
-                          { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9802' },
-                        ]).map((w: any, idx: number) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
-                            <td className="p-3 text-gray-600">{w.loadedAt}</td>
-                            <td className="p-3 font-bold text-gray-900">{w.sealNumber}</td>
-                            <td className="p-3 font-extrabold text-blue-900">{w.bagsCount || `70 ${selectedUnit}`}</td>
-                            <td className="p-3 font-sans text-emerald-700 font-bold">✓ APPLIED & LOCKED</td>
+                        {(selectedTrip.wagonLogs || []).length > 0 ? selectedTrip.wagonLogs.map((w: any, idx: number) => {
+                          const primaryTruck = (w.feederTrucks && w.feederTrucks[0]) || {};
+                          const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || 'TRK-KJA-981-XP';
+                          const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || ''})` : 'Ibrahim Garba (08031112233)');
+                          const timeRange = w.startTime && w.endTime ? `${w.startTime} ➔ ${w.endTime}` : (w.startTime || '08:30 AM');
+                          const duration = w.durationStr || '25 mins';
+                          const loadedQty = Number(w.qty) || (selectedUnit.includes('Tonnes') ? 60 : 1200);
+                          const sealNo = w.sealNumber || `SEAL-BN-${9801 + idx}`;
+
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="p-3 font-bold text-amber-800">{idx + 1}. {w.wagonId}</td>
+                              <td className="p-3 font-bold text-gray-900">{truckPlate}</td>
+                              <td className="p-3 text-gray-600 text-[11px]">{driverStr}</td>
+                              <td className="p-3 text-gray-700">{timeRange} <span className="text-gray-400">({duration})</span></td>
+                              <td className="p-3 font-bold text-gray-900">{sealNo}</td>
+                              <td className="p-3 font-extrabold text-blue-900">{loadedQty.toLocaleString()} {selectedUnit}</td>
+                              <td className="p-3 text-right font-sans text-emerald-700 font-bold">✓ APPLIED & LOCKED</td>
+                            </tr>
+                          );
+                        }) : (
+                          <tr>
+                            <td colSpan={7} className="p-4 text-center text-gray-400">No wagon loading tallies recorded yet for this trip.</td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>
 
                   <div className="flex justify-between items-center pt-4">
                     <h3 className="text-sm font-black text-gray-900 uppercase">
-                      2. Destination Yard Unloading & Seal Cut Audit (Yard: {selectedTrip.destination || 'MNY'})
+                      2. Destination Yard Unloading & Discrepancy Defect Audit (Yard: {selectedTrip.destination || 'MNY'})
                     </h3>
                     <span className="text-[10px] font-mono text-gray-500 font-bold">Unloading Officer: {selectedTrip.unloadingOfficerName || 'Musa Ibrahim'}</span>
                   </div>
@@ -406,30 +421,48 @@ export default function PerformanceReportsPage() {
                       <thead className="bg-gray-100 text-gray-700 font-mono font-bold text-[10px] uppercase border-b">
                         <tr>
                           <th className="p-3">Wagon ID</th>
-                          <th className="p-3">Unseal Time</th>
-                          <th className="p-3">Verified Seal #</th>
+                          <th className="p-3">Unload Time (Duration)</th>
+                          <th className="p-3">Security Seal Verified</th>
                           <th className="p-3">Intact Delivered ({selectedUnit})</th>
-                          <th className="p-3">Transit Discrepancy</th>
-                          <th className="p-3">Yard Clearance</th>
+                          <th className="p-3">Damaged / Burst Bags</th>
+                          <th className="p-3">Discrepancy Remark</th>
+                          <th className="p-3 text-right">Yard Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-mono">
-                        {(selectedTrip.wagonLogs || [
-                          { wagonId: 'PXG 2322', loadedAt: '03:15 PM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9801' },
-                          { wagonId: 'PXG 2323', loadedAt: '03:30 PM', bagsCount: `70 ${selectedUnit}`, sealNumber: 'SEAL-BN-9802' },
-                        ]).map((w: any, idx: number) => {
-                          const burst = selectedTrip.damages?.burstBags && idx === 0 ? selectedTrip.damages.burstBags : 0;
+                        {(selectedTrip.wagonLogs || []).length > 0 ? selectedTrip.wagonLogs.map((w: any, idx: number) => {
+                          const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} ➔ ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
+                          const duration = w.unloadDurationStr || '20 mins';
+                          const loadedQty = Number(w.qty) || (selectedUnit.includes('Tonnes') ? 60 : 1200);
+                          const burst = Number(w.burstBags || 0);
+                          const dmg = Number(w.damageQty || 0);
+                          const totalDefect = burst + dmg;
+                          const intact = Number(w.correctQty) || Math.max(0, loadedQty - totalDefect);
+                          const remark = w.complaintNotes || (totalDefect > 0 ? `${totalDefect} defects logged during offload` : 'Discharged 100% Intact');
+                          const sealNo = w.sealNumber || `SEAL-BN-${9801 + idx}`;
+
                           return (
                             <tr key={idx} className="hover:bg-gray-50">
                               <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
-                              <td className="p-3 text-gray-600">03:{15 + idx * 15} PM</td>
-                              <td className="p-3 font-bold text-gray-900">{w.sealNumber}</td>
-                              <td className="p-3 font-extrabold text-emerald-800">{w.bagsCount || `70 ${selectedUnit}`}</td>
-                              <td className="p-3 font-extrabold text-rose-600">{burst > 0 ? `${burst} ${selectedUnit}` : '0'}</td>
-                              <td className="p-3 font-sans text-emerald-700 font-bold">✓ CLEARED TO SIDING BAY 4</td>
+                              <td className="p-3 text-gray-700">{timeRange} <span className="text-gray-400">({duration})</span></td>
+                              <td className="p-3 font-bold text-gray-900">{sealNo}</td>
+                              <td className="p-3 font-extrabold text-emerald-800">{intact.toLocaleString()} {selectedUnit}</td>
+                              <td className="p-3 font-extrabold">
+                                {totalDefect > 0 ? (
+                                  <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black">{totalDefect} Defect(s)</span>
+                                ) : (
+                                  <span className="text-gray-400">0 Defects</span>
+                                )}
+                              </td>
+                              <td className="p-3 font-sans text-gray-700 text-[11px]">{remark}</td>
+                              <td className="p-3 text-right font-sans text-emerald-700 font-bold">✓ CLEARED</td>
                             </tr>
                           );
-                        })}
+                        }) : (
+                          <tr>
+                            <td colSpan={7} className="p-4 text-center text-gray-400">No wagon discharge logs recorded yet for this trip.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -443,10 +476,15 @@ export default function PerformanceReportsPage() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{selectedTrip.quantity || 1600} {selectedUnit}</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.quantity || 1600) - (selectedTrip.damages?.burstBags || 0)} {selectedUnit}</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Transit Discrepancy</span><span className="font-mono font-bold text-rose-400">{selectedTrip.damages?.burstBags || 0} {selectedUnit}</span></div>
-                    <div><span className="text-[9px] uppercase text-slate-400 block">Tariff Billed</span><span className="font-mono font-bold text-amber-400">₦{((selectedTrip.quantity || 1600) * 1200).toLocaleString()}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Loaded at Origin</span><span className="font-mono font-bold text-slate-200">{(selectedTrip.wagonLogs?.reduce((acc: number, w: any) => acc + (Number(w.qty) || 0), 0) || selectedTrip.quantity || 1600).toLocaleString()} {selectedUnit}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Total Unloaded Intact</span><span className="font-mono font-bold text-emerald-400">{(selectedTrip.wagonLogs?.reduce((acc: number, w: any) => acc + (Number(w.correctQty) || ((Number(w.qty) || 0) - (Number(w.burstBags || 0) + Number(w.damageQty || 0)))), 0) || ((selectedTrip.quantity || 1600) - (selectedTrip.damages?.burstBags || 0))).toLocaleString()} {selectedUnit}</span></div>
+                    <div><span className="text-[9px] uppercase text-slate-400 block">Transit Defects / Burst Bags</span><span className="font-mono font-bold text-rose-400">{(selectedTrip.wagonLogs?.reduce((acc: number, w: any) => acc + (Number(w.burstBags || 0) + Number(w.damageQty || 0)), 0) || selectedTrip.damages?.burstBags || 0)} {selectedUnit}</span></div>
+                    <div>
+                      <span className="text-[9px] uppercase text-slate-400 block">Tariff Billing</span>
+                      <span className="font-mono font-bold text-amber-400">
+                        {selectedTrip.tripRevenue ? `₦${Number(selectedTrip.tripRevenue).toLocaleString()}` : 'Pending Commercial Invoice'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
