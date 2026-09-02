@@ -9,6 +9,7 @@ import { StateEngine } from '@/lib/services/StateEngine';
 import { CustomerPortal } from '@/components/portals/CustomerPortal';
 import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
 import { AdminPortal } from '@/components/portals/AdminPortal';
+import { LiveGpsMap } from '@/components/LiveGpsMap';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -2233,7 +2234,7 @@ function Shell({
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
 function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds' | 'telemetry' | 'manifest'>('deals');
   const [menuOpen, setMenuOpen] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
@@ -2390,14 +2391,28 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     setView('funds');
   };
 
+  const [permissionsVersion, setPermissionsVersion] = useState(0);
+
+  useEffect(() => {
+    const handlePermUpdate = () => setPermissionsVersion((v) => v + 1);
+    window.addEventListener('bueno_permissions_updated', handlePermUpdate);
+    window.addEventListener('bueno_state_updated', handlePermUpdate);
+    return () => {
+      window.removeEventListener('bueno_permissions_updated', handlePermUpdate);
+      window.removeEventListener('bueno_state_updated', handlePermUpdate);
+    };
+  }, []);
+
   const navItems = [
     { key: 'deals',           label: 'Latest Deals (Loading)' },
     { key: 'trips',           label: 'Trips Created (Loading)' },
     { key: 'in_transit',      label: 'Trips on the Move' },
     { key: 'incoming_unload', label: 'Incoming Consignments (Unload)' },
+    { key: 'telemetry',       label: 'Fleet Telemetry & Live GPS' },
     { key: 'moniya',          label: 'Moniya Container Terminal 🏗️' },
     { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: 'Request Funds' },
+    { key: 'manifest',        label: 'Cargo Manifests' },
   ].filter((item) => StateEngine.canUserAccessTab(user, item.key));
 
   return (
@@ -2685,6 +2700,57 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                   ))}
               </TableWrap>
             </Section>
+          )}
+
+          {view === 'telemetry' && (
+            <div className="space-y-6 font-sans">
+              <LiveGpsMap trip={trips.find((t: any) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {trips.map((trip: any) => (
+                  <div key={trip.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.tripId || trip.id}</span>
+                        <h4 className="text-sm font-black text-slate-900">{trip.company}</h4>
+                      </div>
+                      <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'amber' : trip.status === 'COMPLETED' ? 'green' : 'blue'} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-bold text-[#62BC37]">{trip.escortOfficerName || trip.monitoringOfficer || 'Ade Bello'}</span></div>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Caboose</span><span className="font-mono font-bold text-emerald-700">{trip.escortWagonId || 'BV 01'}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {view === 'manifest' && (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 font-sans">
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
+                <h3 className="text-base font-black text-slate-900">Cargo Loading & Unloading Tally Audits</h3>
+              </div>
+
+              <div className="space-y-3 font-mono text-xs">
+                {trips.map((t: any) => (
+                  <div key={t.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap justify-between items-center gap-3">
+                    <div>
+                      <span className="text-slate-400 font-bold text-[10px] uppercase">{t.tripId || t.id}</span>
+                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company}</h4>
+                      <p className="text-slate-500 font-sans text-xs">
+                        {sName(t.origin)} ➔ {sName(t.destination)} • {t.wagonLogs?.length || 0} Wagons Loaded • Caboose: {t.escortWagonId || 'BV 01'}
+                      </p>
+                    </div>
+                    <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs">
+                      Print Manifest (PDF)
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}
@@ -3169,11 +3235,23 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
     setStoppingWagon(null);
   };
 
-  const dispatchAndActivateGps = async () => {
+  const [showDepartureModal, setShowDepartureModal] = useState(false);
+  const [isCustomCaboose, setIsCustomCaboose] = useState(false);
+  const [departureForm, setDepartureForm] = useState({
+    escortWagonId: 'BV 01 (Crew Escort Brake Van)',
+    customCabooseId: '',
+    escortOfficerName: trip.monitoringOfficer || trip.cargoOfficerName || 'Ade Bello',
+    escortOfficerPhone: trip.escortPhone || '08031112233',
+    escortCrewMembers: 'NRC Train Master, Escort Security (2 Personnel)',
+    clientEmail: trip.clientEmail || 'logistics@purechem.ng',
+    trackingMode: 'MOBILE_PHONE_BEACON',
+  });
+
+  const openDepartureSetupModal = () => {
     if (activeLoadingWagons.length > 0) {
       setCustomAlert({
         title: 'Wagons Still Loading',
-        message: `There are ${activeLoadingWagons.length} wagon(s) currently loading (${activeLoadingWagons.map(w => w.wagonId).join(', ')}). Please finalize all active wagons before dispatching the train.`
+        message: `There are ${activeLoadingWagons.length} wagon(s) currently loading (${activeLoadingWagons.map((w: any) => w.wagonId).join(', ')}). Please finalize all active wagons before dispatching the train.`
       });
       return;
     }
@@ -3181,12 +3259,21 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       setCustomAlert({ title: 'No Wagons Loaded', message: 'Please load at least 1 wagon before dispatching the trip!' });
       return;
     }
+    setShowDepartureModal(true);
+  };
+
+  const confirmCorridorDeparture = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalCabooseId = isCustomCaboose
+      ? (departureForm.customCabooseId.trim().toUpperCase() || 'CABOOSE-CUSTOM')
+      : departureForm.escortWagonId;
 
     const now = new Date();
     const departureTimeStr = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const startLat = 6.8974;
     const startLng = 3.2141;
 
+    // 1. Ingest initial GPS waypoint
     try {
       await fetch(`/api/tracking/gps/${encodeURIComponent(trip.locomotiveId || 'L2205')}`, {
         method: 'POST',
@@ -3194,21 +3281,49 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
         body: JSON.stringify({
           lat: startLat,
           lng: startLng,
-          speed: 74,
+          speed: 68,
           heading: 45,
-          signalQuality: 'GPS_SATELLITE_LIVE',
+          signalQuality: 'MOBILE_PHONE_GPS_LIVE',
+          officerPhone: departureForm.escortOfficerPhone,
         }),
       });
-    } catch (e) {}
+    } catch {}
 
+    // 2. Dispatch Live Departure Email to Client
+    if (departureForm.clientEmail) {
+      try {
+        await fetch('/api/send_mail.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'TRIP_DISPATCH',
+            to: departureForm.clientEmail,
+            companyName: trip.company,
+            tripId: trip.tripId || trip.id,
+            locomotiveId: trip.locomotiveId,
+            origin: sName(trip.origin),
+            destination: sName(trip.destination),
+            cargoType: trip.cargoType,
+            quantity: `${totalQtyLoadedSoFar.toLocaleString()} ${unitShort}`,
+            wagonsCount: String(loadedCount),
+            escortWagonId: finalCabooseId,
+            escortOfficerName: departureForm.escortOfficerName,
+            escortPhone: departureForm.escortOfficerPhone,
+            trackingUrl: `https://360.specklessinnovations.com/tracking?tripId=${trip.id}`,
+          }),
+        });
+      } catch {}
+    }
+
+    // 3. Post notification to SQL bueno_notifications
     const notifPayload = {
       id: `ntf_${Date.now()}`,
-      title: 'Train Departed Origin Station',
-      message: `Locomotive ${trip.locomotiveId} with ${loadedCount} wagons (${totalQtyLoadedSoFar.toLocaleString()} ${unitShort}) departed ${sName(trip.origin)} heading to ${sName(trip.destination)}.`,
+      title: `Corridor Departure: Locomotive ${trip.locomotiveId}`,
+      message: `Trip ${trip.tripId} (${trip.company}) departed ${sName(trip.origin)} with ${loadedCount} cargo hoppers + Escort Caboose (${finalCabooseId}). On-board escort: ${departureForm.escortOfficerName} (${departureForm.escortOfficerPhone}).`,
       targetId: trip.id,
       targetTab: 'in_transit',
       read: false,
-      createdAt: departureTimeStr
+      createdAt: departureTimeStr,
     };
 
     try {
@@ -3217,10 +3332,11 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       fetch('/api/notifications.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notifPayload)
+        body: JSON.stringify(notifPayload),
       });
     } catch {}
 
+    // 4. Save updated Trip to SQL bueno_trips
     const updatedTrips = trips.map((t: any) =>
       t.id === trip.id
         ? {
@@ -3230,15 +3346,21 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
             departedAt: departureTimeStr,
             gpsStartedAt: now.toISOString(),
             lastGpsPing: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            currentSpeed: 74,
+            currentSpeed: 68,
             currentCoords: { lat: startLat, lng: startLng },
-            signalStatus: 'GPS Satellite Live',
+            signalStatus: 'Live Smartphone GPS Beacon',
+            escortWagonId: finalCabooseId,
+            escortOfficerName: departureForm.escortOfficerName,
+            escortPhone: departureForm.escortOfficerPhone,
+            escortCrewMembers: departureForm.escortCrewMembers,
+            clientEmail: departureForm.clientEmail,
             wagonLogs: logs,
           }
         : t
     );
 
     onSaveTrips(updatedTrips);
+    setShowDepartureModal(false);
     onBack();
   };
 
@@ -3290,10 +3412,10 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
                 <p className="text-xs font-black uppercase tracking-wider font-mono">LIVE GPS CORRIDOR DISPATCH GATE</p>
               </div>
               <p className="text-base font-black text-white mt-1">Locomotive: <span className="font-mono text-white/90">{trip.locomotiveId}</span> ({loadedCount} Wagons Finalized)</p>
-              <p className="text-xs text-white/80 mt-0.5">Finalize all active loading wagons to unlock corridor departure & satellite telemetry.</p>
+              <p className="text-xs text-white/80 mt-0.5">Attach Escort Caboose, confirm Monitoring Officer phone GPS & dispatch client email notice.</p>
             </div>
             <button
-              onClick={dispatchAndActivateGps}
+              onClick={openDepartureSetupModal}
               disabled={loadedCount < 1 || activeLoadingWagons.length > 0}
               className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
@@ -3732,6 +3854,155 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
           </div>
         </Modal>
       )}
+
+      {/* CORRIDOR DEPARTURE & ESCORT DISPATCH SETUP MODAL */}
+      {showDepartureModal && (
+        <Modal onClose={() => setShowDepartureModal(false)}>
+          <div className="p-6 space-y-4 font-sans max-w-2xl">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#62BC37] animate-ping" />
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                    CORRIDOR TRAIN DISPATCH CONFIGURATION
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Depart Train & Activate Live Corridor Satellite GPS
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Trip <b>{trip.tripId}</b> &bull; Locomotive <b>{trip.locomotiveId}</b> &bull; {sName(trip.origin)} ➔ {sName(trip.destination)}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={confirmCorridorDeparture} className="space-y-4 text-xs">
+              {/* TRAIN CONSIST SUMMARY BADGE */}
+              <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-2 border border-slate-800">
+                <div className="flex justify-between items-center text-[10px] font-mono font-bold text-[#62BC37] uppercase">
+                  <span>Train Consist Summary</span>
+                  <span>{loadedCount + 1} Total Rail Units</span>
+                </div>
+                <p className="text-sm font-black font-mono">
+                  {loadedCount} Loaded Hoppers ({totalQtyLoadedSoFar.toLocaleString()} {unitShort}) + 1 Attached Escort Caboose
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Consignment: <b>{trip.cargoType}</b> for <b>{trip.company}</b>
+                </p>
+              </div>
+
+              {/* ESCORT CREW CABOOSE ATTACHMENT */}
+              <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-slate-800 text-xs">Attach Crew Escort Caboose / Brake Van Wagon *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomCaboose(!isCustomCaboose)}
+                    className="text-xs font-bold text-[#0E4B88] underline"
+                  >
+                    {isCustomCaboose ? 'Pick Standard BV 01' : 'Type Custom Caboose ID'}
+                  </button>
+                </div>
+
+                {isCustomCaboose ? (
+                  <input
+                    required
+                    value={departureForm.customCabooseId}
+                    onChange={e => setDepartureForm({ ...departureForm, customCabooseId: e.target.value })}
+                    placeholder="e.g. CABOOSE-104 or BV 02"
+                    className="w-full font-mono uppercase font-bold p-2.5 rounded-xl border border-slate-300 text-xs"
+                  />
+                ) : (
+                  <select
+                    value={departureForm.escortWagonId}
+                    onChange={e => setDepartureForm({ ...departureForm, escortWagonId: e.target.value })}
+                    className="w-full font-mono font-bold p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
+                  >
+                    <option value="BV 01 (Crew Escort Brake Van)">BV 01 — Standard Railway Escort Brake Van</option>
+                    <option value="BV 02 (Escort Crew Coach)">BV 02 — Escort Crew Coach</option>
+                    <option value="CABOOSE-101 (Armed Escort Cabin)">CABOOSE-101 — Security & Telemetry Escort Cabin</option>
+                  </select>
+                )}
+                <span className="text-[11px] text-slate-500 block">
+                  The escort coach carries the monitoring officer, NRC train master, and security escorts.
+                </span>
+              </div>
+
+              {/* MONITORING OFFICER DETAILS (PHONE GPS BROADCASTER) */}
+              <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <h4 className="font-black text-slate-900 text-xs">On-Board Monitoring Officer & Phone GPS Beacon</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">Monitoring Officer Name *</label>
+                    <input
+                      required
+                      value={departureForm.escortOfficerName}
+                      onChange={e => setDepartureForm({ ...departureForm, escortOfficerName: e.target.value })}
+                      placeholder="e.g. Ade Bello"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">Officer Mobile Phone (GPS Beacon) *</label>
+                    <input
+                      required
+                      value={departureForm.escortOfficerPhone}
+                      onChange={e => setDepartureForm({ ...departureForm, escortOfficerPhone: e.target.value })}
+                      placeholder="e.g. 08031112233"
+                      className="w-full font-mono font-bold p-2.5 rounded-xl border border-slate-300 text-xs text-emerald-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">On-Board Escort Personnel</label>
+                  <input
+                    value={departureForm.escortCrewMembers}
+                    onChange={e => setDepartureForm({ ...departureForm, escortCrewMembers: e.target.value })}
+                    placeholder="e.g. NRC Train Master, Escort Security"
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* CLIENT NOTIFICATION EMAIL & DASHBOARD ALERT */}
+              <div className="space-y-2 bg-blue-50/50 p-4 rounded-2xl border border-blue-200">
+                <label className="block font-bold text-slate-800 text-xs">
+                  📧 Client Consignment Departure Notification Email *
+                </label>
+                <input
+                  required
+                  type="email"
+                  value={departureForm.clientEmail}
+                  onChange={e => setDepartureForm({ ...departureForm, clientEmail: e.target.value })}
+                  placeholder="e.g. logistics@client.com"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
+                />
+                <span className="text-[11px] text-slate-600 block">
+                  An official departure dispatch email with train consist details & real-time tracking link will be sent to the client immediately upon corridor departure.
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowDepartureModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2"
+                >
+                  <span>Confirm Corridor Departure & Dispatch ➔</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
       <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
     </div>
   );

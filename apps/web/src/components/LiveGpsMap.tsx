@@ -112,6 +112,55 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
     setTimeout(() => setSmsSent(false), 5000);
   };
 
+  const [isBroadcasting, setIsBroadcasting] = useState<boolean>(false);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+
+  // Toggle Live Phone GPS Broadcast from Monitoring Officer's smartphone
+  const togglePhoneGpsBroadcast = () => {
+    if (isBroadcasting) {
+      setIsBroadcasting(false);
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      setBroadcastError('GPS not supported on this device');
+      return;
+    }
+
+    setIsBroadcasting(true);
+    setBroadcastError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const spd = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 68;
+        setSpeed(spd);
+        setLastPing(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+        fetch(`/api/tracking/gps/${encodeURIComponent(trip?.locomotiveId || 'L2205')}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lat,
+            lng,
+            speed: spd,
+            heading: pos.coords.heading || 45,
+            accuracy: pos.coords.accuracy || 3,
+            batteryLevel: battery,
+            officerPhone: officer.phone,
+            signalQuality: 'MOBILE_PHONE_GPS_LIVE',
+          }),
+        }).catch(() => {});
+      },
+      (err) => {
+        setBroadcastError(err.message || 'GPS Permission Denied');
+        setIsBroadcasting(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden font-sans space-y-0">
       {/* ─── MAP HEADER ─── */}
@@ -120,13 +169,16 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-[#62BC37] rounded-full animate-ping inline-block" />
             <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
-              REAL-TIME SATELLITE GPS TELEMETRY
+              REAL-TIME SATELLITE GPS TELEMETRY & ESCORT CORRIDOR
             </span>
             <span className="text-slate-400 font-mono text-xs">• TRIP: {tripId}</span>
           </div>
           <h3 className="text-lg font-black text-white mt-0.5" style={{ fontFamily: "'Outfit', sans-serif" }}>
             {companyName} — Freight Loco #{locoId}
           </h3>
+          <p className="text-xs text-slate-400 mt-1 font-mono">
+            Train Consist: <b className="text-white">{trip?.wagonLogs?.length || 14} Freight Wagons</b> + 1 Escort Caboose (<b className="text-emerald-400">{trip?.escortWagonId || 'BV 01'}</b>)
+          </p>
         </div>
 
         {/* GOOGLE MAPS API TOGGLE / KEY STATUS */}
@@ -153,7 +205,7 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
             <div className="flex items-center gap-2">
               <span className="text-xs font-black text-white">{officer.name}</span>
               <span className="text-[9px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">
-                BADGE: {officer.badgeId}
+                ESCORT CABOOSE: {trip?.escortWagonId || 'BV 01'}
               </span>
             </div>
             <span className="text-[10px] font-mono text-emerald-400 font-bold block mt-0.5">
@@ -162,7 +214,19 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+          {/* MOBILE PHONE GPS BROADCASTER BUTTON */}
+          <button
+            onClick={togglePhoneGpsBroadcast}
+            className={`text-xs font-extrabold px-4 py-2 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 ${
+              isBroadcasting
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            <span>{isBroadcasting ? '📡 Phone GPS Broadcasting Live ✓' : '📱 Turn On Phone GPS (Start Broadcast)'}</span>
+          </button>
+
           <button
             onClick={() => setShowCallModal(true)}
             className="flex-1 md:flex-initial bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2"
