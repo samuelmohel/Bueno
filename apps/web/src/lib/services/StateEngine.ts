@@ -235,6 +235,22 @@ class StateEngineService {
           }
         }
       }
+
+      // 4. Sync Wagons Fleet with Database API
+      const wagonsRes = await fetch('/api/wagons.php').catch(() => null);
+      if (wagonsRes && wagonsRes.ok) {
+        const wagonsJson = await wagonsRes.json().catch(() => null);
+        if (wagonsJson && wagonsJson.status === 'success' && Array.isArray(wagonsJson.data) && wagonsJson.data.length > 0) {
+          const localWagons = this.getWagons();
+          const wagonMap = new Map<string, any>();
+          wagonsJson.data.forEach((w: any) => wagonMap.set(w.id, w));
+          localWagons.forEach((w: any) => { if (!wagonMap.has(w.id)) wagonMap.set(w.id, w); });
+          const mergedWagons = Array.from(wagonMap.values());
+          if (JSON.stringify(mergedWagons) !== JSON.stringify(localWagons)) {
+            this.writeStorage('bueno_wagons', mergedWagons);
+          }
+        }
+      }
     } catch {}
   }
 
@@ -268,6 +284,7 @@ class StateEngineService {
 
   saveWagons(wagons: any[]): void {
     this.writeStorage('bueno_wagons', wagons);
+    this.postRemote('/api/wagons.php', wagons);
   }
 
   registerWagon(wagon: any): void {

@@ -141,10 +141,13 @@ function initTables($pdo) {
     // 7. Wagon Fleet Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_wagons (
         id VARCHAR(100) PRIMARY KEY,
-        capacity INT,
-        status VARCHAR(50),
-        currentStation VARCHAR(50),
-        addedBy VARCHAR(255),
+        wagonType VARCHAR(100) DEFAULT 'Covered Hopper Wagon',
+        payloadCapacity VARCHAR(100) DEFAULT '60 MT (1,200 Bags)',
+        capacity INT DEFAULT 1200,
+        status VARCHAR(50) DEFAULT 'AVAILABLE',
+        currentStation VARCHAR(50) DEFAULT 'EWK',
+        gauge VARCHAR(50) DEFAULT 'STANDARD_GAUGE',
+        addedBy VARCHAR(255) DEFAULT 'System Registry',
         createdAt VARCHAR(100)
     )");
 
@@ -159,6 +162,21 @@ function initTables($pdo) {
         targetTab VARCHAR(100),
         readInt INT DEFAULT 0
     )");
+
+    // Seed 46 Dedicated Covered Hopper Wagons if empty
+    $wStmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_wagons");
+    $wRow = $wStmt->fetch();
+    if ($wRow && $wRow['cnt'] == 0) {
+        $wInsert = $pdo->prepare("INSERT INTO bueno_wagons (id, wagonType, payloadCapacity, capacity, status, currentStation, gauge, addedBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $date = date('d/m/Y');
+        for ($i = 1; $i <= 46; $i++) {
+            $num = str_pad($i, 4, '0', STR_PAD_LEFT);
+            $wId = "PXG " . $num;
+            $isEwk = ($i % 2 === 0);
+            $station = $isEwk ? 'EWK' : 'MNY';
+            $wInsert->execute([$wId, 'Covered Hopper Wagon', '60 MT (1,200 Bags)', 1200, 'AVAILABLE', $station, 'STANDARD_GAUGE', 'System Registry', $date]);
+        }
+    }
 
     // Seed default users if empty
     $stmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_users");
