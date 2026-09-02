@@ -5866,7 +5866,7 @@ export default function Dashboard() {
 
   const role = user.role;
 
-  if (role === 'CARGO_OFFICER') return <CargoOfficerPortal user={user} onSignOut={signOut} />;
+  if (role === 'CARGO_OFFICER') return <LegacyCargoOfficerPortalInline user={user} onSignOut={signOut} />;
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
 
   // ALL COMMAND & HQ DESKS (CEO, HEAD OF OPERATIONS, HEAD OF FINANCE, ADMIN) SHARE MASTER ADMIN PORTAL
