@@ -2261,6 +2261,7 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
       setWagons(StateEngine.getWagons());
       setTrips(StateEngine.getTrips());
       setRequests(StateEngine.getRequests());
+      StateEngine.syncRemote();
     };
 
     syncData();

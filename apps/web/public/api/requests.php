@@ -28,9 +28,8 @@ if ($method === 'POST') {
 
     $requests = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_fund_requests (id, title, officerName, station, amount, category, description, stage, conversationText, paymentDetailsText, date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET stage=?, conversationText=?, paymentDetailsText=?");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_fund_requests (id, title, officerName, station, amount, category, description, stage, conversationText, paymentDetailsText, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($requests as $r) {
         $id = $r['id'] ?? ('REQ-' . time());
@@ -46,8 +45,7 @@ if ($method === 'POST') {
         $date = htmlspecialchars($r['date'] ?? date('d/m/Y'));
 
         $stmt->execute([
-            $id, $title, $officerName, $station, $amount, $category, $description, $stage, $conversationText, $paymentDetailsText, $date,
-            $stage, $conversationText, $paymentDetailsText
+            $id, $title, $officerName, $station, $amount, $category, $description, $stage, $conversationText, $paymentDetailsText, $date
         ]);
     }
 

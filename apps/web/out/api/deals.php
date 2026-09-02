@@ -30,14 +30,13 @@ if ($method === 'POST') {
 
     $deals = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, createdBy, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET dealNumber=?, company=?, loadingStation=?, destination=?, cargoType=?, quantity=?, createdBy=?");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, createdBy, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($deals as $d) {
         $id = $d['id'] ?? ('DEAL-' . rand(100, 999));
-        $dealNumber = htmlspecialchars($d['dealNumber'] ?? '001');
-        $company = htmlspecialchars($d['company'] ?? 'Client');
+        $dealNumber = htmlspecialchars($d['dealNumber'] ?? $id);
+        $company = htmlspecialchars($d['company'] ?? $d['companyName'] ?? 'Client');
         $loadingStation = htmlspecialchars($d['loadingStation'] ?? 'EWK');
         $destination = htmlspecialchars($d['destination'] ?? 'MNY');
         $cargoType = htmlspecialchars($d['cargoType'] ?? 'Cement');
@@ -46,8 +45,7 @@ if ($method === 'POST') {
         $createdAt = htmlspecialchars($d['createdAt'] ?? date('d/m/Y H:i'));
 
         $stmt->execute([
-            $id, $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $createdBy, $createdAt,
-            $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $createdBy
+            $id, $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $createdBy, $createdAt
         ]);
     }
 

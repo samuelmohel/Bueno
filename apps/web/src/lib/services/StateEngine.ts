@@ -174,6 +174,70 @@ class StateEngineService {
     } catch {}
   }
 
+  private postRemote(url: string, data: any) {
+    if (typeof window === 'undefined') return;
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  async syncRemote(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      // 1. Sync Deals with Database API
+      const dealsRes = await fetch('/api/deals.php').catch(() => null);
+      if (dealsRes && dealsRes.ok) {
+        const dealsJson = await dealsRes.json().catch(() => null);
+        if (dealsJson && dealsJson.status === 'success' && Array.isArray(dealsJson.data) && dealsJson.data.length > 0) {
+          const localDeals = this.getDeals();
+          const dealMap = new Map<string, any>();
+          dealsJson.data.forEach((d: any) => dealMap.set(d.id, d));
+          localDeals.forEach((d: any) => { if (!dealMap.has(d.id)) dealMap.set(d.id, d); });
+          const mergedDeals = Array.from(dealMap.values());
+          if (JSON.stringify(mergedDeals) !== JSON.stringify(localDeals)) {
+            this.writeStorage('bueno_deals', mergedDeals);
+          }
+        }
+      }
+
+      // 2. Sync Trips with Database API
+      const tripsRes = await fetch('/api/trips.php').catch(() => null);
+      if (tripsRes && tripsRes.ok) {
+        const tripsJson = await tripsRes.json().catch(() => null);
+        if (tripsJson && tripsJson.status === 'success' && Array.isArray(tripsJson.data) && tripsJson.data.length > 0) {
+          const localTrips = this.getTrips();
+          const tripMap = new Map<string, any>();
+          tripsJson.data.forEach((t: any) => tripMap.set(t.id, t));
+          localTrips.forEach((t: any) => { if (!tripMap.has(t.id)) tripMap.set(t.id, t); });
+          const mergedTrips = Array.from(tripMap.values());
+          if (JSON.stringify(mergedTrips) !== JSON.stringify(localTrips)) {
+            this.writeStorage('bueno_trips', mergedTrips);
+          }
+        }
+      }
+
+      // 3. Sync Fund Requests with Database API
+      const reqsRes = await fetch('/api/requests.php').catch(() => null);
+      if (reqsRes && reqsRes.ok) {
+        const reqsJson = await reqsRes.json().catch(() => null);
+        if (reqsJson && reqsJson.status === 'success' && Array.isArray(reqsJson.data) && reqsJson.data.length > 0) {
+          const localReqs = this.getRequests();
+          const reqMap = new Map<string, any>();
+          reqsJson.data.forEach((r: any) => reqMap.set(r.id, r));
+          localReqs.forEach((r: any) => { if (!reqMap.has(r.id)) reqMap.set(r.id, r); });
+          const mergedReqs = Array.from(reqMap.values());
+          if (JSON.stringify(mergedReqs) !== JSON.stringify(localReqs)) {
+            this.writeStorage('bueno_requests', mergedReqs);
+          }
+        }
+      }
+    } catch {}
+  }
+
   // ── TRIPS API ─────────────────────────────────────────────────────────────
   getTrips(): any[] {
     return this.readStorage('bueno_trips', SEED_TRIPS);
@@ -181,6 +245,7 @@ class StateEngineService {
 
   saveTrips(trips: any[]): void {
     this.writeStorage('bueno_trips', trips);
+    this.postRemote('/api/trips.php', trips);
     bookingsApi.list().catch(() => {});
   }
 
@@ -218,6 +283,7 @@ class StateEngineService {
 
   saveDeals(deals: any[]): void {
     this.writeStorage('bueno_deals', deals);
+    this.postRemote('/api/deals.php', deals);
   }
 
   // ── NEGOTIATIONS API ──────────────────────────────────────────────────────
@@ -227,6 +293,9 @@ class StateEngineService {
 
   saveNegotiations(negotiations: any[]): void {
     this.writeStorage('bueno_custom_deal_negotiations', negotiations);
+    if (Array.isArray(negotiations)) {
+      negotiations.forEach((n) => this.postRemote('/api/negotiations.php', n));
+    }
   }
 
   // ── REQUISITIONS API ──────────────────────────────────────────────────────
@@ -236,6 +305,7 @@ class StateEngineService {
 
   saveRequests(requests: any[]): void {
     this.writeStorage('bueno_requests', requests);
+    this.postRemote('/api/requests.php', requests);
   }
 
   createRequest(req: any): void {
@@ -260,6 +330,7 @@ class StateEngineService {
 
   saveUsers(users: any[]): void {
     this.writeStorage('bueno_users', users);
+    this.postRemote('/api/users.php', users);
     usersApi.getAll().catch(() => {});
   }
 

@@ -201,6 +201,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setTrips(liveTrips);
     setWagons(liveWagons);
     setDeals(liveDeals);
+    StateEngine.syncRemote();
     setRequests(liveReqs);
     setUsersList(liveUsers);
     setNotifications(liveNotifs);

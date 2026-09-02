@@ -35,13 +35,12 @@ if ($method === 'POST') {
 
     $trips = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_trips (id, tripId, locomotiveId, cargoOfficerName, unloadingOfficerName, company, cargoType, quantity, origin, destination, status, curLat, curLng, wagonLogsText, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status=?, curLat=?, curLng=?, wagonLogsText=?, unloadingOfficerName=?");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_trips (id, tripId, locomotiveId, cargoOfficerName, unloadingOfficerName, company, cargoType, quantity, origin, destination, status, curLat, curLng, wagonLogsText, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($trips as $t) {
         $id = $t['id'] ?? ('trip_' . time());
-        $tripId = $t['tripId'] ?? 'T101';
+        $tripId = $t['tripId'] ?? $id;
         $locomotiveId = $t['locomotiveId'] ?? 'L2205';
         $cargoOfficerName = $t['cargoOfficerName'] ?? 'Ade Bello (EWK-01)';
         $unloadingOfficerName = $t['unloadingOfficerName'] ?? 'Musa Ibrahim (MNY-01)';
@@ -57,8 +56,7 @@ if ($method === 'POST') {
         $createdAt = $t['createdAt'] ?? date('d/m/Y');
 
         $stmt->execute([
-            $id, $tripId, $locomotiveId, $cargoOfficerName, $unloadingOfficerName, $company, $cargoType, $quantity, $origin, $destination, $status, $curLat, $curLng, $wagonLogsText, $createdAt,
-            $status, $curLat, $curLng, $wagonLogsText, $unloadingOfficerName
+            $id, $tripId, $locomotiveId, $cargoOfficerName, $unloadingOfficerName, $company, $cargoType, $quantity, $origin, $destination, $status, $curLat, $curLng, $wagonLogsText, $createdAt
         ]);
     }
 

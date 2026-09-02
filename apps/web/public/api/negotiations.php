@@ -37,13 +37,11 @@ if ($method === 'POST') {
     $messagesText = json_encode($data['messages'] ?? []);
     $createdAt = date('d/m/Y');
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_negotiations (id, companyName, contactName, loadingStation, destination, cargoType, quantity, targetDate, status, messagesText, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status=?, messagesText=?");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_negotiations (id, companyName, contactName, loadingStation, destination, cargoType, quantity, targetDate, status, messagesText, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $stmt->execute([
-        $id, $companyName, $contactName, $loadingStation, $destination, $cargoType, $quantity, $targetDate, $status, $messagesText, $createdAt,
-        $status, $messagesText
+        $id, $companyName, $contactName, $loadingStation, $destination, $cargoType, $quantity, $targetDate, $status, $messagesText, $createdAt
     ]);
 
     echo json_encode(['status' => 'success', 'message' => 'Negotiation thread updated']);
