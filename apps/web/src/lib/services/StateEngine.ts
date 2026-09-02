@@ -414,7 +414,7 @@ export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
   HEAD_OF_OPERATIONS: ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest'],
   HEAD_OF_FINANCE: ['analytics', 'fund_requisitions', 'billing'],
   ACCOUNTANT: ['analytics', 'fund_requisitions', 'billing'],
-  CARGO_OFFICER: ['loading', 'unloading', 'dispatch', 'wagons', 'requisitions', 'telemetry', 'manifest', 'history'],
+  CARGO_OFFICER: ['loading', 'unloading', 'dispatch', 'wagons', 'requisitions', 'telemetry', 'manifest', 'history', 'deals', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'funds'],
   CUSTOMER: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
   CONSIGNEE: ['deals', 'negotiations', 'billing', 'telemetry', 'manifest', 'account'],
 };

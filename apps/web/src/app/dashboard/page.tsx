@@ -2420,7 +2420,7 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     { key: 'moniya',          label: 'Moniya Container Terminal 🏗️' },
     { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: 'Request Funds' },
-  ];
+  ].filter((item) => StateEngine.canUserAccessTab(user, item.key));
 
   return (
     <Shell user={{ ...user, roleLabel: `Cargo Officer — ${sName(station)}` }} navItems={navItems} activeKey={view} onNav={k => { setView(k as any); setSelectedTripId(null); setSelectedUnloadTripId(null); }} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
