@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import { NotificationBell } from '@/components/NotificationBell';
 
 // COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
@@ -16,6 +17,7 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string 
 
 export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('negotiations');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [trips, setTrips] = useState<any[]>([]);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
@@ -174,8 +176,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const latestReq = clientRequests[0];
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
-      {/* ─── DEDICATED PRINT STYLESHEET (STAGE 4 UNIVERSAL PDF EXPORT) ─── */}
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
+      {/* ─── DEDICATED PRINT STYLESHEET ─── */}
       <style>{`
         @media print {
           body {
@@ -208,10 +210,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         }
       `}</style>
 
-      {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER) ─── */}
-      <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-xs">
+      {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER MATCHING MASTER HQ) ─── */}
+      <header className="bg-white/95 backdrop-blur-md text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs font-sans">
         <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
+            >
+              <span>{sidebarOpen ? 'Hide Menu ☰' : 'Command Menu ☰'}</span>
+            </button>
+
             <img
               src="/bueno_logo.png"
               alt="Bueno Logistics"
@@ -222,18 +231,27 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             />
             <div>
               <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
-                COMMERCIAL FREIGHT PORTAL
+                INDUSTRIAL CONSIGNEE DESK — {companyName}
               </span>
               <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                {companyName || 'BUENO LOGISTICS'}
+                BUENO LOGISTICS
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
+                CORRIDOR LIVE
+              </span>
+            </div>
+
+            <NotificationBell />
+
             <div className="hidden sm:block text-right font-sans">
-              <span className="text-xs font-black text-slate-900 block">{clientEmail || 'Purechem Cement'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">Consignee Client Desk</span>
+              <span className="text-xs font-extrabold text-slate-900 block">{user?.fullName || companyName}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{clientEmail || 'Consignee Client Desk'}</span>
             </div>
 
             {onSignOut && (
@@ -248,40 +266,64 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         </div>
       </header>
 
-      {/* ─── DYNAMIC LAYOUT WITH PINNED LEFT SIDEBAR (STAGE 2 STANDARDIZATION) ─── */}
+      {/* ─── DYNAMIC LAYOUT WITH PINNED LEFT SIDEBAR (STANDARDIZED SHELL) ─── */}
       <div className="flex w-full min-h-[calc(100vh-65px)]">
         {/* PURE WHITE PINNED LEFT SIDEBAR */}
-        <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
-          <div className="space-y-5">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
-                <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">CLIENT DESK</span>
+        {sidebarOpen && (
+          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto z-30">
+            <div className="space-y-5">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
+                  <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">CLIENT DESK</span>
+                </div>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-xl text-xs font-extrabold border border-slate-200"
+                >
+                  ✕ Close
+                </button>
               </div>
+
+              <nav className="space-y-1.5 font-sans">
+                {[
+                  { id: 'negotiations', label: 'Client Negotiations Chat' },
+                  { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
+                  { id: 'manifest', label: 'Cargo Waybills & Consignment Records' },
+                  { id: 'billing', label: 'Commercial Invoices & Ledger' },
+                  { id: 'account', label: 'Corporate Account Settings' },
+                ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id as any)}
+                    className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
+                      activeTab === t.id
+                        ? 'bg-[#62BC37] text-white shadow-md'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
             </div>
 
-            <nav className="space-y-1.5 font-sans">
-              {[
-                { id: 'negotiations', label: 'Client Negotiations Chat' },
-                { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
-                { id: 'manifest', label: 'Cargo Waybills & Consignment Records' },
-                { id: 'billing', label: 'Commercial Invoices & Ledger' },
-              ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 font-sans">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Verified Client</p>
+                <p className="text-xs font-black text-slate-900 mt-0.5">{companyName}</p>
+              </div>
+              {onSignOut && (
                 <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
-                    activeTab === t.id
-                      ? 'bg-[#62BC37] text-white shadow-md'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
+                  onClick={onSignOut}
+                  className="w-full text-left text-xs font-extrabold text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition-all"
                 >
-                  {t.label}
+                  Sign Out Account
                 </button>
-              ))}
-            </nav>
-          </div>
-        </aside>
+              )}
+            </div>
+          </aside>
+        )}
 
         {/* MAIN CANVAS */}
         <main className="flex-1 p-6 space-y-6 min-w-0">
