@@ -2609,38 +2609,93 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
           )}
 
           {view === 'wagons' && (
-            <Section title="Wagon Fleet Inventory (46+ Registered)" subtitle="Real-time availability lock — wagons in use locked system-wide" action={<button onClick={() => setAddWagonModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Register New Wagon</button>}>
-              <TableWrap
-                headers={['Wagon ID', 'Capacity (Bags)', 'Live Status', 'Current Station', 'Added By', 'Date']}
-                mobileCard={(w: any) => {
-                  const isOccupied = occupiedWagonIds.has(w.id);
-                  return (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
-                        <Badge text={isOccupied ? 'LOCKED (IN USE)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
-                      </div>
-                      <p className="text-xs text-slate-600">Capacity: {w.capacity || 70} Bags | Station: {sName(w.currentStation || station)}</p>
-                    </div>
-                  );
-                }}
-                data={wagons}
+            <div className="space-y-6 font-sans">
+              {/* KPI OVERVIEW CARDS MATCHING ADMIN DESK */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Rolling Stock Fleet</span>
+                  <p className="text-2xl font-black text-slate-900 font-mono">{wagons.length} Wagons</p>
+                  <span className="text-[10px] text-emerald-700 font-bold">Standard & Narrow Gauge</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Available for Loading</span>
+                  <p className="text-2xl font-black text-[#62BC37] font-mono">
+                    {wagons.filter(w => !occupiedWagonIds.has(w.id) && w.status !== 'MAINTENANCE').length} Wagons
+                  </p>
+                  <span className="text-[10px] text-emerald-700 font-bold">Ready at Sidings</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Loaded / In Transit</span>
+                  <p className="text-2xl font-black text-amber-600 font-mono">
+                    {wagons.filter(w => occupiedWagonIds.has(w.id) || w.status === 'LOADED' || w.status === 'IN_TRANSIT').length} Wagons
+                  </p>
+                  <span className="text-[10px] text-slate-500 font-bold">En-Route Corridor</span>
+                </div>
+
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+                  <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Freight Tonnage Payload</span>
+                  <p className="text-2xl font-black text-emerald-700 font-mono">
+                    {wagons.reduce((acc, w) => acc + (Number(w.payloadCapacity?.replace(/\D/g, '')) || 60), 0).toLocaleString()} MT
+                  </p>
+                  <span className="text-[10px] text-slate-500 font-bold">Cumulative Fleet Capacity</span>
+                </div>
+              </div>
+
+              {/* FLEET MANAGEMENT TABLE */}
+              <Section
+                title="Active Wagon Inventory & Terminal Allocation"
+                subtitle="Real-time availability lock — wagons in active use are locked system-wide across all user desks"
+                action={
+                  <button
+                    onClick={() => setAddWagonModal(true)}
+                    className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                  >
+                    <span>+ Register New Wagon</span>
+                  </button>
+                }
               >
-                {wagons.map(w => {
-                  const isOccupied = occupiedWagonIds.has(w.id);
-                  return (
-                    <tr key={w.id} className="hover:bg-slate-50 text-xs">
-                      <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
-                      <td className="p-4 font-mono font-bold text-slate-700">{w.capacity || 70} Bags</td>
-                      <td className="p-4"><Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} /></td>
-                      <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
-                      <td className="p-4 text-slate-600">{w.addedBy || 'System'}</td>
-                      <td className="p-4 font-mono text-slate-400">{w.createdAt || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </TableWrap>
-            </Section>
+                <TableWrap
+                  headers={['Wagon ID', 'Wagon Classification', 'Payload Capacity', 'Track Gauge', 'Current Station', 'Operational Status']}
+                  mobileCard={(w: any) => {
+                    const isOccupied = occupiedWagonIds.has(w.id) || w.status === 'LOADED' || w.status === 'IN_TRANSIT';
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
+                          <Badge text={isOccupied ? 'LOADED / IN TRANSIT' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                        </div>
+                        <p className="text-xs text-slate-600">
+                          {w.wagonType || 'Covered Hopper Wagon'} | Capacity: {w.payloadCapacity || '60 MT'} | Station: {sName(w.currentStation || station)}
+                        </p>
+                      </div>
+                    );
+                  }}
+                  data={wagons}
+                >
+                  {wagons.map((w: any) => {
+                    const isOccupied = occupiedWagonIds.has(w.id) || w.status === 'LOADED' || w.status === 'IN_TRANSIT';
+                    return (
+                      <tr key={w.id} className="hover:bg-slate-50 text-xs font-mono">
+                        <td className="p-4 font-bold text-amber-800">{w.id}</td>
+                        <td className="p-4 font-sans font-bold text-slate-900">{w.wagonType || 'Covered Hopper Wagon'}</td>
+                        <td className="p-4 font-extrabold text-emerald-700">{w.payloadCapacity || '60 MT (1,200 Bags)'}</td>
+                        <td className="p-4 text-slate-600">{w.gauge || 'STANDARD_GAUGE'}</td>
+                        <td className="p-4 font-bold text-slate-700">{sName(w.currentStation || station)}</td>
+                        <td className="p-4 text-right">
+                          <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded uppercase ${
+                            isOccupied ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {isOccupied ? 'LOADED / IN TRANSIT' : 'AVAILABLE'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </TableWrap>
+              </Section>
+            </div>
           )}
 
           {view === 'moniya' && <MoniyaContainerPortal user={user} />}

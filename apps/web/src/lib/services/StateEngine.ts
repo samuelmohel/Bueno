@@ -61,11 +61,29 @@ export const SEED_TRIPS = [
 ];
 
 export const SEED_WAGONS = [
-  { id: 'PXG 2322', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
-  { id: 'PXG 2323', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE' },
-  { id: 'GND 4401', wagonType: 'Open Top Gondola Wagon', payloadCapacity: '70 MT', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE' },
-  { id: 'FLT 9011', wagonType: 'Flatbed Container Wagon', payloadCapacity: '2 TEU Containers', status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE' },
-  { id: 'TNK 8801', wagonType: 'Tanker Wagon', payloadCapacity: '45,000 Liters', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE' },
+  // Bueno's Dedicated Cement Hopper Fleet (PXG 09001 - PXG 09046)
+  ...Array.from({ length: 46 }, (_, i) => {
+    const num = String(i + 1).padStart(4, '0');
+    const id = `PXG ${num}`;
+    const isEwk = i % 2 === 0;
+    return {
+      id,
+      wagonType: 'Covered Hopper Wagon',
+      payloadCapacity: '60 MT (1,200 Bags)',
+      status: 'AVAILABLE',
+      currentStation: isEwk ? 'EWK' : 'MNY',
+      gauge: 'STANDARD_GAUGE',
+      addedBy: 'System Registry',
+      createdAt: '07 Aug 2026',
+    };
+  }),
+
+  // NRC Spot / Ad-Hoc Wagons (On-Demand Spot Allocation)
+  { id: 'PXG 2322', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT (1,200 Bags)', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'PXG 2323', wagonType: 'Covered Hopper Wagon', payloadCapacity: '60 MT (1,200 Bags)', status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
+  { id: 'GND 4401', wagonType: 'Open Top Gondola Wagon', payloadCapacity: '70 MT', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '12 Aug 2026' },
+  { id: 'FLT 9011', wagonType: 'Flatbed Container Wagon', payloadCapacity: '2 TEU Containers', status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '15 Aug 2026' },
+  { id: 'TNK 8801', wagonType: 'Tanker Wagon', payloadCapacity: '45,000 Liters', status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'NRC Spot Allocation', createdAt: '18 Aug 2026' },
 ];
 
 export const SEED_DEALS = [
