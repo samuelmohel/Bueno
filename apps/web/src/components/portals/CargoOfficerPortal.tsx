@@ -91,11 +91,21 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
   useEffect(() => {
     syncData();
-    window.addEventListener('storage', syncData);
-    window.addEventListener('bueno_state_updated', syncData);
+    StateEngine.syncRemote();
+    const interval = setInterval(() => {
+      StateEngine.syncRemote();
+      syncData();
+    }, 5000);
+
+    const handleUpdate = () => syncData();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('bueno_state_updated', handleUpdate);
+    window.addEventListener('bueno_permissions_updated', handleUpdate);
     return () => {
-      window.removeEventListener('storage', syncData);
-      window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('bueno_state_updated', handleUpdate);
+      window.removeEventListener('bueno_permissions_updated', handleUpdate);
     };
   }, []);
 
@@ -106,6 +116,21 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       setActiveTab('loading');
     }
   }, [isDestinationYard]);
+
+  // Tab Access Fallback if permission revoked
+  useEffect(() => {
+    const availableTabs = [
+      { id: 'loading' },
+      { id: 'dispatch' },
+      { id: 'wagons' },
+      { id: 'requisitions' },
+      { id: 'history' },
+    ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
+
+    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0] as any);
+    }
+  }, [user, activeTab]);
 
   const activeTrip = trips.find((t) => t.id === selectedTripId || t.tripId === selectedTripId) || trips[0];
   const cargoConf = COMMODITY_CONFIG[loadingForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' };

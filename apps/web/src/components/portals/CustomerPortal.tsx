@@ -110,13 +110,38 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
   useEffect(() => {
     syncData();
-    window.addEventListener('storage', syncData);
-    window.addEventListener('bueno_state_updated', syncData);
+    StateEngine.syncRemote();
+    const interval = setInterval(() => {
+      StateEngine.syncRemote();
+      syncData();
+    }, 5000);
+
+    const handleUpdate = () => syncData();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('bueno_state_updated', handleUpdate);
+    window.addEventListener('bueno_permissions_updated', handleUpdate);
     return () => {
-      window.removeEventListener('storage', syncData);
-      window.removeEventListener('bueno_state_updated', syncData);
+      clearInterval(interval);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('bueno_state_updated', handleUpdate);
+      window.removeEventListener('bueno_permissions_updated', handleUpdate);
     };
   }, [companyName, clientEmail]);
+
+  // Tab Access Fallback if permission revoked
+  useEffect(() => {
+    const allowedTabs = [
+      { id: 'negotiations' },
+      { id: 'telemetry' },
+      { id: 'manifest' },
+      { id: 'billing' },
+      { id: 'account' },
+    ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
+
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0] as any);
+    }
+  }, [user, activeTab]);
 
   const saveNegotiations = (updatedCompanyDeals: any[]) => {
     setNegotiations(updatedCompanyDeals);

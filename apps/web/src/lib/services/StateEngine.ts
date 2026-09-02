@@ -545,6 +545,25 @@ class StateEngineService {
     }
   }
 
+  async saveRolePermissionsAsync(matrix: Record<string, string[]>): Promise<boolean> {
+    this.writeStorage('bueno_role_permissions', matrix);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_permissions_updated'));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+      try {
+        const res = await fetch('/api/permissions.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matrix }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
+
   canUserAccessTab(user: any, tabId: string): boolean {
     if (!user) return false;
     const role = user.role || 'GUEST';
@@ -557,30 +576,54 @@ class StateEngineService {
 
     if (!Array.isArray(rolePerms)) return false;
 
-    const mappedKeys = TAB_ALIASES[tabId] || [tabId];
-    return mappedKeys.some((key) => rolePerms.includes(key));
+    const capability = TAB_TO_CAPABILITY[tabId] || tabId;
+    return rolePerms.includes(capability);
   }
 }
 
-export const PERMISSIONS_SCHEMA_VERSION = 'v4';
+export const PERMISSIONS_SCHEMA_VERSION = 'v5';
+
+export const TAB_TO_CAPABILITY: Record<string, string> = {
+  analytics:         'analytics',
+  deals:             'deals',
+  loading:           'deals',
+  trips:             'deals',
+  in_transit:        'deals',
+  incoming_unload:   'deals',
+  dispatch:          'deals',
+  negotiations:      'negotiations',
+  fund_requisitions: 'fund_requisitions',
+  funds:             'fund_requisitions',
+  requisitions:      'fund_requisitions',
+  fleet:             'fleet',
+  wagons:            'fleet',
+  telemetry:         'telemetry',
+  manifest:          'manifest',
+  history:           'manifest',
+  moniya:            'moniya',
+  billing:           'billing',
+  users:             'users',
+  permissions:       'permissions',
+  account:           'negotiations',
+};
 
 export const TAB_ALIASES: Record<string, string[]> = {
   analytics:         ['analytics'],
-  deals:             ['deals', 'loading', 'trips', 'in_transit', 'incoming_unload', 'dispatch'],
-  loading:           ['deals', 'loading'],
-  trips:             ['deals', 'trips'],
-  in_transit:        ['deals', 'in_transit', 'dispatch'],
-  incoming_unload:   ['deals', 'incoming_unload'],
-  dispatch:          ['deals', 'dispatch', 'in_transit'],
+  deals:             ['deals'],
+  loading:           ['deals'],
+  trips:             ['deals'],
+  in_transit:        ['deals'],
+  incoming_unload:   ['deals'],
+  dispatch:          ['deals'],
   negotiations:      ['negotiations'],
-  fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
-  funds:             ['fund_requisitions', 'funds', 'requisitions'],
-  requisitions:      ['fund_requisitions', 'funds', 'requisitions'],
-  fleet:             ['fleet', 'wagons'],
-  wagons:            ['fleet', 'wagons'],
+  fund_requisitions: ['fund_requisitions'],
+  funds:             ['fund_requisitions'],
+  requisitions:      ['fund_requisitions'],
+  fleet:             ['fleet'],
+  wagons:            ['fleet'],
   telemetry:         ['telemetry'],
-  manifest:          ['manifest', 'history'],
-  history:           ['manifest', 'history'],
+  manifest:          ['manifest'],
+  history:           ['manifest'],
   moniya:            ['moniya'],
   billing:           ['billing'],
   users:             ['users'],

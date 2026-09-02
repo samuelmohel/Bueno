@@ -2394,10 +2394,16 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
   const [permissionsVersion, setPermissionsVersion] = useState(0);
 
   useEffect(() => {
+    StateEngine.syncRemote();
+    const interval = setInterval(() => {
+      StateEngine.syncRemote();
+    }, 5000);
+
     const handlePermUpdate = () => setPermissionsVersion((v) => v + 1);
     window.addEventListener('bueno_permissions_updated', handlePermUpdate);
     window.addEventListener('bueno_state_updated', handlePermUpdate);
     return () => {
+      clearInterval(interval);
       window.removeEventListener('bueno_permissions_updated', handlePermUpdate);
       window.removeEventListener('bueno_state_updated', handlePermUpdate);
     };
@@ -2414,6 +2420,13 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     { key: 'funds',           label: 'Request Funds' },
     { key: 'manifest',        label: 'Cargo Manifests' },
   ].filter((item) => StateEngine.canUserAccessTab(user, item.key));
+
+  useEffect(() => {
+    const allowedKeys = navItems.map((n) => n.key);
+    if (allowedKeys.length > 0 && !allowedKeys.includes(view)) {
+      setView(allowedKeys[0] as any);
+    }
+  }, [navItems, view]);
 
   return (
     <Shell user={{ ...user, roleLabel: `Cargo Officer — ${sName(station)}` }} navItems={navItems} activeKey={view} onNav={k => { setView(k as any); setSelectedTripId(null); setSelectedUnloadTripId(null); }} onSignOut={onSignOut} menuOpen={menuOpen} setMenuOpen={setMenuOpen}>
