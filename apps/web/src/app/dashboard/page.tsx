@@ -2240,10 +2240,10 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
-  const [deals, setDeals]         = useState<any[]>([]);
-  const [trips, setTrips]         = useState<any[]>([]);
-  const [requests, setRequests]   = useState<any[]>([]);
-  const [wagons, setWagons]       = useState<any[]>([]);
+  const [deals, setDeals]         = useState<any[]>(() => StateEngine.getDeals());
+  const [trips, setTrips]         = useState<any[]>(() => StateEngine.getTrips());
+  const [requests, setRequests]   = useState<any[]>(() => StateEngine.getRequests());
+  const [wagons, setWagons]       = useState<any[]>(() => StateEngine.getWagons());
 
   const [createDeal, setCreateDeal]     = useState<any>(null);
   const [addWagonModal, setAddWagonModal] = useState(false);
@@ -2256,49 +2256,18 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
   const station = user?.assignedStation || 'EWK';
 
   useEffect(() => {
-    const syncData = async () => {
-      if (typeof window !== 'undefined' && !localStorage.getItem('bueno_pxg_purged_v3')) {
-        localStorage.removeItem('bueno_trips');
-        localStorage.setItem('bueno_trips', '[]');
-        localStorage.setItem('bueno_wagons', JSON.stringify(SEED_WAGONS));
-        localStorage.setItem('bueno_pxg_purged_v3', 'true');
-      }
-
-      setDeals(tryParse('bueno_deals', SEED_DEALS));
-      setWagons(tryParse('bueno_wagons', SEED_WAGONS));
-
-      // Fetch Trips from DB
-      try {
-        const res = await fetch('/api/trips.php');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setTrips(json.data);
-            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
-          } else {
-            setTrips([]);
-          }
-        }
-      } catch { setTrips(tryParse('bueno_trips', [])); }
-
-      // Fetch Fund Requests from DB
-      try {
-        const res = await fetch('/api/requests.php');
-        if (res.ok) {
-          const json = await res.json();
-          if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setRequests(json.data);
-            localStorage.setItem('bueno_requests', JSON.stringify(json.data));
-          }
-        }
-      } catch { setRequests(tryParse('bueno_requests', SEED_REQUESTS)); }
+    const syncData = () => {
+      setDeals(StateEngine.getDeals());
+      setWagons(StateEngine.getWagons());
+      setTrips(StateEngine.getTrips());
+      setRequests(StateEngine.getRequests());
     };
 
     syncData();
 
     window.addEventListener('storage', syncData);
     window.addEventListener('bueno_state_updated', syncData);
-    const interval = setInterval(syncData, 5000);
+    const interval = setInterval(syncData, 2000);
 
     const now = new Date();
     setTripForm(f => ({ ...f,
@@ -2313,24 +2282,10 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     };
   }, []);
 
-  const persist = (key: string, val: any[], apiEndpoint?: string) => {
-    localStorage.setItem(key, JSON.stringify(val));
-    window.dispatchEvent(new Event('bueno_state_updated'));
-    if (apiEndpoint) {
-      try {
-        fetch(apiEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(val),
-        });
-      } catch {}
-    }
-  };
-
-  const saveDeals    = (v: any[]) => { setDeals(v);    persist('bueno_deals', v);    };
-  const saveTrips    = (v: any[]) => { setTrips(v);    persist('bueno_trips', v, '/api/trips.php'); };
-  const saveRequests = (v: any[]) => { setRequests(v); persist('bueno_requests', v, '/api/requests.php'); };
-  const saveWagons   = (v: any[]) => { setWagons(v);   persist('bueno_wagons', v);   };
+  const saveDeals    = (v: any[]) => { setDeals(v);    StateEngine.saveDeals(v); };
+  const saveTrips    = (v: any[]) => { setTrips(v);    StateEngine.saveTrips(v); };
+  const saveRequests = (v: any[]) => { setRequests(v); StateEngine.saveRequests(v); };
+  const saveWagons   = (v: any[]) => { setWagons(v);   StateEngine.saveWagons(v); };
 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter(w => !occupiedWagonIds.has(w.id));
