@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface MonitoringOfficer {
   name: string;
@@ -114,10 +114,36 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
 
   const [isBroadcasting, setIsBroadcasting] = useState<boolean>(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const watchIdRef = useRef<number | null>(null);
 
-  // Toggle Live Phone GPS Broadcast from Monitoring Officer's smartphone
+  // Poll live GPS telemetry from SQL backend (so viewers see real-time updates from officer's phone)
+  useEffect(() => {
+    const locoId = trip?.locomotiveId || 'L2205';
+    const fetchLatestGps = async () => {
+      try {
+        const res = await fetch(`/api/gps.php?locomotiveId=${encodeURIComponent(locoId)}`);
+        const json = await res.json();
+        if (json.status === 'success' && json.latest) {
+          const l = json.latest;
+          if (l.speed) setSpeed(Number(l.speed));
+          if (l.batteryLevel) setBattery(Number(l.batteryLevel));
+          if (l.timestamp) setLastPing(l.timestamp);
+        }
+      } catch {}
+    };
+
+    fetchLatestGps();
+    const interval = setInterval(fetchLatestGps, 5000);
+    return () => clearInterval(interval);
+  }, [trip?.locomotiveId]);
+
+  // Toggle Continuous Live Phone GPS Broadcast from Monitoring Officer's smartphone
   const togglePhoneGpsBroadcast = () => {
     if (isBroadcasting) {
+      if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
       setIsBroadcasting(false);
       return;
     }
@@ -130,18 +156,21 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
     setIsBroadcasting(true);
     setBroadcastError(null);
 
-    navigator.geolocation.getCurrentPosition(
+    const id = navigator.geolocation.watchPosition(
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        const spd = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 68;
+        const spd = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : (speed || 68);
         setSpeed(spd);
-        setLastPing(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastPing(timeNow);
 
-        fetch(`/api/tracking/gps/${encodeURIComponent(trip?.locomotiveId || 'L2205')}`, {
+        fetch('/api/gps.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            locomotiveId: trip?.locomotiveId || 'L2205',
+            tripId: trip?.id || '',
             lat,
             lng,
             speed: spd,
@@ -157,9 +186,19 @@ export function LiveGpsMap({ trip }: { trip?: any }) {
         setBroadcastError(err.message || 'GPS Permission Denied');
         setIsBroadcasting(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
+
+    watchIdRef.current = id;
   };
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden font-sans space-y-0">

@@ -3275,10 +3275,12 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
 
     // 1. Ingest initial GPS waypoint
     try {
-      await fetch(`/api/tracking/gps/${encodeURIComponent(trip.locomotiveId || 'L2205')}`, {
+      await fetch('/api/gps.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          locomotiveId: trip.locomotiveId || 'L2205',
+          tripId: trip.id,
           lat: startLat,
           lng: startLng,
           speed: 68,
