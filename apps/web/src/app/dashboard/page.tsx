@@ -5915,6 +5915,11 @@ export default function Dashboard() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // ── PERMISSION SCHEMA MIGRATION ─────────────────────────────────────────
+    // Must run before any portal renders. If bueno_permissions_version is stale
+    // or missing, wipe old data and re-seed from canonical defaults.
+    StateEngine.seedPermissionsIfVersionMismatch();
+
     try {
       const raw = localStorage.getItem('bueno_user');
       if (!raw) { router.push('/auth/login'); return; }

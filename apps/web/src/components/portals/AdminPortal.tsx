@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StateEngine, DEFAULT_ROLE_TAB_PERMISSIONS } from '@/lib/services/StateEngine';
+import {
+  StateEngine,
+  DEFAULT_ROLE_TAB_PERMISSIONS,
+  TAB_ALIASES,
+  TAB_REGISTRY,
+} from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
@@ -180,6 +185,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   const syncData = () => {
+    // Ensure permissions are seeded with correct schema version before reading
+    StateEngine.seedPermissionsIfVersionMismatch();
+
     const liveTrips = StateEngine.getTrips();
     const liveWagons = StateEngine.getWagons();
     const liveDeals = StateEngine.getDeals();
@@ -575,31 +583,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // TOGGLE GRANULAR TAB & ACTION PERMISSION IN MATRIX
   const handleTogglePermission = (roleKey: string, permKey: string) => {
     const fullMatrix = StateEngine.getRolePermissions();
-    const currentPerms = fullMatrix[roleKey] || DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || [];
+    const currentPerms = fullMatrix[roleKey] ?? (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] ?? []);
 
-    const tabAliases: Record<string, string[]> = {
-      deals: ['deals', 'loading'],
-      trips: ['trips', 'loading'],
-      in_transit: ['in_transit', 'dispatch', 'telemetry'],
-      incoming_unload: ['incoming_unload', 'unloading'],
-      wagons: ['wagons', 'fleet'],
-      funds: ['funds', 'requisitions', 'fund_requisitions'],
-      fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
-      telemetry: ['telemetry', 'dispatch', 'in_transit'],
-      fleet: ['fleet', 'wagons'],
-      loading: ['loading', 'deals', 'trips'],
-      dispatch: ['dispatch', 'in_transit', 'telemetry'],
-      unloading: ['unloading', 'incoming_unload'],
-      requisitions: ['requisitions', 'funds', 'fund_requisitions'],
-    };
-
-    const keysToToggle = tabAliases[permKey] || [permKey];
+    // Use the canonical TAB_ALIASES — single source of truth, no local duplication
+    const keysToToggle = TAB_ALIASES[permKey] ?? [permKey];
     const isCurrentlyChecked = keysToToggle.some((k) => currentPerms.includes(k));
 
     let updatedRolePerms: string[];
     if (isCurrentlyChecked) {
+      // Remove all alias keys for this tab
       updatedRolePerms = currentPerms.filter((p) => !keysToToggle.includes(p));
     } else {
+      // Add all alias keys for this tab
       updatedRolePerms = Array.from(new Set([...currentPerms, ...keysToToggle]));
     }
 
@@ -2115,88 +2110,110 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
 
-            {/* EDITABLE PERMISSIONS CHECKBOX MATRIX */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border border-slate-200 rounded-2xl">
-                <thead className="bg-slate-50 text-slate-700 font-mono font-bold text-[10px] uppercase border-b border-slate-200">
-                  <tr>
-                    <th className="p-3.5 whitespace-nowrap">Role Classification</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Analytics</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Deals Queue</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Negotiations</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Fund Requisitions</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Fleet Management</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Live Telemetry</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Manifests</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Invoices</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Users</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Permissions</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Trips Created</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">In Transit</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Incoming Unload</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Moniya Terminal</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Wagon Fleet</th>
-                    <th className="p-3.5 text-center whitespace-nowrap">Request Funds</th>
+            {/* EDITABLE PERMISSIONS CHECKBOX MATRIX — ALL PORTALS, ALL ROLES */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs border-collapse">
+                {/* ── COLUMN HEADERS (grouped by section) ────────────────── */}
+                <thead>
+                  {/* Section label row */}
+                  <tr className="bg-slate-100 border-b border-slate-200">
+                    <th className="p-3 font-mono font-extrabold text-[10px] uppercase text-slate-500 whitespace-nowrap sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
+                      Role Classification
+                    </th>
+                    {/* Section A: Admin / HQ */}
+                    <th
+                      colSpan={TAB_REGISTRY.filter(t => t.section === 'ADMIN_HQ').length}
+                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-blue-700 bg-blue-50 border-r border-slate-300"
+                    >
+                      🏢 Admin / HQ Portal
+                    </th>
+                    {/* Section B: Cargo Officer */}
+                    <th
+                      colSpan={TAB_REGISTRY.filter(t => t.section === 'CARGO_OFFICER').length}
+                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-amber-700 bg-amber-50 border-r border-slate-300"
+                    >
+                      🚂 Cargo Officer Field Portal
+                    </th>
+                    {/* Section C: Customer */}
+                    <th
+                      colSpan={TAB_REGISTRY.filter(t => t.section === 'CUSTOMER').length}
+                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-emerald-700 bg-emerald-50"
+                    >
+                      🏭 Client Portal
+                    </th>
+                  </tr>
+                  {/* Individual column header row */}
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-3 font-mono font-bold text-[10px] uppercase text-slate-600 whitespace-nowrap sticky left-0 bg-slate-50 z-10 border-r border-slate-200" />
+                    {TAB_REGISTRY.map((tab, idx) => {
+                      const isLastInSection =
+                        idx === TAB_REGISTRY.length - 1 ||
+                        TAB_REGISTRY[idx + 1]?.section !== tab.section;
+                      return (
+                        <th
+                          key={tab.key}
+                          className={`p-2 text-center font-mono font-bold text-[10px] uppercase text-slate-600 whitespace-nowrap ${isLastInSection ? 'border-r border-slate-300' : ''}`}
+                        >
+                          {tab.label}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
+
+                {/* ── ROLE ROWS ────────────────────────────────────────────── */}
+                <tbody className="divide-y divide-slate-100">
                   {[
-                    { key: 'ADMIN', label: 'Admin Officer (ADMIN)' },
-                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations' },
-                    { key: 'CEO', label: 'Managing Director / CEO' },
-                    { key: 'HEAD_OF_FINANCE', label: 'Head of Finance' },
-                    { key: 'CARGO_OFFICER', label: 'Cargo Officer' },
-                    { key: 'CUSTOMER', label: 'Industrial Consignee Client' },
-                  ].map(({ key, label }) => {
-                    const rawPerms = permissionsMatrix ? permissionsMatrix[key] : undefined;
-                    const rolePerms = (Array.isArray(rawPerms) && rawPerms.length > 0) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] || []);
+                    { key: 'ADMIN',              label: 'Admin Officer (ADMIN)',       badge: 'bg-purple-100 text-purple-800' },
+                    { key: 'CEO',                label: 'Managing Director / CEO',     badge: 'bg-blue-100 text-blue-800' },
+                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations',          badge: 'bg-indigo-100 text-indigo-800' },
+                    { key: 'HEAD_OF_FINANCE',    label: 'Head of Finance',             badge: 'bg-teal-100 text-teal-800' },
+                    { key: 'CARGO_OFFICER',      label: 'Cargo Officer (Field)',       badge: 'bg-amber-100 text-amber-800' },
+                    { key: 'CUSTOMER',           label: 'Industrial Consignee Client', badge: 'bg-emerald-100 text-emerald-800' },
+                  ].map(({ key, label, badge }) => {
+                    // Read from permissionsMatrix state (guaranteed seeded)
+                    const rawPerms = permissionsMatrix?.[key];
+                    const rolePerms: string[] = Array.isArray(rawPerms) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] ?? []);
+                    const isSuperAdmin = key === 'ADMIN' || key === 'CEO' || key === 'MD';
 
                     return (
-                      <tr key={key} className="hover:bg-slate-50 transition-all">
-                        <td className="p-3.5 font-bold font-sans text-slate-900 whitespace-nowrap">{label}</td>
-                        {[
-                          'analytics',
-                          'deals',
-                          'negotiations',
-                          'fund_requisitions',
-                          'fleet',
-                          'telemetry',
-                          'manifest',
-                          'billing',
-                          'users',
-                          'permissions',
-                          'trips',
-                          'in_transit',
-                          'incoming_unload',
-                          'moniya',
-                          'wagons',
-                          'funds',
-                        ].map((tId) => {
-                          const tabAliases: Record<string, string[]> = {
-                            deals: ['deals', 'loading'],
-                            trips: ['trips', 'loading'],
-                            in_transit: ['in_transit', 'dispatch', 'telemetry'],
-                            incoming_unload: ['incoming_unload', 'unloading'],
-                            wagons: ['wagons', 'fleet'],
-                            funds: ['funds', 'requisitions', 'fund_requisitions'],
-                            fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
-                            telemetry: ['telemetry', 'dispatch', 'in_transit'],
-                            fleet: ['fleet', 'wagons'],
-                            loading: ['loading', 'deals', 'trips'],
-                            dispatch: ['dispatch', 'in_transit', 'telemetry'],
-                            unloading: ['unloading', 'incoming_unload'],
-                            requisitions: ['requisitions', 'funds', 'fund_requisitions'],
-                          };
-                          const checkKeys = tabAliases[tId] || [tId];
-                          const isChecked = checkKeys.some((k) => rolePerms.includes(k));
+                      <tr key={key} className="hover:bg-slate-50 transition-colors">
+                        {/* Role label cell */}
+                        <td className="p-3 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 z-10">
+                          <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold font-mono ${badge}`}>
+                            {label}
+                          </span>
+                          {isSuperAdmin && (
+                            <span className="ml-1.5 text-[9px] text-slate-400 font-mono">FULL ACCESS</span>
+                          )}
+                        </td>
+
+                        {/* Checkbox cells — one per TAB_REGISTRY entry */}
+                        {TAB_REGISTRY.map((tab, idx) => {
+                          const isLastInSection =
+                            idx === TAB_REGISTRY.length - 1 ||
+                            TAB_REGISTRY[idx + 1]?.section !== tab.section;
+
+                          // Use canonical TAB_ALIASES to determine checked state
+                          const aliasKeys = TAB_ALIASES[tab.key] ?? [tab.key];
+                          const isChecked = isSuperAdmin || aliasKeys.some((k) => rolePerms.includes(k));
 
                           return (
-                            <td key={tId} className="p-3.5 text-center">
+                            <td
+                              key={tab.key}
+                              className={`p-3 text-center ${isLastInSection ? 'border-r border-slate-300' : ''}`}
+                            >
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => handleTogglePermission(key, tId)}
-                                className="w-4.5 h-4.5 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
+                                disabled={isSuperAdmin}
+                                onChange={() => !isSuperAdmin && handleTogglePermission(key, tab.key)}
+                                title={isSuperAdmin ? 'Super-admins always have full access' : `Toggle ${tab.label} for ${label}`}
+                                className={`w-4 h-4 rounded focus:ring-[#62BC37] ${
+                                  isSuperAdmin
+                                    ? 'text-purple-500 cursor-not-allowed opacity-70'
+                                    : 'text-[#62BC37] cursor-pointer'
+                                }`}
                               />
                             </td>
                           );
@@ -2206,6 +2223,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded bg-blue-100 border border-blue-300" /> Admin / HQ Portal tabs
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Cargo Officer Field Portal tabs
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Client Portal tabs
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Super-Admin (always full access, cannot be restricted)
+              </span>
             </div>
           </div>
         )}
