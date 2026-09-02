@@ -405,6 +405,10 @@ class StateEngineService {
 
   saveRolePermissions(matrix: Record<string, string[]>): void {
     this.writeStorage('bueno_role_permissions', matrix);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_permissions_updated'));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    }
   }
 
   canUserAccessTab(user: any, tabId: string): boolean {
