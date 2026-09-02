@@ -503,16 +503,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       quantity: Number(newDealForm.quantity) || 2000,
       unitOfMeasure: conf.unit,
       wagonType: conf.wagonType,
+      status: 'APPROVED',
       createdAt: new Date().toLocaleDateString('en-GB'),
       createdBy: user?.fullName || 'Alhaji Bashir Umar',
     };
 
-    StateEngine.saveDeals([newDealObj, ...deals]);
+    const updatedDeals = [newDealObj, ...deals];
+    setDeals(updatedDeals);
+    StateEngine.saveDeals(updatedDeals);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    }
     setCreateDealModal(false);
 
     setCustomAlert({
       title: 'Commercial Freight Deal Registered',
-      message: `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}.`,
+      message: `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
     });
   };
 
@@ -949,8 +955,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </div>
           </div>
 
-          {/* SYNCED LOGGED IN USER DETAILS */}
-          <div className="flex items-center gap-4">
+          {/* SYNCED LOGGED IN USER DETAILS + CREATE DEAL ACTION */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCreateDealModal(true)}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+            >
+              <span>+ Create Freight Deal</span>
+            </button>
+
             <div className="hidden sm:block text-right">
               <span className="text-xs font-extrabold text-slate-900 block">{currentUser?.fullName || user?.fullName || 'Alhaji Bashir Umar'}</span>
               <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{currentUser?.roleLabel || currentUser?.role || user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
