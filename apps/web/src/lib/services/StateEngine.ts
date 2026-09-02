@@ -400,7 +400,14 @@ class StateEngineService {
 
   // ─── PERMISSIONS MATRIX & TAB ACCESS API ─────────────────────────────────
   getRolePermissions(): Record<string, string[]> {
-    return this.readStorage('bueno_role_permissions', DEFAULT_ROLE_TAB_PERMISSIONS);
+    const stored = this.readStorage('bueno_role_permissions', null);
+    if (!stored || typeof stored !== 'object') {
+      return { ...DEFAULT_ROLE_TAB_PERMISSIONS };
+    }
+    return {
+      ...DEFAULT_ROLE_TAB_PERMISSIONS,
+      ...(stored as Record<string, string[]>),
+    };
   }
 
   saveRolePermissions(matrix: Record<string, string[]>): void {
@@ -415,17 +422,39 @@ class StateEngineService {
     if (!user) return false;
     const role = user.role || 'GUEST';
 
+    // Executive Super-Admins (ADMIN, CEO, MD) ALWAYS retain full system access
+    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+
     const matrix = this.getRolePermissions();
     const rolePerms = matrix[role];
 
-    // If role permissions exist in database matrix, strictly check if tabId is included
+    // Alias mapping for seamless cross-component tab matching
+    const tabAliases: Record<string, string[]> = {
+      deals: ['deals', 'loading'],
+      trips: ['trips', 'loading'],
+      in_transit: ['in_transit', 'dispatch', 'telemetry'],
+      incoming_unload: ['incoming_unload', 'unloading'],
+      wagons: ['wagons', 'fleet'],
+      funds: ['funds', 'requisitions', 'fund_requisitions'],
+      fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
+      telemetry: ['telemetry', 'dispatch', 'in_transit'],
+      fleet: ['fleet', 'wagons'],
+      loading: ['loading', 'deals', 'trips'],
+      dispatch: ['dispatch', 'in_transit', 'telemetry'],
+      unloading: ['unloading', 'incoming_unload'],
+      requisitions: ['requisitions', 'funds', 'fund_requisitions'],
+    };
+
+    const targetKeys = tabAliases[tabId] || [tabId];
+
+    // If role permissions exist in database matrix, strictly check if any targetKey is included
     if (rolePerms !== undefined && Array.isArray(rolePerms)) {
-      return rolePerms.includes(tabId);
+      return targetKeys.some((key) => rolePerms.includes(key));
     }
 
     // Fallback to default matrix
     const defaultPerms = DEFAULT_ROLE_TAB_PERMISSIONS[role] || [];
-    return defaultPerms.includes(tabId);
+    return targetKeys.some((key) => defaultPerms.includes(key));
   }
 }
 

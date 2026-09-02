@@ -574,11 +574,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   // TOGGLE GRANULAR TAB & ACTION PERMISSION IN MATRIX
   const handleTogglePermission = (roleKey: string, permKey: string) => {
-    const currentPerms = permissionsMatrix[roleKey] !== undefined ? permissionsMatrix[roleKey] : (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || []);
+    const fullMatrix = StateEngine.getRolePermissions();
+    const currentPerms = fullMatrix[roleKey] !== undefined ? fullMatrix[roleKey] : (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] || []);
     const exists = currentPerms.includes(permKey);
     const updatedRolePerms = exists ? currentPerms.filter((p) => p !== permKey) : [...currentPerms, permKey];
 
-    const updatedMatrix = { ...permissionsMatrix, [roleKey]: updatedRolePerms };
+    const updatedMatrix = { ...fullMatrix, [roleKey]: updatedRolePerms };
     setPermissionsMatrix(updatedMatrix);
     StateEngine.saveRolePermissions(updatedMatrix);
   };
