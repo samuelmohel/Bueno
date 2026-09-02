@@ -982,15 +982,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const customerUsers = usersList.filter((u) => u.userType === 'CLIENT' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE');
 
   // DYNAMIC HISTORICAL REPORT AUDIT DATA SELECTION
-  const activeReportTrips = selectedMonth === '2026-09' ? trips : (HISTORICAL_MONTHLY_ARCHIVES[selectedMonth] || []);
+  const activeReportTrips = trips;
   const totalReportBags = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure === 'Bags' ? (Number(t.quantity) || 0) : 0), 0);
   const totalReportMT = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure?.includes('Tonnes') || t.unitOfMeasure?.includes('MT') ? (Number(t.quantity) || 0) : 0), 0);
   const totalReportDamages = activeReportTrips.reduce((acc, t) => acc + (t.damages?.damagedUnits || t.damages?.burstBags || (t.wagonLogs || []).reduce((wAcc: number, w: any) => wAcc + (Number(w.damageQty || 0) + Number(w.burstBags || 0)), 0)), 0);
   const totalReportRevenue = activeReportTrips.reduce((acc, t) => {
     if (t.tripRevenue) return acc + Number(t.tripRevenue);
-    const q = Number(t.quantity) || 1600;
-    const rate = t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200;
-    return acc + q * rate;
+    return acc;
   }, 0);
 
   return (

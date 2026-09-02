@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/db.php';
 
 $pdo = getDbConnection();
@@ -95,8 +95,8 @@ if ($method === 'POST') {
         $departedAt = $t['departedAt'] ?? '';
         $completedAt = $t['completedAt'] ?? '';
         $dispatchTime = $t['dispatchTime'] ?? ($departedAt ?: ($t['createdAt'] ?? date('d/m/Y, H:i')));
-        $tripRevenue = floatval($t['tripRevenue'] ?? (floatval($quantity) * ($unitOfMeasure === 'Metric Tonnes (MT)' ? 24000 : 1200)));
-        $tripCost = floatval($t['tripCost'] ?? 150000);
+        $tripRevenue = isset($t['tripRevenue']) && $t['tripRevenue'] !== '' && floatval($t['tripRevenue']) > 0 ? floatval($t['tripRevenue']) : null;
+        $tripCost = isset($t['tripCost']) && $t['tripCost'] !== '' && floatval($t['tripCost']) > 0 ? floatval($t['tripCost']) : null;
         $wagonLogsText = json_encode($t['wagonLogs'] ?? []);
         $feederTrucksText = json_encode($t['feederTrucks'] ?? []);
         $damagesText = json_encode($t['damages'] ?? []);

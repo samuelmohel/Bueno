@@ -188,15 +188,26 @@ class StateEngineService {
   async syncRemote(): Promise<void> {
     if (typeof window === 'undefined') return;
     try {
-      // 1. Sync Deals with Database API
+      // 1. Sync Deals with Database API (Preserve TRIP_CREATED status)
       const dealsRes = await fetch('/api/deals.php').catch(() => null);
       if (dealsRes && dealsRes.ok) {
         const dealsJson = await dealsRes.json().catch(() => null);
-        if (dealsJson && dealsJson.status === 'success' && Array.isArray(dealsJson.data) && dealsJson.data.length > 0) {
+        if (dealsJson && dealsJson.status === 'success' && Array.isArray(dealsJson.data)) {
           const localDeals = this.getDeals();
           const dealMap = new Map<string, any>();
           dealsJson.data.forEach((d: any) => dealMap.set(d.id, d));
-          localDeals.forEach((d: any) => { if (!dealMap.has(d.id)) dealMap.set(d.id, d); });
+          localDeals.forEach((localD: any) => {
+            const remoteD = dealMap.get(localD.id);
+            if (!remoteD) {
+              dealMap.set(localD.id, localD);
+            } else {
+              if (localD.status === 'TRIP_CREATED' || localD.status === 'COMPLETED' || localD.tripId) {
+                dealMap.set(localD.id, { ...remoteD, ...localD });
+              } else {
+                dealMap.set(localD.id, { ...localD, ...remoteD });
+              }
+            }
+          });
           const mergedDeals = Array.from(dealMap.values());
           if (JSON.stringify(mergedDeals) !== JSON.stringify(localDeals)) {
             this.writeStorage('bueno_deals', mergedDeals);
@@ -204,15 +215,34 @@ class StateEngineService {
         }
       }
 
-      // 2. Sync Trips with Database API
+      // 2. Sync Trips with Database API (Preserve rich wagonLogs, burst bags, and completed statuses)
       const tripsRes = await fetch('/api/trips.php').catch(() => null);
       if (tripsRes && tripsRes.ok) {
         const tripsJson = await tripsRes.json().catch(() => null);
-        if (tripsJson && tripsJson.status === 'success' && Array.isArray(tripsJson.data) && tripsJson.data.length > 0) {
+        if (tripsJson && tripsJson.status === 'success' && Array.isArray(tripsJson.data)) {
           const localTrips = this.getTrips();
           const tripMap = new Map<string, any>();
           tripsJson.data.forEach((t: any) => tripMap.set(t.id, t));
-          localTrips.forEach((t: any) => { if (!tripMap.has(t.id)) tripMap.set(t.id, t); });
+          localTrips.forEach((localT: any) => {
+            const remoteT = tripMap.get(localT.id);
+            if (!remoteT) {
+              tripMap.set(localT.id, localT);
+            } else {
+              const localLogsCount = Array.isArray(localT.wagonLogs) ? localT.wagonLogs.length : 0;
+              const remoteLogsCount = Array.isArray(remoteT.wagonLogs) ? remoteT.wagonLogs.length : 0;
+              const chosenLogs = localLogsCount >= remoteLogsCount ? localT.wagonLogs : remoteT.wagonLogs;
+              const chosenDamages = (localT.damages?.damagedUnits || localT.damages?.burstBags) ? localT.damages : (remoteT.damages || localT.damages);
+              const chosenStatus = (localT.status === 'COMPLETED' || localT.status === 'IN_TRANSIT') ? localT.status : (remoteT.status || localT.status);
+
+              tripMap.set(localT.id, {
+                ...remoteT,
+                ...localT,
+                status: chosenStatus,
+                wagonLogs: chosenLogs,
+                damages: chosenDamages,
+              });
+            }
+          });
           const mergedTrips = Array.from(tripMap.values());
           if (JSON.stringify(mergedTrips) !== JSON.stringify(localTrips)) {
             this.writeStorage('bueno_trips', mergedTrips);
@@ -256,7 +286,7 @@ class StateEngineService {
       const permsRes = await fetch('/api/permissions.php').catch(() => null);
       if (permsRes && permsRes.ok) {
         const permsJson = await permsRes.json().catch(() => null);
-        if (permsJson && permsJson.status === 'success' && permsJson.matrix && typeof permsJson.matrix === 'object') {
+        if (permsJson && permsJson.status === 'success' && permsJson.matrix && typeof permsJson.matrix === 'object' && Object.keys(permsJson.matrix).length > 0) {
           const localPerms = this.getRolePermissions();
           if (JSON.stringify(permsJson.matrix) !== JSON.stringify(localPerms)) {
             this.writeStorage('bueno_role_permissions', permsJson.matrix);

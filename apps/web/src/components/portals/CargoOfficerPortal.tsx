@@ -205,15 +205,23 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       escortBadgeId: tripForm.badgeId || 'NRC-ESC-2026-08',
       status: 'LOADING',
       dispatchTime: new Date().toLocaleString('en-GB'),
-      wagonLogs: [
-        { wagonId: tripForm.wagonId1 || 'PXG 2322', status: 'LOADED', loadedAt: 'Just now', bagsCount: '70 ' + unitLabel, sealNumber: tripForm.seal1 || 'SEAL-BN-9801', weighbridgeGrossMt: tripForm.weighbridgeGrossMt || '80.5' },
-        { wagonId: tripForm.wagonId2 || 'PXG 2323', status: 'LOADED', loadedAt: 'Just now', bagsCount: '70 ' + unitLabel, sealNumber: tripForm.seal2 || 'SEAL-BN-9802', weighbridgeGrossMt: tripForm.weighbridgeGrossMt || '80.5' },
-      ],
+      wagonLogs: [],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
 
     StateEngine.saveTrips([newTrip, ...trips]);
     setTrips([newTrip, ...trips]);
+
+    // Update Deal to TRIP_CREATED so it leaves the deals list
+    const currentDeals = StateEngine.getDeals();
+    const updatedDeals = currentDeals.map((d: any) =>
+      d.id === deal.id || d.dealNumber === deal.id || d.id === deal.dealNumber
+        ? { ...d, status: 'TRIP_CREATED', tripId: newTrip.id }
+        : d
+    );
+    StateEngine.saveDeals(updatedDeals);
+    setDeals(updatedDeals);
+
     setCreateTripModalDeal(null);
     setSelectedTripId(newTrip.id);
     setActiveTab('loading');
