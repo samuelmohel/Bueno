@@ -2109,76 +2109,39 @@ function Shell({
   children: React.ReactNode; onSignOut: () => void;
   menuOpen: boolean; setMenuOpen: (v: boolean) => void;
 }) {
-  const Nav = () => (
-    <div className="h-full bg-white flex flex-col border-r border-slate-200/90 text-slate-800" style={{ fontFamily: "'Inter',sans-serif" }}>
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-10 object-contain" />
-        </Link>
-      </div>
-
-      {/* Station Badge */}
-      <div className="p-3.5 mx-3 my-3 rounded-xl bg-slate-50 border border-slate-200/80">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
-          <span className="text-[10px] font-mono font-black uppercase text-slate-500 tracking-wider">STATION NODE</span>
-        </div>
-        <p className="text-xs font-black text-slate-900">{user?.assignedStation ? `${sName(user.assignedStation)} (${user.assignedStation})` : 'Bueno Logistics HQ'}</p>
-      </div>
-
-      <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-        <div className="text-[10px] font-mono font-extrabold uppercase text-slate-400 px-3 py-1">Internal Views</div>
-        {navItems.map(item => {
-          const isActive = activeKey === item.key;
-          return (
-            <button key={item.key} onClick={() => { onNav(item.key); setMenuOpen(false); }}
-              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${isActive ? 'bg-[#62BC37] text-white shadow-xs font-black' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-              {item.label}
-            </button>
-          );
-        })}
-
-
-      </nav>
-
-      <div className="p-4 border-t border-slate-100 space-y-2 bg-slate-50/60">
-        <div className="px-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Signed in as</p>
-          <p className="text-xs font-black text-slate-900">{user?.fullName}</p>
-          <p className="text-[11px] text-[#62BC37] font-bold mt-0.5">{user?.roleLabel || user?.role}</p>
-        </div>
-        <Link href="/" className="block px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-all">← Home Page</Link>
-        <button onClick={onSignOut} className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-all">Sign Out</button>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-slate-50/80 flex w-full max-w-full overflow-x-hidden" style={{ fontFamily: "'Inter',sans-serif" }}>
-      <aside className="hidden lg:flex w-64 xl:w-72 flex-shrink-0 flex-col sticky top-0 h-screen z-30"><Nav /></aside>
-      {menuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={() => setMenuOpen(false)} />
-          <div className="relative z-10 w-64 flex-shrink-0"><Nav /></div>
-        </div>
-      )}
-      <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden w-full">
-        
-        {/* Clean Corporate Top Header */}
-        <header className="bg-white border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 flex-shrink-0 shadow-xs relative z-20 w-full">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <button onClick={() => setMenuOpen(true)} className="lg:hidden text-slate-700 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all flex-shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
+      {/* ─── STICKY HEADER (MATCHING ADMIN HQ PORTAL 1:1) ─── */}
+      <header className="bg-white/95 backdrop-blur-md text-slate-900 border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+        <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
+            >
+              <span>{menuOpen ? 'Hide Menu ☰' : 'Command Menu ☰'}</span>
             </button>
-            <img src="/bueno_logo.png" alt="Bueno Logistics Limited" className="h-7 sm:h-9 object-contain flex-shrink-0" />
-            <div className="hidden md:block pl-2 border-l border-slate-200 truncate">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">BUENO FREIGHT OS</span>
-              <h2 className="text-xs font-black text-slate-900 truncate" style={{ fontFamily: "'Outfit', sans-serif" }}>OPERATIONAL COMMAND DASHBOARD</h2>
+
+            {/* OFFICIAL BUENO LOGO + BRAND TITLE */}
+            <div className="flex items-center gap-3">
+              <img
+                src="/bueno_logo.png"
+                alt="Bueno Logistics"
+                className="h-10 w-auto object-contain"
+              />
+              <div>
+                <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                  {user?.role === 'CARGO_OFFICER' ? `CARGO OFFICER FIELD DESK — ${sName(user?.assignedStation || 'EWK')}` : 'OPERATIONAL COMMAND HQ'}
+                </span>
+                <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  BUENO LOGISTICS
+                </h1>
+              </div>
             </div>
           </div>
 
-          {/* Center Actions: Live Status + Notification Bell */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          {/* SYNCED LOGGED IN USER DETAILS + NOTIFICATION BELL */}
+          <div className="flex items-center gap-4">
             <div className="hidden lg:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
               <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
               <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
@@ -2186,22 +2149,81 @@ function Shell({
               </span>
             </div>
 
-            {/* Notification Bell Component */}
             <NotificationBell onNav={onNav} />
-          </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 text-right flex-shrink-0">
-            <div className="max-w-[100px] sm:max-w-none">
-              <p className="text-xs font-black text-slate-900 truncate">{user?.fullName}</p>
-              <p className="text-[9px] sm:text-[10px] text-[#62BC37] font-extrabold truncate uppercase">{user?.roleLabel || user?.role}</p>
+            <div className="hidden sm:block text-right">
+              <span className="text-xs font-extrabold text-slate-900 block">{user?.fullName}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{user?.roleLabel || user?.role}</span>
             </div>
-            <button onClick={onSignOut} className="hidden sm:block text-[11px] font-semibold text-slate-500 hover:text-rose-600 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50 transition-all">
+
+            <button
+              onClick={onSignOut}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-200"
+            >
               Sign Out
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden">{children}</main>
+      {/* ─── DYNAMIC LAYOUT WITH PINNED LEFT SIDEBAR (EDGE-TO-EDGE FLUID) ─── */}
+      <div className="flex w-full min-h-[calc(100vh-65px)]">
+        {/* PURE WHITE PINNED LEFT SIDEBAR (MATCHING ADMIN HQ) */}
+        {menuOpen && (
+          <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm transition-all font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto z-30">
+            <div className="space-y-5">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
+                  <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">FIELD NAVIGATION</span>
+                </div>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-xl text-xs font-extrabold border border-slate-200"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <nav className="space-y-1.5 font-sans">
+                {navItems.map((item) => {
+                  const isActive = activeKey === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => { onNav(item.key); setMenuOpen(false); }}
+                      className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
+                        isActive
+                          ? 'bg-[#62BC37] text-white shadow-md'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 font-sans">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Assigned Station</p>
+                <p className="text-xs font-black text-slate-900 mt-0.5">{user?.assignedStation ? `${sName(user.assignedStation)} (${user.assignedStation})` : 'Bueno Logistics HQ'}</p>
+              </div>
+              <button
+                onClick={onSignOut}
+                className="w-full text-left text-xs font-extrabold text-rose-600 hover:bg-rose-50 p-2 rounded-xl transition-all"
+              >
+                Sign Out Account
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* MAIN CANVAS */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 min-w-0 bg-slate-100 font-sans">
+          {children}
+        </main>
       </div>
     </div>
   );
@@ -2212,7 +2234,7 @@ function Shell({
 ═══════════════════════════════════════════════════════════ */
 function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds'>('deals');
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
