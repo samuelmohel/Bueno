@@ -586,17 +586,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const fullMatrix = StateEngine.getRolePermissions();
     const currentPerms = fullMatrix[roleKey] ?? (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] ?? []);
 
-    // Use the canonical TAB_ALIASES — single source of truth, no local duplication
-    const keysToToggle = TAB_ALIASES[permKey] ?? [permKey];
-    const isCurrentlyChecked = keysToToggle.some((k) => currentPerms.includes(k));
+    const isCurrentlyChecked = currentPerms.includes(permKey);
 
     let updatedRolePerms: string[];
     if (isCurrentlyChecked) {
-      // Remove all alias keys for this tab
-      updatedRolePerms = currentPerms.filter((p) => !keysToToggle.includes(p));
+      updatedRolePerms = currentPerms.filter((p) => p !== permKey);
     } else {
-      // Add all alias keys for this tab
-      updatedRolePerms = Array.from(new Set([...currentPerms, ...keysToToggle]));
+      updatedRolePerms = Array.from(new Set([...currentPerms, permKey]));
     }
 
     const updatedMatrix = { ...fullMatrix, [roleKey]: updatedRolePerms };
@@ -2081,11 +2077,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* ─── TAB 7: EDITABLE PERMISSIONS MATRIX ─── */}
         {activeTab === 'permissions' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
-            <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Spatie Access Control</span>
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                Interactive & Editable Permissions Matrix
-              </h3>
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-center flex-wrap gap-2">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Spatie Role-Based Access Control</span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Interactive & Editable Permissions Matrix
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+                ✓ Synced to SQL Database
+              </span>
             </div>
 
             {/* SYSTEM SETTINGS TOGGLES */}
@@ -2114,55 +2115,23 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             {/* EDITABLE PERMISSIONS CHECKBOX MATRIX — ALL PORTALS, ALL ROLES */}
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-left text-xs border-collapse">
-                {/* ── COLUMN HEADERS (grouped by section) ────────────────── */}
                 <thead>
-                  {/* Section label row */}
                   <tr className="bg-slate-100 border-b border-slate-200">
                     <th className="p-3 font-mono font-extrabold text-[10px] uppercase text-slate-500 whitespace-nowrap sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
                       Role Classification
                     </th>
-                    {/* Section A: Admin / HQ */}
-                    <th
-                      colSpan={TAB_REGISTRY.filter(t => t.section === 'ADMIN_HQ').length}
-                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-blue-700 bg-blue-50 border-r border-slate-300"
-                    >
-                      🏢 Admin / HQ Portal
-                    </th>
-                    {/* Section B: Cargo Officer */}
-                    <th
-                      colSpan={TAB_REGISTRY.filter(t => t.section === 'CARGO_OFFICER').length}
-                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-amber-700 bg-amber-50 border-r border-slate-300"
-                    >
-                      🚂 Cargo Officer Field Portal
-                    </th>
-                    {/* Section C: Customer */}
-                    <th
-                      colSpan={TAB_REGISTRY.filter(t => t.section === 'CUSTOMER').length}
-                      className="p-2 text-center font-mono font-extrabold text-[10px] uppercase text-emerald-700 bg-emerald-50"
-                    >
-                      🏭 Client Portal
-                    </th>
-                  </tr>
-                  {/* Individual column header row */}
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="p-3 font-mono font-bold text-[10px] uppercase text-slate-600 whitespace-nowrap sticky left-0 bg-slate-50 z-10 border-r border-slate-200" />
-                    {TAB_REGISTRY.map((tab, idx) => {
-                      const isLastInSection =
-                        idx === TAB_REGISTRY.length - 1 ||
-                        TAB_REGISTRY[idx + 1]?.section !== tab.section;
-                      return (
-                        <th
-                          key={tab.key}
-                          className={`p-2 text-center font-mono font-bold text-[10px] uppercase text-slate-600 whitespace-nowrap ${isLastInSection ? 'border-r border-slate-300' : ''}`}
-                        >
-                          {tab.label}
-                        </th>
-                      );
-                    })}
+                    {TAB_REGISTRY.map((tab) => (
+                      <th
+                        key={tab.key}
+                        className="p-3 text-center font-mono font-bold text-[10px] uppercase text-slate-700 whitespace-nowrap bg-slate-100 border-r border-slate-200"
+                      >
+                        <div>{tab.label}</div>
+                        <div className="text-[9px] text-slate-400 font-normal mt-0.5">{tab.category}</div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
 
-                {/* ── ROLE ROWS ────────────────────────────────────────────── */}
                 <tbody className="divide-y divide-slate-100">
                   {[
                     { key: 'ADMIN',              label: 'Admin Officer (ADMIN)',       badge: 'bg-purple-100 text-purple-800' },
@@ -2172,14 +2141,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { key: 'CARGO_OFFICER',      label: 'Cargo Officer (Field)',       badge: 'bg-amber-100 text-amber-800' },
                     { key: 'CUSTOMER',           label: 'Industrial Consignee Client', badge: 'bg-emerald-100 text-emerald-800' },
                   ].map(({ key, label, badge }) => {
-                    // Read from permissionsMatrix state (guaranteed seeded)
                     const rawPerms = permissionsMatrix?.[key];
                     const rolePerms: string[] = Array.isArray(rawPerms) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] ?? []);
                     const isSuperAdmin = key === 'ADMIN' || key === 'CEO' || key === 'MD';
 
                     return (
                       <tr key={key} className="hover:bg-slate-50 transition-colors">
-                        {/* Role label cell */}
                         <td className="p-3 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 z-10">
                           <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold font-mono ${badge}`}>
                             {label}
@@ -2189,20 +2156,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           )}
                         </td>
 
-                        {/* Checkbox cells — one per TAB_REGISTRY entry */}
-                        {TAB_REGISTRY.map((tab, idx) => {
-                          const isLastInSection =
-                            idx === TAB_REGISTRY.length - 1 ||
-                            TAB_REGISTRY[idx + 1]?.section !== tab.section;
-
-                          // Use canonical TAB_ALIASES to determine checked state
-                          const aliasKeys = TAB_ALIASES[tab.key] ?? [tab.key];
-                          const isChecked = isSuperAdmin || aliasKeys.some((k) => rolePerms.includes(k));
+                        {TAB_REGISTRY.map((tab) => {
+                          const isChecked = isSuperAdmin || rolePerms.includes(tab.key);
 
                           return (
                             <td
                               key={tab.key}
-                              className={`p-3 text-center ${isLastInSection ? 'border-r border-slate-300' : ''}`}
+                              className="p-3 text-center border-r border-slate-200"
                             >
                               <input
                                 type="checkbox"
@@ -2226,16 +2186,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </table>
             </div>
 
-            {/* Legend */}
             <div className="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-slate-500">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-blue-100 border border-blue-300" /> Admin / HQ Portal tabs
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Cargo Officer Field Portal tabs
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Client Portal tabs
+                <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Ticking any box immediately applies live to the role across all devices & SQL database
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="inline-block w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Super-Admin (always full access, cannot be restricted)

@@ -446,6 +446,28 @@ class StateEngineService {
     };
     this.writeStorage('bueno_notifications', [newNotif, ...existingNotifs]);
 
+    // 5. Sync Role Permissions with Database API
+    (async () => {
+      try {
+        const permsRes = await fetch('/api/permissions.php').catch(() => null);
+        if (permsRes && permsRes.ok) {
+          const permsJson = await permsRes.json().catch(() => null);
+          if (permsJson && permsJson.status === 'success' && permsJson.matrix && typeof permsJson.matrix === 'object') {
+            const localPerms = this.getRolePermissions();
+            if (JSON.stringify(permsJson.matrix) !== JSON.stringify(localPerms)) {
+              this.writeStorage('bueno_role_permissions', permsJson.matrix);
+              if (permsJson.settings) {
+                this.writeStorage('bueno_system_settings', permsJson.settings);
+              }
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('bueno_permissions_updated'));
+              }
+            }
+          }
+        }
+      } catch {}
+    })();
+
     // 4. Trigger Real-time Transactional Email Webhook (cPanel send_mail API)
     if (typeof window !== 'undefined' && newReq.email) {
       fetch('/api/send_mail.php', {
@@ -481,17 +503,10 @@ class StateEngineService {
 
   // ─── PERMISSIONS MATRIX & TAB ACCESS API ─────────────────────────────────
 
-  /**
-   * seedPermissionsIfVersionMismatch — call this at app startup (dashboard useEffect).
-   * If bueno_permissions_version !== PERMISSIONS_SCHEMA_VERSION, the stored permissions
-   * are stale or corrupt. Wipe them and write fresh defaults. This is how production
-   * systems (Google Workspace, GitHub) handle schema migrations transparently.
-   */
   seedPermissionsIfVersionMismatch(): void {
     if (typeof window === 'undefined') return;
     const stored = localStorage.getItem('bueno_permissions_version');
     if (stored !== PERMISSIONS_SCHEMA_VERSION) {
-      // Version mismatch — wipe stale data and re-seed from canonical defaults
       localStorage.removeItem('bueno_role_permissions');
       localStorage.setItem('bueno_role_permissions', JSON.stringify(
         JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS))
@@ -500,17 +515,11 @@ class StateEngineService {
     }
   }
 
-  /**
-   * getRolePermissions — returns the full matrix from localStorage.
-   * Always seeded by seedPermissionsIfVersionMismatch, so this is always populated.
-   */
   getRolePermissions(): Record<string, string[]> {
     const stored = this.readStorage<Record<string, string[]> | null>('bueno_role_permissions', null);
     if (!stored || typeof stored !== 'object') {
-      // Edge case: return defaults (e.g. server-side rendering)
       return JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
     }
-    // Ensure every role key exists (new roles added to defaults get merged in)
     const merged: Record<string, string[]> = {};
     Object.keys(DEFAULT_ROLE_TAB_PERMISSIONS).forEach((roleKey) => {
       const storedArray = stored[roleKey];
@@ -524,172 +533,104 @@ class StateEngineService {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('bueno_permissions_updated'));
       window.dispatchEvent(new Event('bueno_state_updated'));
+      fetch('/api/permissions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matrix }),
+      }).catch(() => {});
     }
   }
 
-  /**
-   * canUserAccessTab — the single gate for tab visibility across ALL portals.
-   * - ADMIN, CEO, MD: always true (cannot be locked out)
-   * - All other roles: strictly check the stored matrix using TAB_ALIASES
-   * - No silent fallback to defaults at runtime — what's in the matrix is law
-   */
   canUserAccessTab(user: any, tabId: string): boolean {
     if (!user) return false;
     const role = user.role || 'GUEST';
 
-    // Super-admins always have full access regardless of matrix state
+    // Super-admins always have full access
     if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
 
     const matrix = this.getRolePermissions();
     const rolePerms = matrix[role];
 
-    // If role has no entry at all in the matrix, deny access (fail-safe)
     if (!Array.isArray(rolePerms)) return false;
 
-    // Resolve tab aliases — e.g. a Cargo Officer's 'deals' tab checks for both
-    // 'deals' and 'loading' keys so either key in the matrix grants access
-    const aliasKeys = TAB_ALIASES[tabId] || [tabId];
-    return aliasKeys.some((key) => rolePerms.includes(key));
+    const mappedKeys = TAB_ALIASES[tabId] || [tabId];
+    return mappedKeys.some((key) => rolePerms.includes(key));
   }
 }
 
+export const PERMISSIONS_SCHEMA_VERSION = 'v4';
 
-/**
- * PERMISSIONS_SCHEMA_VERSION — bump this string whenever the tab registry changes.
- * On mismatch, stale localStorage is wiped and re-seeded automatically.
- */
-export const PERMISSIONS_SCHEMA_VERSION = 'v3';
-
-/**
- * TAB_ALIASES — the single canonical source of alias mappings.
- * Imported by StateEngine.canUserAccessTab AND AdminPortal.tsx
- * so alias logic is never duplicated or allowed to drift.
- *
- * Key = tab ID as used in a nav item. Value = all equivalent keys
- * that should be treated as the same permission in the matrix.
- */
 export const TAB_ALIASES: Record<string, string[]> = {
-  // Admin portal tab → Cargo Officer portal equivalent
-  deals:            ['deals', 'loading'],
-  trips:            ['trips', 'loading'],
-  in_transit:       ['in_transit', 'dispatch'],
-  incoming_unload:  ['incoming_unload', 'unloading'],
-  wagons:           ['wagons', 'fleet'],
-  fleet:            ['fleet', 'wagons'],
-  funds:            ['funds', 'requisitions', 'fund_requisitions'],
-  fund_requisitions:['fund_requisitions', 'funds', 'requisitions'],
-  // Cargo Officer portal tabs → their matrix keys
-  loading:          ['loading', 'deals'],
-  dispatch:         ['dispatch', 'in_transit'],
-  unloading:        ['unloading', 'incoming_unload'],
-  requisitions:     ['requisitions', 'funds', 'fund_requisitions'],
-  // Standalone tabs (no aliases needed)
-  analytics:        ['analytics'],
-  negotiations:     ['negotiations'],
-  telemetry:        ['telemetry'],
-  manifest:         ['manifest'],
-  billing:          ['billing'],
-  users:            ['users'],
-  permissions:      ['permissions'],
-  moniya:           ['moniya'],
-  history:          ['history'],
-  account:          ['account'],
+  analytics:         ['analytics'],
+  deals:             ['deals', 'loading', 'trips', 'in_transit', 'incoming_unload', 'dispatch'],
+  loading:           ['deals', 'loading'],
+  trips:             ['deals', 'trips'],
+  in_transit:        ['deals', 'in_transit', 'dispatch'],
+  incoming_unload:   ['deals', 'incoming_unload'],
+  dispatch:          ['deals', 'dispatch', 'in_transit'],
+  negotiations:      ['negotiations'],
+  fund_requisitions: ['fund_requisitions', 'funds', 'requisitions'],
+  funds:             ['fund_requisitions', 'funds', 'requisitions'],
+  requisitions:      ['fund_requisitions', 'funds', 'requisitions'],
+  fleet:             ['fleet', 'wagons'],
+  wagons:            ['fleet', 'wagons'],
+  telemetry:         ['telemetry'],
+  manifest:          ['manifest', 'history'],
+  history:           ['manifest', 'history'],
+  moniya:            ['moniya'],
+  billing:           ['billing'],
+  users:             ['users'],
+  permissions:       ['permissions'],
+  account:           ['account', 'negotiations', 'telemetry', 'manifest', 'billing'],
 };
 
-/**
- * TAB_REGISTRY — every tab in the system, which portal it belongs to,
- * its display label for the matrix column header, and which roles can use it.
- * This is used to build the matrix column headers in AdminPortal.tsx.
- */
 export interface TabRegistryEntry {
   key: string;
   label: string;
-  section: 'ADMIN_HQ' | 'CARGO_OFFICER' | 'CUSTOMER';
+  category: string;
 }
+
 export const TAB_REGISTRY: TabRegistryEntry[] = [
-  // ── SECTION A: Admin / HQ Portal Tabs ─────────────────────────────────────
-  { key: 'analytics',         label: 'Reports & Analytics',       section: 'ADMIN_HQ' },
-  { key: 'deals',             label: 'Commercial Deals',          section: 'ADMIN_HQ' },
-  { key: 'negotiations',      label: 'Client Negotiations',       section: 'ADMIN_HQ' },
-  { key: 'fund_requisitions', label: 'Fund Requisitions',         section: 'ADMIN_HQ' },
-  { key: 'fleet',             label: 'Fleet Management',          section: 'ADMIN_HQ' },
-  { key: 'telemetry',         label: 'Live Telemetry',            section: 'ADMIN_HQ' },
-  { key: 'manifest',          label: 'Cargo Manifests',           section: 'ADMIN_HQ' },
-  { key: 'billing',           label: 'Invoices & Ledger',         section: 'ADMIN_HQ' },
-  { key: 'users',             label: 'User Directory',            section: 'ADMIN_HQ' },
-  { key: 'permissions',       label: 'Permissions Matrix',        section: 'ADMIN_HQ' },
-
-  // ── SECTION B: Cargo Officer Portal Tabs ──────────────────────────────────
-  { key: 'trips',             label: 'Trips Created',             section: 'CARGO_OFFICER' },
-  { key: 'in_transit',        label: 'Trips on the Move',         section: 'CARGO_OFFICER' },
-  { key: 'incoming_unload',   label: 'Incoming Consignments',     section: 'CARGO_OFFICER' },
-  { key: 'moniya',            label: 'Moniya Terminal',           section: 'CARGO_OFFICER' },
-  { key: 'wagons',            label: 'Wagon Fleet',               section: 'CARGO_OFFICER' },
-  { key: 'funds',             label: 'Request Funds',             section: 'CARGO_OFFICER' },
-  { key: 'loading',           label: 'Cargo Loading',             section: 'CARGO_OFFICER' },
-  { key: 'dispatch',          label: 'Escort Dispatch',           section: 'CARGO_OFFICER' },
-  { key: 'requisitions',      label: 'Field Requisitions',        section: 'CARGO_OFFICER' },
-  { key: 'history',           label: 'Inspection Audit',          section: 'CARGO_OFFICER' },
-
-  // ── SECTION C: Customer Portal Tabs ───────────────────────────────────────
-  { key: 'account',           label: 'Account Settings',          section: 'CUSTOMER' },
+  { key: 'analytics',         label: 'Reports & Analytics',       category: 'Executive' },
+  { key: 'deals',             label: 'Commercial Deals Desk',     category: 'Operations' },
+  { key: 'negotiations',      label: 'Client Negotiations Chat',  category: 'Commercial' },
+  { key: 'fund_requisitions', label: 'Fund Requisitions',         category: 'Finance' },
+  { key: 'fleet',             label: 'Fleet & Wagon Management',  category: 'Operations' },
+  { key: 'telemetry',         label: 'Fleet Telemetry & Live GPS', category: 'Operations' },
+  { key: 'manifest',          label: 'Cargo Manifests & Waybills', category: 'Operations' },
+  { key: 'moniya',            label: 'Moniya Container Terminal', category: 'Operations' },
+  { key: 'billing',           label: 'Invoices & Ledger',         category: 'Finance' },
+  { key: 'users',             label: 'User Directory',            category: 'Administration' },
+  { key: 'permissions',       label: 'Permissions Matrix',        category: 'Administration' },
 ];
 
-/**
- * DEFAULT_ROLE_TAB_PERMISSIONS — canonical defaults.
- * Keys must exactly match TAB_REGISTRY keys.
- * These are used ONLY for seeding on first run or after a schema version bump.
- * After seeding, localStorage is the authoritative source.
- */
 export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
-  // Super-admins: hardcoded full access in canUserAccessTab — these are kept for matrix display only
   ADMIN: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry',
-    'manifest', 'billing', 'users', 'permissions',
-    'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds',
-    'loading', 'dispatch', 'requisitions', 'history', 'account',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
   ],
   CEO: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry',
-    'manifest', 'billing', 'users', 'permissions',
-    'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds',
-    'loading', 'dispatch', 'requisitions', 'history', 'account',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
   ],
   MD: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry',
-    'manifest', 'billing', 'users', 'permissions',
-    'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds',
-    'loading', 'dispatch', 'requisitions', 'history', 'account',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
   ],
-
-  // Head of Operations — sees all operational tabs but NOT users/permissions/billing
   HEAD_OF_OPERATIONS: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry',
-    'manifest', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya',
   ],
-
-  // Head of Finance — sees finance & reporting only
   HEAD_OF_FINANCE: [
-    'analytics', 'fund_requisitions', 'billing', 'funds',
+    'analytics', 'fund_requisitions', 'billing',
   ],
-
-  // Accountant — same as finance
   ACCOUNTANT: [
-    'analytics', 'fund_requisitions', 'billing', 'funds',
+    'analytics', 'fund_requisitions', 'billing',
   ],
-
-  // Cargo Officer — field operational tabs
   CARGO_OFFICER: [
-    'deals', 'trips', 'in_transit', 'incoming_unload', 'moniya', 'wagons', 'funds',
-    'loading', 'dispatch', 'requisitions', 'history',
+    'deals', 'fleet', 'telemetry', 'manifest', 'fund_requisitions', 'moniya',
   ],
-
-  // Customer / Consignee — client-facing tabs
   CUSTOMER: [
-    'negotiations', 'telemetry', 'manifest', 'billing', 'account',
+    'negotiations', 'telemetry', 'manifest', 'billing',
   ],
   CONSIGNEE: [
-    'negotiations', 'telemetry', 'manifest', 'billing', 'account',
+    'negotiations', 'telemetry', 'manifest', 'billing',
   ],
 };
 
