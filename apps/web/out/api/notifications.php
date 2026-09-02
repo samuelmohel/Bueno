@@ -27,23 +27,21 @@ if ($method === 'POST') {
 
     $notifs = isset($data[0]) ? $data : [$data];
 
-    $stmt = $pdo->prepare("INSERT INTO bueno_notifications (id, title, body, time, type, targetId, targetTab, readInt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET readInt=?");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_notifications (id, title, body, time, type, targetId, targetTab, readInt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
     foreach ($notifs as $n) {
-        $id = $n['id'] ?? ('notif_' . time());
+        $id = $n['id'] ?? ('notif_' . time() . '_' . rand(100, 999));
         $title = htmlspecialchars($n['title'] ?? 'Notification');
-        $body = htmlspecialchars($n['body'] ?? '');
-        $timeStr = htmlspecialchars($n['time'] ?? 'Just now');
+        $body = htmlspecialchars($n['body'] ?? $n['message'] ?? '');
+        $timeStr = htmlspecialchars($n['time'] ?? $n['createdAt'] ?? 'Just now');
         $type = htmlspecialchars($n['type'] ?? 'GENERAL');
         $targetId = htmlspecialchars($n['targetId'] ?? '');
         $targetTab = htmlspecialchars($n['targetTab'] ?? '');
         $readInt = !empty($n['read']) ? 1 : 0;
 
         $stmt->execute([
-            $id, $title, $body, $timeStr, $type, $targetId, $targetTab, $readInt,
-            $readInt
+            $id, $title, $body, $timeStr, $type, $targetId, $targetTab, $readInt
         ]);
     }
 
