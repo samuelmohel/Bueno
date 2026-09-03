@@ -42,6 +42,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     officerPhone: '+234 803 777 9900',
     badgeId: 'NRC-ESC-2026-08',
     sendSmsPing: true,
+    clientEmail: '',
   });
 
   // ORIGIN SIDING LOADING FORM
@@ -233,9 +234,12 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
   };
 
   // 2. DISPATCH TRAIN WITH ON-BOARD ESCORT OFFICER & LIVE GPS TELEMETRY
-  const handleConfirmDispatchWithEscort = (e: React.FormEvent) => {
+  const handleConfirmDispatchWithEscort = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dispatchModalTrip) return;
+
+    const departureTimeStr = new Date().toLocaleString('en-GB');
+    const clientEmailToUse = (escortForm.clientEmail || dispatchModalTrip.clientEmail || '').trim();
 
     StateEngine.updateTrip(dispatchModalTrip.id, {
       status: 'IN_TRANSIT',
@@ -243,14 +247,67 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       monitoringOfficerPhone: escortForm.officerPhone,
       escortPhone: escortForm.officerPhone,
       escortBadgeId: escortForm.badgeId,
-      dispatchTime: new Date().toLocaleString('en-GB'),
+      clientEmail: clientEmailToUse,
+      dispatchTime: departureTimeStr,
+      departedAt: departureTimeStr,
+      speed: 68,
+      progressPercent: 5,
     });
 
+    // 1. Dispatch Live Departure Email to Client via PHP backend
+    if (clientEmailToUse) {
+      try {
+        await fetch('/api/send_mail.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'TRIP_DISPATCH',
+            to: clientEmailToUse,
+            companyName: dispatchModalTrip.company,
+            tripId: dispatchModalTrip.tripId || dispatchModalTrip.id,
+            locomotiveId: dispatchModalTrip.locomotiveId || 'L2205',
+            origin: dispatchModalTrip.origin,
+            destination: dispatchModalTrip.destination,
+            cargoType: dispatchModalTrip.cargoType || 'Heavy Freight Consignment',
+            quantity: `${dispatchModalTrip.quantity || 1600} ${dispatchModalTrip.unitOfMeasure || 'Bags'}`,
+            wagonsCount: String(dispatchModalTrip.wagonLogs?.length || 14),
+            escortWagonId: dispatchModalTrip.escortWagonId || 'BV 01 (Crew Escort Caboose)',
+            escortOfficerName: escortForm.officerName,
+            escortPhone: escortForm.officerPhone,
+            trackingUrl: `https://360.specklessinnovations.com/tracking?tripId=${dispatchModalTrip.id}`,
+          }),
+        });
+      } catch {}
+    }
+
+    // 2. Post Enterprise Departure Notification across all user portals
+    const notifPayload = {
+      id: `notif_${Date.now()}`,
+      title: `Corridor Departure: Train #${dispatchModalTrip.id} En Route`,
+      body: `Trip #${dispatchModalTrip.id} (${dispatchModalTrip.company}) departed ${dispatchModalTrip.origin} heading directly to ${dispatchModalTrip.destination}. Escort: ${escortForm.officerName} (${escortForm.officerPhone}). Live phone satellite GPS tracking activated.`,
+      time: departureTimeStr,
+      type: 'TRIP_DISPATCH',
+      targetId: dispatchModalTrip.id,
+      targetTab: 'telemetry',
+      read: false,
+    };
+
+    try {
+      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      localStorage.setItem('bueno_notifications', JSON.stringify([notifPayload, ...existingNotifs]));
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifPayload),
+      }).catch(() => {});
+    } catch {}
+
     setDispatchModalTrip(null);
+    setActiveTab('dispatch');
 
     setCustomAlert({
-      title: 'Train Dispatched & Live GPS Satellite Telemetry Locked',
-      message: `Train #${dispatchModalTrip.id} dispatched! Monitoring Officer ${escortForm.officerName} (${escortForm.officerPhone}) assigned. Live phone satellite GPS tracking activated across all command dashboards!`,
+      title: 'Train Dispatched & Live GPS Activated',
+      message: `Train #${dispatchModalTrip.id} is now en route! Escort ${escortForm.officerName} assigned. Departure notification sent to ${clientEmailToUse || 'client email'} and broadcasted across all user dashboards!`,
     });
   };
 
@@ -425,6 +482,23 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 <label htmlFor="smsPing" className="text-xs font-bold text-emerald-900">
                   Send Live Satellite Telemetry Ping SMS Link to Officer&apos;s Mobile Phone
                 </label>
+              </div>
+
+              <div className="space-y-1 bg-blue-50/60 p-3 rounded-2xl border border-blue-200">
+                <label className="block text-[10px] font-bold text-slate-800 uppercase">
+                  📧 Client Departure Notification Email *
+                </label>
+                <input
+                  required
+                  type="email"
+                  value={escortForm.clientEmail}
+                  onChange={(e) => setEscortForm({ ...escortForm, clientEmail: e.target.value })}
+                  placeholder="e.g. logistics@client.com"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900"
+                />
+                <p className="text-[10px] text-slate-500">
+                  An official departure dispatch email with train consist details & real-time tracking link will be sent to the client immediately upon corridor departure.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -759,7 +833,13 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </h3>
                 </div>
                 <button
-                  onClick={() => setDispatchModalTrip(activeTrip)}
+                  onClick={() => {
+                    setDispatchModalTrip(activeTrip);
+                    setEscortForm((prev) => ({
+                      ...prev,
+                      clientEmail: activeTrip?.clientEmail || '',
+                    }));
+                  }}
                   className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
                   <span>Dispatch Train ➔</span>

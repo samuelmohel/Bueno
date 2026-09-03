@@ -296,6 +296,22 @@ class StateEngineService {
           }
         }
       }
+
+      // 6. Sync Notifications with Database API
+      const notifsRes = await fetch('/api/notifications.php').catch(() => null);
+      if (notifsRes && notifsRes.ok) {
+        const notifsJson = await notifsRes.json().catch(() => null);
+        if (notifsJson && notifsJson.status === 'success' && Array.isArray(notifsJson.data)) {
+          const localNotifs = this.readStorage('bueno_notifications', []);
+          const notifMap = new Map<string, any>();
+          notifsJson.data.forEach((n: any) => notifMap.set(n.id, n));
+          localNotifs.forEach((n: any) => { if (!notifMap.has(n.id)) notifMap.set(n.id, n); });
+          const mergedNotifs = Array.from(notifMap.values());
+          if (JSON.stringify(mergedNotifs) !== JSON.stringify(localNotifs)) {
+            this.writeStorage('bueno_notifications', mergedNotifs);
+          }
+        }
+      }
     } catch {}
   }
 

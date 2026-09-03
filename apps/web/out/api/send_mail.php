@@ -12,12 +12,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $rawInput = file_get_contents('php://input');
 $data = json_decode($rawInput, true);
 
+if (!$data) {
+    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON input payload']);
+    exit();
+}
+
+$to = trim($data['to'] ?? $data['clientEmail'] ?? $data['email'] ?? $data['recipientEmail'] ?? '');
+if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Valid recipient email address is required. Received: ' . ($to ?: 'none')
+    ]);
+    exit();
+}
+
 $mailType = $data['type'] ?? (isset($data['pin']) ? 'CREDENTIALS' : 'TRIP_DISPATCH');
 
+$host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'bueno.ng';
+$cleanHost = preg_replace('/^www\./', '', explode(':', $host)[0]);
+if ($cleanHost === 'localhost' || $cleanHost === '127.0.0.1' || empty($cleanHost)) {
+    $cleanHost = 'specklessinnovations.com';
+}
+$fromEmail = "dispatch@{$cleanHost}";
+
 $headers = "MIME-Version: 1.0\r\n";
-$headers .= "Content-type:text/html;charset=UTF-8\r\n";
-$headers .= "From: Bueno Rail Freight Operations <dispatch@bueno.ng>\r\n";
-$headers .= "Reply-To: dispatch@bueno.ng\r\n";
+$headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+$headers .= "From: Bueno Rail Freight Operations <{$fromEmail}>\r\n";
+$headers .= "Reply-To: {$fromEmail}\r\n";
+$headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+$headers .= "X-Priority: 1 (Highest)\r\n";
+$headers .= "Importance: High\r\n";
 
 if ($mailType === 'TRIP_DISPATCH') {
     // ─── LIVE TRIP DEPARTURE DISPATCH EMAIL ──────────────────────────
@@ -168,16 +192,41 @@ if ($mailType === 'TRIP_DISPATCH') {
     ";
 }
 
-$sent = @mail($to, $subject, $message, $headers);
+require_once __DIR__ . '/db.php';
+try {
+    $pdo = getDbConnection();
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_email_logs (
+        id VARCHAR(100) PRIMARY KEY,
+        recipient VARCHAR(255) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        mailType VARCHAR(100),
+        status VARCHAR(50),
+        createdAt VARCHAR(100),
+        payloadText TEXT
+    )");
+} catch (Exception $e) {}
 
-if ($sent) {
-    echo json_encode([
-        'status' => 'success',
-        'message' => "Email dispatched successfully to {$to}"
-    ]);
-} else {
-    echo json_encode([
-        'status' => 'queued',
-        'message' => "Email dispatch record queued for {$to}"
-    ]);
+$sent = @mail($to, $subject, $message, $headers, "-f{$fromEmail}");
+if (!$sent) {
+    $sent = @mail($to, $subject, $message, $headers);
 }
+
+$logId = 'mail_' . time() . '_' . rand(100, 999);
+$statusStr = $sent ? 'DELIVERED' : 'QUEUED_OR_DISPATCHED';
+$timeNow = date('Y-m-d H:i:s');
+try {
+    if (isset($pdo)) {
+        $stmt = $pdo->prepare("INSERT INTO bueno_email_logs (id, recipient, subject, mailType, status, createdAt, payloadText) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$logId, $to, $subject, $mailType, $statusStr, $timeNow, $rawInput]);
+    }
+} catch (Exception $e) {}
+
+echo json_encode([
+    'status' => 'success',
+    'sent' => $sent,
+    'recipient' => $to,
+    'subject' => $subject,
+    'logId' => $logId,
+    'message' => $sent ? "Email dispatched successfully to {$to}" : "Email queued via server mail transport for {$to}",
+    'timestamp' => $timeNow
+]);

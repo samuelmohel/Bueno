@@ -50,7 +50,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     const companyTrips = allTrips.filter(
       (t) =>
         (t.company && t.company.toLowerCase().includes(companyName.toLowerCase())) ||
-        (t.companyName && t.companyName.toLowerCase().includes(companyName.toLowerCase()))
+        (t.companyName && t.companyName.toLowerCase().includes(companyName.toLowerCase())) ||
+        (t.clientEmail && clientEmail && t.clientEmail.toLowerCase() === clientEmail.toLowerCase())
     );
     setTrips(companyTrips);
 
