@@ -653,10 +653,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     };
     syncUser();
 
+    StateEngine.syncRemote();
+    const interval = setInterval(() => {
+      StateEngine.syncRemote();
+      syncData();
+    }, 4000);
+
     window.addEventListener('storage', syncData);
     window.addEventListener('bueno_state_updated', syncData);
     window.addEventListener('bueno_user_updated', syncUser);
     return () => {
+      clearInterval(interval);
       window.removeEventListener('storage', syncData);
       window.removeEventListener('bueno_state_updated', syncData);
       window.removeEventListener('bueno_user_updated', syncUser);
