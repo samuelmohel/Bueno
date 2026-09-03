@@ -5227,19 +5227,11 @@ function LegacyAdminPortalInline({ user, onSignOut }: { user: any; onSignOut: ()
 
   useEffect(() => {
     const syncData = async () => {
-      // Automatic trip purge trigger for clean analytics restart
-      if (typeof window !== 'undefined' && !localStorage.getItem('bueno_trips_purged_v5')) {
-        localStorage.setItem('bueno_trips', '[]');
-        localStorage.setItem('bueno_trips_purged_v5', 'true');
-        setTrips([]);
-        try { fetch('/api/trips.php?purge=true'); } catch {}
-      }
-
       setDeals(tryParse('bueno_deals', SEED_DEALS));
       setWagons(tryParse('bueno_wagons', SEED_WAGONS));
 
       // Fetch Trips from DB
-      if (typeof window !== 'undefined' && localStorage.getItem('bueno_trips_purged_v5')) {
+      if (typeof window !== 'undefined') {
         try {
           const res = await fetch('/api/trips.php');
           if (res.ok) {

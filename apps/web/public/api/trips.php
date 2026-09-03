@@ -4,13 +4,7 @@ require_once __DIR__ . '/db.php';
 $pdo = getDbConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 
-if (isset($_GET['purge']) && $_GET['purge'] === 'true') {
-    try {
-        $pdo->exec("DELETE FROM bueno_trips");
-    } catch (Exception $e) {}
-    echo json_encode(['status' => 'success', 'message' => 'All former trips purged from database']);
-    exit();
-}
+// Trips database access
 
 if ($method === 'GET') {
     $tripId = $_GET['id'] ?? $_GET['tripId'] ?? '';
