@@ -8,6 +8,7 @@ import {
   TAB_REGISTRY,
 } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import { TripDossierModal } from '@/components/TripDossierModal';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
@@ -434,6 +435,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [registerWagonModal, setRegisterWagonModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [selectedAuditTrip, setSelectedAuditTrip] = useState<any | null>(null);
+  const [selectedDossierTrip, setSelectedDossierTrip] = useState<any | null>(null);
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   const [permissionsSaveSuccess, setPermissionsSaveSuccess] = useState(false);
 
@@ -2549,7 +2551,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {/* ─── TAB 3: LIVE TELEMETRY & SATELLITE GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6 font-sans">
-            <LiveGpsMap trip={trips.find((t) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
+            <LiveGpsMap trips={trips} />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {trips.map((trip) => (
@@ -2559,9 +2561,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.id}</span>
                       <h3 className="text-base font-black text-slate-900">{trip.company || 'Industrial Consignee'}</h3>
                     </div>
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase">
-                      {trip.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedDossierTrip(trip)}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>📄 View Dossier</span>
+                      </button>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase">
+                        {trip.status}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 text-xs text-center">
@@ -3841,6 +3851,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         )}
         </main>
       </div>
+
+      {selectedDossierTrip && (
+        <TripDossierModal
+          trip={selectedDossierTrip}
+          onClose={() => setSelectedDossierTrip(null)}
+        />
+      )}
     </div>
   );
 }

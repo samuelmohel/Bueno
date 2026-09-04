@@ -5,6 +5,7 @@ import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { NotificationBell } from '@/components/NotificationBell';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
+import { TripDossierModal } from '@/components/TripDossierModal';
 
 // COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
@@ -22,6 +23,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const [trips, setTrips] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
+  const [selectedDossierTrip, setSelectedDossierTrip] = useState<any | null>(null);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -547,7 +549,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {/* ─── TAB 2: LIVE TELEMETRY & GPS ─── */}
         {activeTab === 'telemetry' && (
           <div className="space-y-6">
-            <LiveGpsMap trip={activeTrip} />
+            <LiveGpsMap trip={activeTrip} trips={trips} />
 
             {trips.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans">
@@ -596,6 +598,15 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                               <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || '70'} {unit})</span>
                             </div>
                           ))}
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex justify-end">
+                          <button
+                            onClick={() => setSelectedDossierTrip(trip)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span>📄 View Official Trip Dossier & Report</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -885,6 +896,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         <OfficialInvoiceModal
           invoice={selectedInvoiceForPrint}
           onClose={() => setSelectedInvoiceForPrint(null)}
+        />
+      )}
+
+      {/* ─── OFFICIAL COMPLETE TRIP DOSSIER MODAL ─── */}
+      {selectedDossierTrip && (
+        <TripDossierModal
+          trip={selectedDossierTrip}
+          onClose={() => setSelectedDossierTrip(null)}
         />
       )}
     </div>

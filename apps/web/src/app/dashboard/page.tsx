@@ -10,6 +10,7 @@ import { CustomerPortal } from '@/components/portals/CustomerPortal';
 import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
 import { AdminPortal } from '@/components/portals/AdminPortal';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import { TripDossierModal } from '@/components/TripDossierModal';
 
 /* ─────────────────────────────────────────────────────────
    MASTER DATA & STATIONS
@@ -2265,10 +2266,11 @@ function Shell({
    PORTAL 1 — CARGO OFFICER
 ═══════════════════════════════════════════════════════════ */
 function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds' | 'telemetry' | 'manifest'>('deals');
+  const [view, setView] = useState<'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'wagons' | 'funds' | 'telemetry'>('deals');
   const [menuOpen, setMenuOpen] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
+  const [selectedDossierTrip, setSelectedDossierTrip] = useState<any | null>(null);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
@@ -2325,8 +2327,8 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
 
   const myDeals          = deals.filter((d: any) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED');
   const myTrips          = trips;
-  const myInTransit      = trips.filter(t => t.status === 'IN_TRANSIT');
-  const myIncomingUnload = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.destination === station);
+  const myInTransit      = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'RETURNING_EMPTY');
+  const myIncomingUnload = trips.filter(t => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'ARRIVED' || t.destination === station);
 
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2491,10 +2493,8 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
     { key: 'in_transit',      label: 'Trips on the Move' },
     { key: 'incoming_unload', label: 'Incoming Consignments (Unload)' },
     { key: 'telemetry',       label: 'Fleet Telemetry & Live GPS' },
-    { key: 'moniya',          label: 'Moniya Container Terminal 🏗️' },
     { key: 'wagons',          label: `Wagon Fleet (${wagons.length})` },
     { key: 'funds',           label: 'Request Funds' },
-    { key: 'manifest',        label: 'Cargo Manifests' },
   ].filter((item) => {
     const capability = TAB_TO_CAPABILITY[item.key] || item.key;
     return rolePerms.includes(capability);
@@ -2590,7 +2590,15 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                         <td className="p-4 text-slate-700">{t.company}</td>
                         <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
                         <td className="p-4 font-mono font-bold text-[#62BC37]">{loaded} / 23</td>
-                        <td className="p-4 font-bold text-[#0E4B88]">Open Wagon Loading ➔</td>
+                        <td className="p-4 flex items-center gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedDossierTrip(t); }}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs"
+                          >
+                            📄 Dossier
+                          </button>
+                          <span className="font-bold text-[#0E4B88]">Open Wagon Loading ➔</span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -2611,7 +2619,15 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                     <p className="font-bold text-slate-900">{t.company}</p>
                     <p className="text-xs font-mono text-slate-700">{t.locomotiveId}</p>
                     <p className="text-xs text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</p>
-                    <p className="text-xs font-bold text-[#62BC37] pt-1">Inspect Audit & Phone GPS ➔</p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedDossierTrip(t); }}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs"
+                      >
+                        📄 Dossier
+                      </button>
+                      <span className="text-xs font-bold text-[#62BC37]">Inspect Audit & Phone GPS ➔</span>
+                    </div>
                   </div>
                 )}
                 data={myInTransit}
@@ -2623,8 +2639,16 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                       <td className="p-4 font-bold text-slate-900">{t.company}</td>
                       <td className="p-4 font-mono text-slate-800">{t.locomotiveId}</td>
                       <td className="p-4 text-slate-600">{sName(t.origin)} ➔ {sName(t.destination)}</td>
-                      <td className="p-4"><Badge text={t.status} color="green" /></td>
-                      <td className="p-4 font-bold text-[#62BC37]">Inspect Audit & Phone GPS ➔</td>
+                      <td className="p-4"><Badge text={t.status} color={t.status === 'RETURNING_EMPTY' ? 'purple' : 'green'} /></td>
+                      <td className="p-4 flex items-center gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedDossierTrip(t); }}
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs"
+                        >
+                          📄 Dossier
+                        </button>
+                        <span className="font-bold text-[#62BC37]">Phone GPS ➔</span>
+                      </td>
                     </tr>
                   ))}
               </TableWrap>
@@ -2646,7 +2670,15 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                       </div>
                       <p className="font-bold text-slate-900">{t.company} — {t.cargoType}</p>
                       <p className="text-xs text-slate-600">Origin: {sName(t.origin)} | Unloaded: {unloadedCount} / {totalWagons || 23}</p>
-                      <button onClick={() => setSelectedUnloadTripId(t.id)} className="w-full bg-purple-600 text-white font-bold text-xs py-2 rounded-xl mt-1 shadow-sm">Unload Consignment ➔</button>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() => setSelectedDossierTrip(t)}
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-2 rounded-xl shadow-xs"
+                        >
+                          📄 Dossier
+                        </button>
+                        <button onClick={() => setSelectedUnloadTripId(t.id)} className="w-full bg-purple-600 text-white font-bold text-xs py-2 rounded-xl shadow-sm">Unload Consignment ➔</button>
+                      </div>
                     </div>
                   );
                 }}
@@ -2663,7 +2695,15 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                         <td className="p-4 text-slate-700">{t.company} — {t.cargoType}</td>
                         <td className="p-4 font-mono font-bold text-slate-900">{unloadedCount} / {totalWagons || 23} Unloaded</td>
                         <td className="p-4"><Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} /></td>
-                        <td className="p-4"><button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Unload Consignment ➔</button></td>
+                        <td className="p-4 flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedDossierTrip(t)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs"
+                          >
+                            📄 Dossier
+                          </button>
+                          <button onClick={() => setSelectedUnloadTripId(t.id)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm">Unload Consignment ➔</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -2761,8 +2801,6 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
             </div>
           )}
 
-          {view === 'moniya' && <MoniyaContainerPortal user={user} />}
-
           {view === 'funds' && (
             <Section title="Request Funds" subtitle="Click any request row to view details, progression, and Q&A conversation" action={<button onClick={() => setFundsModal(true)} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm">+ Request Funds</button>}>
               <TableWrap
@@ -2796,7 +2834,14 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
 
           {view === 'telemetry' && (
             <div className="space-y-6 font-sans">
-              <LiveGpsMap trip={trips.find((t: any) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || trips[0]} />
+              <LiveGpsMap
+                trips={trips}
+                onSelectTrip={(t) => {}}
+                onArrivalUnload={(t) => {
+                  setSelectedUnloadTripId(t.id);
+                  setView('incoming_unload');
+                }}
+              />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {trips.map((trip: any) => (
@@ -2806,7 +2851,15 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                         <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.tripId || trip.id}</span>
                         <h4 className="text-sm font-black text-slate-900">{trip.company}</h4>
                       </div>
-                      <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'amber' : trip.status === 'COMPLETED' ? 'green' : 'blue'} />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedDossierTrip(trip)}
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>📄 Dossier</span>
+                        </button>
+                        <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'amber' : trip.status === 'COMPLETED' ? 'green' : trip.status === 'RETURNING_EMPTY' ? 'purple' : 'blue'} />
+                      </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
@@ -2818,36 +2871,11 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
               </div>
             </div>
           )}
-
-          {view === 'manifest' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 font-sans">
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
-                <h3 className="text-base font-black text-slate-900">Cargo Loading & Unloading Tally Audits</h3>
-              </div>
-
-              <div className="space-y-3 font-mono text-xs">
-                {trips.map((t: any) => (
-                  <div key={t.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap justify-between items-center gap-3">
-                    <div>
-                      <span className="text-slate-400 font-bold text-[10px] uppercase">{t.tripId || t.id}</span>
-                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company}</h4>
-                      <p className="text-slate-500 font-sans text-xs">
-                        {sName(t.origin)} ➔ {sName(t.destination)} • {t.wagonLogs?.length || 0} Wagons Loaded • Caboose: {t.escortWagonId || 'BV 01'}
-                      </p>
-                    </div>
-                    <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs">
-                      Print Manifest (PDF)
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
 
       {selectedReq && <FundRequestDetailModal req={selectedReq} user={user} onClose={() => setSelectedReq(null)} onSaveRequests={saveRequests} allRequests={requests} />}
+      {selectedDossierTrip && <TripDossierModal trip={selectedDossierTrip} onClose={() => setSelectedDossierTrip(null)} />}
       <CustomAlertModal isOpen={!!customAlert} message={customAlert?.message || null} title={customAlert?.title} onClose={() => setCustomAlert(null)} />
       {addWagonModal && (
         <AddWagonModal
@@ -2912,7 +2940,22 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lc}>Trip No. Reference *</label>
-                  <input required value={fundForm.tripNo} onChange={e => setFundForm({ ...fundForm, tripNo: e.target.value })} placeholder="e.g. TRIP-001" className={`${ic} font-mono`} />
+                  {trips.length > 0 ? (
+                    <select
+                      required
+                      value={fundForm.tripNo}
+                      onChange={e => setFundForm({ ...fundForm, tripNo: e.target.value })}
+                      className={`${ic} font-mono`}
+                    >
+                      {trips.map((t: any) => (
+                        <option key={t.id} value={t.tripId || t.id}>
+                          {t.tripId || t.id} — {t.company} ({t.origin} ➔ {t.destination})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input required value={fundForm.tripNo} onChange={e => setFundForm({ ...fundForm, tripNo: e.target.value })} placeholder="e.g. TRIP-001" className={`${ic} font-mono`} />
+                  )}
                 </div>
                 <div>
                   <label className={lc}>Vessel No. Reference *</label>
@@ -4301,6 +4344,87 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
     setTimeout(() => onBack(), 1800);
   };
 
+  const dispatchEmptyReturnRun = () => {
+    const now = new Date();
+    const completedTimestamp = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const returnTripId = `${trip.tripId || trip.id}-RET`;
+
+    const totalDamagedUnits = logs.reduce((acc: number, w: any) => acc + (Number(w.damageQty) || 0), 0);
+    const totalBurstBags = logs.reduce((acc: number, w: any) => acc + (Number(w.burstBags) || 0), 0);
+    const allComplaintNotes = Array.from(new Set(logs.map((w: any) => w.complaintNotes).filter(Boolean)));
+
+    const completedLadenTrip = {
+      ...trip,
+      status: 'COMPLETED',
+      completedAt: completedTimestamp,
+      unloadingOfficerName: user.fullName,
+      wagonLogs: logs,
+      damages: {
+        damagedUnits: totalDamagedUnits,
+        burstBags: totalBurstBags,
+        complaintNotes: allComplaintNotes.join('; '),
+      },
+    };
+
+    const emptyReturnTrip = {
+      id: returnTripId,
+      tripId: returnTripId,
+      tripSequenceNumber: trips.length + 1,
+      dealId: `EMPTY-BACKHAUL-${trip.id}`,
+      locomotiveId: trip.locomotiveId || 'L2205',
+      driverName: trip.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
+      crewMembers: trip.crewMembers || 'Sani Bello, Timothy Danjuma',
+      monitoringOfficer: user.fullName,
+      cargoOfficerName: user.fullName,
+      company: 'Bueno Rolling Stock (Empty Repositioning)',
+      origin: trip.destination,
+      destination: trip.origin,
+      cargoType: 'Empty Rolling Stock (Repositioning)',
+      quantity: 0,
+      targetWagonsCount: logs.length,
+      status: 'RETURNING_EMPTY',
+      isReturnLeg: true,
+      parentTripId: trip.id,
+      createdAt: completedTimestamp,
+      wagonLogs: logs.map((w: any) => ({
+        ...w,
+        status: 'EMPTY',
+        unloadStatus: 'UNLOADED',
+        bagsCount: 0,
+      })),
+      curLat: 7.4610,
+      curLng: 3.9470,
+      speed: 52,
+      progressPercent: 5,
+    };
+
+    const updated = trips.map((t: any) => t.id === trip.id ? completedLadenTrip : t);
+    const allWithReturn = [emptyReturnTrip, ...updated];
+    onSaveTrips(allWithReturn);
+
+    try {
+      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
+      const loadedWagonIds = new Set(logs.map((w: any) => w.wagonId));
+      const updatedWagons = storedWagons.map((w: any) => {
+        if (loadedWagonIds.has(w.id)) {
+          return { ...w, status: 'IN_TRANSIT', currentStation: trip.destination };
+        }
+        return w;
+      });
+      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
+
+    fetch('/api/trips.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(emptyReturnTrip) }).catch(() => {});
+    fetch('/api/trips.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(completedLadenTrip) }).catch(() => {});
+
+    setCustomAlert({
+      title: 'Empty Return Run Dispatched 🔄',
+      message: `Consignment ${trip.tripId} successfully COMPLETED!\n\nEmpty Return Trip ${returnTripId} dispatched from ${sName(trip.destination)} back to ${sName(trip.origin)}.\n\nLocomotive #${emptyReturnTrip.locomotiveId} is now tracked on live GPS heading back to base for the next loading batch!`,
+    });
+    setTimeout(() => onBack(), 2000);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -4423,9 +4547,14 @@ function TripUnloadWagonView({ tripId, trips, user, onBack, onSaveTrips }: any) 
         {allUnloaded && (
           <div className="bg-[#62BC37] text-white rounded-2xl p-5 space-y-3 mt-4 shadow-md">
             <p className="text-sm font-bold text-white">All {logs.length} Wagons Successfully Unloaded at {sName(trip.destination)}!</p>
-            <button onClick={completeTrip} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition-all">
-              Complete Consignment & Return Wagons to Fleet Inventory ✓
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={completeTrip} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-lg transition-all cursor-pointer">
+                Complete Consignment & Release Wagons to Yard ✓
+              </button>
+              <button onClick={dispatchEmptyReturnRun} className="w-full bg-indigo-950 hover:bg-indigo-900 border border-indigo-400 text-white font-black text-xs sm:text-sm py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+                <span>🔄 Dispatch Empty Return Run (Back to Base)</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -6741,7 +6870,7 @@ export default function Dashboard() {
 
   const role = user.role;
 
-  if (role === 'CARGO_OFFICER') return <CargoOfficerPortal user={user} onSignOut={signOut} />;
+  if (role === 'CARGO_OFFICER') return <LegacyCargoOfficerPortalInline user={user} onSignOut={signOut} />;
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
 
   // ALL COMMAND & HQ DESKS (CEO, HEAD OF OPERATIONS, HEAD OF FINANCE, ADMIN) SHARE MASTER ADMIN PORTAL

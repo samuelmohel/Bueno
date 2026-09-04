@@ -64,20 +64,47 @@ function getCardinalDirection(angle: number): string {
   return directions[index];
 }
 
-export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
+export function LiveGpsMap({
+  trip: propTrip,
+  trips: propTrips,
+  onSelectTrip,
+  onArrivalUnload,
+}: {
+  trip?: any;
+  trips?: any[];
+  onSelectTrip?: (t: any) => void;
+  onArrivalUnload?: (t: any) => void;
+}) {
   const [localTrip, setLocalTrip] = useState<any>(propTrip);
+  const [allTrips, setAllTrips] = useState<any[]>(propTrips || (() => StateEngine.getTrips()));
+
+  useEffect(() => {
+    if (propTrips && propTrips.length > 0) {
+      setAllTrips(propTrips);
+    } else {
+      setAllTrips(StateEngine.getTrips());
+    }
+  }, [propTrips]);
 
   useEffect(() => {
     if (propTrip) {
       setLocalTrip(propTrip);
       return;
     }
-    const all = StateEngine.getTrips();
-    const active = all.find((t: any) => t.status === 'IN_TRANSIT' || t.status === 'LOADING') || all[0];
+    const all = propTrips || StateEngine.getTrips();
+    const active = all.find((t: any) => t.status === 'IN_TRANSIT' || t.status === 'LOADING' || t.status === 'RETURNING_EMPTY') || all[0];
     setLocalTrip(active);
-  }, [propTrip]);
+  }, [propTrip, propTrips]);
 
   const trip = localTrip;
+
+  const handleTripChange = (selectedId: string) => {
+    const chosen = allTrips.find((t: any) => t.id === selectedId || t.tripId === selectedId);
+    if (chosen) {
+      setLocalTrip(chosen);
+      if (onSelectTrip) onSelectTrip(chosen);
+    }
+  };
 
   // Station Coordinates Resolution
   const originCode = (trip?.origin || 'EWK').toUpperCase();
@@ -416,7 +443,12 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
 
-      if (!leafletMapRef.current && mapContainerRef.current) {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+
+      if (mapContainerRef.current) {
         const trainPos: [number, number] = [coords.lat, coords.lng];
         const originPos: [number, number] = [originStation.lat, originStation.lng];
         const destPos: [number, number] = [destStation.lat, destStation.lng];
@@ -540,6 +572,78 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
           </button>
         </div>
       </div>
+
+      {/* ─── DYNAMIC MULTI-TRIP SELECTOR BAR ─── */}
+      <div className="bg-slate-800 p-3.5 px-5 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+            <span>🎯</span> Track Trip:
+          </span>
+          <select
+            value={trip?.id || trip?.tripId || ''}
+            onChange={(e) => handleTripChange(e.target.value)}
+            className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-[#62BC37] focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
+          >
+            {allTrips.map((t: any) => {
+              const isRet = t.status === 'RETURNING_EMPTY' || t.isReturnLeg;
+              return (
+                <option key={t.id} value={t.id}>
+                  {isRet ? '🔄 [EMPTY RETURN] ' : '🚂 '}
+                  {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-full uppercase border ${
+            trip?.status === 'RETURNING_EMPTY'
+              ? 'bg-amber-950 text-amber-300 border-amber-800'
+              : trip?.status === 'IN_TRANSIT'
+              ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+              : trip?.status === 'ARRIVED' || progress >= 98 || distanceKm <= 2
+              ? 'bg-purple-950 text-purple-300 border-purple-800'
+              : 'bg-blue-950 text-blue-300 border-blue-800'
+          }`}>
+            {trip?.status === 'RETURNING_EMPTY' ? '🔄 EMPTY REPOSITIONING' : trip?.status || 'ACTIVE'}
+          </span>
+          <span className="text-slate-300 text-xs font-mono font-bold bg-slate-900 px-3 py-1 rounded-xl border border-slate-700">
+            {distanceKm} km remaining
+          </span>
+        </div>
+      </div>
+
+      {/* ─── DESTINATION ARRIVAL GEOFENCE ALERT ─── */}
+      {(distanceKm <= 2 || progress >= 98 || trip?.status === 'ARRIVED') && (
+        <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-b-2 border-purple-500 text-white p-4 px-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center font-black text-xl animate-bounce shrink-0">
+              📍
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                {trip?.status === 'RETURNING_EMPTY'
+                  ? `Empty Locomotive Returned to Origin Base [${destStation.name}]!`
+                  : `Train Arrived at Destination Yard [${destStation.name}]!`}
+              </h4>
+              <p className="text-xs text-purple-200">
+                {trip?.status === 'RETURNING_EMPTY'
+                  ? `Repositioning run complete. Locomotive #${locoId} and rolling stock are ready for the next freight batch.`
+                  : `Consignment ${tripId} is docked at siding. Ready for seal verification and wagon discharge tally.`}
+              </p>
+            </div>
+          </div>
+          {trip?.status !== 'RETURNING_EMPTY' && onArrivalUnload && (
+            <button
+              onClick={() => onArrivalUnload(trip)}
+              className="bg-purple-600 hover:bg-purple-500 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer animate-pulse"
+            >
+              <span>📦 Begin Unloading Consignment ➔</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ─── ON-BOARD MONITORING ESCORT OFFICER BAR ─── */}
       <div className="bg-slate-950 text-white p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 font-sans">
