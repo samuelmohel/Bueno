@@ -326,6 +326,7 @@ class StateEngineService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        keepalive: true,
       }).catch(() => {});
     } catch {}
   }
@@ -333,7 +334,7 @@ class StateEngineService {
   async syncRemote(): Promise<void> {
     if (typeof window === 'undefined') return;
     try {
-      // 1. Sync Deals with Database API (Preserve TRIP_CREATED status)
+      // 1. Sync Deals with Database API (Preserve TRIP_CREATED status & Two-Way Sync)
       const dealsRes = await fetch('/api/deals.php').catch(() => null);
       if (dealsRes && dealsRes.ok) {
         const dealsJson = await dealsRes.json().catch(() => null);
@@ -341,13 +342,16 @@ class StateEngineService {
           const localDeals = this.getDeals();
           const dealMap = new Map<string, any>();
           dealsJson.data.forEach((d: any) => dealMap.set(d.id, d));
+          let hasLocalDealsPush = false;
           localDeals.forEach((localD: any) => {
             const remoteD = dealMap.get(localD.id);
             if (!remoteD) {
               dealMap.set(localD.id, localD);
+              hasLocalDealsPush = true;
             } else {
               if (localD.status === 'TRIP_CREATED' || localD.status === 'COMPLETED' || localD.tripId) {
                 dealMap.set(localD.id, { ...remoteD, ...localD });
+                if (remoteD.status !== localD.status) hasLocalDealsPush = true;
               } else {
                 dealMap.set(localD.id, { ...localD, ...remoteD });
               }
@@ -357,10 +361,13 @@ class StateEngineService {
           if (JSON.stringify(mergedDeals) !== JSON.stringify(localDeals)) {
             this.writeStorage('bueno_deals', mergedDeals);
           }
+          if (hasLocalDealsPush || mergedDeals.length > dealsJson.data.length) {
+            this.postRemote('/api/deals.php', mergedDeals);
+          }
         }
       }
 
-      // 2. Sync Trips with Database API (Deep consist & per-wagon reconciliation)
+      // 2. Sync Trips with Database API (Deep consist & per-wagon reconciliation & Two-Way Push)
       const tripsRes = await fetch('/api/trips.php').catch(() => null);
       if (tripsRes && tripsRes.ok) {
         const tripsJson = await tripsRes.json().catch(() => null);
@@ -382,15 +389,21 @@ class StateEngineService {
             'COMPLETED': 6,
           };
 
+          let hasLocalNewTripsOrUpdates = false;
+
           localTrips.forEach((localT: any) => {
             const remoteT = tripMap.get(localT.id);
             if (!remoteT) {
               tripMap.set(localT.id, localT);
+              hasLocalNewTripsOrUpdates = true;
             } else {
               // Reconcile status according to progression rank (never downgrade)
               const localRank = statusRank[localT.status] || 0;
               const remoteRank = statusRank[remoteT.status] || 0;
               const chosenStatus = remoteRank > localRank ? remoteT.status : (localT.status || remoteT.status);
+              if (localRank > remoteRank) {
+                hasLocalNewTripsOrUpdates = true;
+              }
 
               // Per-wagon deep merge
               const localLogs: any[] = Array.isArray(localT.wagonLogs) ? localT.wagonLogs : [];
@@ -408,10 +421,15 @@ class StateEngineService {
                 const wId = w.wagonId || w.id || `W_${idx}`;
                 if (!wagonIdMap.has(wId)) {
                   wagonIdMap.set(wId, { ...w });
+                  hasLocalNewTripsOrUpdates = true;
                 } else {
                   const existingW = wagonIdMap.get(wId);
                   const isLocalUnloaded = w.unloadStatus === 'UNLOADED' || w.status === 'UNLOADED' || Number(w.burstBags || 0) > 0 || Number(w.damageQty || 0) > 0;
                   const isRemoteUnloaded = existingW.unloadStatus === 'UNLOADED' || existingW.status === 'UNLOADED' || Number(existingW.burstBags || 0) > 0 || Number(existingW.damageQty || 0) > 0;
+
+                  if (isLocalUnloaded && !isRemoteUnloaded) {
+                    hasLocalNewTripsOrUpdates = true;
+                  }
 
                   const mergedWagon = {
                     ...existingW,
@@ -462,6 +480,11 @@ class StateEngineService {
           const mergedTrips = Array.from(tripMap.values());
           if (JSON.stringify(mergedTrips) !== JSON.stringify(localTrips)) {
             this.writeStorage('bueno_trips', mergedTrips);
+          }
+
+          // Two-Way Push: If local had trips or advances missing remotely, push back to SQL database immediately
+          if (hasLocalNewTripsOrUpdates || mergedTrips.length > tripsJson.data.length) {
+            this.postRemote('/api/trips.php', mergedTrips);
           }
         }
       }

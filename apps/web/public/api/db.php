@@ -19,29 +19,61 @@ function getDbConnection() {
     $dbUser = getenv('DB_USER') ?: 'bueno_user';
     $dbPass = getenv('DB_PASS') ?: '';
 
-    try {
-        if ($dbPass !== '') {
+    // Check .env files on server
+    $candidates = [__DIR__ . '/.env', __DIR__ . '/../.env', __DIR__ . '/../../.env', __DIR__ . '/.env.local'];
+    foreach ($candidates as $cand) {
+        if (file_exists($cand) && is_readable($cand)) {
+            $lines = file($cand, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '' || strpos($line, '#') === 0) continue;
+                if (strpos($line, '=') !== false) {
+                    list($k, $v) = explode('=', $line, 2);
+                    $k = trim($k);
+                    $v = trim($v, " \t\n\r\0\x0B\"'");
+                    if ($k === 'DB_HOST') $dbHost = $v;
+                    if ($k === 'DB_NAME') $dbName = $v;
+                    if ($k === 'DB_USER') $dbUser = $v;
+                    if ($k === 'DB_PASS') $dbPass = $v;
+                }
+            }
+        }
+    }
+
+    if ($dbPass !== '') {
+        try {
             $pdo = new PDO("mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4", $dbUser, $dbPass, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
-        } else {
-            $sqlitePath = __DIR__ . '/bueno.sqlite';
-            $pdo = new PDO("sqlite:" . $sqlitePath, null, null, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]);
-        }
-    } catch (PDOException $e) {
+            initTables($pdo);
+            return $pdo;
+        } catch (Exception $e) {}
+    }
+
+    // SQLite local file fallback
+    try {
         $sqlitePath = __DIR__ . '/bueno.sqlite';
         $pdo = new PDO("sqlite:" . $sqlitePath, null, null, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
+        initTables($pdo);
+        return $pdo;
+    } catch (Exception $e) {
+        // SQLite temp dir fallback
+        try {
+            $tempSqlite = sys_get_temp_dir() . '/bueno.sqlite';
+            $pdo = new PDO("sqlite:" . $tempSqlite, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            initTables($pdo);
+            return $pdo;
+        } catch (Exception $e2) {
+            return null;
+        }
     }
-
-    initTables($pdo);
-    return $pdo;
 }
 
 function initTables($pdo) {

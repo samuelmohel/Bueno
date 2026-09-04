@@ -5291,15 +5291,22 @@ function LegacyAdminPortalInline({ user, onSignOut }: { user: any; onSignOut: ()
       setDeals(tryParse('bueno_deals', SEED_DEALS));
       setWagons(tryParse('bueno_wagons', SEED_WAGONS));
 
-      // Fetch Trips from DB
+      // Fetch Trips from DB (Safe deep merge to prevent overwriting local active trips)
       if (typeof window !== 'undefined') {
         try {
           const res = await fetch('/api/trips.php');
           if (res.ok) {
             const json = await res.json();
             if (json.status === 'success' && Array.isArray(json.data)) {
-              setTrips(json.data);
-              localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+              const localTrips = StateEngine.getTrips();
+              const tripMap = new Map<string, any>();
+              json.data.forEach((t: any) => tripMap.set(t.id, t));
+              localTrips.forEach((lt: any) => {
+                if (!tripMap.has(lt.id)) tripMap.set(lt.id, lt);
+              });
+              const merged = Array.from(tripMap.values());
+              setTrips(merged);
+              localStorage.setItem('bueno_trips', JSON.stringify(merged));
             }
           }
         } catch { setTrips(tryParse('bueno_trips', [])); }
@@ -5852,8 +5859,15 @@ function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
         if (res.ok) {
           const json = await res.json();
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setTrips(json.data);
-            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+            const localTrips = StateEngine.getTrips();
+            const tripMap = new Map<string, any>();
+            json.data.forEach((t: any) => tripMap.set(t.id, t));
+            localTrips.forEach((lt: any) => {
+              if (!tripMap.has(lt.id)) tripMap.set(lt.id, lt);
+            });
+            const merged = Array.from(tripMap.values());
+            setTrips(merged);
+            localStorage.setItem('bueno_trips', JSON.stringify(merged));
           }
         }
       } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
@@ -5999,8 +6013,15 @@ function CEOPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
         if (res.ok) {
           const json = await res.json();
           if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            setTrips(json.data);
-            localStorage.setItem('bueno_trips', JSON.stringify(json.data));
+            const localTrips = StateEngine.getTrips();
+            const tripMap = new Map<string, any>();
+            json.data.forEach((t: any) => tripMap.set(t.id, t));
+            localTrips.forEach((lt: any) => {
+              if (!tripMap.has(lt.id)) tripMap.set(lt.id, lt);
+            });
+            const merged = Array.from(tripMap.values());
+            setTrips(merged);
+            localStorage.setItem('bueno_trips', JSON.stringify(merged));
           }
         }
       } catch { setTrips(tryParse('bueno_trips', SEED_TRIPS)); }
@@ -6720,7 +6741,7 @@ export default function Dashboard() {
 
   const role = user.role;
 
-  if (role === 'CARGO_OFFICER') return <LegacyCargoOfficerPortalInline user={user} onSignOut={signOut} />;
+  if (role === 'CARGO_OFFICER') return <CargoOfficerPortal user={user} onSignOut={signOut} />;
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') return <CustomerPortal user={user} onSignOut={signOut} />;
 
   // ALL COMMAND & HQ DESKS (CEO, HEAD OF OPERATIONS, HEAD OF FINANCE, ADMIN) SHARE MASTER ADMIN PORTAL

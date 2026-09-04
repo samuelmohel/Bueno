@@ -106,6 +106,10 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
   const [smsSent, setSmsSent] = useState<boolean>(false);
 
   const watchIdRef = useRef<number | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const leafletMapRef = useRef<any>(null);
+  const trainMarkerRef = useRef<any>(null);
+  const routePolylineRef = useRef<any>(null);
 
   // Monitoring Officer Details
   const officer: MonitoringOfficer = {
@@ -398,7 +402,89 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
     };
   }, []);
 
-  // Compute bounding box for OpenStreetMap embed to show both officer and destination
+  // Initialize Interactive Leaflet Map for Real-Time Satellite Tracking
+  useEffect(() => {
+    if (mapMode !== 'MAP' || !mapContainerRef.current) return;
+    let isMounted = true;
+
+    import('leaflet').then((L) => {
+      if (!isMounted || !mapContainerRef.current) return;
+
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      if (!leafletMapRef.current && mapContainerRef.current) {
+        const trainPos: [number, number] = [coords.lat, coords.lng];
+        const originPos: [number, number] = [originStation.lat, originStation.lng];
+        const destPos: [number, number] = [destStation.lat, destStation.lng];
+
+        const map = L.map(mapContainerRef.current, {
+          zoomControl: false,
+        }).setView(trainPos, 9);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 18,
+        }).addTo(map);
+
+        // Rail corridor route polyline
+        routePolylineRef.current = L.polyline([originPos, destPos], {
+          color: '#62BC37',
+          weight: 5,
+          dashArray: '8, 8',
+          opacity: 0.9,
+        }).addTo(map);
+
+        // Origin terminal marker
+        L.marker(originPos)
+          .addTo(map)
+          .bindPopup(`<b>Origin Siding:</b><br/>${originStation.name}`);
+
+        // Destination terminal marker
+        L.marker(destPos)
+          .addTo(map)
+          .bindPopup(`<b>Destination Yard:</b><br/>${destStation.name}`);
+
+        // Custom live train locomotive marker with pulse indicator
+        const trainIcon = L.divIcon({
+          html: `
+            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:18px; border:2px solid #62BC37; box-shadow:0 6px 20px rgba(0,0,0,0.6); display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#10B981; display:inline-block;" class="animate-ping"></span>
+              LOCO ${locoId}
+            </div>
+          `,
+          className: 'custom-live-loco-marker',
+          iconSize: [120, 32],
+          iconAnchor: [60, 16],
+        });
+
+        trainMarkerRef.current = L.marker(trainPos, { icon: trainIcon, zIndexOffset: 1000 }).addTo(map);
+        leafletMapRef.current = map;
+
+        const bounds = L.latLngBounds([originPos, destPos, trainPos]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }).catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mapMode, originStation, destStation, locoId]);
+
+  // Sync locomotive position on Leaflet Map
+  useEffect(() => {
+    if (trainMarkerRef.current && leafletMapRef.current) {
+      trainMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+      leafletMapRef.current.panTo([coords.lat, coords.lng], { animate: true, duration: 0.4 });
+    }
+  }, [coords]);
+
+  // Compute bounding box for fallback OpenStreetMap embed
   const osmEmbedUrl = useMemo(() => {
     const minLat = Math.min(coords.lat, destStation.lat) - 0.08;
     const maxLat = Math.max(coords.lat, destStation.lat) + 0.08;
@@ -546,19 +632,10 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
       {/* ─── LIVE INTERACTIVE MAP OR RADAR CANVAS ─── */}
       <div className="relative bg-slate-950 h-96 w-full overflow-hidden border-b border-slate-800">
         {mapMode === 'MAP' ? (
-          /* REAL OPENSTREETMAP INTERACTIVE VIEW */
+          /* REAL LEAFLET OPENSTREETMAP INTERACTIVE VIEW */
           <div className="w-full h-full relative">
-            <iframe
-              title="Live OpenStreetMap Tracking"
-              width="100%"
-              height="100%"
-              frameBorder="0"
-              scrolling="no"
-              marginHeight={0}
-              marginWidth={0}
-              src={osmEmbedUrl}
-              className="w-full h-full opacity-90 filter contrast-105"
-            />
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
 
             {/* LIVE OVERLAY COMPASS & TELEMETRY HUD */}
             <div className="absolute top-4 left-4 bg-slate-900/95 backdrop-blur-md p-3.5 rounded-2xl border border-slate-800 text-white space-y-1.5 text-xs shadow-2xl z-10 max-w-xs">
