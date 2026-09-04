@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { NotificationBell } from '@/components/NotificationBell';
+import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 
 // COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
@@ -19,6 +20,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('negotiations');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [trips, setTrips] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
   const [clientRequests, setClientRequests] = useState<any[]>([]);
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -54,6 +57,15 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         (t.clientEmail && clientEmail && t.clientEmail.toLowerCase() === clientEmail.toLowerCase())
     );
     setTrips(companyTrips);
+
+    const allInvoices = StateEngine.getInvoices();
+    const companyInvoices = allInvoices.filter(
+      (inv: any) =>
+        (inv.companyName && (inv.companyName.toLowerCase().includes(companyName.toLowerCase()) || companyName.toLowerCase().includes(inv.companyName.toLowerCase()))) ||
+        (inv.clientEmail && clientEmail && inv.clientEmail.toLowerCase() === clientEmail.toLowerCase()) ||
+        companyTrips.some((t: any) => t.id === inv.tripId || t.tripId === inv.tripId)
+    );
+    setInvoices(companyInvoices.length > 0 ? companyInvoices : allInvoices);
 
     const allReqs = tryParse('bueno_client_requests', []);
     const companyReqs = allReqs.filter(
@@ -633,34 +645,211 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           </div>
         )}
 
-        {/* ─── TAB 4: FREIGHT INVOICES ─── */}
-        {activeTab === 'billing' && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
-            <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Invoices</span>
-              <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Freight Invoices & Ledger</h3>
-            </div>
+        {/* ─── TAB 4: FREIGHT INVOICES & SETTLEMENT ─── */}
+        {activeTab === 'billing' && (() => {
+          const clientGross = invoices.reduce((acc, inv) => acc + (Number(inv.subtotal) || 0), 0);
+          const clientDamages = invoices.reduce((acc, inv) => acc + (Number(inv.damageDeduction) || 0), 0);
+          const clientBurstBags = invoices.reduce((acc, inv) => acc + (Number(inv.damageUnits) || 0), 0);
+          const clientNet = invoices.reduce((acc, inv) => acc + (Number(inv.totalAmount) || 0), 0);
+          const clientPaid = invoices.reduce((acc, inv) => acc + (Number(inv.amountPaid) || 0), 0);
+          const clientBalance = invoices.reduce((acc, inv) => acc + (Number(inv.balance) || 0), 0);
 
-            <div className="space-y-3 font-mono text-xs">
-              {trips.map((t) => {
-                const amount = (t.quantity || 1600) * (t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200);
-                return (
-                  <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
-                    <div>
-                      <span className="text-slate-400 font-bold text-[10px] uppercase">INV-{t.id}</span>
-                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
-                      <p className="text-slate-500 font-sans text-xs">{t.quantity} {t.unitOfMeasure || 'Bags'} Tariff</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-black text-slate-900 text-sm block">₦{amount.toLocaleString()}</span>
-                      <span className="bg-emerald-100 text-emerald-800 font-bold text-[9px] px-2 py-0.5 rounded uppercase">DISBURSED</span>
-                    </div>
+          return (
+            <div className="space-y-6 font-sans">
+              {/* Header & Description */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                      Commercial Client Billing Desk
+                    </span>
+                    <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                      Verified Tax Invoices & Claims
+                    </span>
                   </div>
-                );
-              })}
+                  <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Commercial Freight Invoices & Remittances
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Itemized tax invoices with automated transit burst-bag indemnity deductions and official audited PDF printouts.
+                  </p>
+                </div>
+              </div>
+
+              {/* KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Gross Freight Billed</span>
+                  <p className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
+                    ₦{clientGross.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400">Total freight tariff</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-600 block font-mono">Transit Damage Claims</span>
+                    <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
+                      {clientBurstBags} Burst Bags
+                    </span>
+                  </div>
+                  <p className="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">
+                    -₦{clientDamages.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-rose-500">Agreed indemnity deduction</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 block font-mono">Net Payable Freight</span>
+                  <p className="text-base sm:text-lg font-black text-emerald-700 font-mono mt-0.5">
+                    ₦{clientNet.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-emerald-600 font-bold">
+                    ₦{clientPaid.toLocaleString()} Remitted
+                  </span>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-amber-700 block font-mono">Outstanding Balance Due</span>
+                  <p className={`text-base sm:text-lg font-black font-mono mt-0.5 ${clientBalance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    ₦{clientBalance.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400">
+                    {clientBalance <= 0 ? 'All invoices settled in full' : 'Net 14 settlement pending'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Invoices List Table */}
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden font-sans space-y-4 p-6">
+                <div className="border-b border-slate-100 pb-3">
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Audited Tax Invoices</span>
+                  <h4 className="text-base font-black text-slate-900">Heavy Rail Freight Commercial Invoices</h4>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-[10px] font-mono uppercase text-slate-400 bg-slate-50/50">
+                        <th className="py-3 px-3">Invoice & Date</th>
+                        <th className="py-3 px-3">Corridor Route</th>
+                        <th className="py-3 px-3">Cargo Spec</th>
+                        <th className="py-3 px-3 text-right">Gross Tariff</th>
+                        <th className="py-3 px-3 text-right">Damage Claim</th>
+                        <th className="py-3 px-3 text-right">Net Payable</th>
+                        <th className="py-3 px-3 text-right">Amount Remitted</th>
+                        <th className="py-3 px-3 text-right">Balance Due</th>
+                        <th className="py-3 px-3 text-center">Status</th>
+                        <th className="py-3 px-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-xs font-mono divide-y divide-slate-100">
+                      {invoices.map((inv: any) => {
+                        const isSettled = inv.status === 'SETTLED' || Number(inv.balance || 0) <= 0;
+                        const isPartiallyPaid = inv.status === 'PARTIALLY_PAID' || (Number(inv.amountPaid || 0) > 0 && Number(inv.balance || 0) > 0);
+                        return (
+                          <tr key={inv.id} className="hover:bg-slate-50/60 transition-all">
+                            <td className="py-3.5 px-3">
+                              <span className="font-bold text-slate-900 block">{inv.invoiceNumber || inv.id}</span>
+                              <span className="text-[10px] text-slate-400 block">{inv.issueDate}</span>
+                              <span className="text-[9px] text-[#62BC37] font-bold">Trip: {inv.tripId}</span>
+                            </td>
+                            <td className="py-3.5 px-3">
+                              <span className="font-sans font-bold text-slate-900 block">{inv.route}</span>
+                              <span className="text-[10px] text-slate-400 font-sans">Standard Gauge Line</span>
+                            </td>
+                            <td className="py-3.5 px-3">
+                              <span className="font-sans text-slate-700 block">{inv.cargoType}</span>
+                              <span className="text-[10px] text-slate-400">
+                                {Number(inv.totalBags || 0).toLocaleString()} Bags ({Number(inv.totalTonnes || 0).toLocaleString()} MT)
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-3 text-right font-bold text-slate-700">
+                              ₦{Number(inv.subtotal || 0).toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-3 text-right">
+                              {Number(inv.damageUnits || 0) > 0 ? (
+                                <div>
+                                  <span className="text-rose-600 font-black block">
+                                    -₦{Number(inv.damageDeduction || 0).toLocaleString()}
+                                  </span>
+                                  <span className="text-[9px] text-rose-500 font-bold bg-rose-50 px-1 rounded">
+                                    💥 {inv.damageUnits} Burst Bags Deducted
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-emerald-600 font-bold text-[10px]">✓ Zero Losses</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-3 text-right font-black text-slate-900">
+                              ₦{Number(inv.totalAmount || 0).toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-3 text-right font-bold text-emerald-700">
+                              ₦{Number(inv.amountPaid || 0).toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-3 text-right font-black">
+                              <span className={Number(inv.balance || 0) > 0 ? 'text-rose-600' : 'text-slate-400'}>
+                                ₦{Number(inv.balance || 0).toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-3 text-center">
+                              <span
+                                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                  isSettled
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : isPartiallyPaid
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {inv.status || 'ISSUED'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-3 text-center">
+                              <button
+                                onClick={() => setSelectedInvoiceForPrint(inv)}
+                                className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
+                              >
+                                View PDF 📄
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Wire Remittance Guidance Box */}
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 text-xs font-sans space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <span className="text-base">🏦</span>
+                  <h4 className="font-black text-slate-900">Bank Wire Remittance Instructions</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-slate-700">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">Primary Corporate Bank</p>
+                    <p className="font-bold text-slate-900 mt-1">Guaranty Trust Bank (GTBank) PLC</p>
+                    <p>Account Name: <strong>Bueno Logistics Limited</strong></p>
+                    <p>Account Number: <strong className="text-emerald-700 text-sm">0882190341</strong></p>
+                    <p>Sort Code: 058-152062</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-100">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold">Alternate Corporate Bank</p>
+                    <p className="font-bold text-slate-900 mt-1">Zenith Bank PLC</p>
+                    <p>Account Name: <strong>Bueno Logistics Limited</strong></p>
+                    <p>Account Number: <strong className="text-emerald-700 text-sm">1229044810</strong></p>
+                    <p>Branch: Commercial Freight Division</p>
+                  </div>
+                </div>
+                <p className="text-slate-500 text-[11px]">
+                  📌 <strong>Important Remittance Note:</strong> Please include your Invoice Number in the payment transfer narration to ensure immediate automated reconciliation by the Bueno Treasury desk.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ─── TAB 5: ACCOUNT SETTINGS ─── */}
         {activeTab === 'account' && (
@@ -690,6 +879,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         )}
       </main>
       </div>
+
+      {/* ─── OFFICIAL PRINTABLE FREIGHT INVOICE MODAL ─── */}
+      {selectedInvoiceForPrint && (
+        <OfficialInvoiceModal
+          invoice={selectedInvoiceForPrint}
+          onClose={() => setSelectedInvoiceForPrint(null)}
+        />
+      )}
     </div>
   );
 }

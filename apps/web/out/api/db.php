@@ -221,29 +221,57 @@ function initTables($pdo) {
         updatedAt VARCHAR(100)
     )");
 
-    // 11. Commercial Invoices Table
+    // 11. Commercial Freight Invoices & Debit Notes Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_invoices (
         id VARCHAR(100) PRIMARY KEY,
         invoiceNumber VARCHAR(100),
+        tripId VARCHAR(100),
         dealId VARCHAR(100),
         companyName VARCHAR(255),
+        clientEmail VARCHAR(255),
         cargoType VARCHAR(255),
         route VARCHAR(255),
         totalBags INT DEFAULT 0,
         totalTonnes REAL DEFAULT 0,
         ratePerTonne REAL DEFAULT 0,
         subtotal REAL DEFAULT 0,
+        damageUnits INT DEFAULT 0,
+        damageDeduction REAL DEFAULT 0,
         tax REAL DEFAULT 0,
         totalAmount REAL DEFAULT 0,
         amountPaid REAL DEFAULT 0,
         balance REAL DEFAULT 0,
         status VARCHAR(50) DEFAULT 'UNPAID',
+        paymentRef VARCHAR(100),
+        damageDetailsJson TEXT,
+        paymentHistoryJson TEXT,
         itemsText TEXT,
         issueDate VARCHAR(100),
-        dueDate VARCHAR(100)
+        dueDate VARCHAR(100),
+        createdAt VARCHAR(100)
     )");
 
-    // 12. GPS Logs Table
+    $invoiceCols = ['tripId', 'clientEmail', 'damageUnits', 'damageDeduction', 'paymentRef', 'damageDetailsJson', 'paymentHistoryJson', 'createdAt'];
+    foreach ($invoiceCols as $c) {
+        try { $pdo->exec("ALTER TABLE bueno_invoices ADD COLUMN {$c} TEXT"); } catch (Exception $e) {}
+    }
+
+    // 12. Direct Trip Operating Costs (COGS) Table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_trip_costs (
+        id VARCHAR(100) PRIMARY KEY,
+        tripId VARCHAR(100) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        vendor VARCHAR(255),
+        amount REAL NOT NULL,
+        voucherNo VARCHAR(100),
+        paymentStatus VARCHAR(50) DEFAULT 'PAID',
+        recordedBy VARCHAR(255),
+        date VARCHAR(100),
+        createdAt VARCHAR(100)
+    )");
+
+    // 13. GPS Logs Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_gps_logs (
         id VARCHAR(100) PRIMARY KEY,
         tripId VARCHAR(100),

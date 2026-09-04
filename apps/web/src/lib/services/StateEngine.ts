@@ -148,6 +148,151 @@ export const SEED_USERS = [
   { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
+export const SEED_INVOICES = [
+  {
+    id: 'INV-TRP-101',
+    invoiceNumber: 'INV-2026-0881',
+    tripId: 'TRP-101',
+    dealId: 'DEAL-88210',
+    companyName: 'Purechem Cement Industries Ltd',
+    clientEmail: 'logistics@purechem.ng',
+    cargoType: 'Elephant Cement (50kg bags)',
+    route: 'Ewekoro ➔ Moniya Siding',
+    totalBags: 1610,
+    totalTonnes: 80.5,
+    ratePerTonne: 160000,
+    subtotal: 12880000,
+    damageUnits: 10,
+    damageDeduction: 80000,
+    tax: 0,
+    totalAmount: 12800000,
+    amountPaid: 12800000,
+    balance: 0,
+    status: 'SETTLED',
+    paymentRef: 'TRF-GTB-883190',
+    damageDetails: [
+      { wagonId: 'PXG 2322', burstBags: 10, notes: '10 burst bags noted during hopper discharge at Moniya Bay 2' }
+    ],
+    paymentHistory: [
+      { type: 'ADVANCE_DEPOSIT (70%)', amount: 9000000, ref: 'TRF-ZENITH-110291', date: '23 Aug 2026' },
+      { type: 'FINAL_SETTLEMENT', amount: 3800000, ref: 'TRF-GTB-883190', date: '26 Aug 2026' }
+    ],
+    issueDate: '24 Aug 2026',
+    dueDate: '07 Sep 2026',
+    createdAt: '24 Aug 2026',
+  },
+  {
+    id: 'INV-TRP-102',
+    invoiceNumber: 'INV-2026-0882',
+    tripId: 'TRP-102',
+    dealId: 'DEAL-99412',
+    companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
+    clientEmail: 'logistics@hbm.ng',
+    cargoType: 'Huaxin Portland Cement (50kg)',
+    route: 'Apapa Maritime Port ➔ Moniya Yard',
+    totalBags: 2300,
+    totalTonnes: 115,
+    ratePerTonne: 160000,
+    subtotal: 18400000,
+    damageUnits: 0,
+    damageDeduction: 0,
+    tax: 0,
+    totalAmount: 18400000,
+    amountPaid: 12880000,
+    balance: 5520000,
+    status: 'PARTIALLY_PAID',
+    paymentRef: 'TRF-UBA-551029',
+    damageDetails: [],
+    paymentHistory: [
+      { type: 'ADVANCE_DEPOSIT (70%)', amount: 12880000, ref: 'TRF-UBA-551029', date: '25 Aug 2026' }
+    ],
+    issueDate: '26 Aug 2026',
+    dueDate: '09 Sep 2026',
+    createdAt: '26 Aug 2026',
+  },
+];
+
+export const SEED_TRIP_COSTS = [
+  {
+    id: 'CST-101-1',
+    tripId: 'TRP-101',
+    category: 'NRC_TRACK_ACCESS',
+    title: 'NRC Standard Gauge Corridor Track Access Toll (Ewekoro ➔ Moniya)',
+    vendor: 'Nigerian Railway Corporation (NRC)',
+    amount: 1450000,
+    voucherNo: 'NRC-TOLL-2026-081',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '24 Aug 2026',
+    createdAt: '24 Aug 2026',
+  },
+  {
+    id: 'CST-101-2',
+    tripId: 'TRP-101',
+    category: 'AGO_FUEL',
+    title: 'Locomotive L2205 AGO Diesel Fueling (2,400 Liters @ ₦1,250/L)',
+    vendor: 'TotalEnergies Depot Apapa',
+    amount: 3000000,
+    voucherNo: 'AGO-VCH-99120',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '24 Aug 2026',
+    createdAt: '24 Aug 2026',
+  },
+  {
+    id: 'CST-101-3',
+    tripId: 'TRP-101',
+    category: 'CREW_ESCORT',
+    title: 'Train Driver, Assistant & Armed Police Escort Duty Stipend',
+    vendor: 'NRC Operations & Security Detachment',
+    amount: 320000,
+    voucherNo: 'NRC-ESC-9081',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '24 Aug 2026',
+    createdAt: '24 Aug 2026',
+  },
+  {
+    id: 'CST-102-1',
+    tripId: 'TRP-102',
+    category: 'NRC_TRACK_ACCESS',
+    title: 'NRC Standard Gauge Corridor Track Access Toll (Apapa ➔ Moniya)',
+    vendor: 'Nigerian Railway Corporation (NRC)',
+    amount: 1850000,
+    voucherNo: 'NRC-TOLL-2026-084',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '26 Aug 2026',
+    createdAt: '26 Aug 2026',
+  },
+  {
+    id: 'CST-102-2',
+    tripId: 'TRP-102',
+    category: 'AGO_FUEL',
+    title: 'Locomotive L2208 AGO Diesel Fueling (3,200 Liters @ ₦1,250/L)',
+    vendor: 'TotalEnergies Depot Apapa',
+    amount: 4000000,
+    voucherNo: 'AGO-VCH-99135',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '26 Aug 2026',
+    createdAt: '26 Aug 2026',
+  },
+  {
+    id: 'CST-102-3',
+    tripId: 'TRP-102',
+    category: 'CREW_ESCORT',
+    title: 'Locomotive Crew & Escort Security Duty Allowance',
+    vendor: 'NRC Escort Unit',
+    amount: 350000,
+    voucherNo: 'NRC-ESC-9092',
+    paymentStatus: 'PAID',
+    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
+    date: '26 Aug 2026',
+    createdAt: '26 Aug 2026',
+  },
+];
+
 // ─── STATE ENGINE SERVICE ───────────────────────────────────────────────────
 class StateEngineService {
   private notifyListeners() {
@@ -434,6 +579,38 @@ class StateEngineService {
           }
         }
       }
+
+      // 9. Sync Invoices with Database API
+      const invsRes = await fetch('/api/invoices.php').catch(() => null);
+      if (invsRes && invsRes.ok) {
+        const invsJson = await invsRes.json().catch(() => null);
+        if (invsJson && invsJson.status === 'success' && Array.isArray(invsJson.data) && invsJson.data.length > 0) {
+          const localInvs = this.getInvoices();
+          const invMap = new Map<string, any>();
+          invsJson.data.forEach((inv: any) => invMap.set(inv.id, inv));
+          localInvs.forEach((inv: any) => { if (!invMap.has(inv.id)) invMap.set(inv.id, inv); });
+          const mergedInvs = Array.from(invMap.values());
+          if (JSON.stringify(mergedInvs) !== JSON.stringify(localInvs)) {
+            this.writeStorage('bueno_invoices', mergedInvs);
+          }
+        }
+      }
+
+      // 10. Sync Trip Direct Costs with Database API
+      const costsRes = await fetch('/api/trip_costs.php').catch(() => null);
+      if (costsRes && costsRes.ok) {
+        const costsJson = await costsRes.json().catch(() => null);
+        if (costsJson && costsJson.status === 'success' && Array.isArray(costsJson.data) && costsJson.data.length > 0) {
+          const localCosts = this.getTripCosts();
+          const costMap = new Map<string, any>();
+          costsJson.data.forEach((c: any) => costMap.set(c.id, c));
+          localCosts.forEach((c: any) => { if (!costMap.has(c.id)) costMap.set(c.id, c); });
+          const mergedCosts = Array.from(costMap.values());
+          if (JSON.stringify(mergedCosts) !== JSON.stringify(localCosts)) {
+            this.writeStorage('bueno_trip_costs', mergedCosts);
+          }
+        }
+      }
     } catch {}
   }
 
@@ -515,6 +692,139 @@ class StateEngineService {
     const current = this.getRequests();
     const updated = [req, ...current];
     this.saveRequests(updated);
+  }
+
+  // ── INVOICES (AR & REVENUE) API ───────────────────────────────────────────
+  getInvoices(): any[] {
+    return this.readStorage('bueno_invoices', SEED_INVOICES);
+  }
+
+  saveInvoices(invoices: any[]): void {
+    this.writeStorage('bueno_invoices', invoices);
+    if (Array.isArray(invoices)) {
+      invoices.forEach((inv) => this.postRemote('/api/invoices.php', inv));
+    }
+  }
+
+  createInvoice(invoice: any): void {
+    const current = this.getInvoices();
+    const updated = [invoice, ...current];
+    this.saveInvoices(updated);
+  }
+
+  updateInvoice(invoiceId: string, updates: Partial<any>): void {
+    const current = this.getInvoices();
+    const updated = current.map((inv) => (inv.id === invoiceId || inv.invoiceNumber === invoiceId ? { ...inv, ...updates } : inv));
+    this.saveInvoices(updated);
+  }
+
+  recordInvoicePayment(invoiceId: string, payment: { amount: number; type: string; ref: string; date: string }): void {
+    const current = this.getInvoices();
+    const updated = current.map((inv) => {
+      if (inv.id === invoiceId || inv.invoiceNumber === invoiceId) {
+        const history = Array.isArray(inv.paymentHistory) ? [...inv.paymentHistory] : [];
+        history.push(payment);
+        const newPaid = (Number(inv.amountPaid) || 0) + Number(payment.amount);
+        const totalAmount = Number(inv.totalAmount) || 0;
+        const newBalance = Math.max(0, totalAmount - newPaid);
+        const newStatus = newBalance <= 0 ? 'SETTLED' : (newPaid > 0 ? 'PARTIALLY_PAID' : inv.status);
+        return {
+          ...inv,
+          amountPaid: newPaid,
+          balance: newBalance,
+          status: newStatus,
+          paymentRef: payment.ref || inv.paymentRef,
+          paymentHistory: history,
+        };
+      }
+      return inv;
+    });
+    this.saveInvoices(updated);
+  }
+
+  // ── TRIP DIRECT COSTS (COGS) API ──────────────────────────────────────────
+  getTripCosts(tripId?: string): any[] {
+    const all = this.readStorage('bueno_trip_costs', SEED_TRIP_COSTS);
+    if (tripId) {
+      return all.filter((c: any) => c.tripId === tripId);
+    }
+    return all;
+  }
+
+  saveTripCosts(costs: any[]): void {
+    this.writeStorage('bueno_trip_costs', costs);
+    if (Array.isArray(costs)) {
+      costs.forEach((c) => this.postRemote('/api/trip_costs.php', c));
+    }
+  }
+
+  createTripCost(cost: any): void {
+    const current = this.getTripCosts();
+    const updated = [cost, ...current];
+    this.saveTripCosts(updated);
+  }
+
+  deleteTripCost(costId: string): void {
+    const current = this.getTripCosts();
+    const updated = current.filter((c: any) => c.id !== costId);
+    this.writeStorage('bueno_trip_costs', updated);
+    this.postRemote('/api/trip_costs.php', { action: 'delete', id: costId });
+  }
+
+  // ── TRIP FINANCIAL SUMMARY HELPER ────────────────────────────────────────
+  getTripFinancialSummary(trip: any) {
+    const tripId = trip?.id || trip?.tripId;
+    const invoices = this.getInvoices().filter((inv: any) => inv.tripId === tripId || (trip?.dealId && inv.dealId === trip.dealId));
+    const primaryInvoice = invoices[0] || null;
+
+    // Gross Revenue from invoice (or calculated from deal/tonnes)
+    const grossFreight = Number(primaryInvoice?.subtotal || (Number(trip?.cargoTonnes || 0) * 160000) || 0);
+    
+    // Transit damages deductions (burst bags)
+    const burstBags = Number(primaryInvoice?.damageUnits ?? trip?.damages?.burstBags ?? 0);
+    const damageDeductions = Number(primaryInvoice?.damageDeduction ?? (burstBags * 8000));
+
+    // Net Billed Revenue
+    const netRevenue = Number(primaryInvoice?.totalAmount ?? (grossFreight - damageDeductions));
+    const amountPaid = Number(primaryInvoice?.amountPaid ?? 0);
+    const outstandingBalance = Number(primaryInvoice?.balance ?? (netRevenue - amountPaid));
+    const paymentStatus = primaryInvoice?.status ?? (netRevenue > 0 ? (amountPaid >= netRevenue ? 'SETTLED' : (amountPaid > 0 ? 'PARTIALLY_PAID' : 'UNPAID')) : 'PENDING');
+
+    // Direct Trip Costs from bueno_trip_costs
+    const directCosts = this.getTripCosts(tripId);
+    const totalDirectVouchers = directCosts.reduce((acc: number, c: any) => acc + (Number(c.amount) || 0), 0);
+
+    // Siding Fund Requisitions approved/disbursed for this trip
+    const sidingRequests = this.getRequests().filter(
+      (r: any) => (r.tripId === tripId || (r.reference && r.reference.includes(tripId))) && (r.status === 'APPROVED' || r.status === 'DISBURSED')
+    );
+    const totalSidingRequests = sidingRequests.reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0);
+
+    // Total COGS / Direct Trip Costs
+    const totalOperatingCost = totalDirectVouchers + totalSidingRequests;
+
+    // Gross Profit Margin
+    const grossProfit = netRevenue - totalOperatingCost;
+    const marginPct = netRevenue > 0 ? Math.round((grossProfit / netRevenue) * 100) : 0;
+
+    return {
+      tripId,
+      primaryInvoice,
+      grossFreight,
+      burstBags,
+      damageDeductions,
+      netRevenue,
+      amountPaid,
+      outstandingBalance,
+      paymentStatus,
+      directCosts,
+      totalDirectVouchers,
+      sidingRequests,
+      totalSidingRequests,
+      totalOperatingCost,
+      grossProfit,
+      marginPct,
+    };
   }
 
   // ── CONTAINERS API ────────────────────────────────────────────────────────

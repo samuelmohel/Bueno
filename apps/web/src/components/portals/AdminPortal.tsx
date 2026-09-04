@@ -8,6 +8,7 @@ import {
   TAB_REGISTRY,
 } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -458,6 +459,32 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [notifications, setNotifications] = useState<any[]>([]);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
+  // Enterprise Accounting & Dynamic Trip Costing State
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [tripCosts, setTripCosts] = useState<any[]>([]);
+  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'pnl' | 'customers'>('invoices');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'SETTLED' | 'PARTIALLY_PAID' | 'ISSUED'>('ALL');
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
+  const [paymentModalInvoice, setPaymentModalInvoice] = useState<any | null>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    type: 'ADVANCE_DEPOSIT (70%)',
+    ref: '',
+    date: new Date().toLocaleDateString('en-GB'),
+  });
+  const [newCostModal, setNewCostModal] = useState(false);
+  const [newCostForm, setNewCostForm] = useState({
+    tripId: 'TRP-101',
+    category: 'NRC_TRACK_ACCESS',
+    title: '',
+    vendor: 'Nigerian Railway Corporation (NRC)',
+    amount: '',
+    voucherNo: `VCH-${Math.floor(10000 + Math.random() * 89999)}`,
+    notes: '',
+  });
+  const [selectedTripForCosting, setSelectedTripForCosting] = useState<string>('ALL');
+
   // Active Selected Thread & Search
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -513,6 +540,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const liveNotifs = tryParse('bueno_notifications', []);
     const livePerms = StateEngine.getRolePermissions();
     const liveSettings = StateEngine.getSettings();
+    const liveInvoices = StateEngine.getInvoices();
+    const liveTripCosts = StateEngine.getTripCosts();
 
     setTrips(liveTrips);
     setWagons(liveWagons);
@@ -523,6 +552,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setNotifications(liveNotifs);
     setPermissionsMatrix(livePerms);
     setSystemSettings(liveSettings);
+    setInvoices(liveInvoices);
+    setTripCosts(liveTripCosts);
 
     // Update current month historical archives
     HISTORICAL_MONTHLY_ARCHIVES['2026-09'] = liveTrips;
@@ -857,6 +888,156 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setCustomAlert({
       title: 'Commercial Freight Deal Registered',
       message: `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
+    });
+  };
+
+  // ─── ENTERPRISE FREIGHT ACCOUNTING & TRIP COSTING HANDLERS ───
+  const handleRecordPaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentModalInvoice) return;
+
+    const pAmount = Number(paymentForm.amount);
+    if (!pAmount || pAmount <= 0) {
+      alert('Please enter a valid remittance amount.');
+      return;
+    }
+
+    StateEngine.recordInvoicePayment(paymentModalInvoice.id, {
+      amount: pAmount,
+      type: paymentForm.type,
+      ref: paymentForm.ref || `TRF-DIRECT-${Date.now()}`,
+      date: paymentForm.date || new Date().toLocaleDateString('en-GB'),
+    });
+
+    setPaymentModalInvoice(null);
+    setPaymentForm({
+      amount: '',
+      type: 'ADVANCE_DEPOSIT (70%)',
+      ref: '',
+      date: new Date().toLocaleDateString('en-GB'),
+    });
+    syncData();
+
+    setCustomAlert({
+      title: 'Payment Remittance Logged',
+      message: `₦${pAmount.toLocaleString()} received for Invoice ${paymentModalInvoice.invoiceNumber || paymentModalInvoice.id}. Ledger balance updated successfully!`,
+    });
+  };
+
+  const handleCreateTripCost = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cAmount = Number(newCostForm.amount);
+    if (!cAmount || cAmount <= 0) {
+      alert('Please enter a valid cost voucher amount.');
+      return;
+    }
+
+    const costObj = {
+      id: `CST-${Date.now()}`,
+      tripId: newCostForm.tripId,
+      category: newCostForm.category,
+      title: newCostForm.title.trim() || `${newCostForm.category.replace(/_/g, ' ')} Voucher`,
+      vendor: newCostForm.vendor.trim() || 'Third-Party Vendor',
+      amount: cAmount,
+      voucherNo: newCostForm.voucherNo || `VCH-${Math.floor(10000 + Math.random() * 89999)}`,
+      paymentStatus: 'PAID',
+      recordedBy: user?.fullName || 'Finance Treasury',
+      date: new Date().toLocaleDateString('en-GB'),
+      createdAt: new Date().toLocaleDateString('en-GB'),
+    };
+
+    StateEngine.createTripCost(costObj);
+    setNewCostModal(false);
+    setNewCostForm({
+      tripId: trips[0]?.id || 'TRP-101',
+      category: 'NRC_TRACK_ACCESS',
+      title: '',
+      vendor: 'Nigerian Railway Corporation (NRC)',
+      amount: '',
+      voucherNo: `VCH-${Math.floor(10000 + Math.random() * 89999)}`,
+      notes: '',
+    });
+    syncData();
+
+    setCustomAlert({
+      title: 'Corridor Direct Cost Booked',
+      message: `₦${cAmount.toLocaleString()} direct operating cost booked for Trip ${costObj.tripId} [Voucher ${costObj.voucherNo}]!`,
+    });
+  };
+
+  const handleDeleteTripCost = (costId: string) => {
+    if (!confirm('Are you sure you want to reverse / delete this corridor cost voucher?')) return;
+    StateEngine.deleteTripCost(costId);
+    syncData();
+  };
+
+  const handleSyncTripInvoices = () => {
+    trips.forEach((t: any) => {
+      const tripId = t.id || t.tripId;
+      const existingInvoices = StateEngine.getInvoices();
+      const existing = existingInvoices.find((inv: any) => inv.tripId === tripId);
+
+      const isCement = (t.cargoType || '').toLowerCase().includes('cement') || (t.unitOfMeasure || '').toLowerCase().includes('bag');
+      const totalBags = Number(t.quantity || 1600);
+      const totalTonnes = Number(t.cargoTonnes || (isCement ? totalBags * 0.05 : totalBags));
+      const ratePerTonne = isCement ? 160000 : 24000;
+      const subtotal = totalTonnes * ratePerTonne;
+
+      const burstBags = Number(t.damages?.burstBags || 0);
+      const damageDeduction = burstBags * 8000;
+      const totalAmount = Math.max(0, subtotal - damageDeduction);
+
+      if (existing) {
+        const balance = Math.max(0, totalAmount - (Number(existing.amountPaid) || 0));
+        const status = balance <= 0 ? 'SETTLED' : ((Number(existing.amountPaid) || 0) > 0 ? 'PARTIALLY_PAID' : 'ISSUED');
+        StateEngine.updateInvoice(existing.id, {
+          totalBags,
+          totalTonnes,
+          subtotal,
+          damageUnits: burstBags,
+          damageDeduction,
+          totalAmount,
+          balance,
+          status,
+          damageDetails: burstBags > 0 ? [{ wagonId: 'Consist Discrepancy', burstBags, notes: t.damages?.complaintNotes?.join('; ') || `${burstBags} burst bags deducted upon offloading verification` }] : existing.damageDetails,
+        });
+      } else {
+        const invNum = `INV-2026-${Math.floor(1000 + Math.random() * 8999)}`;
+        const newInv = {
+          id: `INV-${tripId}`,
+          invoiceNumber: invNum,
+          tripId: tripId,
+          dealId: t.dealNumber || t.dealId || `DEAL-${tripId}`,
+          companyName: t.company || 'Consignee Client',
+          clientEmail: (t.company || '').toLowerCase().includes('purechem') ? 'logistics@purechem.ng' : (t.company || '').toLowerCase().includes('huaxin') ? 'logistics@hbm.ng' : 'client@freight.ng',
+          cargoType: t.cargoType || 'Industrial Freight',
+          route: `${t.origin || 'EWK'} ➔ ${t.destination || 'MNY'}`,
+          totalBags,
+          totalTonnes,
+          ratePerTonne,
+          subtotal,
+          damageUnits: burstBags,
+          damageDeduction,
+          tax: 0,
+          totalAmount,
+          amountPaid: 0,
+          balance: totalAmount,
+          status: 'ISSUED',
+          paymentRef: '',
+          damageDetails: burstBags > 0 ? [{ wagonId: 'Offload Discrepancy', burstBags, notes: `${burstBags} burst bags deducted upon siding inspection` }] : [],
+          paymentHistory: [],
+          issueDate: new Date().toLocaleDateString('en-GB'),
+          dueDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-GB'),
+          createdAt: new Date().toLocaleDateString('en-GB'),
+        };
+        StateEngine.createInvoice(newInv);
+      }
+    });
+
+    syncData();
+    setCustomAlert({
+      title: 'Invoices & Damages Reconciled',
+      message: 'All train corridor trips and offload transit damage tallies have been synchronized with the commercial freight ledger!',
     });
   };
 
@@ -1266,6 +1447,263 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
                   ✓ Create Deal ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── OFFICIAL PRINTABLE FREIGHT INVOICE & DEBIT NOTE MODAL ─── */}
+      {selectedInvoiceForPrint && (
+        <OfficialInvoiceModal
+          invoice={selectedInvoiceForPrint}
+          onClose={() => setSelectedInvoiceForPrint(null)}
+          onRecordPayment={() => {
+            setPaymentModalInvoice(selectedInvoiceForPrint);
+            setPaymentForm({
+              amount: String(selectedInvoiceForPrint.balance || ''),
+              type: Number(selectedInvoiceForPrint.amountPaid || 0) === 0 ? 'ADVANCE_DEPOSIT (70%)' : 'FINAL_SETTLEMENT',
+              ref: '',
+              date: new Date().toLocaleDateString('en-GB'),
+            });
+            setSelectedInvoiceForPrint(null);
+          }}
+        />
+      )}
+
+      {/* ─── RECORD PAYMENT REMITTANCE MODAL ─── */}
+      {paymentModalInvoice && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ACCOUNTS RECEIVABLE SETTLEMENT</span>
+                <h3 className="text-lg font-black text-slate-900">Record Payment Remittance</h3>
+              </div>
+              <button
+                onClick={() => setPaymentModalInvoice(null)}
+                className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs font-mono space-y-1">
+              <p><strong>Invoice #:</strong> {paymentModalInvoice.invoiceNumber || paymentModalInvoice.id}</p>
+              <p><strong>Consignee:</strong> {paymentModalInvoice.companyName}</p>
+              <p><strong>Total Billed:</strong> ₦{Number(paymentModalInvoice.totalAmount || 0).toLocaleString()}</p>
+              <p><strong>Already Paid:</strong> ₦{Number(paymentModalInvoice.amountPaid || 0).toLocaleString()}</p>
+              <p className="text-rose-600 font-black">
+                <strong>Outstanding Balance:</strong> ₦{Number(paymentModalInvoice.balance || 0).toLocaleString()}
+              </p>
+            </div>
+
+            <form onSubmit={handleRecordPaymentSubmit} className="space-y-3 text-xs font-semibold">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remittance Amount (NGN) *</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max={Number(paymentModalInvoice.balance || paymentModalInvoice.totalAmount || 100000000)}
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                  placeholder="e.g. 5520000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payment Classification *</label>
+                <select
+                  value={paymentForm.type}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                >
+                  <option value="ADVANCE_DEPOSIT (70%)">Advance Deposit (70% Pre-Dispatch)</option>
+                  <option value="FINAL_SETTLEMENT">Final Settlement (100% Discharge)</option>
+                  <option value="INTERIM_REMITTANCE">Interim Commercial Remittance</option>
+                  <option value="FULL_SETTLEMENT">Full 100% Freight Settlement</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Bank Transfer Reference / Session ID *</label>
+                <input
+                  required
+                  value={paymentForm.ref}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, ref: e.target.value })}
+                  placeholder="e.g. TRF-GTB-99201948 or NIBSS-0021"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remittance Date *</label>
+                <input
+                  required
+                  value={paymentForm.date}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                  placeholder="26 Aug 2026"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalInvoice(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  ✓ Commit Remittance ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── BOOK DIRECT CORRIDOR EXPENSE VOUCHER MODAL ─── */}
+      {newCostModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR EXPENDITURE BOOKING</span>
+                <h3 className="text-lg font-black text-slate-900">Book Direct Corridor Expense</h3>
+              </div>
+              <button
+                onClick={() => setNewCostModal(false)}
+                className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTripCost} className="space-y-3 text-xs font-semibold">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Train Trip *</label>
+                  <select
+                    value={newCostForm.tripId}
+                    onChange={(e) => setNewCostForm({ ...newCostForm, tripId: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  >
+                    {trips.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.id} — {t.company}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Category *</label>
+                  <select
+                    value={newCostForm.category}
+                    onChange={(e) => {
+                      const cat = e.target.value;
+                      let defaultVendor = 'Nigerian Railway Corporation (NRC)';
+                      let defaultTitle = 'NRC Standard Gauge Corridor Track Toll';
+                      if (cat === 'AGO_FUEL') {
+                        defaultVendor = 'TotalEnergies Depot Apapa';
+                        defaultTitle = 'Locomotive AGO Diesel Fueling (Liters)';
+                      } else if (cat === 'CREW_ESCORT') {
+                        defaultVendor = 'NRC Operations & Security Detachment';
+                        defaultTitle = 'Lead Driver, Assistant & Armed Escort Allowance';
+                      } else if (cat === 'SIDING_OPERATIONS') {
+                        defaultVendor = 'Terminal Shunting & Cargo Unit';
+                        defaultTitle = 'Siding Loading / Discharge Operation Costs';
+                      } else if (cat === 'WEIGHBRIDGE_THC') {
+                        defaultVendor = 'Port / Terminal Weighbridge';
+                        defaultTitle = 'Weighbridge & Terminal Handling Charge';
+                      }
+                      setNewCostForm({
+                        ...newCostForm,
+                        category: cat,
+                        vendor: defaultVendor,
+                        title: defaultTitle,
+                      });
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="NRC_TRACK_ACCESS">NRC Track Access Toll</option>
+                    <option value="AGO_FUEL">Locomotive Diesel (AGO)</option>
+                    <option value="CREW_ESCORT">Driver & Police Escort Allowance</option>
+                    <option value="SIDING_OPERATIONS">Siding Terminal Operations</option>
+                    <option value="WEIGHBRIDGE_THC">Weighbridge & Handling</option>
+                    <option value="OTHER_DIRECT_COST">Other Direct Operational Cost</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Description *</label>
+                <input
+                  required
+                  value={newCostForm.title}
+                  onChange={(e) => setNewCostForm({ ...newCostForm, title: e.target.value })}
+                  placeholder="e.g. NRC Track Access Toll (Ewekoro ➔ Moniya)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Vendor / Beneficiary *</label>
+                  <input
+                    required
+                    value={newCostForm.vendor}
+                    onChange={(e) => setNewCostForm({ ...newCostForm, vendor: e.target.value })}
+                    placeholder="e.g. Nigerian Railway Corporation (NRC)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
+                  <input
+                    required
+                    value={newCostForm.voucherNo}
+                    onChange={(e) => setNewCostForm({ ...newCostForm, voucherNo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Amount (NGN) *</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={newCostForm.amount}
+                  onChange={(e) => setNewCostForm({ ...newCostForm, amount: e.target.value })}
+                  placeholder="e.g. 1450000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNewCostModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  ✓ Book Voucher ➔
                 </button>
               </div>
             </form>
@@ -2014,34 +2452,639 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 5: BILLING & LEDGER ─── */}
-        {activeTab === 'billing' && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
-            <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Freight Ledger</span>
-              <h3 className="text-base font-black text-slate-900">Freight Billing & Disbursed Invoices</h3>
-            </div>
+        {/* ─── TAB 5: ENTERPRISE FREIGHT ACCOUNTING, INVOICING & TRIP COSTING LEDGER ─── */}
+        {activeTab === 'billing' && (() => {
+          // KPI Calculations
+          const totalGrossBilled = invoices.reduce((acc, inv) => acc + (Number(inv.subtotal) || 0), 0);
+          const totalDamageDeductions = invoices.reduce((acc, inv) => acc + (Number(inv.damageDeduction) || 0), 0);
+          const totalBurstBagsLogged = invoices.reduce((acc, inv) => acc + (Number(inv.damageUnits) || 0), 0);
+          const totalNetBilled = invoices.reduce((acc, inv) => acc + (Number(inv.totalAmount) || 0), 0);
+          const totalCollected = invoices.reduce((acc, inv) => acc + (Number(inv.amountPaid) || 0), 0);
+          const totalOutstandingAR = invoices.reduce((acc, inv) => acc + (Number(inv.balance) || 0), 0);
 
-            <div className="space-y-3 font-mono text-xs">
-              {trips.map((t) => {
-                const amount = (t.quantity || 1600) * (t.unitOfMeasure?.includes('Tonnes') ? 24000 : 1200);
-                return (
-                  <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
-                    <div>
-                      <span className="text-slate-400 font-bold text-[10px] uppercase">INV-{t.id}</span>
-                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company}</h4>
-                      <p className="text-slate-500 font-sans text-xs">{t.quantity} {t.unitOfMeasure || 'Bags'} Tariff</p>
+          // Direct Operating Costs
+          const totalDirectCosts = tripCosts.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+          const approvedSidingRequests = requests.filter(
+            (r) => r.status === 'APPROVED' || r.status === 'DISBURSED'
+          );
+          const totalSidingRequests = approvedSidingRequests.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+          const totalOperatingCOGS = totalDirectCosts + totalSidingRequests;
+          const netOperatingGrossProfit = totalNetBilled - totalOperatingCOGS;
+          const corridorMarginPct = totalNetBilled > 0 ? Math.round((netOperatingGrossProfit / totalNetBilled) * 100) : 0;
+
+          // Filtered Invoices
+          const filteredInvoices = invoices.filter((inv) => {
+            const matchesSearch =
+              !invoiceSearch ||
+              (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
+              (inv.companyName && inv.companyName.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
+              (inv.route && inv.route.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
+              (inv.cargoType && inv.cargoType.toLowerCase().includes(invoiceSearch.toLowerCase()));
+
+            if (!matchesSearch) return false;
+
+            if (invoiceStatusFilter === 'ALL') return true;
+            if (invoiceStatusFilter === 'SETTLED') return inv.status === 'SETTLED' || Number(inv.balance || 0) <= 0;
+            if (invoiceStatusFilter === 'PARTIALLY_PAID') return inv.status === 'PARTIALLY_PAID' || (Number(inv.amountPaid || 0) > 0 && Number(inv.balance || 0) > 0);
+            if (invoiceStatusFilter === 'ISSUED') return inv.status === 'ISSUED' && Number(inv.amountPaid || 0) === 0;
+
+            return true;
+          });
+
+          return (
+            <div className="space-y-6 font-sans">
+              {/* Header & Quick Action Toolbar */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                      Commercial Finance & Treasury
+                    </span>
+                    <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
+                      Audited AR / AP Ledger
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Freight Invoicing, Damage Indemnity & Corridor Costing
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Dynamic customer billing with burst-bag deductions (AR), direct corridor COGS (NRC tolls, AGO diesel, crew), and real-time corridor profit margins.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handleSyncTripInvoices}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+                    title="Scan all train trips and update invoices with latest offload damage / burst bag counts"
+                  >
+                    <span>🔄 Reconcile Trips & Damages</span>
+                  </button>
+                  <button
+                    onClick={() => setNewCostModal(true)}
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>+ Book Corridor Expense</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-Navigation Tabs */}
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                <button
+                  onClick={() => setAccountingSubTab('invoices')}
+                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                    accountingSubTab === 'invoices'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Commercial Invoices (AR)</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'invoices' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {invoices.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('pnl')}
+                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                    accountingSubTab === 'pnl'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Corridor Trip P&L & Costing Sheet (COGS)</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'pnl' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {corridorMarginPct}% Margin
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('customers')}
+                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                    accountingSubTab === 'customers'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Consignee Statement of Account</span>
+                </button>
+              </div>
+
+              {/* Executive KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* Gross Billed */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Gross Freight Billed</span>
+                  <p className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
+                    ₦{totalGrossBilled.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400">Total tariff value</span>
+                </div>
+
+                {/* Damage Claims Deductions */}
+                <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-600 block font-mono">Transit Damage Claims</span>
+                    <span className="text-[9px] font-black bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded">
+                      {totalBurstBagsLogged} Burst
+                    </span>
+                  </div>
+                  <p className="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">
+                    -₦{totalDamageDeductions.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-rose-500">Agreed debit deductions</span>
+                </div>
+
+                {/* Net Billed Revenue */}
+                <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-emerald-700 block font-mono">Net Billed Revenue</span>
+                  <p className="text-base sm:text-lg font-black text-emerald-700 font-mono mt-0.5">
+                    ₦{totalNetBilled.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-emerald-600">Net payable after damages</span>
+                </div>
+
+                {/* Remittances Collected */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Remittances Collected</span>
+                  <p className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
+                    ₦{totalCollected.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-[#62BC37] font-bold">
+                    {totalNetBilled > 0 ? Math.round((totalCollected / totalNetBilled) * 100) : 0}% Collected
+                  </span>
+                </div>
+
+                {/* Outstanding AR */}
+                <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/20 shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-amber-700 block font-mono">Outstanding AR</span>
+                  <p className="text-base sm:text-lg font-black text-amber-700 font-mono mt-0.5">
+                    ₦{totalOutstandingAR.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-amber-600">Receivables due</span>
+                </div>
+
+                {/* Direct Corridor Operating COGS */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Corridor COGS</span>
+                    <span className="text-[9px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                      {corridorMarginPct}% Margin
+                    </span>
+                  </div>
+                  <p className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
+                    ₦{totalOperatingCOGS.toLocaleString()}
+                  </p>
+                  <span className="text-[10px] text-slate-400">Tolls, fuel, crew & siding</span>
+                </div>
+              </div>
+
+              {/* ── SUB-TAB 1: COMMERCIAL INVOICES (AR) ── */}
+              {accountingSubTab === 'invoices' && (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden font-sans space-y-4 p-6">
+                  {/* Search & Filter Toolbar */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <input
+                        type="text"
+                        placeholder="Search Invoice #, Client, Route..."
+                        value={invoiceSearch}
+                        onChange={(e) => setInvoiceSearch(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      />
                     </div>
-                    <div className="text-right">
-                      <span className="font-black text-slate-900 text-sm block">₦{amount.toLocaleString()}</span>
-                      <span className="bg-emerald-100 text-emerald-800 font-bold text-[9px] px-2 py-0.5 rounded uppercase">DISBURSED</span>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+                      {(['ALL', 'SETTLED', 'PARTIALLY_PAID', 'ISSUED'] as const).map((st) => (
+                        <button
+                          key={st}
+                          onClick={() => setInvoiceStatusFilter(st)}
+                          className={`text-[10px] font-mono font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                            invoiceStatusFilter === st
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {st.replace(/_/g, ' ')}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10px] font-mono uppercase text-slate-400 bg-slate-50/50">
+                          <th className="py-3 px-3">Invoice & Date</th>
+                          <th className="py-3 px-3">Consignee & Corridor</th>
+                          <th className="py-3 px-3">Cargo Spec</th>
+                          <th className="py-3 px-3 text-right">Gross Tariff</th>
+                          <th className="py-3 px-3 text-right">Damage Deduction</th>
+                          <th className="py-3 px-3 text-right">Net Payable</th>
+                          <th className="py-3 px-3 text-right">Remitted</th>
+                          <th className="py-3 px-3 text-right">Balance Due</th>
+                          <th className="py-3 px-3 text-center">Status</th>
+                          <th className="py-3 px-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-xs font-mono divide-y divide-slate-100">
+                        {filteredInvoices.map((inv: any) => {
+                          const isSettled = inv.status === 'SETTLED' || Number(inv.balance || 0) <= 0;
+                          const isPartiallyPaid = inv.status === 'PARTIALLY_PAID' || (Number(inv.amountPaid || 0) > 0 && Number(inv.balance || 0) > 0);
+                          return (
+                            <tr key={inv.id} className="hover:bg-slate-50/60 transition-all">
+                              <td className="py-3.5 px-3">
+                                <span className="font-bold text-slate-900 block">{inv.invoiceNumber || inv.id}</span>
+                                <span className="text-[10px] text-slate-400 block">{inv.issueDate}</span>
+                                <span className="text-[9px] text-[#62BC37] font-bold">Trip: {inv.tripId}</span>
+                              </td>
+                              <td className="py-3.5 px-3">
+                                <span className="font-sans font-bold text-slate-900 block">{inv.companyName}</span>
+                                <span className="text-[10px] text-slate-500 font-sans">{inv.route}</span>
+                              </td>
+                              <td className="py-3.5 px-3">
+                                <span className="font-sans text-slate-700 block">{inv.cargoType}</span>
+                                <span className="text-[10px] text-slate-400">
+                                  {Number(inv.totalBags || 0).toLocaleString()} Bags ({Number(inv.totalTonnes || 0).toLocaleString()} MT)
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-bold text-slate-700">
+                                ₦{Number(inv.subtotal || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-3 text-right">
+                                {Number(inv.damageUnits || 0) > 0 ? (
+                                  <div>
+                                    <span className="text-rose-600 font-black block">
+                                      -₦{Number(inv.damageDeduction || 0).toLocaleString()}
+                                    </span>
+                                    <span className="text-[9px] text-rose-500 font-bold bg-rose-50 px-1 rounded">
+                                      💥 {inv.damageUnits} Burst Bags
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-emerald-600 font-bold text-[10px]">✓ Intact</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-black text-slate-900">
+                                ₦{Number(inv.totalAmount || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-bold text-emerald-700">
+                                ₦{Number(inv.amountPaid || 0).toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-black">
+                                <span className={Number(inv.balance || 0) > 0 ? 'text-rose-600' : 'text-slate-400'}>
+                                  ₦{Number(inv.balance || 0).toLocaleString()}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-3 text-center">
+                                <span
+                                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                    isSettled
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : isPartiallyPaid
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  {inv.status || 'ISSUED'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => setSelectedInvoiceForPrint(inv)}
+                                    className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                                    title="View & Print Official PDF Freight Invoice"
+                                  >
+                                    📄 Invoice
+                                  </button>
+                                  {!isSettled && (
+                                    <button
+                                      onClick={() => {
+                                        setPaymentModalInvoice(inv);
+                                        setPaymentForm({
+                                          amount: String(inv.balance || ''),
+                                          type: Number(inv.amountPaid || 0) === 0 ? 'ADVANCE_DEPOSIT (70%)' : 'FINAL_SETTLEMENT',
+                                          ref: '',
+                                          date: new Date().toLocaleDateString('en-GB'),
+                                        });
+                                      }}
+                                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                                      title="Record Customer Remittance / Bank Transfer"
+                                    >
+                                      + Pay
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUB-TAB 2: CORRIDOR TRIP P&L & COSTING SHEET (COGS) ── */}
+              {accountingSubTab === 'pnl' && (
+                <div className="space-y-6">
+                  {/* Trip Corridor Selector */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 font-sans">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">Corridor Costing Analysis</span>
+                      <h3 className="text-base font-black text-slate-900">Heavy Rail Trip Contribution Margins</h3>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-bold text-slate-500">Select Corridor:</label>
+                      <select
+                        value={selectedTripForCosting}
+                        onChange={(e) => setSelectedTripForCosting(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 font-mono"
+                      >
+                        <option value="ALL">All Active Train Corridors</option>
+                        {trips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.id} — {t.company} ({t.origin} ➔ {t.destination})
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        onClick={() => setNewCostModal(true)}
+                        className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+                      >
+                        + Book Voucher
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Corridor Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {trips
+                      .filter((t) => selectedTripForCosting === 'ALL' || t.id === selectedTripForCosting)
+                      .map((t) => {
+                        const summary = StateEngine.getTripFinancialSummary(t);
+                        return (
+                          <div key={t.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
+                            {/* Corridor Card Header */}
+                            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-black text-slate-900 text-sm">{t.id}</span>
+                                  <span className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
+                                    Loco: {t.locomotiveId || 'L2205'}
+                                  </span>
+                                </div>
+                                <h4 className="font-black text-slate-900 text-base mt-0.5">{t.company}</h4>
+                                <p className="text-xs text-slate-500">{t.origin} ➔ {t.destination} • {t.cargoType || 'Bagged Cement'}</p>
+                              </div>
+
+                              <div className="text-right">
+                                <span
+                                  className={`text-[10px] font-mono font-black px-2.5 py-1 rounded-xl block ${
+                                    summary.marginPct >= 35
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : summary.marginPct >= 20
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {summary.marginPct}% Gross Margin
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
+                                  ₦{summary.grossProfit.toLocaleString()} Net Profit
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Financial Summary Breakdown */}
+                            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                <span className="text-[9px] uppercase font-bold text-slate-400 block">Gross Freight Tariff</span>
+                                <span className="font-black text-slate-900 text-sm block">₦{summary.grossFreight.toLocaleString()}</span>
+                                {summary.burstBags > 0 && (
+                                  <span className="text-[9px] text-rose-600 block mt-0.5">
+                                    -₦{summary.damageDeductions.toLocaleString()} ({summary.burstBags} Burst Bags)
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100">
+                                <span className="text-[9px] uppercase font-bold text-emerald-700 block">Net Billed Revenue</span>
+                                <span className="font-black text-emerald-700 text-sm block">₦{summary.netRevenue.toLocaleString()}</span>
+                                <span className="text-[9px] text-slate-500 block mt-0.5">
+                                  Paid: ₦{summary.amountPaid.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Direct Operating Cost Categories */}
+                            <div className="space-y-1.5 font-mono text-xs">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                                Direct Operating Expenditures (COGS):
+                              </span>
+
+                              <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
+                                <span className="flex items-center gap-1.5">
+                                  <span>🛤️</span> NRC Track Access Tolls
+                                </span>
+                                <span className="font-bold">
+                                  ₦{summary.directCosts.filter((c: any) => c.category === 'NRC_TRACK_ACCESS').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
+                                <span className="flex items-center gap-1.5">
+                                  <span>⛽</span> Locomotive Diesel AGO Fuel
+                                </span>
+                                <span className="font-bold">
+                                  ₦{summary.directCosts.filter((c: any) => c.category === 'AGO_FUEL').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
+                                <span className="flex items-center gap-1.5">
+                                  <span>👮</span> Train Driver & Police Escort Allowance
+                                </span>
+                                <span className="font-bold">
+                                  ₦{summary.directCosts.filter((c: any) => c.category === 'CREW_ESCORT').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
+                                <span className="flex items-center gap-1.5">
+                                  <span>🏗️</span> Siding Field Requisitions (Approved)
+                                </span>
+                                <span className="font-bold">
+                                  ₦{summary.totalSidingRequests.toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center bg-slate-900 text-white px-3 py-2.5 rounded-xl font-bold mt-2">
+                                <span>Total Direct Corridor Costs:</span>
+                                <span className="text-emerald-400">₦{summary.totalOperatingCost.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  {/* Direct Corridor Expense Vouchers Table */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Voucher Ledger</span>
+                        <h3 className="text-base font-black text-slate-900">Direct Corridor Expense Vouchers</h3>
+                      </div>
+                      <button
+                        onClick={() => setNewCostModal(true)}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                      >
+                        + Add Voucher
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-[10px] font-mono uppercase text-slate-400 bg-slate-50/50">
+                            <th className="py-2.5 px-3">Voucher #</th>
+                            <th className="py-2.5 px-3">Corridor</th>
+                            <th className="py-2.5 px-3">Category</th>
+                            <th className="py-2.5 px-3">Description</th>
+                            <th className="py-2.5 px-3">Vendor / Beneficiary</th>
+                            <th className="py-2.5 px-3 text-right">Amount (NGN)</th>
+                            <th className="py-2.5 px-3 text-center">Status</th>
+                            <th className="py-2.5 px-3 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-xs font-mono divide-y divide-slate-100">
+                          {tripCosts.map((c: any) => (
+                            <tr key={c.id} className="hover:bg-slate-50/60 transition-all">
+                              <td className="py-3 px-3 font-bold text-slate-900">{c.voucherNo || c.id}</td>
+                              <td className="py-3 px-3 text-[#62BC37] font-bold">{c.tripId}</td>
+                              <td className="py-3 px-3">
+                                <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
+                                  {c.category?.replace(/_/g, ' ')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 font-sans text-slate-700">{c.title}</td>
+                              <td className="py-3 px-3 font-sans text-slate-500">{c.vendor}</td>
+                              <td className="py-3 px-3 text-right font-black text-slate-900">₦{Number(c.amount || 0).toLocaleString()}</td>
+                              <td className="py-3 px-3 text-center">
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded uppercase">
+                                  {c.paymentStatus || 'PAID'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <button
+                                  onClick={() => handleDeleteTripCost(c.id)}
+                                  className="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded cursor-pointer"
+                                  title="Reverse Voucher"
+                                >
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUB-TAB 3: CONSIGNEE STATEMENT OF ACCOUNT (CLIENT LEDGER) ── */}
+              {accountingSubTab === 'customers' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-sans">
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Industrial Client Ledger</span>
+                    <h3 className="text-base font-black text-slate-900">Consignee Statements of Account & Aging Receivables</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Aggregated freight balances, transit damage indemnity deductions, and net accounts receivable per client.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {Array.from(new Set(invoices.map((inv: any) => inv.companyName))).map((company) => {
+                      const companyInvs = invoices.filter((inv: any) => inv.companyName === company);
+                      const compGross = companyInvs.reduce((acc, inv) => acc + (Number(inv.subtotal) || 0), 0);
+                      const compDamages = companyInvs.reduce((acc, inv) => acc + (Number(inv.damageDeduction) || 0), 0);
+                      const compNet = companyInvs.reduce((acc, inv) => acc + (Number(inv.totalAmount) || 0), 0);
+                      const compPaid = companyInvs.reduce((acc, inv) => acc + (Number(inv.amountPaid) || 0), 0);
+                      const compBalance = companyInvs.reduce((acc, inv) => acc + (Number(inv.balance) || 0), 0);
+                      const compTonnes = companyInvs.reduce((acc, inv) => acc + (Number(inv.totalTonnes) || 0), 0);
+
+                      return (
+                        <div key={company} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
+                          <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                            <div>
+                              <span className="text-[9px] font-mono uppercase font-bold text-slate-400 block">INDUSTRIAL CONSIGNEE</span>
+                              <h4 className="font-black text-slate-900 text-base">{company}</h4>
+                              <span className="text-xs text-slate-500">
+                                {compTonnes.toLocaleString()} MT Hauled • {companyInvs.length} Freight Consignments
+                              </span>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] font-mono font-bold text-slate-400 block">OUTSTANDING AR DUE</span>
+                              <span className={`text-base font-black font-mono ${compBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                ₦{compBalance.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Metrics */}
+                          <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                            <div className="bg-slate-50 p-2.5 rounded-xl">
+                              <span className="text-[9px] uppercase text-slate-400 block">Gross Tariff</span>
+                              <span className="font-bold text-slate-900">₦{compGross.toLocaleString()}</span>
+                            </div>
+                            <div className="bg-rose-50 p-2.5 rounded-xl">
+                              <span className="text-[9px] uppercase text-rose-600 block">Damage Claims</span>
+                              <span className="font-bold text-rose-600">-₦{compDamages.toLocaleString()}</span>
+                            </div>
+                            <div className="bg-emerald-50 p-2.5 rounded-xl">
+                              <span className="text-[9px] uppercase text-emerald-700 block">Remitted</span>
+                              <span className="font-bold text-emerald-700">₦{compPaid.toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          {/* Invoices List */}
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Corridor Invoices:</span>
+                            {companyInvs.map((inv: any) => (
+                              <div key={inv.id} className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl">
+                                <div>
+                                  <span className="font-mono font-bold text-slate-900">{inv.invoiceNumber || inv.id}</span>
+                                  <span className="text-slate-500 text-[11px] block">{inv.route} • {inv.totalTonnes} MT</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-mono font-black text-slate-900 block">₦{Number(inv.totalAmount || 0).toLocaleString()}</span>
+                                  <button
+                                    onClick={() => setSelectedInvoiceForPrint(inv)}
+                                    className="text-[10px] text-[#62BC37] hover:underline font-bold cursor-pointer"
+                                  >
+                                    View Statement ➔
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ─── TAB 6: USER DIRECTORY & EDITABLE PROVISIONING ─── */}
         {activeTab === 'users' && (
