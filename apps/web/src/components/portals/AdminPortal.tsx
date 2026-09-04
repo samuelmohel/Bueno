@@ -484,6 +484,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     notes: '',
   });
   const [selectedTripForCosting, setSelectedTripForCosting] = useState<string>('ALL');
+  const [editingTripCost, setEditingTripCost] = useState<any | null>(null);
 
   // Active Selected Thread & Search
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -969,6 +970,34 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if (!confirm('Are you sure you want to reverse / delete this corridor cost voucher?')) return;
     StateEngine.deleteTripCost(costId);
     syncData();
+  };
+
+  const handleUpdateTripCost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTripCost) return;
+
+    const amount = Number(editingTripCost.amount);
+    if (!amount || amount <= 0) {
+      alert('Please enter a valid expense voucher amount.');
+      return;
+    }
+
+    StateEngine.updateTripCost(editingTripCost.id, {
+      category: editingTripCost.category,
+      title: editingTripCost.title,
+      vendor: editingTripCost.vendor,
+      amount: amount,
+      voucherNo: editingTripCost.voucherNo,
+      paymentStatus: editingTripCost.paymentStatus || 'PAID',
+    });
+
+    setEditingTripCost(null);
+    syncData();
+
+    setCustomAlert({
+      title: 'Corridor Cost Voucher Updated',
+      message: `Voucher ${editingTripCost.voucherNo || editingTripCost.id} for Trip ${editingTripCost.tripId} updated to ₦${amount.toLocaleString()}! Corridor P&L recalculated.`,
+    });
   };
 
   const handleSyncTripInvoices = () => {
@@ -1704,6 +1733,125 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   ✓ Book Voucher ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── EDIT DIRECT CORRIDOR EXPENSE VOUCHER MODAL ─── */}
+      {editingTripCost && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-blue-600 uppercase">EDIT DIRECT OPERATING COST</span>
+                <h3 className="text-lg font-black text-slate-900">Edit Voucher #{editingTripCost.voucherNo || editingTripCost.id}</h3>
+                <p className="text-xs text-slate-500">
+                  Assigned to Trip <span className="font-mono font-bold text-[#62BC37]">{editingTripCost.tripId}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingTripCost(null)}
+                className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateTripCost} className="space-y-3 text-xs font-semibold">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Category *</label>
+                  <select
+                    value={editingTripCost.category || 'NRC_TRACK_ACCESS'}
+                    onChange={(e) => setEditingTripCost({ ...editingTripCost, category: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="NRC_TRACK_ACCESS">NRC Track Access Toll</option>
+                    <option value="AGO_FUEL">Locomotive Diesel (AGO)</option>
+                    <option value="CREW_ESCORT">Driver & Police Escort Allowance</option>
+                    <option value="SIDING_OPERATIONS">Siding Terminal Operations</option>
+                    <option value="WEIGHBRIDGE_THC">Weighbridge & Handling</option>
+                    <option value="OTHER_DIRECT_COST">Other Direct Operational Cost</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payment Status *</label>
+                  <select
+                    value={editingTripCost.paymentStatus || 'PAID'}
+                    onChange={(e) => setEditingTripCost({ ...editingTripCost, paymentStatus: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="PAID">PAID</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="ACCRUED">ACCRUED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Description *</label>
+                <input
+                  required
+                  value={editingTripCost.title || ''}
+                  onChange={(e) => setEditingTripCost({ ...editingTripCost, title: e.target.value })}
+                  placeholder="e.g. NRC Track Access Toll"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Vendor / Beneficiary *</label>
+                  <input
+                    required
+                    value={editingTripCost.vendor || ''}
+                    onChange={(e) => setEditingTripCost({ ...editingTripCost, vendor: e.target.value })}
+                    placeholder="e.g. Nigerian Railway Corporation (NRC)"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
+                  <input
+                    required
+                    value={editingTripCost.voucherNo || ''}
+                    onChange={(e) => setEditingTripCost({ ...editingTripCost, voucherNo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Amount (NGN) *</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={editingTripCost.amount || ''}
+                  onChange={(e) => setEditingTripCost({ ...editingTripCost, amount: e.target.value })}
+                  placeholder="e.g. 1450000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-blue-700"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTripCost(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  ✓ Save Voucher Changes ➔
                 </button>
               </div>
             </form>
@@ -2981,7 +3129,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   {c.paymentStatus || 'PAID'}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 text-center">
+                              <td className="py-3 px-3 text-center whitespace-nowrap">
+                                <button
+                                  onClick={() => setEditingTripCost({ ...c })}
+                                  className="text-blue-600 hover:text-blue-800 text-xs font-bold px-2 py-1 hover:bg-blue-50 rounded cursor-pointer mr-1"
+                                  title="Edit Voucher Details & Amount"
+                                >
+                                  ✏️ Edit
+                                </button>
                                 <button
                                   onClick={() => handleDeleteTripCost(c.id)}
                                   className="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded cursor-pointer"

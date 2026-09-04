@@ -771,6 +771,12 @@ class StateEngineService {
     this.postRemote('/api/trip_costs.php', { action: 'delete', id: costId });
   }
 
+  updateTripCost(costId: string, updates: Partial<any>): void {
+    const current = this.getTripCosts();
+    const updated = current.map((c: any) => (c.id === costId ? { ...c, ...updates } : c));
+    this.saveTripCosts(updated);
+  }
+
   // ── TRIP FINANCIAL SUMMARY HELPER ────────────────────────────────────────
   getTripFinancialSummary(trip: any) {
     const tripId = trip?.id || trip?.tripId;
