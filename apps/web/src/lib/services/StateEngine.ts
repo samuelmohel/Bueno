@@ -215,7 +215,7 @@ class StateEngineService {
         }
       }
 
-      // 2. Sync Trips with Database API (Preserve rich wagonLogs, burst bags, and completed statuses)
+      // 2. Sync Trips with Database API (Deep consist & per-wagon reconciliation)
       const tripsRes = await fetch('/api/trips.php').catch(() => null);
       if (tripsRes && tripsRes.ok) {
         const tripsJson = await tripsRes.json().catch(() => null);
@@ -223,23 +223,94 @@ class StateEngineService {
           const localTrips = this.getTrips();
           const tripMap = new Map<string, any>();
           tripsJson.data.forEach((t: any) => tripMap.set(t.id, t));
+
+          const statusRank: Record<string, number> = {
+            'PLANNED': 1,
+            'SCHEDULED': 1,
+            'LOADING': 2,
+            'LOADED': 3,
+            'READY_TO_DEPART': 3,
+            'DISPATCHED': 4,
+            'IN_TRANSIT': 4,
+            'ARRIVED': 5,
+            'UNLOADING': 5,
+            'COMPLETED': 6,
+          };
+
           localTrips.forEach((localT: any) => {
             const remoteT = tripMap.get(localT.id);
             if (!remoteT) {
               tripMap.set(localT.id, localT);
             } else {
-              const localLogsCount = Array.isArray(localT.wagonLogs) ? localT.wagonLogs.length : 0;
-              const remoteLogsCount = Array.isArray(remoteT.wagonLogs) ? remoteT.wagonLogs.length : 0;
-              const chosenLogs = localLogsCount >= remoteLogsCount ? localT.wagonLogs : remoteT.wagonLogs;
-              const chosenDamages = (localT.damages?.damagedUnits || localT.damages?.burstBags) ? localT.damages : (remoteT.damages || localT.damages);
-              const chosenStatus = (localT.status === 'COMPLETED' || localT.status === 'IN_TRANSIT') ? localT.status : (remoteT.status || localT.status);
+              // Reconcile status according to progression rank (never downgrade)
+              const localRank = statusRank[localT.status] || 0;
+              const remoteRank = statusRank[remoteT.status] || 0;
+              const chosenStatus = remoteRank > localRank ? remoteT.status : (localT.status || remoteT.status);
+
+              // Per-wagon deep merge
+              const localLogs: any[] = Array.isArray(localT.wagonLogs) ? localT.wagonLogs : [];
+              const remoteLogs: any[] = Array.isArray(remoteT.wagonLogs) ? remoteT.wagonLogs : [];
+              const wagonIdMap = new Map<string, any>();
+
+              // Remote wagons first
+              remoteLogs.forEach((w: any, idx: number) => {
+                const wId = w.wagonId || w.id || `W_${idx}`;
+                wagonIdMap.set(wId, { ...w });
+              });
+
+              // Merge local wagons with conflict resolution
+              localLogs.forEach((w: any, idx: number) => {
+                const wId = w.wagonId || w.id || `W_${idx}`;
+                if (!wagonIdMap.has(wId)) {
+                  wagonIdMap.set(wId, { ...w });
+                } else {
+                  const existingW = wagonIdMap.get(wId);
+                  const isLocalUnloaded = w.unloadStatus === 'UNLOADED' || w.status === 'UNLOADED' || Number(w.burstBags || 0) > 0 || Number(w.damageQty || 0) > 0;
+                  const isRemoteUnloaded = existingW.unloadStatus === 'UNLOADED' || existingW.status === 'UNLOADED' || Number(existingW.burstBags || 0) > 0 || Number(existingW.damageQty || 0) > 0;
+
+                  const mergedWagon = {
+                    ...existingW,
+                    ...w,
+                    status: (isRemoteUnloaded || isLocalUnloaded) ? 'UNLOADED' : (w.status === 'LOADED' || existingW.status === 'LOADED' ? 'LOADED' : (w.status || existingW.status)),
+                    unloadStatus: (isRemoteUnloaded || isLocalUnloaded) ? 'UNLOADED' : (existingW.unloadStatus || w.unloadStatus),
+                    burstBags: Math.max(Number(existingW.burstBags || 0), Number(w.burstBags || 0)),
+                    damageQty: Math.max(Number(existingW.damageQty || 0), Number(w.damageQty || 0)),
+                    correctQty: w.correctQty !== undefined ? w.correctQty : existingW.correctQty,
+                    unloadedQty: w.unloadedQty !== undefined ? w.unloadedQty : existingW.unloadedQty,
+                    complaintNotes: [existingW.complaintNotes, w.complaintNotes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('; ') || null,
+                  };
+                  wagonIdMap.set(wId, mergedWagon);
+                }
+              });
+
+              const mergedLogs = Array.from(wagonIdMap.values());
+
+              // Reconcile overall damages
+              const mergedDamages = {
+                damagedUnits: Math.max(Number(localT.damages?.damagedUnits || 0), Number(remoteT.damages?.damagedUnits || 0)),
+                burstBags: Math.max(Number(localT.damages?.burstBags || 0), Number(remoteT.damages?.burstBags || 0)),
+                complaintNotes: Array.from(new Set([
+                  ...(Array.isArray(localT.damages?.complaintNotes) ? localT.damages.complaintNotes : [localT.damages?.complaintNotes]),
+                  ...(Array.isArray(remoteT.damages?.complaintNotes) ? remoteT.damages.complaintNotes : [remoteT.damages?.complaintNotes]),
+                ].filter(Boolean))),
+              };
+
+              // Reconcile telemetry
+              const chosenLat = (remoteT.speed > 0 || remoteT.curLat !== 6.8974) ? remoteT.curLat : (localT.curLat || remoteT.curLat);
+              const chosenLng = (remoteT.speed > 0 || remoteT.curLng !== 3.2141) ? remoteT.curLng : (localT.curLng || remoteT.curLng);
+              const chosenSpeed = Math.max(Number(remoteT.speed || 0), Number(localT.speed || 0));
 
               tripMap.set(localT.id, {
                 ...remoteT,
                 ...localT,
                 status: chosenStatus,
-                wagonLogs: chosenLogs,
-                damages: chosenDamages,
+                wagonLogs: mergedLogs,
+                damages: mergedDamages,
+                curLat: chosenLat,
+                curLng: chosenLng,
+                speed: chosenSpeed,
+                departedAt: remoteT.departedAt || localT.departedAt,
+                completedAt: remoteT.completedAt || localT.completedAt,
               });
             }
           });
@@ -309,6 +380,57 @@ class StateEngineService {
           const mergedNotifs = Array.from(notifMap.values());
           if (JSON.stringify(mergedNotifs) !== JSON.stringify(localNotifs)) {
             this.writeStorage('bueno_notifications', mergedNotifs);
+          }
+        }
+      }
+
+      // 7. Sync Negotiations Chat with Database API
+      const negsRes = await fetch('/api/negotiations.php').catch(() => null);
+      if (negsRes && negsRes.ok) {
+        const negsJson = await negsRes.json().catch(() => null);
+        if (negsJson && negsJson.status === 'success' && Array.isArray(negsJson.data)) {
+          const localNegs = this.getNegotiations();
+          const negMap = new Map<string, any>();
+          negsJson.data.forEach((n: any) => negMap.set(n.id, n));
+          localNegs.forEach((localN: any) => {
+            const remoteN = negMap.get(localN.id);
+            if (!remoteN) {
+              negMap.set(localN.id, localN);
+            } else {
+              const localMsgs = Array.isArray(localN.messages) ? localN.messages : [];
+              const remoteMsgs = Array.isArray(remoteN.messages) ? remoteN.messages : [];
+              const msgMap = new Map<string, any>();
+              [...remoteMsgs, ...localMsgs].forEach((m: any) => {
+                const key = `${m.sender}_${m.time}_${m.text?.substring(0, 30)}`;
+                msgMap.set(key, m);
+              });
+              negMap.set(localN.id, {
+                ...remoteN,
+                ...localN,
+                status: (localN.status === 'APPROVED_DISPATCHED' || remoteN.status === 'APPROVED_DISPATCHED') ? 'APPROVED_DISPATCHED' : (remoteN.status || localN.status),
+                messages: Array.from(msgMap.values()),
+              });
+            }
+          });
+          const mergedNegs = Array.from(negMap.values());
+          if (JSON.stringify(mergedNegs) !== JSON.stringify(localNegs)) {
+            this.writeStorage('bueno_custom_deal_negotiations', mergedNegs);
+          }
+        }
+      }
+
+      // 8. Sync Users with Database API
+      const usersRes = await fetch('/api/users.php').catch(() => null);
+      if (usersRes && usersRes.ok) {
+        const usersJson = await usersRes.json().catch(() => null);
+        if (usersJson && usersJson.status === 'success' && Array.isArray(usersJson.data) && usersJson.data.length > 0) {
+          const localUsers = this.getUsers();
+          const userMap = new Map<string, any>();
+          usersJson.data.forEach((u: any) => userMap.set(u.id, u));
+          localUsers.forEach((u: any) => { if (!userMap.has(u.id)) userMap.set(u.id, u); });
+          const mergedUsers = Array.from(userMap.values());
+          if (JSON.stringify(mergedUsers) !== JSON.stringify(localUsers)) {
+            this.writeStorage('bueno_users', mergedUsers);
           }
         }
       }
@@ -666,6 +788,7 @@ export const TAB_TO_CAPABILITY: Record<string, string> = {
   trips:             'deals',
   in_transit:        'deals',
   incoming_unload:   'deals',
+  unloading:         'deals',
   dispatch:          'deals',
   negotiations:      'negotiations',
   fund_requisitions: 'fund_requisitions',
@@ -690,6 +813,7 @@ export const TAB_ALIASES: Record<string, string[]> = {
   trips:             ['deals'],
   in_transit:        ['deals'],
   incoming_unload:   ['deals'],
+  unloading:         ['deals'],
   dispatch:          ['deals'],
   negotiations:      ['negotiations'],
   fund_requisitions: ['fund_requisitions'],

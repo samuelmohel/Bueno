@@ -15,7 +15,7 @@ const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditM
 };
 
 export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'wagons' | 'history'>('loading');
+  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history'>('loading');
   const [trips, setTrips] = useState<any[]>([]);
   const [wagons, setWagons] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -77,6 +77,20 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     status: 'AVAILABLE',
   });
 
+  // FIELD FUND REQUISITION STATES
+  const [requests, setRequests] = useState<any[]>(() => StateEngine.getRequests());
+  const [showFundModal, setShowFundModal] = useState(false);
+  const [fundForm, setFundForm] = useState({
+    title: '',
+    category: 'Tarpaulin Covering & Lashing (₦350,000)',
+    amount: '350000',
+    tripNo: '',
+    vesselNo: 'VSL-APMT-992',
+    description: '',
+  });
+  const [selectedReqForChat, setSelectedReqForChat] = useState<any | null>(null);
+  const [chatInput, setChatInput] = useState('');
+
   const station = user?.assignedStation || 'EWK';
   const isDestinationYard = station === 'MNY';
 
@@ -85,6 +99,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     setTrips(liveTrips);
     setWagons(StateEngine.getWagons());
     setDeals(StateEngine.getDeals());
+    setRequests(StateEngine.getRequests());
     if (liveTrips.length > 0 && !selectedTripId) {
       setSelectedTripId(liveTrips[0].id);
     }
@@ -123,8 +138,9 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const availableTabs = [
       { id: 'loading' },
       { id: 'dispatch' },
-      { id: 'wagons' },
+      { id: 'unloading' },
       { id: 'requisitions' },
+      { id: 'wagons' },
       { id: 'history' },
     ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
 
@@ -150,6 +166,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       loadedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       bagsCount: `${quantityNum} ${unitLabel}`,
       quantityNum: quantityNum,
+      qty: quantityNum,
       unitOfMeasure: unitLabel,
       sealNumber: loadingForm.sealNumber,
       feederTruckNo: loadingForm.feederTruckNo,
@@ -165,6 +182,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       status: 'LOADING',
       cargoOfficerName: user?.fullName || 'Ade Bello',
     });
+
+    const updatedTrips = trips.map((t: any) =>
+      t.id === activeTrip.id ? { ...t, wagonLogs: updatedWagonLogs, status: 'LOADING' } : t
+    );
+    setTrips(updatedTrips);
 
     setCustomAlert({
       title: 'Wagon Loading & Seal Recorded',
@@ -187,10 +209,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const dealCargoType = deal?.cargoType || 'Bagged Cement (50kg)';
     const unitLabel = COMMODITY_CONFIG[dealCargoType]?.unit || 'Bags';
     const wagonTypeLabel = COMMODITY_CONFIG[dealCargoType]?.wagonType || 'Covered Hopper Wagon';
+    const newTripId = 'TRP-' + Math.floor(1000 + Math.random() * 8999);
 
     const newTrip = {
-      id: 'TRP-' + Math.floor(1000 + Math.random() * 8999),
-      tripId: 'TRP-' + Math.floor(1000 + Math.random() * 8999),
+      id: newTripId,
+      tripId: newTripId,
       locomotiveId: tripForm.locomotiveId || 'L2205',
       origin: deal.loadingStation || station || 'EWK',
       destination: deal.destination || 'MNY',
@@ -326,12 +349,18 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         return {
           ...w,
           status: 'UNLOADED',
+          unloadStatus: 'UNLOADED',
           unsealedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           unloadingOfficerName: user?.fullName || 'Musa Ibrahim',
           unloadedIntact: `${intactNum} ${unitLabel}`,
+          correctQty: intactNum,
+          unloadedQty: intactNum,
+          burstBags: discrepancyNum,
+          damageQty: discrepancyNum,
           discrepancy: discrepancyNum,
           sidingBay: unloadingForm.sidingBay,
           sealVerified: unloadingForm.sealVerified,
+          complaintNotes: unloadingForm.remarks || null,
         };
       }
       return w;
@@ -340,20 +369,126 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const updatedDamages = {
       damagedUnits: (activeTrip.damages?.damagedUnits || 0) + discrepancyNum,
       burstBags: (activeTrip.damages?.burstBags || 0) + discrepancyNum,
-      complaintNotes: unloadingForm.remarks ? [...(activeTrip.damages?.complaintNotes || []), unloadingForm.remarks] : activeTrip.damages?.complaintNotes || [],
+      complaintNotes: unloadingForm.remarks
+        ? [...(Array.isArray(activeTrip.damages?.complaintNotes) ? activeTrip.damages.complaintNotes : [activeTrip.damages?.complaintNotes]).filter(Boolean), unloadingForm.remarks]
+        : activeTrip.damages?.complaintNotes || [],
     };
+
+    const allUnloaded = updatedWagonLogs.every((w: any) => w.status === 'UNLOADED' || w.unloadStatus === 'UNLOADED');
+    const now = new Date();
+    const completedTimestamp = `${now.toLocaleDateString('en-GB')}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     StateEngine.updateTrip(activeTrip.id, {
       wagonLogs: updatedWagonLogs,
       damages: updatedDamages,
       unloadingOfficerName: user?.fullName || 'Musa Ibrahim',
-      status: updatedWagonLogs.every((w: any) => w.status === 'UNLOADED') ? 'COMPLETED' : 'IN_TRANSIT',
+      status: allUnloaded ? 'COMPLETED' : 'IN_TRANSIT',
+      completedAt: allUnloaded ? completedTimestamp : (activeTrip.completedAt || ''),
     });
+
+    const updatedTrips = trips.map((t: any) =>
+      t.id === activeTrip.id ? {
+        ...t,
+        wagonLogs: updatedWagonLogs,
+        damages: updatedDamages,
+        status: allUnloaded ? 'COMPLETED' : 'IN_TRANSIT',
+        completedAt: allUnloaded ? completedTimestamp : t.completedAt
+      } : t
+    );
+    setTrips(updatedTrips);
+
+    if (allUnloaded) {
+      try {
+        const storedWagons = StateEngine.getWagons();
+        const loadedWagonIds = new Set(updatedWagonLogs.map((w: any) => w.wagonId));
+        const updatedWagons = storedWagons.map((w: any) => {
+          if (loadedWagonIds.has(w.id)) {
+            return { ...w, status: 'AVAILABLE', currentStation: activeTrip.destination || 'MNY' };
+          }
+          return w;
+        });
+        StateEngine.saveWagons(updatedWagons);
+        setWagons(updatedWagons);
+      } catch {}
+    }
 
     setCustomAlert({
       title: 'Destination Unloading Audited',
-      message: `Wagon ${unloadingForm.wagonId} unsealed & discharged at ${unloadingForm.sidingBay}! Intact: ${intactNum} ${unitLabel}, Discrepancies: ${discrepancyNum}.`,
+      message: `Wagon ${unloadingForm.wagonId} unsealed & discharged at ${unloadingForm.sidingBay}! Intact: ${intactNum} ${unitLabel}, Discrepancies: ${discrepancyNum}.${allUnloaded ? ' Consignment 100% complete — train status updated to COMPLETED!' : ''}`,
     });
+  };
+
+  // 3B. FIELD FUND REQUISITION SUBMISSION HANDLER
+  const handleCreateFundRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    const reqAmount = parseFloat(fundForm.amount) || 0;
+    const reqNo = `REQ-${Math.floor(1000 + Math.random() * 8999)}`;
+    const newReq = {
+      id: reqNo,
+      requisitionNo: reqNo,
+      title: fundForm.title || `${fundForm.category.split('(')[0].trim()} for ${station} Siding`,
+      category: fundForm.category.split('(')[0].trim(),
+      amount: reqAmount,
+      requestedBy: `${user?.fullName || 'Ade Bello'} (Cargo Officer)`,
+      officerName: user?.fullName || 'Ade Bello',
+      officerId: user?.id || 'usr_1',
+      station: station,
+      tripNo: fundForm.tripNo || activeTrip?.id || 'TRIP-001',
+      tripId: fundForm.tripNo || activeTrip?.id || 'TRIP-001',
+      vesselNo: fundForm.vesselNo || 'VSL-APMT-992',
+      stage: 'Admin',
+      status: 'PENDING',
+      description: fundForm.description || fundForm.title,
+      date: new Date().toLocaleDateString('en-GB'),
+      createdAt: new Date().toLocaleString('en-GB'),
+      conversation: [{ sender: user?.fullName || 'Cargo Officer', role: 'Cargo Officer', msg: fundForm.description || 'Field siding requisition submitted for operations clearance.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
+      paymentDetails: null,
+    };
+
+    StateEngine.createRequest(newReq);
+    setRequests([newReq, ...requests]);
+    setShowFundModal(false);
+    setFundForm({ title: '', category: 'Tarpaulin Covering & Lashing (₦350,000)', amount: '350000', tripNo: '', vesselNo: 'VSL-APMT-992', description: '' });
+
+    // Send real-time notification alert to Admin & Executive desks
+    const notif = {
+      id: `notif_${Date.now()}`,
+      title: `Field Siding Requisition: ${newReq.requisitionNo}`,
+      body: `${user?.fullName || 'Cargo Officer'} requested ₦${reqAmount.toLocaleString()} for ${newReq.title} at ${station} Terminal.`,
+      time: 'Just now',
+      type: 'EXPENSE_REQUEST',
+      targetId: newReq.id,
+      targetTab: 'fund_requisitions',
+      read: false,
+    };
+    try {
+      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      localStorage.setItem('bueno_notifications', JSON.stringify([notif, ...existingNotifs]));
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notif),
+      }).catch(() => {});
+    } catch {}
+
+    setCustomAlert({
+      title: 'Field Requisition Submitted',
+      message: `Requisition ${newReq.requisitionNo} for ₦${reqAmount.toLocaleString()} submitted! Forwarded through executive approval pipeline.`,
+    });
+  };
+
+  const handleSendReqChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !selectedReqForChat) return;
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsg = { sender: user?.fullName || 'Cargo Officer', role: 'Cargo Officer', msg: chatInput.trim(), time: now };
+    const updated = requests.map((r: any) =>
+      r.id === selectedReqForChat.id ? { ...r, conversation: [...(r.conversation || []), newMsg] } : r
+    );
+    StateEngine.saveRequests(updated);
+    setRequests(updated);
+    setSelectedReqForChat({ ...selectedReqForChat, conversation: [...(selectedReqForChat.conversation || []), newMsg] });
+    setChatInput('');
   };
 
   // 4. REGISTER NEW ROLLING STOCK WAGON
@@ -685,6 +820,18 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
           </button>
 
           <button
+            onClick={() => setActiveTab('requisitions')}
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all relative flex items-center gap-2 ${
+              activeTab === 'requisitions' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span>Field Fund Requisitions</span>
+            {requests.filter((r: any) => r.status === 'PENDING').length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab('wagons')}
             className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
               activeTab === 'wagons' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
@@ -932,6 +1079,27 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Discharge Siding Bay</label>
+                  <input
+                    type="text"
+                    value={unloadingForm.sidingBay}
+                    onChange={(e) => setUnloadingForm({ ...unloadingForm, sidingBay: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Audit Notes / Defect Remarks</label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. 1 burst bag noted during hopper discharge at Moniya Bay 2..."
+                    value={unloadingForm.remarks}
+                    onChange={(e) => setUnloadingForm({ ...unloadingForm, remarks: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
+                  />
+                </div>
+
                 <button
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
@@ -957,7 +1125,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       <th className="p-3">Unseal Time</th>
                       <th className="p-3">Verified Seal #</th>
                       <th className="p-3">Intact Delivered</th>
-                      <th className="p-3">Defects</th>
+                      <th className="p-3">Burst / Defects</th>
+                      <th className="p-3">Siding Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
@@ -966,8 +1135,9 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                         <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
                         <td className="p-3 text-slate-600">{w.unsealedAt || 'Awaiting Arrival'}</td>
                         <td className="p-3 font-bold text-slate-900">{w.sealNumber}</td>
-                        <td className="p-3 font-extrabold text-emerald-700">{w.unloadedIntact || w.bagsCount}</td>
-                        <td className="p-3 font-extrabold text-rose-600">{w.discrepancy || 0}</td>
+                        <td className="p-3 font-extrabold text-emerald-700">{w.unloadedIntact || `${w.correctQty || w.qty || 70} ${w.unitOfMeasure || 'Bags'}`}</td>
+                        <td className="p-3 font-extrabold text-rose-600">{w.burstBags || w.damageQty || w.discrepancy || 0}</td>
+                        <td className="p-3 text-slate-500 font-sans max-w-xs truncate">{w.complaintNotes || w.sidingBay || 'Intact'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1095,6 +1265,165 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: FIELD FUND REQUISITIONS ─── */}
+        {activeTab === 'requisitions' && (
+          <div className="space-y-6 font-sans">
+            {/* KPI STATS */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 font-mono">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Field Requisitions</span>
+                <span className="text-2xl font-black text-slate-900">{requests.length}</span>
+                <span className="text-[10px] text-slate-500 block font-sans">All Submissions</span>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-amber-500 font-bold uppercase block">Pending Clearance</span>
+                <span className="text-2xl font-black text-amber-700">
+                  {requests.filter((r: any) => r.status === 'PENDING' || r.stage === 'Admin' || r.stage === 'Head of Operations').length}
+                </span>
+                <span className="text-[10px] text-slate-500 block font-sans">Under Executive Review</span>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-blue-500 font-bold uppercase block">Executive Approved</span>
+                <span className="text-2xl font-black text-blue-700">
+                  {requests.filter((r: any) => r.status === 'APPROVED' || r.status === 'CEO_APPROVED' || r.stage === 'CEO' || r.stage === 'Accountant').length}
+                </span>
+                <span className="text-[10px] text-slate-500 block font-sans">In Finance Pipeline</span>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-emerald-500 font-bold uppercase block">Paid & Disbursed</span>
+                <span className="text-2xl font-black text-emerald-700">
+                  ₦{requests.filter((r: any) => r.status === 'DISBURSED' || r.stage === 'Paid').reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-500 block font-sans">Cleared to Field</span>
+              </div>
+            </div>
+
+            {/* HEADER & ACTION BUTTON */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Siding Operating Expenses</span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Field Fund Requisitions & Clearance Ledger — {user?.stationName || station} Terminal
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Request operations funds for tarpaulins, payloader AGO fuel, weighbridge calibration, or escort logistics.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowFundModal(true)}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
+              >
+                <span>+ Request Siding Funds</span>
+              </button>
+            </div>
+
+            {/* REQUISITIONS TABLE */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-sans">
+                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Req ID</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Title & Siding Purpose</th>
+                      <th className="p-3">Requested Amount</th>
+                      <th className="p-3">Corridor / Trip</th>
+                      <th className="p-3">Approval Progression</th>
+                      <th className="p-3">Status / Payment Ref</th>
+                      <th className="p-3 text-right">Details & Q&A</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {requests.map((req: any, idx: number) => {
+                      const isDisbursed = req.status === 'DISBURSED' || req.stage === 'Paid';
+                      const isCeoApproved = req.status === 'CEO_APPROVED' || req.stage === 'Accountant';
+                      const isOpsApproved = req.status === 'OPS_APPROVED' || req.stage === 'CEO';
+                      const isApproved = isDisbursed || isCeoApproved || isOpsApproved || req.status === 'APPROVED';
+
+                      const stages = [
+                        { key: 'Admin', label: '1. Admin' },
+                        { key: 'Head of Operations', label: '2. Ops Head' },
+                        { key: 'CEO', label: '3. CEO' },
+                        { key: 'Accountant', label: '4. Finance' },
+                        { key: 'Paid', label: '5. Paid' },
+                      ];
+                      const currentStageIdx = stages.findIndex((s) => s.key === req.stage);
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-amber-800">{req.requisitionNo || req.id}</td>
+                          <td className="p-3">
+                            <span className="bg-slate-100 text-slate-800 text-[10px] px-2 py-0.5 rounded border border-slate-200 font-sans font-bold">
+                              {req.category || 'OPERATIONAL'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-sans font-bold text-slate-900 max-w-xs">{req.title || req.description}</td>
+                          <td className="p-3 font-extrabold text-emerald-700 text-sm">
+                            ₦{Number(req.amount || 0).toLocaleString()}
+                          </td>
+                          <td className="p-3 font-mono text-slate-600">
+                            {req.tripNo || 'TRIP-001'}
+                          </td>
+                          <td className="p-3 font-sans">
+                            <div className="flex items-center gap-1">
+                              {stages.map((s, sIdx) => {
+                                const active = sIdx === currentStageIdx;
+                                const passed = currentStageIdx > -1 ? sIdx < currentStageIdx : isApproved;
+                                return (
+                                  <span
+                                    key={s.key}
+                                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                                      active
+                                        ? 'bg-[#62BC37] text-white'
+                                        : passed
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                  >
+                                    {s.label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            {isDisbursed ? (
+                              <div>
+                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase block w-fit font-sans">
+                                  ✓ PAID & DISBURSED
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-mono block mt-0.5">
+                                  Ref: {req.paymentDetails?.ref || 'TRF-GTB-998120'}
+                                </span>
+                              </div>
+                            ) : isApproved ? (
+                              <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase font-sans">
+                                IN FINANCE PIPELINE
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase font-sans">
+                                AWAITING CLEARANCE
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => setSelectedReqForChat(req)}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all"
+                            >
+                              💬 Notes ({req.conversation?.length || 0})
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -1229,6 +1558,190 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     ⚡ Launch Freight Trip & Issue Waybill
                   </button>
                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* ─── MODAL: FIELD FUND REQUISITION DISPATCH ─── */}
+        {showFundModal && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5">
+              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
+                    FIELD SIDING REQUISITION DISPATCH
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Request Siding Operational Funds
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFundModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateFundRequest} className="space-y-4 text-xs font-semibold">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Expense Category *</label>
+                  <select
+                    value={fundForm.category}
+                    onChange={(e) => {
+                      const cat = e.target.value;
+                      let amt = fundForm.amount;
+                      if (cat.includes('Tarpaulin')) amt = '350000';
+                      else if (cat.includes('Payloader')) amt = '280000';
+                      else if (cat.includes('Sanding')) amt = '120000';
+                      else if (cat.includes('Escort')) amt = '180000';
+                      else if (cat.includes('Weighbridge')) amt = '150000';
+                      else if (cat.includes('Emergency')) amt = '250000';
+                      setFundForm({ ...fundForm, category: cat, amount: amt });
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="Tarpaulin Covering & Lashing (₦350,000)">Tarpaulin Covering & Lashing (₦350,000)</option>
+                    <option value="Payloader Fuel & Operator Fee (₦280,000)">Payloader Fuel & Operator Fee (₦280,000)</option>
+                    <option value="Locomotive Sanding & Shunting Fee (₦120,000)">Locomotive Sanding & Shunting Fee (₦120,000)</option>
+                    <option value="Security & Escort Crew Logistics (₦180,000)">Security & Escort Crew Logistics (₦180,000)</option>
+                    <option value="Siding Track Weed Clearance & Maintenance (₦95,000)">Siding Track Weed Clearance & Maintenance (₦95,000)</option>
+                    <option value="Weighbridge Recalibration & Certification (₦150,000)">Weighbridge Recalibration & Certification (₦150,000)</option>
+                    <option value="Emergency Mechanical Siding Repair (₦250,000)">Emergency Mechanical Siding Repair (₦250,000)</option>
+                    <option value="Custom Operational Siding Expense">Custom Operational Siding Expense</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Requested Amount (₦) *</label>
+                    <input
+                      required
+                      type="number"
+                      value={fundForm.amount}
+                      onChange={(e) => setFundForm({ ...fundForm, amount: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Related Trip Number</label>
+                    <select
+                      value={fundForm.tripNo || activeTrip?.id}
+                      onChange={(e) => setFundForm({ ...fundForm, tripNo: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
+                    >
+                      {trips.map((t) => (
+                        <option key={t.id} value={t.id}>{t.id} ({t.origin} ➔ {t.destination})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Purpose / Title *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Purchase of 15 heavy-duty waterproof tarpaulins for rainy season"
+                    value={fundForm.title}
+                    onChange={(e) => setFundForm({ ...fundForm, title: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Operational Justification / Field Description</label>
+                  <textarea
+                    rows={3}
+                    placeholder="Details on vendor, urgency, or siding location requirement..."
+                    value={fundForm.description}
+                    onChange={(e) => setFundForm({ ...fundForm, description: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium"
+                  />
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-medium">Terminal Dispatch Siding:</span>
+                  <span className="font-mono font-bold text-[#62BC37]">{user?.stationName || station}</span>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFundModal(false)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                  >
+                    ✓ Submit Requisition to Head Office
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ─── MODAL: REQUISITION NOTES & CONVERSATION ─── */}
+        {selectedReqForChat && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
+            <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4">
+              <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{selectedReqForChat.requisitionNo || selectedReqForChat.id}</span>
+                  <h4 className="text-base font-black text-slate-900">{selectedReqForChat.title}</h4>
+                  <p className="text-xs text-slate-500 font-medium">₦{Number(selectedReqForChat.amount).toLocaleString()} • Stage: <b className="text-slate-800">{selectedReqForChat.stage}</b></p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReqForChat(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {selectedReqForChat.paymentDetails && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 font-mono text-xs">
+                  <span className="text-[10px] text-emerald-600 font-bold uppercase block font-sans">Disbursed via GTBank</span>
+                  <span className="font-black text-emerald-800 text-sm">Ref: {selectedReqForChat.paymentDetails.ref}</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 font-sans">Date: {selectedReqForChat.paymentDetails.date || selectedReqForChat.paymentDetails.disbursedAt}</span>
+                </div>
+              )}
+
+              <div className="bg-slate-50 rounded-2xl p-4 space-y-3 max-h-60 overflow-y-auto border border-slate-200 text-xs">
+                {(!selectedReqForChat.conversation || selectedReqForChat.conversation.length === 0) ? (
+                  <p className="text-center text-slate-400 py-3">No messages or questions logged yet.</p>
+                ) : (
+                  selectedReqForChat.conversation.map((m: any, idx: number) => (
+                    <div key={idx} className={`p-3 rounded-xl border ${m.sender === user?.fullName ? 'bg-[#0E4B88] text-white ml-6 border-transparent' : 'bg-white text-slate-800 mr-6 border-slate-200'}`}>
+                      <div className="flex justify-between items-center text-[10px] opacity-80 mb-1">
+                        <span className="font-bold">{m.sender} ({m.role})</span>
+                        <span className="font-mono">{m.time}</span>
+                      </div>
+                      <p className="leading-snug">{m.msg}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <form onSubmit={handleSendReqChat} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Type message or field update..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl"
+                >
+                  Send
+                </button>
               </form>
             </div>
           </div>

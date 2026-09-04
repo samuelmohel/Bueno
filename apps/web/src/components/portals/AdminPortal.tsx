@@ -704,8 +704,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const unitLabel = dealItem.unitOfMeasure || (dealItem.cargoType?.includes('Gypsum') ? 'Metric Tonnes (MT)' : 'Bags');
     const wagonTypeLabel = dealItem.wagonType || (dealItem.cargoType?.includes('Gypsum') ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon');
 
+    const newTripId = `TRP-${Math.floor(1000 + Math.random() * 8999)}`;
     const newTrip = {
-      id: `TRP-${Math.floor(1000 + Math.random() * 8999)}`,
+      id: newTripId,
+      tripId: newTripId,
       locomotiveId: 'L2205',
       origin: dealItem.loadingStation || 'EWK',
       destination: dealItem.destination || 'MNY',
