@@ -477,7 +477,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
   const [newCostModal, setNewCostModal] = useState(false);
   const [newCostForm, setNewCostForm] = useState({
-    tripId: 'TRP-101',
+    tripId: trips[0]?.id || '',
     category: 'NRC_TRACK_ACCESS',
     title: '',
     vendor: 'Nigerian Railway Corporation (NRC)',
@@ -952,7 +952,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     StateEngine.createTripCost(costObj);
     setNewCostModal(false);
     setNewCostForm({
-      tripId: trips[0]?.id || 'TRP-101',
+      tripId: trips[0]?.id || '',
       category: 'NRC_TRACK_ACCESS',
       title: '',
       vendor: 'Nigerian Railway Corporation (NRC)',
@@ -3693,6 +3693,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </h3>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to purge all demo trips, costs, and invoices for a clean production state?')) {
+                      StateEngine.purgeDemoData();
+                      syncData();
+                      setCustomAlert({ title: 'Production Data Purged', message: 'All dummy trips, mock costs, and demo invoices have been purged.' });
+                    }
+                  }}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-rose-200 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🗑️ Clean Production Reset</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleResetPermissionsDefaults}

@@ -6,59 +6,7 @@
 import { bookingsApi, usersApi } from '@/lib/api';
 
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
-export const SEED_TRIPS = [
-  {
-    id: 'TRP-101',
-    tripId: 'TRP-101',
-    locomotiveId: 'L2205',
-    origin: 'EWK',
-    destination: 'MNY',
-    company: 'Purechem Cement Industries Ltd',
-    dealNumber: 'DEAL-88210',
-    quantity: 1610,
-    cargoOfficerId: 'usr_1',
-    cargoOfficerName: 'Ade Bello',
-    cargoOfficerPhone: '08031112233',
-    unloadingOfficerId: 'usr_4',
-    unloadingOfficerName: 'Musa Ibrahim',
-    unloadingOfficerPhone: '08034445566',
-    escortPhone: '08031112233',
-    status: 'COMPLETED',
-    dispatchTime: '24 Aug 2026, 09:30 AM',
-    arrivalTime: '24 Aug 2026, 02:45 PM',
-    wagonLogs: [
-      { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '24 Aug 2026, 08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-      { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '24 Aug 2026, 08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-      { wagonId: 'PXG 2324', status: 'LOADED', loadedAt: '24 Aug 2026, 08:40 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9803' },
-    ],
-    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-  },
-  {
-    id: 'TRP-102',
-    tripId: 'TRP-102',
-    locomotiveId: 'L2208',
-    origin: 'APT',
-    destination: 'MNY',
-    company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    dealNumber: 'DEAL-99412',
-    quantity: 2300,
-    cargoOfficerId: 'usr_6',
-    cargoOfficerName: 'Ngozi Eze',
-    cargoOfficerPhone: '08036667788',
-    unloadingOfficerId: 'usr_5',
-    unloadingOfficerName: 'Kassim Ahmed',
-    unloadingOfficerPhone: '08035556677',
-    escortPhone: '08036667788',
-    status: 'IN_TRANSIT',
-    dispatchTime: '26 Aug 2026, 11:15 AM',
-    arrivalTime: null,
-    wagonLogs: [
-      { wagonId: 'PXG 4401', status: 'LOADED', loadedAt: '26 Aug 2026, 10:00 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9901' },
-      { wagonId: 'PXG 4402', status: 'LOADED', loadedAt: '26 Aug 2026, 10:15 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9902' },
-    ],
-    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-  },
-];
+export const SEED_TRIPS: any[] = [];
 
 export const SEED_WAGONS = [
   // Bueno's Dedicated Cement Hopper Fleet (PXG 09001 - PXG 09046)
@@ -80,45 +28,11 @@ export const SEED_WAGONS = [
 ];
 
 export const SEED_DEALS = [
-  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Purechem Cement Industries Ltd', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: 1610, createdAt: '20 Aug 2026' },
-  { id: 'dl_2', dealNumber: 'DEAL-99412', company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', loadingStation: 'APT', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg)', quantity: 2300, createdAt: '22 Aug 2026' },
+  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Purechem Cement Industries Ltd', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: 1610, status: 'ACTIVE', createdAt: '01 Sep 2026' },
+  { id: 'dl_2', dealNumber: 'DEAL-99412', company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', loadingStation: 'APT', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg)', quantity: 2300, status: 'ACTIVE', createdAt: '02 Sep 2026' },
 ];
 
-export const SEED_REQUESTS = [
-  {
-    id: 'REQ-901',
-    requisitionNo: 'REQ-901',
-    category: 'TARPAULIN',
-    title: 'Waterproof Tarpaulin Covers for Cement Wagons',
-    description: 'Purchase of 15 heavy-duty waterproof tarpaulins to cover open hopper wagons during rainy season transit',
-    amount: 350000,
-    requestedBy: 'Ade Bello (Cargo Officer)',
-    officerId: 'usr_1',
-    station: 'EWK',
-    tripId: 'TRP-101',
-    vesselNo: 'VSL-2026-EWK01',
-    stage: 'Accountant',
-    status: 'APPROVED',
-    paymentDetails: { ref: 'TRF-GTB-998120', disbursedAt: '25 Aug 2026, 04:15 PM' },
-    createdAt: '24 Aug 2026, 09:00 AM',
-  },
-  {
-    id: 'REQ-902',
-    requisitionNo: 'REQ-902',
-    category: 'PAYLOADER',
-    title: 'Payloader Fuel & Operator Fee for Moniya Yard',
-    description: 'Fuel AGO (200 Liters) and daily operator stipend for Moniya Dry Port hopper unloader',
-    amount: 280000,
-    requestedBy: 'Musa Ibrahim (Cargo Officer)',
-    officerId: 'usr_4',
-    station: 'MNY',
-    tripId: 'TRP-101',
-    vesselNo: 'VSL-2026-MNY04',
-    stage: 'Head of Operations',
-    status: 'PENDING_APPROVAL',
-    createdAt: '26 Aug 2026, 01:20 PM',
-  },
-];
+export const SEED_REQUESTS: any[] = [];
 
 export const SEED_CONTAINERS = [
   { id: 'MSKU-948210-4', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-10', bay: 'Bay A', row: 'Row 1', col: 'Col 1', tier: 3, dwellDays: 16, gateStatus: 'IN_YARD' },
@@ -148,150 +62,9 @@ export const SEED_USERS = [
   { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
-export const SEED_INVOICES = [
-  {
-    id: 'INV-TRP-101',
-    invoiceNumber: 'INV-2026-0881',
-    tripId: 'TRP-101',
-    dealId: 'DEAL-88210',
-    companyName: 'Purechem Cement Industries Ltd',
-    clientEmail: 'logistics@purechem.ng',
-    cargoType: 'Elephant Cement (50kg bags)',
-    route: 'Ewekoro ➔ Moniya Siding',
-    totalBags: 1610,
-    totalTonnes: 80.5,
-    ratePerTonne: 160000,
-    subtotal: 12880000,
-    damageUnits: 10,
-    damageDeduction: 80000,
-    tax: 0,
-    totalAmount: 12800000,
-    amountPaid: 12800000,
-    balance: 0,
-    status: 'SETTLED',
-    paymentRef: 'TRF-GTB-883190',
-    damageDetails: [
-      { wagonId: 'PXG 2322', burstBags: 10, notes: '10 burst bags noted during hopper discharge at Moniya Bay 2' }
-    ],
-    paymentHistory: [
-      { type: 'ADVANCE_DEPOSIT (70%)', amount: 9000000, ref: 'TRF-ZENITH-110291', date: '23 Aug 2026' },
-      { type: 'FINAL_SETTLEMENT', amount: 3800000, ref: 'TRF-GTB-883190', date: '26 Aug 2026' }
-    ],
-    issueDate: '24 Aug 2026',
-    dueDate: '07 Sep 2026',
-    createdAt: '24 Aug 2026',
-  },
-  {
-    id: 'INV-TRP-102',
-    invoiceNumber: 'INV-2026-0882',
-    tripId: 'TRP-102',
-    dealId: 'DEAL-99412',
-    companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    clientEmail: 'logistics@hbm.ng',
-    cargoType: 'Huaxin Portland Cement (50kg)',
-    route: 'Apapa Maritime Port ➔ Moniya Yard',
-    totalBags: 2300,
-    totalTonnes: 115,
-    ratePerTonne: 160000,
-    subtotal: 18400000,
-    damageUnits: 0,
-    damageDeduction: 0,
-    tax: 0,
-    totalAmount: 18400000,
-    amountPaid: 12880000,
-    balance: 5520000,
-    status: 'PARTIALLY_PAID',
-    paymentRef: 'TRF-UBA-551029',
-    damageDetails: [],
-    paymentHistory: [
-      { type: 'ADVANCE_DEPOSIT (70%)', amount: 12880000, ref: 'TRF-UBA-551029', date: '25 Aug 2026' }
-    ],
-    issueDate: '26 Aug 2026',
-    dueDate: '09 Sep 2026',
-    createdAt: '26 Aug 2026',
-  },
-];
+export const SEED_INVOICES: any[] = [];
 
-export const SEED_TRIP_COSTS = [
-  {
-    id: 'CST-101-1',
-    tripId: 'TRP-101',
-    category: 'NRC_TRACK_ACCESS',
-    title: 'NRC Standard Gauge Corridor Track Access Toll (Ewekoro ➔ Moniya)',
-    vendor: 'Nigerian Railway Corporation (NRC)',
-    amount: 1450000,
-    voucherNo: 'NRC-TOLL-2026-081',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '24 Aug 2026',
-    createdAt: '24 Aug 2026',
-  },
-  {
-    id: 'CST-101-2',
-    tripId: 'TRP-101',
-    category: 'AGO_FUEL',
-    title: 'Locomotive L2205 AGO Diesel Fueling (2,400 Liters @ ₦1,250/L)',
-    vendor: 'TotalEnergies Depot Apapa',
-    amount: 3000000,
-    voucherNo: 'AGO-VCH-99120',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '24 Aug 2026',
-    createdAt: '24 Aug 2026',
-  },
-  {
-    id: 'CST-101-3',
-    tripId: 'TRP-101',
-    category: 'CREW_ESCORT',
-    title: 'Train Driver, Assistant & Armed Police Escort Duty Stipend',
-    vendor: 'NRC Operations & Security Detachment',
-    amount: 320000,
-    voucherNo: 'NRC-ESC-9081',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '24 Aug 2026',
-    createdAt: '24 Aug 2026',
-  },
-  {
-    id: 'CST-102-1',
-    tripId: 'TRP-102',
-    category: 'NRC_TRACK_ACCESS',
-    title: 'NRC Standard Gauge Corridor Track Access Toll (Apapa ➔ Moniya)',
-    vendor: 'Nigerian Railway Corporation (NRC)',
-    amount: 1850000,
-    voucherNo: 'NRC-TOLL-2026-084',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '26 Aug 2026',
-    createdAt: '26 Aug 2026',
-  },
-  {
-    id: 'CST-102-2',
-    tripId: 'TRP-102',
-    category: 'AGO_FUEL',
-    title: 'Locomotive L2208 AGO Diesel Fueling (3,200 Liters @ ₦1,250/L)',
-    vendor: 'TotalEnergies Depot Apapa',
-    amount: 4000000,
-    voucherNo: 'AGO-VCH-99135',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '26 Aug 2026',
-    createdAt: '26 Aug 2026',
-  },
-  {
-    id: 'CST-102-3',
-    tripId: 'TRP-102',
-    category: 'CREW_ESCORT',
-    title: 'Locomotive Crew & Escort Security Duty Allowance',
-    vendor: 'NRC Escort Unit',
-    amount: 350000,
-    voucherNo: 'NRC-ESC-9092',
-    paymentStatus: 'PAID',
-    recordedBy: 'Chinenye Nnamdi (Head of Finance)',
-    date: '26 Aug 2026',
-    createdAt: '26 Aug 2026',
-  },
-];
+export const SEED_TRIP_COSTS: any[] = [];
 
 // ─── STATE ENGINE SERVICE ───────────────────────────────────────────────────
 class StateEngineService {
@@ -637,8 +410,70 @@ class StateEngineService {
     } catch {}
   }
 
+  // ── PRODUCTION CLEAN SLATE / PURGE DEMO DATA ──────────────────────────────
+  purgeDemoData(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      this.writeStorage('bueno_trips', []);
+      this.writeStorage('bueno_trip_costs', []);
+      this.writeStorage('bueno_invoices', []);
+      this.writeStorage('bueno_requests', []);
+      const activeDeals = this.getDeals().map((d: any) => ({
+        ...d,
+        status: 'ACTIVE',
+        tripId: undefined,
+      }));
+      this.writeStorage('bueno_deals', activeDeals);
+      localStorage.setItem('bueno_prod_purge_v4', 'purged');
+      this.postRemote('/api/trips.php', []);
+      this.postRemote('/api/trip_costs.php', []);
+      this.postRemote('/api/invoices.php', []);
+      this.postRemote('/api/requests.php', []);
+      this.postRemote('/api/deals.php', activeDeals);
+      this.notifyListeners();
+    } catch {}
+  }
+
+  seedInitialProductionState(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const isPurged = localStorage.getItem('bueno_prod_purge_v4');
+      if (isPurged !== 'purged') {
+        // Strip out legacy demo data
+        const currentTrips = this.readStorage<any[]>('bueno_trips', []);
+        const cleanTrips = currentTrips.filter((t: any) => t.id !== 'TRP-101' && t.id !== 'TRP-102' && t.tripId !== 'TRP-101' && t.tripId !== 'TRP-102');
+        this.writeStorage('bueno_trips', cleanTrips);
+
+        const currentCosts = this.readStorage<any[]>('bueno_trip_costs', []);
+        const cleanCosts = currentCosts.filter((c: any) => c.tripId !== 'TRP-101' && c.tripId !== 'TRP-102' && !c.id?.startsWith('CST-101') && !c.id?.startsWith('CST-102'));
+        this.writeStorage('bueno_trip_costs', cleanCosts);
+
+        const currentInvs = this.readStorage<any[]>('bueno_invoices', []);
+        const cleanInvs = currentInvs.filter((inv: any) => inv.tripId !== 'TRP-101' && inv.tripId !== 'TRP-102' && inv.id !== 'INV-TRP-101' && inv.id !== 'INV-TRP-102');
+        this.writeStorage('bueno_invoices', cleanInvs);
+
+        const currentReqs = this.readStorage<any[]>('bueno_requests', []);
+        const cleanReqs = currentReqs.filter((r: any) => r.tripId !== 'TRP-101' && r.tripId !== 'TRP-102' && r.id !== 'REQ-901' && r.id !== 'REQ-902');
+        this.writeStorage('bueno_requests', cleanReqs);
+
+        const currentDeals = this.readStorage<any[]>('bueno_deals', SEED_DEALS);
+        const cleanDeals = currentDeals.map((d: any) => {
+          if (d.tripId === 'TRP-101' || d.tripId === 'TRP-102') {
+            return { ...d, status: 'ACTIVE', tripId: undefined };
+          }
+          return d;
+        });
+        this.writeStorage('bueno_deals', cleanDeals);
+
+        localStorage.setItem('bueno_prod_purge_v4', 'purged');
+        this.notifyListeners();
+      }
+    } catch {}
+  }
+
   // ── TRIPS API ─────────────────────────────────────────────────────────────
   getTrips(): any[] {
+    this.seedInitialProductionState();
     return this.readStorage('bueno_trips', SEED_TRIPS);
   }
 
@@ -700,6 +535,7 @@ class StateEngineService {
 
   // ── REQUISITIONS API ──────────────────────────────────────────────────────
   getRequests(): any[] {
+    this.seedInitialProductionState();
     return this.readStorage('bueno_requests', SEED_REQUESTS);
   }
 
@@ -719,6 +555,7 @@ class StateEngineService {
 
   // ── INVOICES (AR & REVENUE) API ───────────────────────────────────────────
   getInvoices(): any[] {
+    this.seedInitialProductionState();
     return this.readStorage('bueno_invoices', SEED_INVOICES);
   }
 
@@ -767,6 +604,7 @@ class StateEngineService {
 
   // ── TRIP DIRECT COSTS (COGS) API ──────────────────────────────────────────
   getTripCosts(tripId?: string): any[] {
+    this.seedInitialProductionState();
     const all = this.readStorage('bueno_trip_costs', SEED_TRIP_COSTS);
     if (tripId) {
       return all.filter((c: any) => c.tripId === tripId);

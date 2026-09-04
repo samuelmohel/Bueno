@@ -171,8 +171,8 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
               <div className="text-xs text-slate-600 mt-2 space-y-0.5">
                 <p><strong className="text-slate-900">Issue Date:</strong> {invoice.issueDate || '24 Aug 2026'}</p>
                 <p><strong className="text-slate-900">Due Date:</strong> {invoice.dueDate || '07 Sep 2026'}</p>
-                <p><strong className="text-slate-900">Corridor Trip ID:</strong> {invoice.tripId || 'TRP-101'}</p>
-                <p><strong className="text-slate-900">Deal Ref:</strong> {invoice.dealId || 'DEAL-88210'}</p>
+                <p><strong className="text-slate-900">Corridor Trip ID:</strong> {invoice.tripId || 'N/A'}</p>
+                <p><strong className="text-slate-900">Deal Ref:</strong> {invoice.dealId || 'N/A'}</p>
               </div>
             </div>
           </div>

@@ -149,8 +149,8 @@ export function LiveGpsMap({
     lastPingTime: lastPing,
   };
 
-  const tripId = trip?.id || trip?.tripId || 'TRP-101';
-  const companyName = trip?.company || trip?.companyName || 'Industrial Consignee Client';
+  const tripId = trip?.id || trip?.tripId || '';
+  const companyName = trip?.company || trip?.companyName || (allTrips.length === 0 ? 'No Active Corridor Dispatches' : 'Industrial Consignee Client');
   const locoId = trip?.locomotiveId || 'L2205';
 
   // Process and commit position updates
@@ -584,6 +584,9 @@ export function LiveGpsMap({
             onChange={(e) => handleTripChange(e.target.value)}
             className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-[#62BC37] focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
           >
+            {allTrips.length === 0 && (
+              <option value="">No Active Corridor Dispatches</option>
+            )}
             {allTrips.map((t: any) => {
               const isRet = t.status === 'RETURNING_EMPTY' || t.isReturnLeg;
               return (
@@ -606,16 +609,16 @@ export function LiveGpsMap({
               ? 'bg-purple-950 text-purple-300 border-purple-800'
               : 'bg-blue-950 text-blue-300 border-blue-800'
           }`}>
-            {trip?.status === 'RETURNING_EMPTY' ? '🔄 EMPTY REPOSITIONING' : trip?.status || 'ACTIVE'}
+            {trip?.status === 'RETURNING_EMPTY' ? '🔄 EMPTY REPOSITIONING' : trip?.status || (allTrips.length === 0 ? 'STANDBY' : 'ACTIVE')}
           </span>
           <span className="text-slate-300 text-xs font-mono font-bold bg-slate-900 px-3 py-1 rounded-xl border border-slate-700">
-            {distanceKm} km remaining
+            {allTrips.length === 0 ? '0' : distanceKm} km remaining
           </span>
         </div>
       </div>
 
       {/* ─── DESTINATION ARRIVAL GEOFENCE ALERT ─── */}
-      {(distanceKm <= 2 || progress >= 98 || trip?.status === 'ARRIVED') && (
+      {Boolean(trip && (trip.id || trip.tripId)) && (distanceKm <= 2 || progress >= 98 || trip?.status === 'ARRIVED') && (
         <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-b-2 border-purple-500 text-white p-4 px-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center font-black text-xl animate-bounce shrink-0">

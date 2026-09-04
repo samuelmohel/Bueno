@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'CargoTrace — Nigerian Rail Freight Operations System',
   description: 'Real-time rail freight tracking, terminal operations, and manifest auditing for industrial consignees across Nigeria.',
-  keywords: 'rail freight Nigeria, logistics tracking, cargo management, Lafarge, Dangote, NRC',
+  keywords: 'rail freight Nigeria, logistics tracking, cargo management, HBM, Dangote, Purechem, BUA, NRC',
   openGraph: {
     title: 'CargoTrace — Nigerian Rail Freight OS',
     description: 'Track industrial rail freight from loading terminal to destination across Nigeria.',

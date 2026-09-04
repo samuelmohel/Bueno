@@ -2843,32 +2843,44 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
                 }}
               />
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {trips.map((trip: any) => (
-                  <div key={trip.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.tripId || trip.id}</span>
-                        <h4 className="text-sm font-black text-slate-900">{trip.company}</h4>
+              {trips.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {trips.map((trip: any) => (
+                    <div key={trip.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.tripId || trip.id}</span>
+                          <h4 className="text-sm font-black text-slate-900">{trip.company}</h4>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedDossierTrip(trip)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>📄 Dossier</span>
+                          </button>
+                          <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'amber' : trip.status === 'COMPLETED' ? 'green' : trip.status === 'RETURNING_EMPTY' ? 'purple' : 'blue'} />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedDossierTrip(trip)}
-                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>📄 Dossier</span>
-                        </button>
-                        <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'amber' : trip.status === 'COMPLETED' ? 'green' : trip.status === 'RETURNING_EMPTY' ? 'purple' : 'blue'} />
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-bold text-[#62BC37]">{trip.escortOfficerName || trip.monitoringOfficer || 'Ade Bello'}</span></div>
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Caboose</span><span className="font-mono font-bold text-emerald-700">{trip.escortWagonId || 'BV 01'}</span></div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-bold text-[#62BC37]">{trip.escortOfficerName || trip.monitoringOfficer || 'Ade Bello'}</span></div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Caboose</span><span className="font-mono font-bold text-emerald-700">{trip.escortWagonId || 'BV 01'}</span></div>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-2 font-sans shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#62BC37] border border-emerald-200 flex items-center justify-center font-black text-lg mx-auto font-mono">
+                    GPS
                   </div>
-                ))}
-              </div>
+                  <h4 className="text-base font-black text-slate-900">No Dispatched Freight Trips Yet</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    No active train dispatches currently en-route on the corridor. Open the <b>Latest Deals</b> tab to allocate wagons and create a new trip.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -4766,7 +4778,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     userType: 'STAFF',
     role: 'CARGO_OFFICER',
     assignedStation: 'EWK',
-    companyName: 'Lafarge Africa Plc',
+    companyName: 'HBM (Huaxin Building Materials Nig Plc)',
     pin: '1111',
   });
 
@@ -4814,7 +4826,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     });
 
     setModalOpen(false);
-    setForm({ fullName: '', email: '', phone: '', userType: 'STAFF', role: 'CARGO_OFFICER', assignedStation: 'EWK', companyName: 'Lafarge Africa Plc', pin: '1111' });
+    setForm({ fullName: '', email: '', phone: '', userType: 'STAFF', role: 'CARGO_OFFICER', assignedStation: 'EWK', companyName: 'HBM (Huaxin Building Materials Nig Plc)', pin: '1111' });
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -5951,7 +5963,7 @@ function LegacyAdminPortalInline({ user, onSignOut }: { user: any; onSignOut: ()
           <div className="p-6 space-y-4">
             <h3 className="text-lg font-black text-slate-900">Create New Deal</h3>
             <form onSubmit={handleCreateDeal} className="space-y-4">
-              <div><label className={lc}>Company Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Lafarge Africa Plc" className={ic} /></div>
+              <div><label className={lc}>Company Name *</label><input required value={dealForm.company} onChange={e => setDealForm({ ...dealForm, company: e.target.value })} placeholder="e.g. Huaxin Building Materials (HBM)" className={ic} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lc}>Loading Station</label><select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>
                 <div><label className={lc}>Destination</label><select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>

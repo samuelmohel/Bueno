@@ -346,7 +346,7 @@ function initTables($pdo) {
             ['usr_8', 'Babajide Sanwo', 'ops.command@bueno.ng', '08030000002', 'HEAD_OF_OPERATIONS', 'STAFF', 'HQ', NULL, 'EXEC-02', '8888', 'ACTIVE'],
             ['usr_9', 'Folake Adeyemi', 'admin@bueno.ng', '08030000003', 'ADMIN', 'STAFF', 'HQ', NULL, 'EXEC-03', '7777', 'ACTIVE'],
             ['usr_10', 'Chinenye Nnamdi', 'finance@bueno.ng', '08030000004', 'HEAD_OF_FINANCE', 'STAFF', 'HQ', NULL, 'EXEC-04', '6666', 'ACTIVE'],
-            ['usr_11', 'Lafarge Logistics Desk', 'logistics@lafarge.ng', '08037778899', 'CUSTOMER', 'CUSTOMER', NULL, 'Lafarge Africa Plc', 'CUST-01', '1111', 'ACTIVE'],
+            ['usr_11', 'Huaxin Logistics Desk', 'logistics@hbm.ng', '08037778899', 'CUSTOMER', 'CUSTOMER', NULL, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'CUST-01', '1111', 'ACTIVE'],
             ['usr_12', 'Dangote Freight Team', 'freight@dangotecement.ng', '08038889900', 'CUSTOMER', 'CUSTOMER', NULL, 'Dangote Cement', 'CUST-02', '1111', 'ACTIVE'],
             ['usr_13', 'Purechem Cement Team', 'logistics@purechem.ng', '08031234567', 'CUSTOMER', 'CUSTOMER', NULL, 'Purechem Cement Industries Ltd', 'CUST-03', '1111', 'ACTIVE'],
         ];

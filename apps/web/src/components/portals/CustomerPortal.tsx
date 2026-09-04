@@ -67,7 +67,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         (inv.clientEmail && clientEmail && inv.clientEmail.toLowerCase() === clientEmail.toLowerCase()) ||
         companyTrips.some((t: any) => t.id === inv.tripId || t.tripId === inv.tripId)
     );
-    setInvoices(companyInvoices.length > 0 ? companyInvoices : allInvoices);
+    setInvoices(companyInvoices);
 
     const allReqs = tryParse('bueno_client_requests', []);
     const companyReqs = allReqs.filter(
@@ -640,18 +640,24 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              {trips.map((t) => (
-                <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <span className="text-slate-400 font-bold text-[10px] uppercase">{t.id}</span>
-                    <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
-                    <p className="text-slate-500 font-sans text-xs">{t.origin} ➔ {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
+              {trips.length > 0 ? (
+                trips.map((t) => (
+                  <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                      <span className="text-slate-400 font-bold text-[10px] uppercase">{t.id}</span>
+                      <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
+                      <p className="text-slate-500 font-sans text-xs">{t.origin} ➔ {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
+                    </div>
+                    <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
+                      Print Manifest (PDF)
+                    </button>
                   </div>
-                  <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
-                    Print Manifest (PDF)
-                  </button>
+                ))
+              ) : (
+                <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 text-center text-slate-500 font-sans text-xs">
+                  No cargo manifests generated yet. Manifests are issued automatically upon train loading and dispatch.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
@@ -755,7 +761,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       </tr>
                     </thead>
                     <tbody className="text-xs font-mono divide-y divide-slate-100">
-                      {invoices.map((inv: any) => {
+                      {invoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400 font-sans text-xs">
+                            No freight invoices issued for your account yet. Invoices are generated upon train dispatch and updated with delivery audits.
+                          </td>
+                        </tr>
+                      ) : (
+                        invoices.map((inv: any) => {
                         const isSettled = inv.status === 'SETTLED' || Number(inv.balance || 0) <= 0;
                         const isPartiallyPaid = inv.status === 'PARTIALLY_PAID' || (Number(inv.amountPaid || 0) > 0 && Number(inv.balance || 0) > 0);
                         return (
@@ -826,7 +839,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             </td>
                           </tr>
                         );
-                      })}
+                      }))}
                     </tbody>
                   </table>
                 </div>

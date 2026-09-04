@@ -12,7 +12,7 @@ const NIGERIA_CENTER: [number, number] = [6.9500, 3.3500];
 const WESTERN_CORRIDOR_WAYPOINTS: [number, number][] = [
   [6.4500, 3.3600], // Apapa Port Terminal
   [6.6000, 3.3400], // Agege Freight Yard
-  [6.8974, 3.2141], // Ewekoro Lafarge Siding
+  [6.8974, 3.2141], // Ewekoro HBM Siding
   [7.1500, 3.3500], // Abeokuta Railway Station
   [7.4800, 3.9000], // Moniya Dry Port Ibadan
 ];
@@ -141,7 +141,7 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
       // Station Waypoint Markers
       const stationNodes = [
         { name: 'Apapa Maritime Port Terminal', coords: [6.4500, 3.3600] as [number, number] },
-        { name: 'Ewekoro Lafarge Siding (EWK)', coords: [6.8974, 3.2141] as [number, number] },
+        { name: 'Ewekoro HBM Siding (EWK)', coords: [6.8974, 3.2141] as [number, number] },
         { name: 'Abeokuta Freight Hub (ABK)', coords: [7.1500, 3.3500] as [number, number] },
         { name: 'Moniya Container Dry Port (MNY)', coords: [7.4800, 3.9000] as [number, number] },
       ];

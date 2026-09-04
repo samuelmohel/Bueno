@@ -45,7 +45,7 @@ async function main() {
     create: { fullName: 'Grace Adeboye', email: 'cargo.moniya@bueno.ng', passwordHash: await hash('demo1234'), role: UserRole.CARGO_OFFICER, verified: true, phone: '+2348011100004' },
   });
 
-  const customerLafarge = await prisma.user.upsert({
+  const customerHbm = await prisma.user.upsert({
     where: { email: 'customer@bueno.ng' },
     update: {},
     create: { fullName: 'Chidinma Okonkwo', email: 'customer@bueno.ng', phone: '+2348012345678', passwordHash: await hash('demo1234'), role: UserRole.CUSTOMER, verified: true },
@@ -213,7 +213,7 @@ async function main() {
 
   // Trip 1 — brand new, awaiting payment
   const trip1 = await makeBooking({
-    id: 'trip-001', customerId: customerLafarge.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
+    id: 'trip-001', customerId: customerHbm.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
     weight: 120, wagonsRequired: 2, locosRequired: 1, pricePerWagon: 380000,
     status: BookingStatus.PENDING, paymentStatus: PaymentStatus.PENDING, createdAt: hoursAgo(2),
   });
@@ -230,8 +230,8 @@ async function main() {
 
   // Trip 3 — wagons allocated, cargo officer about to start loading
   const trip3 = await makeBooking({
-    id: 'trip-003', customerId: customerLafarge.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
-    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-LAF-103',
+    id: 'trip-003', customerId: customerHbm.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
+    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-HBM-103',
     status: BookingStatus.WAGON_ALLOCATED, createdAt: daysAgo(1),
   });
   await event(trip3.id, 'BOOKING_CONFIRMED', 'Payment confirmed', 'Payment verified.', daysAgo(1));
@@ -245,8 +245,8 @@ async function main() {
 
   // Trip 4 — loading in progress: 2 of 3 wagons have cargo logged (demoable "add item" flow)
   const trip4 = await makeBooking({
-    id: 'trip-004', customerId: customerLafarge.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
-    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-LAF-104',
+    id: 'trip-004', customerId: customerHbm.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
+    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-HBM-104',
     status: BookingStatus.LOADING_IN_PROGRESS, createdAt: daysAgo(1),
   });
   const trip4Wagons = availableWagons.filter(w => w.wagonType === 'OPEN_GONDOLA').slice(3, 6);
@@ -257,14 +257,14 @@ async function main() {
   await event(trip4.id, 'WAGON_ALLOCATED', 'Wagons allocated', `${trip4Wagons.length} wagon(s) and locomotive L-2401 allocated.`, daysAgo(1), cargoOfficerOrigin.id);
   await event(trip4.id, 'CARGO_AT_TERMINAL', 'Cargo arrived at terminal', 'Cement bags arrived at Ewekoro terminal for loading.', hoursAgo(10), cargoOfficerOrigin.id);
   await event(trip4.id, 'LOADING_IN_PROGRESS', 'Loading started', 'Cargo officer began logging bags per wagon.', hoursAgo(9), cargoOfficerOrigin.id);
-  await prisma.cargoItem.create({ data: { wagonAllocationId: trip4Allocs[0].id, description: 'Bagged cement (50kg)', customerRef: 'LAF-PO-88213', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: hoursAgo(9) } });
-  await prisma.cargoItem.create({ data: { wagonAllocationId: trip4Allocs[1].id, description: 'Bagged cement (50kg)', customerRef: 'LAF-PO-88213', unit: CargoUnit.BAGS, loadedQty: 1180, loadedById: cargoOfficerOrigin.id, loadedAt: hoursAgo(8) } });
+  await prisma.cargoItem.create({ data: { wagonAllocationId: trip4Allocs[0].id, description: 'Bagged cement (50kg)', customerRef: 'HBM-PO-88213', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: hoursAgo(9) } });
+  await prisma.cargoItem.create({ data: { wagonAllocationId: trip4Allocs[1].id, description: 'Bagged cement (50kg)', customerRef: 'HBM-PO-88213', unit: CargoUnit.BAGS, loadedQty: 1180, loadedById: cargoOfficerOrigin.id, loadedAt: hoursAgo(8) } });
   // Wagon 3 of trip 4 intentionally left with no cargo logged yet — demo can add it live.
 
   // Trip 5 — fully loaded, departed, in transit (for the tracking map + timeline)
   const trip5 = await makeBooking({
-    id: 'trip-005', customerId: customerLafarge.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
-    weight: 240, wagonsRequired: 4, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-LAF-105',
+    id: 'trip-005', customerId: customerHbm.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
+    weight: 240, wagonsRequired: 4, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-HBM-105',
     status: BookingStatus.IN_TRANSIT, createdAt: daysAgo(2),
   });
   const trip5Wagons = availableWagons.filter(w => w.wagonType === 'HOPPER').slice(0, 4);
@@ -277,7 +277,7 @@ async function main() {
   }
   await event(trip5.id, 'WAGON_ALLOCATED', 'Wagons allocated', '4 wagon(s) and locomotive L-2402 allocated.', daysAgo(2), cargoOfficerOrigin.id);
   await event(trip5.id, 'LOADING_IN_PROGRESS', 'Loading started', 'Loading began at Ewekoro terminal.', hoursAgo(6), cargoOfficerOrigin.id);
-  await event(trip5.id, 'DEPARTED', 'Train departed', 'Train TR-LAF-105 departed Ewekoro terminal.', hoursAgo(3), cargoOfficerOrigin.id);
+  await event(trip5.id, 'DEPARTED', 'Train departed', 'Train TR-HBM-105 departed Ewekoro terminal.', hoursAgo(3), cargoOfficerOrigin.id);
   await event(trip5.id, 'IN_TRANSIT', 'In transit', 'En route to Moniya terminal.', hoursAgo(2));
   await prisma.locoLocationHistory.createMany({
     data: [
@@ -308,8 +308,8 @@ async function main() {
 
   // Trip 7 — completed, with one wagon showing a real discrepancy (the flagship "one record used twice" proof point)
   const trip7 = await makeBooking({
-    id: 'trip-007', customerId: customerLafarge.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
-    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-LAF-101',
+    id: 'trip-007', customerId: customerHbm.id, routeId: routeEwekoroMoniya.id, cargoTypeId: cargoCement.id,
+    weight: 180, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 380000, trainNumber: 'TR-HBM-101',
     status: BookingStatus.COMPLETED, createdAt: daysAgo(4),
   });
   const trip7Wagons = availableWagons.filter(w => w.wagonType === 'OPEN_GONDOLA').slice(6, 8).concat(availableWagons.filter(w => w.wagonType === 'COVERED_VAN').slice(0, 1));
@@ -317,10 +317,10 @@ async function main() {
   for (const w of trip7Wagons) {
     trip7Allocs.push(await prisma.wagonAllocation.create({ data: { bookingId: trip7.id, wagonId: w.id, locoId: loco2.id, allocatedBy: cargoOfficerOrigin.id, departedAt: daysAgo(3), arrivedAt: daysAgo(3) } }));
   }
-  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[0].id, description: 'Bagged cement (50kg)', customerRef: 'LAF-PO-87990', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 1200, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3) } });
-  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[1].id, description: 'Bagged cement (50kg)', customerRef: 'LAF-PO-87990', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 1185, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3), damaged: true, notes: '15 bags received torn/water-damaged — logged and flagged for insurance.' } });
-  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[2].id, description: 'Bagged cement (50kg)', customerRef: 'LAF-PO-87990', unit: CargoUnit.BAGS, loadedQty: 800, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 800, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3) } });
-  await event(trip7.id, 'DEPARTED', 'Train departed', 'Train TR-LAF-101 departed Ewekoro terminal.', daysAgo(4));
+  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[0].id, description: 'Bagged cement (50kg)', customerRef: 'HBM-PO-87990', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 1200, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3) } });
+  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[1].id, description: 'Bagged cement (50kg)', customerRef: 'HBM-PO-87990', unit: CargoUnit.BAGS, loadedQty: 1200, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 1185, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3), damaged: true, notes: '15 bags received torn/water-damaged — logged and flagged for insurance.' } });
+  await prisma.cargoItem.create({ data: { wagonAllocationId: trip7Allocs[2].id, description: 'Bagged cement (50kg)', customerRef: 'HBM-PO-87990', unit: CargoUnit.BAGS, loadedQty: 800, loadedById: cargoOfficerOrigin.id, loadedAt: daysAgo(4), unloadedQty: 800, unloadedById: cargoOfficerDest.id, unloadedAt: daysAgo(3) } });
+  await event(trip7.id, 'DEPARTED', 'Train departed', 'Train TR-HBM-101 departed Ewekoro terminal.', daysAgo(4));
   await event(trip7.id, 'ARRIVED_DESTINATION', 'Arrived at destination', 'Train arrived at Moniya terminal.', daysAgo(3));
   await event(trip7.id, 'UNLOADING', 'Unloading cargo', 'Cargo officer confirming unloaded quantities against loaded inventory.', daysAgo(3), cargoOfficerDest.id);
   // Feeder Truck Logs for Trip 4 & Trip 7
@@ -331,7 +331,7 @@ async function main() {
       driverName: 'Sunday Adeleke',
       driverPhone: '+2348039911223',
       transporterName: 'Alhaji Danladi Haulage Ltd',
-      loadingSource: 'Lafarge Silo Bay 3',
+      loadingSource: 'HBM Silo Bay 3',
       quantityLoaded: 1200,
       unit: CargoUnit.BAGS,
       startTime: hoursAgo(9.5),
@@ -345,7 +345,7 @@ async function main() {
       driverName: 'Mustapha Garba',
       driverPhone: '+2348035544332',
       transporterName: 'Dangote Transport Fleet',
-      loadingSource: 'Lafarge Silo Bay 1',
+      loadingSource: 'HBM Silo Bay 1',
       quantityLoaded: 1180,
       unit: CargoUnit.BAGS,
       startTime: hoursAgo(8.5),
@@ -446,7 +446,7 @@ async function main() {
   console.log('  Head of Operations ops@bueno.ng');
   console.log('  Cargo Officer      cargo.ewekoro@bueno.ng   (origin — Ewekoro)');
   console.log('  Cargo Officer      cargo.moniya@bueno.ng    (destination — Moniya)');
-  console.log('  Customer           customer@bueno.ng        (Lafarge)');
+  console.log('  Customer           customer@bueno.ng        (HBM)');
 }
 
 main()

@@ -662,7 +662,7 @@ function LoginForm() {
                           onChange={e => setSelectedStation(e.target.value)}
                           className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-xs font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-slate-50"
                         >
-                          <option value="EWK">Ewekoro Terminal (Lafarge Cement)</option>
+                          <option value="EWK">Ewekoro Terminal (HBM Cement)</option>
                           <option value="MNY">Moniya Yard (Ibadan Destination)</option>
                           <option value="APT">Apapa Maritime Port (Lagos)</option>
                         </select>
