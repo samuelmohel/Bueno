@@ -767,7 +767,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const liveReqs = StateEngine.getRequests();
     const updated = liveReqs.map((r: any) =>
       r.id === reqId || r.requisitionNo === reqId
-        ? { ...r, status: 'APPROVED', stage: 'Head of Finance' }
+        ? { ...r, status: 'APPROVED', stage: 'Accountant' }
         : r
     );
     StateEngine.saveRequests(updated);
@@ -775,20 +775,21 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     setCustomAlert({
       title: 'Requisition Approved',
-      message: `Requisition #${reqId} has been approved and moved to Head of Finance for GTBank disbursal!`,
+      message: `Requisition #${reqId} has been cleared and forwarded to Finance for GTBank disbursal!`,
     });
   };
 
   const handleDisburseRequisition = (reqId: string) => {
     const liveReqs = StateEngine.getRequests();
     const ref = `TRF-GTB-${Math.floor(100000 + Math.random() * 899999)}`;
+    const now = new Date().toLocaleString('en-GB');
     const updated = liveReqs.map((r: any) =>
       r.id === reqId || r.requisitionNo === reqId
         ? {
             ...r,
             status: 'DISBURSED',
-            stage: 'Completed',
-            paymentDetails: { ref, disbursedAt: new Date().toLocaleString('en-GB') },
+            stage: 'Paid',
+            paymentDetails: { ref, date: now, disbursedAt: now, method: 'Bank Transfer' },
           }
         : r
     );
@@ -2227,8 +2228,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
                     {requests.map((req: any, idx: number) => {
-                      const isApproved = req.status === 'APPROVED';
-                      const isDisbursed = req.status === 'DISBURSED';
+                      const isDisbursed = req.status === 'DISBURSED' || req.stage === 'Paid';
+                      const isApproved = req.status === 'APPROVED' || req.status === 'CEO_APPROVED' || req.status === 'OPS_APPROVED' || req.stage === 'Accountant' || req.stage === 'CEO' || isDisbursed;
 
                       return (
                         <tr key={idx} className="hover:bg-slate-50">

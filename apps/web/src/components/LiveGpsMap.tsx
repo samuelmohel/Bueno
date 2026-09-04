@@ -181,8 +181,132 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
     }
   };
 
+  // Presentation Simulation Waypoints along the Rail Corridor
+  const CORRIDOR_POINTS = useMemo(() => [
+    { name: `${originStation.code} Terminal Siding`, lat: originStation.lat, lng: originStation.lng },
+    { name: 'Papalanto Rail Crossing', lat: 6.9120, lng: 3.2650 },
+    { name: 'Itori Double Track', lat: 6.9400, lng: 3.3750 },
+    { name: 'Wasimi Halt Point', lat: 7.0300, lng: 3.3550 },
+    { name: 'Abeokuta Central Station', lat: 7.1557, lng: 3.3458 },
+    { name: 'Ilugun High Speed Siding', lat: 7.2450, lng: 3.5180 },
+    { name: 'Omi Adio Yard Incline', lat: 7.3500, lng: 3.8000 },
+    { name: 'Apata Rail Approach', lat: 7.3950, lng: 3.8650 },
+    { name: `${destStation.code} Freight Yard`, lat: destStation.lat, lng: destStation.lng },
+  ], [originStation, destStation]);
+
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const simStepRef = useRef<number>(0);
+  const simIntervalRef = useRef<any>(null);
+
+  const startSimulation = () => {
+    if (isBroadcasting) {
+      if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setIsBroadcasting(false);
+    }
+
+    setIsSimulating(true);
+    setSignal('Rail Corridor Simulation Active (Presentation Demo)');
+    setBroadcastError(null);
+
+    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+
+    simIntervalRef.current = setInterval(() => {
+      simStepRef.current += 1;
+      const totalSteps = (CORRIDOR_POINTS.length - 1) * 8;
+      const progressRatio = Math.min(1, simStepRef.current / totalSteps);
+
+      const pointIndex = Math.min(
+        CORRIDOR_POINTS.length - 2,
+        Math.floor(progressRatio * (CORRIDOR_POINTS.length - 1))
+      );
+      const p1 = CORRIDOR_POINTS[pointIndex];
+      const p2 = CORRIDOR_POINTS[pointIndex + 1];
+      const subRatio = (progressRatio * (CORRIDOR_POINTS.length - 1)) - pointIndex;
+
+      const curLat = p1.lat + (p2.lat - p1.lat) * subRatio;
+      const curLng = p1.lng + (p2.lng - p1.lng) * subRatio;
+      const liveSpeed = progressRatio >= 1 ? 0 : Math.round(58 + Math.sin(simStepRef.current) * 8);
+      const dist = calculateDistanceKm(curLat, curLng, destStation.lat, destStation.lng);
+      const brg = calculateBearing(curLat, curLng, destStation.lat, destStation.lng);
+      const totalCorridorDist = calculateDistanceKm(originStation.lat, originStation.lng, destStation.lat, destStation.lng) || 120;
+      const pct = Math.min(100, Math.max(5, Math.round(((totalCorridorDist - dist) / totalCorridorDist) * 100)));
+      const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      setCoords({ lat: curLat, lng: curLng });
+      setSpeed(liveSpeed);
+      setDistanceKm(dist);
+      setBearing(brg);
+      setProgress(pct);
+      setLastPing(timeNow);
+      setAccuracy(3);
+
+      // Save to SQL GPS Logs
+      fetch('/api/gps.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locomotiveId: locoId,
+          tripId: tripId,
+          lat: curLat,
+          lng: curLng,
+          speed: liveSpeed,
+          heading: brg,
+          accuracy: 3,
+          batteryLevel: 94,
+          officerPhone: officer.phone,
+          signalQuality: 'SIMULATED_RAIL_CORRIDOR_TELEMETRY',
+        }),
+      }).catch(() => {});
+
+      if (trip?.id) {
+        StateEngine.updateTrip(trip.id, {
+          curLat,
+          curLng,
+          speed: liveSpeed,
+          lastGpsPing: timeNow,
+          progressPercent: pct,
+          status: progressRatio >= 1 ? 'COMPLETED' : 'IN_TRANSIT',
+        });
+      }
+
+      if (progressRatio >= 1) {
+        clearInterval(simIntervalRef.current);
+        setIsSimulating(false);
+        setSignal('Arrived at Moniya Yard (MNY)');
+      }
+    }, 1500);
+  };
+
+  const pauseSimulation = () => {
+    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    setIsSimulating(false);
+    setSignal('Simulation Paused');
+  };
+
+  const resetSimulation = () => {
+    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    setIsSimulating(false);
+    simStepRef.current = 0;
+    const initialLat = originStation.lat;
+    const initialLng = originStation.lng;
+    const dist = calculateDistanceKm(initialLat, initialLng, destStation.lat, destStation.lng);
+    setCoords({ lat: initialLat, lng: initialLng });
+    setSpeed(0);
+    setDistanceKm(dist);
+    setBearing(calculateBearing(initialLat, initialLng, destStation.lat, destStation.lng));
+    setProgress(5);
+    setSignal('Reset to Origin Siding (EWK)');
+  };
+
   // Toggle Continuous Phone GPS Broadcast
   const togglePhoneGpsBroadcast = () => {
+    if (isSimulating) {
+      pauseSimulation();
+    }
+
     if (isBroadcasting) {
       if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -194,7 +318,7 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
     }
 
     if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-      setBroadcastError('Geolocation GPS is not supported by your browser or device');
+      setBroadcastError('Geolocation GPS is not supported by your browser or device. Use "Simulate Rail Movement" below for presentations.');
       return;
     }
 
@@ -206,19 +330,19 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
     navigator.geolocation.getCurrentPosition(
       (pos) => handlePositionUpdate(pos),
       (err) => {
-        setBroadcastError(`GPS Fix Error: ${err.message}. Please enable Location Services in your phone settings.`);
+        setBroadcastError(`GPS Fix Notice: ${err.message}. Laptops without hardware GNSS chips or indoors should use the "Simulate Rail Transit" button for live presentations.`);
         setIsBroadcasting(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
     // 2. Continuous real-time movement watcher
     const id = navigator.geolocation.watchPosition(
       (pos) => handlePositionUpdate(pos),
       (err) => {
-        setBroadcastError(`Live GPS error: ${err.message}`);
+        setBroadcastError(`Live GPS Notice: ${err.message}. Use "Simulate Rail Transit" for laptop presentations.`);
       },
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 }
     );
 
     watchIdRef.current = id;
@@ -267,6 +391,9 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
     return () => {
       if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (simIntervalRef.current) {
+        clearInterval(simIntervalRef.current);
       }
     };
   }, []);
@@ -360,8 +487,34 @@ export function LiveGpsMap({ trip: propTrip }: { trip?: any }) {
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
-            <span>{isBroadcasting ? '📡 Turn Off Phone GPS' : '📱 Turn On Phone GPS (Start Live Broadcast)'}</span>
+            <span>{isBroadcasting ? '📡 Turn Off Phone GPS' : '📱 Real Phone GPS'}</span>
           </button>
+
+          {/* PRESENTATION RAIL TRANSIT SIMULATOR (FOR LAPTOPS & DEMOS) */}
+          {!isSimulating ? (
+            <button
+              onClick={startSimulation}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
+              title="Smoothly simulate rail freight transit along Nigerian railway corridor (Ideal for laptop presentations)"
+            >
+              <span>🚂 Simulate Rail Movement (Presentation Demo)</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={pauseSimulation}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold px-3 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1"
+              >
+                <span>⏸️ Pause</span>
+              </button>
+              <button
+                onClick={resetSimulation}
+                className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-2.5 rounded-xl transition-all border border-slate-600 flex items-center gap-1"
+              >
+                <span>🔄 Reset</span>
+              </button>
+            </div>
+          )}
 
           <a
             href={`https://www.google.com/maps/dir/?api=1&origin=${coords.lat},${coords.lng}&destination=${destStation.lat},${destStation.lng}`}

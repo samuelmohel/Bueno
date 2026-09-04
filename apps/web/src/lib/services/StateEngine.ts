@@ -384,6 +384,9 @@ class StateEngineService {
   saveRequests(requests: any[]): void {
     this.writeStorage('bueno_requests', requests);
     this.postRemote('/api/requests.php', requests);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    }
   }
 
   createRequest(req: any): void {

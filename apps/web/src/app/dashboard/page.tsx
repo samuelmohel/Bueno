@@ -71,7 +71,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 
 const hasPermission = (user: any, permCode: string): boolean => {
   if (!user) return false;
-  if (user.role === 'ADMIN' || user.role === 'CEO') return true;
+  if (['ADMIN', 'CEO', 'MD', 'HEAD_OF_OPERATIONS', 'HEAD_OF_FINANCE', 'ACCOUNTANT'].includes(user.role)) return true;
 
   if (user.permissions) {
     if (permCode === 'expense.approve' && user.permissions.canApproveFundRequests !== undefined) return user.permissions.canApproveFundRequests;
@@ -916,7 +916,14 @@ function FundRequestDetailModal({
   };
 
   const advanceStage = (nextStage: string) => {
-    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, stage: nextStage } : r);
+    const statusMap: Record<string, string> = {
+      'Head of Operations': 'OPS_REVIEW',
+      'CEO': 'OPS_APPROVED',
+      'Accountant': 'CEO_APPROVED',
+      'Paid': 'DISBURSED',
+    };
+    const nextStatus = statusMap[nextStage] || 'APPROVED';
+    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, stage: nextStage, status: nextStatus } : r);
     onSaveRequests(updated);
     onClose();
   };
@@ -924,9 +931,14 @@ function FundRequestDetailModal({
   const disbursePayment = () => {
     const ref = disburseRef || `TRF-GTB-${Math.floor(100000 + Math.random() * 900000)}`;
     const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const updated = allRequests.map((r: any) => r.id === req.id ? { ...r, stage: 'Paid', paymentDetails: { ref, date: now, method: 'Bank Transfer', paidBy: user.fullName } } : r);
+    const updated = allRequests.map((r: any) => r.id === req.id ? {
+      ...r,
+      stage: 'Paid',
+      status: 'DISBURSED',
+      paymentDetails: { ref, date: now, disbursedAt: now, method: 'Bank Transfer', paidBy: user.fullName }
+    } : r);
     const records = tryParse('bueno_finance_records', []);
-    const newRecord = { id: `FIN-${Date.now()}`, reqId: req.id, beneficiary: req.officerName, station: req.station, amount: req.amount, ref, date: now, approvedBy: 'MD/CEO', accountant: user.fullName };
+    const newRecord = { id: `FIN-${Date.now()}`, reqId: req.id, beneficiary: req.officerName || req.requestedBy, station: req.station, amount: req.amount, ref, date: now, approvedBy: 'MD/CEO', accountant: user.fullName };
     localStorage.setItem('bueno_finance_records', JSON.stringify([newRecord, ...records]));
     onSaveRequests(updated);
     onClose();
@@ -1011,14 +1023,33 @@ function FundRequestDetailModal({
             <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl">🔒 Operational Approval Privilege Restricted by Admin</span>
           ) : (
             <>
-              {user.role === 'ADMIN' && req.stage === 'Admin' && <button onClick={() => advanceStage('Head of Operations')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to Operations Head ➔</button>}
-              {user.role === 'HEAD_OF_OPERATIONS' && req.stage === 'Head of Operations' && <button onClick={() => advanceStage('CEO')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Approve & Forward to MD / CEO ➔</button>}
-              {(user.role === 'CEO' || user.role === 'MD') && req.stage === 'CEO' && <button onClick={() => advanceStage('Accountant')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">CEO Executive Clearance → Send to Accountant ➔</button>}
-              {user.role === 'HEAD_OF_FINANCE' && req.stage === 'Accountant' && (
+              {(user.role === 'ADMIN' || user.role === 'CEO') && req.stage === 'Admin' && (
+                <button onClick={() => advanceStage('Head of Operations')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">
+                  Approve & Forward to Operations Head ➔
+                </button>
+              )}
+              {(user.role === 'HEAD_OF_OPERATIONS' || user.role === 'ADMIN' || user.role === 'CEO') && req.stage === 'Head of Operations' && (
+                <button onClick={() => advanceStage('CEO')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">
+                  Approve & Forward to MD / CEO ➔
+                </button>
+              )}
+              {(user.role === 'CEO' || user.role === 'MD' || user.role === 'ADMIN') && req.stage === 'CEO' && (
+                <button onClick={() => advanceStage('Accountant')} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">
+                  CEO Executive Clearance → Send to Finance ➔
+                </button>
+              )}
+              {(user.role === 'HEAD_OF_FINANCE' || user.role === 'ACCOUNTANT' || user.role === 'ADMIN' || user.role === 'CEO') && req.stage === 'Accountant' && (
                 <div className="flex items-center gap-2">
                   <input value={disburseRef} onChange={e => setDisburseRef(e.target.value)} placeholder="Payment Ref (e.g. TRF-GTB-998120)" className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono w-48" />
-                  <button onClick={disbursePayment} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">Disburse Payment</button>
+                  <button onClick={disbursePayment} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md">
+                    Disburse Payment (GTBank)
+                  </button>
                 </div>
+              )}
+              {req.stage === 'Paid' && (
+                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black px-4 py-2 rounded-xl">
+                  ✓ Funds Disbursed ({req.paymentDetails?.ref || 'TRF-GTB-998120'})
+                </span>
               )}
             </>
           )}
@@ -2379,20 +2410,50 @@ function LegacyCargoOfficerPortalInline({ user, onSignOut }: { user: any; onSign
 
   const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
+    const reqId = `REQ-${Date.now()}`;
     const req = {
-      id: `REQ-${Date.now()}`,
+      id: reqId,
+      requisitionNo: reqId,
+      requestedBy: user.fullName,
       officerName: user.fullName,
+      officerId: user.id || 'usr_1',
       station,
       ...fundForm,
+      title: fundForm.title || `${fundForm.category} for ${station} Siding`,
       tripNo: fundForm.tripNo || 'TRIP-001',
       vesselNo: fundForm.vesselNo || 'VSL-APMT-992',
       amount: parseFloat(fundForm.amount) || 0,
       stage: 'Admin',
+      status: 'PENDING',
       date: new Date().toLocaleDateString('en-GB'),
-      conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
+      createdAt: new Date().toLocaleString('en-GB'),
+      conversation: [{ sender: user.fullName, role: 'Cargo Officer', msg: fundForm.description || fundForm.title, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
       paymentDetails: null
     };
+
     saveRequests([req, ...requests]);
+
+    // Dispatch real-time notification alert to Admin, CEO, Operations, and Finance desks
+    const notif = {
+      id: `notif_${Date.now()}`,
+      title: `New Fund Requisition: ${req.requisitionNo}`,
+      body: `${user.fullName} requested ₦${Number(req.amount).toLocaleString()} for ${req.title} at ${station} Terminal.`,
+      time: 'Just now',
+      type: 'EXPENSE_REQUEST',
+      targetId: req.id,
+      targetTab: 'fund_requisitions',
+      read: false,
+    };
+    try {
+      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      localStorage.setItem('bueno_notifications', JSON.stringify([notif, ...existingNotifs]));
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notif),
+      }).catch(() => {});
+    } catch {}
+
     setFundsModal(false);
     setFundForm({ title: '', amount: '', category: 'Tarpaulin Covering (₦350,000)', tripNo: 'TRIP-001', vesselNo: 'VSL-APMT-992', description: '' });
     setView('funds');

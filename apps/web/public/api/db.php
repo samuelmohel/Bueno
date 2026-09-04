@@ -155,17 +155,32 @@ function initTables($pdo) {
     // 6. Fund Requests Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_fund_requests (
         id VARCHAR(100) PRIMARY KEY,
+        requisitionNo VARCHAR(100),
         title VARCHAR(255) NOT NULL,
         officerName VARCHAR(255),
+        requestedBy VARCHAR(255),
+        officerId VARCHAR(100),
         station VARCHAR(50),
+        tripNo VARCHAR(100),
+        tripId VARCHAR(100),
+        vesselNo VARCHAR(100),
         amount REAL,
         category VARCHAR(100),
         description TEXT,
-        stage VARCHAR(100) DEFAULT 'PENDING_OPS',
+        stage VARCHAR(100) DEFAULT 'Admin',
+        status VARCHAR(50) DEFAULT 'PENDING',
         conversationText TEXT,
         paymentDetailsText TEXT,
-        date VARCHAR(100)
+        date VARCHAR(100),
+        createdAt VARCHAR(100)
     )");
+
+    $fundCols = ['requisitionNo', 'requestedBy', 'officerId', 'tripNo', 'tripId', 'vesselNo', 'status', 'createdAt'];
+    foreach ($fundCols as $col) {
+        try {
+            $pdo->exec("ALTER TABLE bueno_fund_requests ADD COLUMN {$col} TEXT");
+        } catch (Exception $e) {}
+    }
 
     // 7. Wagon Fleet Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_wagons (
