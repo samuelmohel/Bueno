@@ -47,6 +47,9 @@ if ($method === 'GET') {
         if (isset($d['company']) && stripos($d['company'], 'Lafarge') !== false) {
             $d['company'] = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
         }
+        if (isset($d['company']) && stripos($d['company'], 'Dangote') !== false) {
+            $d['company'] = 'Purechem Cement Industries Ltd';
+        }
         if (isset($d['cargoType']) && stripos($d['cargoType'], 'Elephant') !== false) {
             $d['cargoType'] = 'Huaxin Portland Cement (50kg)';
         }

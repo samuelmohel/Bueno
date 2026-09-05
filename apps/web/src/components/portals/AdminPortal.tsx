@@ -76,7 +76,7 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
       locomotiveId: 'L2205',
       origin: 'PAPA',
       destination: 'MNY',
-      company: 'Dangote Cement Industries',
+      company: 'Purechem Cement Industries Ltd',
       dealNumber: 'DEAL-JUL-701',
       cargoType: 'Bagged Cement (50kg)',
       unitOfMeasure: 'Bags',
@@ -1395,9 +1395,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </option>
                   ))}
                   <option value="Purechem Cement Industries Ltd">Purechem Cement Industries Ltd</option>
-                  <option value="Dangote Cement Industries">Dangote Cement Industries</option>
                   <option value="BUA Cement Industries">BUA Cement Industries</option>
-                  <option value="HUAXIN BUILDING MATERIALS PLC">HUAXIN BUILDING MATERIALS PLC</option>
+                  <option value="HUAXIN BUILDING MATERIALS NIG PLC (HBM)">HUAXIN BUILDING MATERIALS NIG PLC (HBM)</option>
                 </select>
               </div>
 

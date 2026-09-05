@@ -58,7 +58,7 @@ export const SEED_USERS = [
 
   // Customers
   { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'Dangote Freight Team', companyName: 'Dangote Cement', email: 'freight@dangotecement.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'Purechem Logistics Team', companyName: 'Purechem Cement Industries Ltd', email: 'logistics@purechem.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
   { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
@@ -78,7 +78,7 @@ class StateEngineService {
     if (typeof window === 'undefined') return fallback;
     try {
       let item = localStorage.getItem(key);
-      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant'))) {
+      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant') || item.includes('Dangote') || item.includes('dangote'))) {
         item = item
           .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
           .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
@@ -87,7 +87,15 @@ class StateEngineService {
           .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
           .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
           .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
-          .replace(/Elephant Cement/gi, 'Huaxin Portland Cement');
+          .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
+          .replace(/Dangote Cement Industries/gi, 'Purechem Cement Industries Ltd')
+          .replace(/Dangote Cement Industry/gi, 'Purechem Cement Industries Ltd')
+          .replace(/Dangote Cement/gi, 'Purechem Cement Industries Ltd')
+          .replace(/Dangote Freight Team/gi, 'Purechem Logistics Team')
+          .replace(/freight@dangotecement\.ng/gi, 'logistics@purechem.ng')
+          .replace(/Dangote Logistics Fleet/gi, 'Purechem Logistics Fleet')
+          .replace(/Dangote Haulage/gi, 'Purechem Haulage')
+          .replace(/Dangote/gi, 'Purechem');
         localStorage.setItem(key, item);
       }
       return item ? JSON.parse(item) : fallback;
@@ -439,7 +447,7 @@ class StateEngineService {
       let changed = false;
       keys.forEach((k) => {
         const val = localStorage.getItem(k);
-        if (val && (val.includes('Lafarge') || val.includes('lafarge') || val.includes('Elephant'))) {
+        if (val && (val.includes('Lafarge') || val.includes('lafarge') || val.includes('Elephant') || val.includes('Dangote') || val.includes('dangote'))) {
           const sanitized = val
             .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
             .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
@@ -448,7 +456,15 @@ class StateEngineService {
             .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
             .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
             .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
-            .replace(/Elephant Cement/gi, 'Huaxin Portland Cement');
+            .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
+            .replace(/Dangote Cement Industries/gi, 'Purechem Cement Industries Ltd')
+            .replace(/Dangote Cement Industry/gi, 'Purechem Cement Industries Ltd')
+            .replace(/Dangote Cement/gi, 'Purechem Cement Industries Ltd')
+            .replace(/Dangote Freight Team/gi, 'Purechem Logistics Team')
+            .replace(/freight@dangotecement\.ng/gi, 'logistics@purechem.ng')
+            .replace(/Dangote Logistics Fleet/gi, 'Purechem Logistics Fleet')
+            .replace(/Dangote Haulage/gi, 'Purechem Haulage')
+            .replace(/Dangote/gi, 'Purechem');
           localStorage.setItem(k, sanitized);
           changed = true;
         }

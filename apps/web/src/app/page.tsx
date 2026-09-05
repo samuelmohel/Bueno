@@ -175,7 +175,7 @@ export default function BuenoLogisticsHomePage() {
   ];
 
   const partners = [
-    'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'Dangote Cement', 'BUA Cement Industries', 'APMT', 'MAERSKLINES', 'DHL', 'BAT (British American Tobacco)', 'DASCO',
+    'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'Purechem Cement Industries Ltd', 'BUA Cement Industries', 'APMT', 'MAERSKLINES', 'DHL', 'BAT (British American Tobacco)', 'DASCO',
   ];
 
   return (

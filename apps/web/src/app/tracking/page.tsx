@@ -92,7 +92,7 @@ function TrackingContent() {
             trainNumber: 'TR-EWK-102',
             dealId: 'CN-2026-0410',
             trackingId: 'BU-TRK-9901',
-            clientName: 'Dangote Cement',
+            clientName: 'Purechem Cement Industries Ltd',
             origin: 'EWK',
             destination: 'MNY',
             status: 'IN_TRANSIT',
@@ -285,7 +285,7 @@ function TrackingContent() {
                 { code: 'BU-TRK-8839', label: 'Tracking ID (HBM)' },
                 { code: 'CN-2026-0451', label: 'Deal ID (HBM)' },
                 { code: 'BU-TRK-7712', label: 'Tracking ID (BUA Gypsum)' },
-                { code: 'TR-EWK-102', label: 'Train Number (Dangote)' },
+                { code: 'TR-EWK-102', label: 'Train Number (Purechem)' },
               ].map(({ code, label }) => (
                 <button
                   key={code}

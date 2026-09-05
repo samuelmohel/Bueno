@@ -74,7 +74,7 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       locomotiveId: 'L2205',
       origin: 'PAPA',
       destination: 'MNY',
-      company: 'Dangote Cement Industries',
+      company: 'Purechem Cement Industries Ltd',
       dealNumber: 'DEAL-JUL-701',
       cargoType: 'Bagged Cement (50kg)',
       unitOfMeasure: 'Bags',

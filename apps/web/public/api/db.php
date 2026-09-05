@@ -347,8 +347,8 @@ function initTables($pdo) {
             ['usr_9', 'Folake Adeyemi', 'admin@bueno.ng', '08030000003', 'ADMIN', 'STAFF', 'HQ', NULL, 'EXEC-03', '7777', 'ACTIVE'],
             ['usr_10', 'Chinenye Nnamdi', 'finance@bueno.ng', '08030000004', 'HEAD_OF_FINANCE', 'STAFF', 'HQ', NULL, 'EXEC-04', '6666', 'ACTIVE'],
             ['usr_11', 'Huaxin Logistics Desk', 'logistics@hbm.ng', '08037778899', 'CUSTOMER', 'CUSTOMER', NULL, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'CUST-01', '1111', 'ACTIVE'],
-            ['usr_12', 'Dangote Freight Team', 'freight@dangotecement.ng', '08038889900', 'CUSTOMER', 'CUSTOMER', NULL, 'Dangote Cement', 'CUST-02', '1111', 'ACTIVE'],
-            ['usr_13', 'Purechem Cement Team', 'logistics@purechem.ng', '08031234567', 'CUSTOMER', 'CUSTOMER', NULL, 'Purechem Cement Industries Ltd', 'CUST-03', '1111', 'ACTIVE'],
+            ['usr_12', 'Purechem Logistics Team', 'logistics@purechem.ng', '08038889900', 'CUSTOMER', 'CUSTOMER', NULL, 'Purechem Cement Industries Ltd', 'CUST-02', '1111', 'ACTIVE'],
+            ['usr_13', 'BUA Logistics Desk', 'logistics@buacement.ng', '08039990011', 'CUSTOMER', 'CUSTOMER', NULL, 'BUA Cement Industries', 'CUST-03', '1111', 'ACTIVE'],
         ];
         $insert = $pdo->prepare("INSERT INTO bueno_users (id, fullName, email, phone, role, userType, assignedStation, companyName, staffId, pin, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $date = date('d/m/Y');
@@ -357,11 +357,16 @@ function initTables($pdo) {
         }
     }
 
-    // Automatically sanitize and migrate any legacy Lafarge or Elephant references across SQL tables
+    // Automatically sanitize and migrate any legacy Lafarge, Elephant or Dangote references across SQL tables
     try {
         $pdo->exec("UPDATE bueno_users SET companyName = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', fullName = 'Huaxin Logistics Desk', email = 'logistics@hbm.ng' WHERE companyName LIKE '%Lafarge%' OR email LIKE '%lafarge%'");
         $pdo->exec("UPDATE bueno_deals SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType = 'Huaxin Portland Cement (50kg)' WHERE company LIKE '%Lafarge%' OR cargoType LIKE '%Elephant%'");
         $pdo->exec("UPDATE bueno_trips SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType = 'Huaxin Portland Cement (50kg bags)' WHERE company LIKE '%Lafarge%' OR cargoType LIKE '%Elephant%'");
         $pdo->exec("UPDATE bueno_invoices SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)' WHERE company LIKE '%Lafarge%'");
+
+        $pdo->exec("UPDATE bueno_users SET companyName = 'Purechem Cement Industries Ltd', fullName = 'Purechem Logistics Team', email = 'logistics@purechem.ng' WHERE companyName LIKE '%Dangote%' OR email LIKE '%dangote%'");
+        $pdo->exec("UPDATE bueno_deals SET company = 'Purechem Cement Industries Ltd', cargoType = 'Bagged Cement (50kg)' WHERE company LIKE '%Dangote%'");
+        $pdo->exec("UPDATE bueno_trips SET company = 'Purechem Cement Industries Ltd' WHERE company LIKE '%Dangote%'");
+        $pdo->exec("UPDATE bueno_invoices SET company = 'Purechem Cement Industries Ltd' WHERE company LIKE '%Dangote%'");
     } catch (Exception $e) {}
 }

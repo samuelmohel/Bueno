@@ -40,7 +40,7 @@ const DEFAULT_PROVISIONED_USERS = [
 
   // Industrial Customers
   { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'Dangote Freight Team', companyName: 'Dangote Cement', email: 'freight@dangotecement.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'Purechem Logistics Team', companyName: 'Purechem Cement Industries Ltd', email: 'logistics@purechem.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
   { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
@@ -331,7 +331,7 @@ function LoginForm() {
 
   const handleCustomerLogin = async (cust: any) => {
     setLoading(true);
-    const emailToUse = cust.companyName?.includes('Dangote') ? 'dangote@bueno.ng' : 'customer@bueno.ng';
+    const emailToUse = cust.companyName?.includes('HBM') ? 'hbm@bueno.ng' : (cust.companyName?.includes('Purechem') ? 'purechem@bueno.ng' : 'customer@bueno.ng');
     let token = 'token_customer_perm';
     try {
       const res = await authApi.login(emailToUse, 'demo1234');

@@ -19,6 +19,15 @@ if ($method === 'GET') {
         if (isset($r['email']) && stripos($r['email'], 'lafarge') !== false) {
             $r['email'] = 'logistics@hbm.ng';
         }
+        if (isset($r['companyName']) && stripos($r['companyName'], 'Dangote') !== false) {
+            $r['companyName'] = 'Purechem Cement Industries Ltd';
+        }
+        if (isset($r['fullName']) && stripos($r['fullName'], 'Dangote') !== false) {
+            $r['fullName'] = 'Purechem Logistics Team';
+        }
+        if (isset($r['email']) && stripos($r['email'], 'dangote') !== false) {
+            $r['email'] = 'logistics@purechem.ng';
+        }
         return $r;
     }, $raw);
     echo json_encode(['status' => 'success', 'data' => $result]);

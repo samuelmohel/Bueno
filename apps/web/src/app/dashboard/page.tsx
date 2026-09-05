@@ -148,7 +148,7 @@ const SEED_DEALS: any[] = [
   {
     id: 'DEAL-0138',
     dealNumber: 'DEAL-0138',
-    company: 'Dangote Cement',
+    company: 'Purechem Cement Industries Ltd',
     origin: 'EWK',
     destination: 'MNY',
     cargoType: 'Huaxin Portland Cement (50kg bags)',
@@ -192,7 +192,7 @@ const DEFAULT_PROVISIONED_USERS = [
   { id: 'usr_9', fullName: 'Folake Adeyemi', email: 'admin@bueno.ng', phone: '08030000003', role: 'ADMIN', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Admin HQ', staffId: 'EXEC-03', pin: '7777', status: 'ACTIVE' },
   { id: 'usr_10', fullName: 'Chinenye Nnamdi', email: 'finance@bueno.ng', phone: '08030000004', role: 'HEAD_OF_FINANCE', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Finance HQ', staffId: 'EXEC-04', pin: '6666', status: 'ACTIVE' },
   { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'Dangote Freight Team', companyName: 'Dangote Cement', email: 'freight@dangotecement.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'Purechem Logistics Team', companyName: 'Purechem Cement Industries Ltd', email: 'logistics@purechem.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
   { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
@@ -3171,7 +3171,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       truckRegNo: 'KJA-482-XY',
       driverName: 'Ibrahim Garba',
       phone: '08031112233',
-      transporter: 'Dangote Logistics Fleet',
+      transporter: 'Purechem Logistics Fleet',
       qtyContributed: String(defaultCapacity),
     }
   ]);
@@ -3296,7 +3296,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
           truckRegNo: w.truckRegNo || 'KJA-482-XY',
           driverName: w.driverDetails?.split('(')[0]?.trim() || 'Ibrahim Garba',
           phone: w.driverDetails?.match(/\((.*?)\)/)?.[1] || '08031112233',
-          transporter: w.transporter || 'Dangote Logistics Fleet',
+          transporter: w.transporter || 'Purechem Logistics Fleet',
           qtyContributed: String(defaultQty),
         }
       ]);
@@ -3936,7 +3936,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
                           required
                           value={ft.transporter}
                           onChange={e => handleUpdateFeederTruck(idx, 'transporter', e.target.value)}
-                          placeholder="e.g. Dangote Logistics Fleet"
+                          placeholder="e.g. Purechem Logistics Fleet"
                           className="w-full p-2 rounded-lg border border-slate-300 text-xs"
                         />
                       </div>
@@ -6442,7 +6442,7 @@ const SEED_CONTAINERS = [
 ];
 
 const SEED_GATE_LOGS = [
-  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Dangote Haulage', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
+  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Purechem Haulage', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
   { id: 'GT-88402', truckRegNo: 'LSD-901-AB', driverName: 'Suleiman Bello', driverPhone: '08023334455', transporter: 'Bello Logistics', containerId: 'APMT-310492-1', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 09:30 AM' },
 ];
 

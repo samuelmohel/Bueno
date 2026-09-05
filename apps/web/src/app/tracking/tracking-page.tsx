@@ -46,7 +46,7 @@ const SEED_ACTIVE_LOCOS = [
     cargoOfficer: 'Musa Ibrahim (MNY-01)',
     origin: 'EWK',
     destination: 'MNY',
-    company: 'Dangote Cement Industry',
+    company: 'Purechem Cement Industries Ltd',
     quantity: '18400',
     tripId: 'TRIP-002',
   },
