@@ -38,10 +38,13 @@ const DEFAULT_PROVISIONED_USERS = [
   { id: 'usr_9', fullName: 'Folake Adeyemi', email: 'admin@bueno.ng', phone: '08030000003', role: 'ADMIN', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Admin HQ', staffId: 'EXEC-03', pin: '7777', status: 'ACTIVE' },
   { id: 'usr_10', fullName: 'Chinenye Nnamdi', email: 'finance@bueno.ng', phone: '08030000004', role: 'HEAD_OF_FINANCE', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Finance HQ', staffId: 'EXEC-04', pin: '6666', status: 'ACTIVE' },
 
-  // Industrial Customers
+  // Industrial Customers (Approved Portfolio: HBM is sole cement client, plus APMT, MAERSK, BAT, DHL, DASCO)
   { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'Purechem Logistics Team', companyName: 'Purechem Cement Industries Ltd', email: 'logistics@purechem.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'APMT Rail Terminal Desk', companyName: 'APM Terminals Ltd (APMT)', email: 'rail@apmt.com', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_13', fullName: 'Maersk Freight Operations', companyName: 'MAERSKLINES Nigeria', email: 'cargo@maersk.com', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_14', fullName: 'BAT Supply Chain Desk', companyName: 'British American Tobacco (BAT)', email: 'supplychain@bat.ng', phone: '08039990022', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_15', fullName: 'DHL Intermodal Rail Team', companyName: 'DHL Global Forwarding', email: 'freight@dhl.com', phone: '08039990033', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_16', fullName: 'DASCO Industrial Haulage', companyName: 'DASCO Industries Ltd', email: 'logistics@dasco.ng', phone: '08039990044', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
 const STATIONS: Record<string, string> = {
@@ -331,7 +334,7 @@ function LoginForm() {
 
   const handleCustomerLogin = async (cust: any) => {
     setLoading(true);
-    const emailToUse = cust.companyName?.includes('HBM') ? 'hbm@bueno.ng' : (cust.companyName?.includes('Purechem') ? 'purechem@bueno.ng' : 'customer@bueno.ng');
+    const emailToUse = cust.email || 'customer@bueno.ng';
     let token = 'token_customer_perm';
     try {
       const res = await authApi.login(emailToUse, 'demo1234');

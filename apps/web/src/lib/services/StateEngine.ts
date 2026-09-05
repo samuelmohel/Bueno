@@ -34,8 +34,9 @@ export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
 }));
 
 export const SEED_DEALS = [
-  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Purechem Cement Industries Ltd', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: 1610, status: 'ACTIVE', createdAt: '01 Sep 2026' },
-  { id: 'dl_2', dealNumber: 'DEAL-99412', company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', loadingStation: 'APT', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg)', quantity: 2300, status: 'ACTIVE', createdAt: '02 Sep 2026' },
+  { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', loadingStation: 'PAPA', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg)', quantity: 1200, status: 'ACTIVE', createdAt: '01 Sep 2026' },
+  { id: 'dl_2', dealNumber: 'DEAL-99412', company: 'APM Terminals Ltd (APMT)', loadingStation: 'APT', destination: 'MNY', cargoType: 'CONTAINERS-IMPORT (40ft HC)', quantity: 850, status: 'ACTIVE', createdAt: '02 Sep 2026' },
+  { id: 'dl_3', dealNumber: 'DEAL-77104', company: 'DASCO Industries Ltd', loadingStation: 'IDD', destination: 'ILR', cargoType: 'WIRE COILS & STEEL PIPES', quantity: 950, status: 'ACTIVE', createdAt: '03 Sep 2026' },
 ];
 
 export const SEED_REQUESTS: any[] = [];
@@ -43,8 +44,13 @@ export const SEED_REQUESTS: any[] = [];
 export const SEED_CONTAINERS = [
   { id: 'MSKU-948210-4', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-10', bay: 'Bay A', row: 'Row 1', col: 'Col 1', tier: 3, dwellDays: 16, gateStatus: 'IN_YARD' },
   { id: 'APMT-310492-1', agent: 'APMT', size: '20ft STD', type: 'CONTAINERS-EXPORT', arrivalDate: '2026-08-20', bay: 'Bay B', row: 'Row 2', col: 'Col 3', tier: 2, dwellDays: 6, gateStatus: 'IN_YARD' },
-  { id: 'MSCU-884019-3', agent: 'MSC', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-22', bay: 'Bay A', row: 'Row 3', col: 'Col 2', tier: 1, dwellDays: 4, gateStatus: 'IN_YARD' },
-  { id: 'CMAU-102938-7', agent: 'CMA CGM', size: '40ft HC', type: 'EMPTY', arrivalDate: '2026-08-05', bay: 'Bay C', row: 'Row 1', col: 'Col 4', tier: 4, dwellDays: 21, gateStatus: 'IN_YARD' },
+  { id: 'MSCU-884019-3', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-22', bay: 'Bay A', row: 'Row 3', col: 'Col 2', tier: 1, dwellDays: 4, gateStatus: 'IN_YARD' },
+  { id: 'CMAU-102938-7', agent: 'APMT', size: '40ft HC', type: 'EMPTY', arrivalDate: '2026-08-05', bay: 'Bay C', row: 'Row 1', col: 'Col 4', tier: 4, dwellDays: 21, gateStatus: 'IN_YARD' },
+];
+
+export const SEED_GATE_LOGS = [
+  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Mainstream Haulage Ltd', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
+  { id: 'GT-88402', truckRegNo: 'LSD-901-AB', driverName: 'Suleiman Bello', driverPhone: '08023334455', transporter: 'APMT Logistics Fleet', containerId: 'APMT-310492-1', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 09:30 AM' },
 ];
 
 export const SEED_USERS = [
@@ -62,10 +68,13 @@ export const SEED_USERS = [
   { id: 'usr_9', fullName: 'Folake Adeyemi', email: 'admin@bueno.ng', phone: '08030000003', role: 'ADMIN', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Admin HQ', staffId: 'EXEC-03', pin: '7777', status: 'ACTIVE' },
   { id: 'usr_10', fullName: 'Chinenye Nnamdi', email: 'finance@bueno.ng', phone: '08030000004', role: 'HEAD_OF_FINANCE', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Finance HQ', staffId: 'EXEC-04', pin: '6666', status: 'ACTIVE' },
 
-  // Customers
+  // Approved Industrial Customers (HBM is sole cement client, plus APMT, MAERSK, BAT, DHL, DASCO)
   { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'Purechem Logistics Team', companyName: 'Purechem Cement Industries Ltd', email: 'logistics@purechem.ng', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_13', fullName: 'BUA Logistics Desk', companyName: 'BUA Cement Industries', email: 'logistics@buacement.ng', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_12', fullName: 'APMT Rail Terminal Desk', companyName: 'APM Terminals Ltd (APMT)', email: 'rail@apmt.com', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_13', fullName: 'Maersk Freight Operations', companyName: 'MAERSKLINES Nigeria', email: 'cargo@maersk.com', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_14', fullName: 'BAT Supply Chain Desk', companyName: 'British American Tobacco (BAT)', email: 'supplychain@bat.ng', phone: '08039990022', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_15', fullName: 'DHL Intermodal Rail Team', companyName: 'DHL Global Forwarding', email: 'freight@dhl.com', phone: '08039990033', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
+  { id: 'usr_16', fullName: 'DASCO Industrial Haulage', companyName: 'DASCO Industries Ltd', email: 'logistics@dasco.ng', phone: '08039990044', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
 ];
 
 export const SEED_INVOICES: any[] = [];
@@ -84,7 +93,7 @@ class StateEngineService {
     if (typeof window === 'undefined') return fallback;
     try {
       let item = localStorage.getItem(key);
-      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant') || item.includes('Dangote') || item.includes('dangote'))) {
+      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant') || item.includes('Dangote') || item.includes('dangote') || item.includes('Purechem') || item.includes('purechem') || item.includes('BUA') || item.includes('buacement'))) {
         item = item
           .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
           .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
@@ -94,14 +103,23 @@ class StateEngineService {
           .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
           .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
           .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
-          .replace(/Dangote Cement Industries/gi, 'Purechem Cement Industries Ltd')
-          .replace(/Dangote Cement Industry/gi, 'Purechem Cement Industries Ltd')
-          .replace(/Dangote Cement/gi, 'Purechem Cement Industries Ltd')
-          .replace(/Dangote Freight Team/gi, 'Purechem Logistics Team')
-          .replace(/freight@dangotecement\.ng/gi, 'logistics@purechem.ng')
-          .replace(/Dangote Logistics Fleet/gi, 'Purechem Logistics Fleet')
-          .replace(/Dangote Haulage/gi, 'Purechem Haulage')
-          .replace(/Dangote/gi, 'Purechem');
+          .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
+          .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
+          .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
+          .replace(/Purechem/gi, 'APMT')
+          .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
+          .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
+          .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
+          .replace(/BUA Cement/gi, 'DASCO')
+          .replace(/BUA/gi, 'DASCO')
+          .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+          .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+          .replace(/Dangote Cement/gi, 'Huaxin Portland Cement')
+          .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
+          .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng')
+          .replace(/Dangote Logistics Fleet/gi, 'HBM Logistics Fleet')
+          .replace(/Dangote Haulage/gi, 'HBM Haulage')
+          .replace(/Dangote/gi, 'HBM');
         localStorage.setItem(key, item);
       }
       return item ? JSON.parse(item) : fallback;
@@ -466,14 +484,23 @@ class StateEngineService {
             .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
             .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
             .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
-            .replace(/Dangote Cement Industries/gi, 'Purechem Cement Industries Ltd')
-            .replace(/Dangote Cement Industry/gi, 'Purechem Cement Industries Ltd')
-            .replace(/Dangote Cement/gi, 'Purechem Cement Industries Ltd')
-            .replace(/Dangote Freight Team/gi, 'Purechem Logistics Team')
-            .replace(/freight@dangotecement\.ng/gi, 'logistics@purechem.ng')
-            .replace(/Dangote Logistics Fleet/gi, 'Purechem Logistics Fleet')
-            .replace(/Dangote Haulage/gi, 'Purechem Haulage')
-            .replace(/Dangote/gi, 'Purechem');
+            .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
+            .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
+            .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
+            .replace(/Purechem/gi, 'APMT')
+            .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
+            .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
+            .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
+            .replace(/BUA Cement/gi, 'DASCO')
+            .replace(/BUA/gi, 'DASCO')
+            .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+            .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+            .replace(/Dangote Cement/gi, 'Huaxin Portland Cement')
+            .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
+            .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng')
+            .replace(/Dangote Logistics Fleet/gi, 'HBM Logistics Fleet')
+            .replace(/Dangote Haulage/gi, 'HBM Haulage')
+            .replace(/Dangote/gi, 'HBM');
           localStorage.setItem(k, sanitized);
           changed = true;
         }
@@ -799,6 +826,14 @@ class StateEngineService {
 
   saveContainers(containers: any[]): void {
     this.writeStorage('bueno_containers', containers);
+  }
+
+  getGateLogs(): any[] {
+    return this.readStorage('bueno_gate_logs', SEED_GATE_LOGS);
+  }
+
+  saveGateLogs(logs: any[]): void {
+    this.writeStorage('bueno_gate_logs', logs);
   }
 
   // ── USERS API ─────────────────────────────────────────────────────────────

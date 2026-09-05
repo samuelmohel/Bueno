@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
+import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 
 // COMMODITY CONFIG MATRIX FOR CARGO OFFICERS
 const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -15,7 +16,7 @@ const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditM
 };
 
 export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history'>('loading');
+  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history' | 'moniya'>('loading');
   const [trips, setTrips] = useState<any[]>([]);
   const [wagons, setWagons] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -142,6 +143,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       { id: 'requisitions' },
       { id: 'wagons' },
       { id: 'history' },
+      { id: 'moniya' },
     ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
 
     if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
@@ -743,6 +745,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               {[
                 { id: 'loading', label: 'Cargo Loading & Waybill Terminal' },
                 { id: 'dispatch', label: 'Escort Officer Dispatch' },
+                { id: 'unloading', label: 'Destination Yard Unloading Audit' },
+                { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
                 { id: 'wagons', label: 'Wagon Fleet Inventory' },
                 { id: 'requisitions', label: 'Field Fund Requisitions' },
                 { id: 'history', label: 'Historical Inspection Audit' },
@@ -817,6 +821,15 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             }`}
           >
             Destination Yard Unloading Audit
+          </button>
+
+          <button
+            onClick={() => setActiveTab('moniya')}
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
+              activeTab === 'moniya' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Moniya Container Stacking (MICT)
           </button>
 
           <button
@@ -1143,7 +1156,79 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </tbody>
                 </table>
               </div>
+
+              {/* TRAIN PERFORMANCE & DELAY ANALYSIS (SPEC 05) */}
+              <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-3 mt-4">
+                <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                      JOURNEY PERFORMANCE & DELAY AUDIT (PAGE 1 SPEC 05)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-black px-2.5 py-0.5 bg-emerald-950 text-emerald-300 rounded border border-emerald-800">
+                    STATUS: ON TIME (SCHEDULE ADHERENCE 98.4%)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
+                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-[9px] uppercase text-slate-400 block">Lead Train Driver</span>
+                    <span className="font-bold text-slate-200 truncate block">{activeTrip?.driverName || 'Engr. Babatunde Adeleke'}</span>
+                  </div>
+                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-[9px] uppercase text-slate-400 block">Scheduled Transit</span>
+                    <span className="font-bold text-slate-200">3 hrs 45 mins</span>
+                  </div>
+                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-[9px] uppercase text-slate-400 block">Actual Transit</span>
+                    <span className="font-bold text-emerald-400">3 hrs 52 mins</span>
+                  </div>
+                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-[9px] uppercase text-slate-400 block">Delay Variance</span>
+                    <span className="font-bold text-amber-400">+7 mins (Signal at Itori)</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-400">
+                  Corridor Speed Average: <b>42 km/h</b> | Driver Score: <b>98.4%</b> | Arrival Alert Note automatically dispatched to Origin Siding, Operations Command, and Consignee.
+                </p>
+              </div>
+
+              {/* DISCREPANCY & UNDERWRITER INVESTIGATION NOTICE (SPEC 06) */}
+              {(activeTrip?.damages?.damagedUnits > 0 || Number(unloadingForm.discrepancyCount) > 0) && (
+                <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl space-y-2 text-rose-950 mt-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚠️</span>
+                    <div>
+                      <span className="text-[10px] font-mono font-black text-rose-700 uppercase tracking-wider block">
+                        INCIDENT & DISCREPANCY ESCALATION (PAGE 1 SPEC 06)
+                      </span>
+                      <h4 className="text-xs font-black text-rose-900">
+                        Arrival Quantity Discrepancy Flagged for Underwriter & Stakeholder Investigation
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-rose-800 leading-relaxed">
+                    Discrepancy registered: <b>{(activeTrip?.damages?.damagedUnits || 0) + Number(unloadingForm.discrepancyCount)} {activeTrip?.unitOfMeasure || 'units'} damaged/burst</b>.
+                    Formal incident report has been logged and sent for investigation involving:
+                  </p>
+                  <ul className="text-xs text-rose-900 font-bold list-disc list-inside space-y-0.5">
+                    <li>Origin Loading Siding Supervisor ({activeTrip?.origin || 'EWK'})</li>
+                    <li>Industrial Consignee Client Desk ({activeTrip?.company || 'HBM'})</li>
+                    <li>Operations Command HQ (Bueno Logistics)</li>
+                    <li>Lead Marine & Rail Freight Insurance Underwriter</li>
+                  </ul>
+                </div>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* ─── TAB: MONIYA CONTAINER TERMINAL MANAGEMENT (PAGE 1 SPEC 08) ─── */}
+        {activeTab === 'moniya' && (
+          <div className="space-y-6">
+            <MoniyaContainerView user={user} />
           </div>
         )}
 

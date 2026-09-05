@@ -10,6 +10,7 @@ import {
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { TripDossierModal } from '@/components/TripDossierModal';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
+import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -31,11 +32,11 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
       locomotiveId: 'L2205',
       origin: 'EWK',
       destination: 'MNY',
-      company: 'Purechem Cement Industries Ltd',
+      company: 'APM Terminals Ltd (APMT)',
       dealNumber: 'DEAL-AUG-881',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
+      cargoType: 'CONTAINERS-IMPORT (40ft HC)',
+      unitOfMeasure: 'Units',
+      wagonType: 'CBX Flat Bed Wagon',
       quantity: 1600,
       cargoOfficerName: 'Ade Bello',
       unloadingOfficerName: 'Musa Ibrahim',
@@ -76,11 +77,11 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
       locomotiveId: 'L2205',
       origin: 'PAPA',
       destination: 'MNY',
-      company: 'Purechem Cement Industries Ltd',
+      company: 'DASCO Industries Ltd',
       dealNumber: 'DEAL-JUL-701',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
+      cargoType: 'WIRE COILS & STEEL PIPES',
+      unitOfMeasure: 'Metric Tonnes (MT)',
+      wagonType: 'CBX Flat Bed Wagon',
       quantity: 1800,
       cargoOfficerName: 'Samuel Okafor',
       unloadingOfficerName: 'Musa Ibrahim',
@@ -99,11 +100,11 @@ const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
       locomotiveId: 'L2201',
       origin: 'EWK',
       destination: 'MNY',
-      company: 'BUA Cement Industries',
+      company: 'British American Tobacco (BAT)',
       dealNumber: 'DEAL-JUN-602',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
+      cargoType: 'Manufactured FMCG Cargo',
+      unitOfMeasure: 'Metric Tonnes (MT)',
+      wagonType: 'Covered Van',
       quantity: 1400,
       cargoOfficerName: 'Ade Bello',
       unloadingOfficerName: 'Musa Ibrahim',
@@ -429,7 +430,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
 }
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet' | 'moniya'>('analytics');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
   const [createDealModal, setCreateDealModal] = useState(false);
   const [registerWagonModal, setRegisterWagonModal] = useState(false);
@@ -495,8 +496,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   // Dynamic Freight Deal Form
   const [newDealForm, setNewDealForm] = useState({
-    companyName: 'Purechem Cement Industries Ltd',
-    loadingStation: 'EWK',
+    companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
+    loadingStation: 'PAPA',
     destination: 'MNY',
     cargoType: 'Bagged Cement (50kg)',
     quantity: '2000',
@@ -861,6 +862,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // CREATE NEW DEAL DIRECTLY
   const handleCreateNewDeal = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isOriginNarrow = newDealForm.loadingStation === 'EWK' || newDealForm.loadingStation === 'IDD' || newDealForm.loadingStation === 'ILR';
+    const isDestNarrow = newDealForm.destination === 'DGB' || newDealForm.destination === 'IDD' || newDealForm.destination === 'ILR';
+    if (isOriginNarrow !== isDestNarrow) {
+      setCustomAlert({
+        title: 'Gauge Incompatibility Blocked (Page 1 Spec 04)',
+        message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto ➔ Moniya Standard Gauge, or Ewekoro ➔ Dugbe Narrow Gauge).`,
+      });
+      return;
+    }
+
     const dealId = `DEAL-${Math.floor(10000 + Math.random() * 89999)}`;
     const conf = COMMODITY_CONFIG[newDealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' };
 
@@ -1040,7 +1052,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           tripId: tripId,
           dealId: t.dealNumber || t.dealId || `DEAL-${tripId}`,
           companyName: t.company || 'Consignee Client',
-          clientEmail: (t.company || '').toLowerCase().includes('purechem') ? 'logistics@purechem.ng' : (t.company || '').toLowerCase().includes('huaxin') ? 'logistics@hbm.ng' : 'client@freight.ng',
+          clientEmail: (t.company || '').toLowerCase().includes('huaxin') || (t.company || '').toLowerCase().includes('hbm') ? 'logistics@hbm.ng' : (t.company || '').toLowerCase().includes('apmt') ? 'rail@apmt.com' : (t.company || '').toLowerCase().includes('maersk') ? 'cargo@maersk.com' : (t.company || '').toLowerCase().includes('dasco') ? 'logistics@dasco.ng' : (t.company || '').toLowerCase().includes('bat') ? 'supplychain@bat.ng' : 'client@freight.ng',
           cargoType: t.cargoType || 'Industrial Freight',
           route: `${t.origin || 'EWK'} ➔ ${t.destination || 'MNY'}`,
           totalBags,
@@ -1394,28 +1406,46 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       {u.companyName || u.fullName}
                     </option>
                   ))}
-                  <option value="Purechem Cement Industries Ltd">Purechem Cement Industries Ltd</option>
-                  <option value="BUA Cement Industries">BUA Cement Industries</option>
                   <option value="HUAXIN BUILDING MATERIALS NIG PLC (HBM)">HUAXIN BUILDING MATERIALS NIG PLC (HBM)</option>
+                  <option value="APM Terminals Ltd (APMT)">APM Terminals Ltd (APMT)</option>
+                  <option value="MAERSKLINES Nigeria">MAERSKLINES Nigeria</option>
+                  <option value="British American Tobacco (BAT)">British American Tobacco (BAT)</option>
+                  <option value="DHL Global Forwarding">DHL Global Forwarding</option>
+                  <option value="DASCO Industries Ltd">DASCO Industries Ltd</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station (Gauge)</label>
                   <select
                     value={newDealForm.loadingStation}
-                    onChange={(e) => setNewDealForm({ ...newDealForm, loadingStation: e.target.value })}
+                    onChange={(e) => {
+                      const origin = e.target.value;
+                      const isNarrow = origin === 'EWK';
+                      setNewDealForm({
+                        ...newDealForm,
+                        loadingStation: origin,
+                        destination: isNarrow ? 'DGB' : 'MNY',
+                      });
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                   >
-                    <option value="EWK">Ewekoro Terminal (EWK)</option>
-                    <option value="PAPA">Papalanto Terminal (PAPA)</option>
-                    <option value="APT">Apapa Maritime Port (APT)</option>
+                    <option value="PAPA">Papalanto Terminal (Standard Gauge)</option>
+                    <option value="APT">Apapa Maritime Port (Standard Gauge)</option>
+                    <option value="EWK">Ewekoro Terminal (Narrow Gauge)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard</label>
-                  <input readOnly value="Moniya Yard (MNY)" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-bold" />
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard (Gauge)</label>
+                  <select
+                    value={newDealForm.destination}
+                    onChange={(e) => setNewDealForm({ ...newDealForm, destination: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="MNY">Moniya Yard, Ibadan (Standard Gauge)</option>
+                    <option value="DGB">Dugbe Station, Ibadan (Narrow Gauge)</option>
+                  </select>
                 </div>
               </div>
 
@@ -1982,6 +2012,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   { id: 'negotiations', label: 'Client Negotiations Chat' },
                   { id: 'fund_requisitions', label: 'Fund Requisition & Operational Expenses' },
                   { id: 'fleet', label: 'Fleet & Rolling Stock Management' },
+                  { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
                   { id: 'billing', label: 'Commercial Invoices & Ledger' },
@@ -3678,6 +3709,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* ─── TAB: MONIYA CONTAINER TERMINAL MANAGEMENT (PAGE 1 SPEC 08) ─── */}
+        {activeTab === 'moniya' && (
+          <div className="space-y-6">
+            <MoniyaContainerView user={user} />
           </div>
         )}
 

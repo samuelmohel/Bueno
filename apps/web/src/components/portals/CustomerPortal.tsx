@@ -17,6 +17,29 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string 
   'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon' },
 };
 
+export const WAGON_SPEC_MAP: Record<string, { code: string; name: string; capacityMt: number; desc: string }> = {
+  'CEMENT': { code: 'PXG/CGs', name: 'Box-wagon (Cement/50kg Bagged)', capacityMt: 40, desc: 'Box-wagon for carrying cement or 50kg bagged products — general cargo' },
+  'GYPSUM': { code: 'ZGX', name: 'Open top, side discharging wagon', capacityMt: 60, desc: 'Open top, side discharging for coal, gypsum, clinker' },
+  'CONTAINERS-IMPORT': { code: 'CBX', name: 'Flat-bed container wagon', capacityMt: 35, desc: 'Flat beds for containers, vehicles, machinery' },
+  'CONTAINERS-EXPORT': { code: 'CBX', name: 'Flat-bed container wagon', capacityMt: 35, desc: 'Flat beds for containers, export goods' },
+  'WIRE COILS': { code: 'CBX', name: 'Flat-bed wagon (Coils & Billets)', capacityMt: 40, desc: 'Flat beds for coils, billets, heavy steel' },
+  'PIPES': { code: 'CBX', name: 'Flat-bed wagon (Pipes & Steel)', capacityMt: 40, desc: 'Flat beds for steel pipes, machinery' },
+  'GAS CYLINDERS': { code: 'CBX(HS)', name: 'High-sided flat-bed wagon', capacityMt: 30, desc: 'Flat-bed wagons with high sides for jumbo bags & gas cylinders' },
+  'OTHERS': { code: 'OTHERS', name: 'General Freight Rolling Stock', capacityMt: 40, desc: 'General industrial cargo rolling stock' },
+};
+
+export const STATION_GAUGE_MAP: Record<string, { name: string; gauge: 'STANDARD_GAUGE' | 'NARROW_GAUGE'; label: string }> = {
+  'PAPA': { name: 'Papalanto Siding', gauge: 'STANDARD_GAUGE', label: 'Papalanto Siding (Standard Gauge - 1,435mm)' },
+  'MNY':  { name: 'Moniya Inland Terminal', gauge: 'STANDARD_GAUGE', label: 'Moniya Container Terminal, Ibadan (Standard Gauge - 1,435mm)' },
+  'APT':  { name: 'Apapa Maritime Port', gauge: 'STANDARD_GAUGE', label: 'Apapa Maritime Port (Standard Gauge - 1,435mm)' },
+  'KAD':  { name: 'Kaduna Dry Port', gauge: 'STANDARD_GAUGE', label: 'Kaduna Dry Port (Standard Gauge - 1,435mm)' },
+  'EWK':  { name: 'Ewekoro Terminal', gauge: 'NARROW_GAUGE', label: 'Ewekoro Terminal (Narrow Gauge - 1,067mm)' },
+  'DGB':  { name: 'Dugbe Station, Ibadan', gauge: 'NARROW_GAUGE', label: 'Dugbe Station, Ibadan (Narrow Gauge - 1,067mm)' },
+  'IDD':  { name: 'Iddo Lagos Terminus', gauge: 'NARROW_GAUGE', label: 'Iddo Lagos Terminus (Narrow Gauge - 1,067mm)' },
+  'ILR':  { name: 'Ilorin Freight Hub', gauge: 'NARROW_GAUGE', label: 'Ilorin Freight Hub (Narrow Gauge - 1,067mm)' },
+  'KAN':  { name: 'Kano Freight Hub', gauge: 'NARROW_GAUGE', label: 'Kano Freight Hub (Narrow Gauge - 1,067mm)' },
+};
+
 export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'negotiations' | 'manifest' | 'billing' | 'account'>('negotiations');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -30,6 +53,16 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   const [chatInput, setChatInput] = useState('');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [opsLeadName, setOpsLeadName] = useState('Head of Operations');
+
+  // CONSIGNMENT NOTE (REQUEST FOR FREIGHT SERVICES) STATE (SPEC 01 & 02)
+  const [consignmentModal, setConsignmentModal] = useState(false);
+  const [consignmentForm, setConsignmentForm] = useState({
+    product: 'CEMENT',
+    tonnage: '920',
+    originStation: 'PAPA',
+    destinationStation: 'MNY',
+    specialInstructions: '',
+  });
 
   const companyName = user?.companyName || user?.fullName || 'Industrial Consignee Client';
   const clientEmail = user?.email || '';
@@ -170,6 +203,61 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     );
     localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([...updatedCompanyDeals, ...otherDeals]));
     window.dispatchEvent(new Event('bueno_state_updated'));
+  };
+
+  const handleSubmitConsignmentNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    const spec = WAGON_SPEC_MAP[consignmentForm.product] || WAGON_SPEC_MAP['CEMENT'];
+    const declaredTonnage = Number(consignmentForm.tonnage) || 0;
+    const wagonsNeeded = Math.max(1, Math.ceil(declaredTonnage / spec.capacityMt));
+    const tripsNeeded = Math.max(1, Math.ceil(wagonsNeeded / 23));
+
+    const originInfo = STATION_GAUGE_MAP[consignmentForm.originStation] || { name: 'Papalanto Siding', gauge: 'STANDARD_GAUGE' };
+    const destInfo = STATION_GAUGE_MAP[consignmentForm.destinationStation] || { name: 'Moniya Inland Terminal', gauge: 'STANDARD_GAUGE' };
+
+    if (originInfo.gauge !== destInfo.gauge) {
+      setCustomAlert({
+        title: 'Gauge Incompatibility Warning (Page 1 Spec 04)',
+        message: `Corridor Incompatibility: Origin ${originInfo.name} is ${originInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'} while Destination ${destInfo.name} is ${destInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'}.\n\nPer official specification (Page 1 Section 04), Standard Gauge and Narrow Gauge tracks are mutually exclusive and rolling stock cannot cross tracks. Please select matching gauge stations!`,
+      });
+      return;
+    }
+
+    const newDealId = `CNOTE-${Math.floor(100000 + Math.random() * 900000)}`;
+    const newDeal = {
+      id: newDealId,
+      companyName: companyName,
+      email: clientEmail,
+      contactName: user?.fullName || `${companyName} Logistics Lead`,
+      loadingStation: consignmentForm.originStation,
+      destination: consignmentForm.destinationStation,
+      cargoType: `${consignmentForm.product} (Wagon: ${spec.code})`,
+      quantity: `${declaredTonnage} MT (${wagonsNeeded} Wagons, ${tripsNeeded} Trip${tripsNeeded > 1 ? 's' : ''})`,
+      status: 'UNDER_OPERATIONS_REVIEW',
+      createdAt: new Date().toLocaleDateString('en-GB'),
+      messages: [
+        {
+          sender: user?.fullName || `${companyName} Logistics Desk`,
+          role: 'Industrial Consignee',
+          text: `CONSIGNMENT NOTE (Request for Freight Services):\n• Product: ${consignmentForm.product}\n• Declared Tonnage: ${declaredTonnage} MT\n• Wagon Allocation: ${spec.code} — ${spec.name}\n• Total Wagons Needed: ${wagonsNeeded} Units (Capacity: ${spec.capacityMt} MT/wagon)\n• Total Train Trips: ${tripsNeeded} Rake Trip(s) (23 wagons/rake max)\n• Origin Siding: ${originInfo.name} (${originInfo.gauge})\n• Destination Station: ${destInfo.name} (${destInfo.gauge})\n• Request: Official Freight Tariff Quotation requested from Operations Command.\n• Special Instructions: ${consignmentForm.specialInstructions || 'None'}`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+        {
+          sender: opsLeadName || 'Head of Operations',
+          role: 'Head of Operations',
+          text: `Consignment Note received for ${companyName}! Requisition #${newDealId} is logged at Operations Command. Rolling stock (${spec.code}) and corridor capacity on ${originInfo.name} ➔ ${destInfo.name} are being verified for immediate tariff quotation.`,
+          time: 'System Auto-Response',
+        },
+      ],
+    };
+
+    saveNegotiations([newDeal, ...negotiations]);
+    setActiveDealId(newDeal.id);
+    setConsignmentModal(false);
+    setCustomAlert({
+      title: 'Consignment Note Submitted',
+      message: `Consignment Note #${newDealId} submitted successfully!\n\nVolume: ${declaredTonnage} MT (${wagonsNeeded} ${spec.code} wagons, ${tripsNeeded} trips)\nCorridor: ${originInfo.name} ➔ ${destInfo.name}\n\nOur Commercial Operations Desk is reviewing and will issue your formal tariff quotation in this conversation thread.`,
+    });
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -383,11 +471,19 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               </h2>
             </div>
 
-            <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
-              <div className="w-3 h-3 bg-[#62BC37] rounded-full animate-ping" />
-              <div className="text-xs">
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Assigned Operations Lead</span>
-                <span className="font-extrabold text-slate-200">{opsLeadName}</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setConsignmentModal(true)}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all flex items-center gap-2"
+              >
+                <span>+ Fill Consignment Note</span>
+              </button>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
+                <div className="w-3 h-3 bg-[#62BC37] rounded-full animate-ping" />
+                <div className="text-xs">
+                  <span className="text-slate-400 block text-[10px] font-bold uppercase">Assigned Operations Lead</span>
+                  <span className="font-extrabold text-slate-200">{opsLeadName}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -430,9 +526,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             {/* THREAD LIST SIDEBAR (4 COLS) */}
             <div className="lg:col-span-4 border-r border-slate-200 bg-slate-50 flex flex-col justify-between">
               <div>
-                <div className="p-4 bg-white border-b border-slate-200 space-y-1">
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider block">YOUR FREIGHT REQUISITIONS</span>
-                  <h3 className="text-sm font-black text-slate-900 font-sans">Active Corridor Conversations</h3>
+                <div className="p-4 bg-white border-b border-slate-200 space-y-3">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider block">YOUR FREIGHT REQUISITIONS</span>
+                    <h3 className="text-sm font-black text-slate-900 font-sans">Active Corridor Conversations</h3>
+                  </div>
+                  <button
+                    onClick={() => setConsignmentModal(true)}
+                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>+ Fill Consignment Note (Request Tariff)</span>
+                  </button>
                 </div>
 
                 <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
@@ -918,6 +1022,240 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           trip={selectedDossierTrip}
           onClose={() => setSelectedDossierTrip(null)}
         />
+      )}
+
+      {/* ─── CONSIGNMENT NOTE (REQUEST FOR FREIGHT SERVICES) MODAL (SPEC 01 & 02) ─── */}
+      {consignmentModal && (() => {
+        const spec = WAGON_SPEC_MAP[consignmentForm.product] || WAGON_SPEC_MAP['CEMENT'];
+        const declaredTonnage = Number(consignmentForm.tonnage) || 0;
+        const wagonsNeeded = Math.max(1, Math.ceil(declaredTonnage / spec.capacityMt));
+        const tripsNeeded = Math.max(1, Math.ceil(wagonsNeeded / 23));
+        const originInfo = STATION_GAUGE_MAP[consignmentForm.originStation] || { name: 'Papalanto Siding', gauge: 'STANDARD_GAUGE', label: 'Papalanto' };
+        const destInfo = STATION_GAUGE_MAP[consignmentForm.destinationStation] || { name: 'Moniya Inland Terminal', gauge: 'STANDARD_GAUGE', label: 'Moniya' };
+        const isGaugeIncompatible = originInfo.gauge !== destInfo.gauge;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl w-full max-w-2xl p-6 sm:p-8 space-y-5 font-sans shadow-2xl border border-slate-200 my-auto max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest">
+                      NIGERIAN RAIL FREIGHT OPERATIONS · FORM 01 & 02
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    CONSIGNMENT NOTE (Request for Freight Services)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Declare consignment product, tonnage volume, origin and destination sidings to request official freight tariff.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConsignmentModal(false)}
+                  className="text-slate-400 hover:text-slate-700 font-bold text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitConsignmentNote} className="space-y-4 text-xs font-semibold">
+                {/* PRODUCT & VOLUME */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                      PRODUCT (CONSIGNMENT TYPE) *
+                    </label>
+                    <select
+                      value={consignmentForm.product}
+                      onChange={(e) => setConsignmentForm({ ...consignmentForm, product: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      <option value="CEMENT">CEMENT (50kg Bagged / Bulk)</option>
+                      <option value="GYPSUM">GYPSUM (Bulk Mineral)</option>
+                      <option value="CONTAINERS-IMPORT">CONTAINERS-IMPORT (20ft / 40ft TEUs)</option>
+                      <option value="CONTAINERS-EXPORT">CONTAINERS-EXPORT (Outbound Cargo)</option>
+                      <option value="WIRE COILS">WIRE COILS (Industrial Steel)</option>
+                      <option value="PIPES">PIPES (Steel / Ductile)</option>
+                      <option value="GAS CYLINDERS">GAS CYLINDERS (Pressurized Vessels)</option>
+                      <option value="OTHERS">OTHERS (General Freight)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                      DECLARED VOLUME STRICTLY IN TONNAGE (MT) *
+                    </label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      value={consignmentForm.tonnage}
+                      onChange={(e) => setConsignmentForm({ ...consignmentForm, tonnage: e.target.value })}
+                      placeholder="e.g. 920 MT"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                    <span className="text-[10px] text-slate-400 font-mono mt-1 block">Volume must be stated in Metric Tonnes (Tonnage)</span>
+                  </div>
+                </div>
+
+                {/* ORIGIN & DESTINATION WITH GAUGE */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                      ORIGINATING STATION / SIDING *
+                    </label>
+                    <select
+                      value={consignmentForm.originStation}
+                      onChange={(e) => setConsignmentForm({ ...consignmentForm, originStation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      {Object.entries(STATION_GAUGE_MAP).map(([code, st]) => (
+                        <option key={code} value={code}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                      DESTINATION STATION *
+                    </label>
+                    <select
+                      value={consignmentForm.destinationStation}
+                      onChange={(e) => setConsignmentForm({ ...consignmentForm, destinationStation: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                    >
+                      {Object.entries(STATION_GAUGE_MAP).map(([code, st]) => (
+                        <option key={code} value={code}>
+                          {st.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* GAUGE COMPATIBILITY CHECK (PAGE 1 SPEC 04) */}
+                {isGaugeIncompatible ? (
+                  <div className="bg-rose-50 border border-rose-300 p-4 rounded-2xl space-y-1 text-rose-950">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">⚠️</span>
+                      <span className="text-[10px] font-mono font-black uppercase text-rose-700 tracking-wider">
+                        CRITICAL GAUGE INCOMPATIBILITY (PAGE 1 SPEC 04)
+                      </span>
+                    </div>
+                    <p className="text-xs text-rose-800 leading-relaxed">
+                      <b>Origin ({originInfo.name})</b> is on <b>{originInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'}</b>, but <b>Destination ({destInfo.name})</b> is on <b>{destInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'}</b>.
+                    </p>
+                    <p className="text-[11px] text-rose-700">
+                      Standard Gauge and Narrow Gauge tracks are mutually exclusive and rolling stock cannot cross tracks. Please choose matching gauge stations (e.g. Papalanto ➔ Moniya Standard Gauge, or Ewekoro ➔ Dugbe Narrow Gauge).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-700 font-bold">✓</span>
+                      <span className="text-xs font-bold text-emerald-900">Corridor Gauge Exclusivity Verified</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-black bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded">
+                      {originInfo.gauge === 'STANDARD_GAUGE' ? 'STANDARD GAUGE (1,435mm)' : 'NARROW GAUGE (1,067mm)'}
+                    </span>
+                  </div>
+                )}
+
+                {/* AUTO-CALCULATED ROLLING STOCK & TRIPS BREAKDOWN (SPEC 02) */}
+                <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase">
+                      AUTOMATIC WAGON ALLOCATION & FLEET CALCULATION (SPEC 02)
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">Formula: ⌈Tonnage ÷ Capacity⌉</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <span className="text-[9px] uppercase text-slate-400 block">Wagon Code</span>
+                      <span className="font-black text-amber-400 text-sm block">{spec.code}</span>
+                      <span className="text-[8px] text-slate-400 block truncate">{spec.name}</span>
+                    </div>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <span className="text-[9px] uppercase text-slate-400 block">Wagon Capacity</span>
+                      <span className="font-bold text-slate-200 text-sm block">{spec.capacityMt} MT</span>
+                      <span className="text-[8px] text-slate-400 block">Payload per unit</span>
+                    </div>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <span className="text-[9px] uppercase text-slate-400 block">Wagons Needed</span>
+                      <span className="font-black text-[#62BC37] text-sm block">{wagonsNeeded} Wagons</span>
+                      <span className="text-[8px] text-slate-400 block">⌈{declaredTonnage} ÷ {spec.capacityMt}⌉</span>
+                    </div>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                      <span className="text-[9px] uppercase text-slate-400 block">Train Trips</span>
+                      <span className="font-black text-blue-400 text-sm block">{tripsNeeded} Trip(s)</span>
+                      <span className="text-[8px] text-slate-400 block">⌈{wagonsNeeded} ÷ 23⌉ rake</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                    SPECIAL INSTRUCTIONS / REMARKS
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={consignmentForm.specialInstructions}
+                    onChange={(e) => setConsignmentForm({ ...consignmentForm, specialInstructions: e.target.value })}
+                    placeholder="e.g. Urgent haulage requested, discharge directly to consignee fleet..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#62BC37]"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setConsignmentModal(false)}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isGaugeIncompatible || declaredTonnage <= 0}
+                    className={`font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all ${
+                      isGaugeIncompatible || declaredTonnage <= 0
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-[#62BC37] hover:bg-[#52A02D] text-white shadow-emerald-700/20'
+                    }`}
+                  >
+                    Submit Consignment Note & Request Official Tariff ➔
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── CUSTOM ALERT MODAL ─── */}
+      {customAlert && (
+        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 font-sans text-center shadow-2xl border border-slate-200">
+            <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              {customAlert.title || 'Notification'}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line text-left bg-slate-50 p-4 rounded-2xl border border-slate-200 font-mono">
+              {customAlert.message}
+            </p>
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setCustomAlert(null)}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

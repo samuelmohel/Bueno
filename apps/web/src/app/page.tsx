@@ -175,7 +175,12 @@ export default function BuenoLogisticsHomePage() {
   ];
 
   const partners = [
-    'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', 'Purechem Cement Industries Ltd', 'BUA Cement Industries', 'APMT', 'MAERSKLINES', 'DHL', 'BAT (British American Tobacco)', 'DASCO',
+    'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
+    'APMT (APM Terminals)',
+    'MAERSKLINES',
+    'DHL Global Forwarding',
+    'BAT (British American Tobacco)',
+    'DASCO Industries',
   ];
 
   return (
@@ -466,11 +471,11 @@ export default function BuenoLogisticsHomePage() {
             </button>
 
             <div>
-              <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-widest block">
-                Industrial Client Onboarding
+              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                Industrial Client Onboarding · Official Form
               </span>
-              <h2 className="text-2xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                Request Freight Services
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                CONSIGNMENT NOTE (Request for Freight Services)
               </h2>
               <p className="text-xs text-slate-500 mt-1">
                 Submit your freight corridor requirements directly to the Bueno Logistics Command Center.
@@ -563,7 +568,7 @@ export default function BuenoLogisticsHomePage() {
                     required
                     value={form.companyName}
                     onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-                    placeholder="e.g. Purechem Cement Industries Ltd"
+                    placeholder="e.g. HUAXIN BUILDING MATERIALS NIG PLC (HBM), APMT, MAERSKLINES..."
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white"
                   />
                 </div>

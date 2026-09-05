@@ -143,19 +143,23 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             </div>
           </div>
 
-          {/* Crew Roster */}
-          <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+          {/* Crew & Monitoring Roster (Page 1 Spec 03) */}
+          <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-mono">
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">NRC LEAD TRAIN DRIVER</span>
               <span className="font-black text-emerald-400 mt-0.5 block">{driverName}</span>
             </div>
             <div>
-              <span className="text-[9px] uppercase text-slate-400 block font-bold">BUENO ESCORT CARGO OFFICER</span>
-              <span className="font-black text-emerald-400 mt-0.5 block">{escortName}</span>
+              <span className="text-[9px] uppercase text-slate-400 block font-bold">TRAIN CREW & BRAKEMAN</span>
+              <span className="font-black text-emerald-400 mt-0.5 block">{trip.crewNames || 'Sunday Okafor (Eng), Audu Danladi (Brakeman)'}</span>
             </div>
             <div>
-              <span className="text-[9px] uppercase text-slate-400 block font-bold">NRC TRAIN CONDUCTOR</span>
-              <span className="font-black text-emerald-400 mt-0.5 block">Musa Ibrahim (MNY-01)</span>
+              <span className="text-[9px] uppercase text-slate-400 block font-bold">MONITORING OFFICER</span>
+              <span className="font-black text-emerald-400 mt-0.5 block">{trip.monitoringOfficer || trip.cargoOfficerName || 'Ade Bello (Bueno Ops Monitoring)'}</span>
+            </div>
+            <div>
+              <span className="text-[9px] uppercase text-slate-400 block font-bold">DESTINATION SIDING & GAUGE</span>
+              <span className="font-black text-emerald-400 mt-0.5 block">{trip.destination || 'MNY'} ({trip.destination === 'EWK' || trip.destination === 'DGB' ? 'Narrow Gauge 1,067mm' : 'Standard Gauge 1,435mm'})</span>
             </div>
           </div>
 
