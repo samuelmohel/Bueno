@@ -27,11 +27,11 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
       locomotiveId: 'L2205',
       origin: 'EWK',
       destination: 'MNY',
-      company: 'Purechem Cement Industries Ltd',
+      company: 'APM Terminals Ltd (APMT)',
       dealNumber: 'DEAL-AUG-881',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
+      cargoType: 'CONTAINERS-IMPORT (40ft HC)',
+      unitOfMeasure: 'Units',
+      wagonType: 'CBX Flatbed Wagon',
       quantity: 1600,
       cargoOfficerName: 'Ade Bello',
       unloadingOfficerName: 'Musa Ibrahim',
@@ -169,6 +169,13 @@ export default function PerformanceReportsPage() {
 
   useEffect(() => {
     loadReport(period, archiveMonth);
+    const handleUpdate = () => loadReport(period, archiveMonth);
+    window.addEventListener('bueno_state_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('bueno_state_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, [period, archiveMonth]);
 
   const handleExportCSV = () => {
@@ -492,25 +499,37 @@ export default function PerformanceReportsPage() {
                 {/* EXECUTIVE SIGNATURE BLOCKS */}
                 <div className="grid grid-cols-3 gap-6 border-t border-gray-200 pt-6 text-center text-xs font-sans">
                   <div className="space-y-4">
-                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">Babajide Sanwo</div>
+                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">
+                      {StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')}
+                    </div>
                     <div>
-                      <span className="font-bold text-gray-900 block">Babajide Sanwo</span>
+                      <span className="font-bold text-gray-900 block">
+                        {StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')}
+                      </span>
                       <span className="text-[10px] text-gray-500">Head of Operations</span>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">Chinenye Nnamdi</div>
+                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">
+                      {StateEngine.getSignatory('HEAD_OF_FINANCE', 'Chinenye Nnamdi')}
+                    </div>
                     <div>
-                      <span className="font-bold text-gray-900 block">Chinenye Nnamdi</span>
+                      <span className="font-bold text-gray-900 block">
+                        {StateEngine.getSignatory('HEAD_OF_FINANCE', 'Chinenye Nnamdi')}
+                      </span>
                       <span className="text-[10px] text-gray-500">Head of Finance</span>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">Alhaji Bashir Umar</div>
+                    <div className="h-8 border-b border-gray-300 border-dashed max-w-[160px] mx-auto flex items-end justify-center font-serif italic text-gray-700 text-xs">
+                      {StateEngine.getSignatory('CEO', 'Alhaji Bashir Umar')}
+                    </div>
                     <div>
-                      <span className="font-bold text-gray-900 block">Alhaji Bashir Umar</span>
+                      <span className="font-bold text-gray-900 block">
+                        {StateEngine.getSignatory('CEO', 'Alhaji Bashir Umar')}
+                      </span>
                       <span className="text-[10px] text-gray-500">Managing Director / CEO</span>
                     </div>
                   </div>

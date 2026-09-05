@@ -197,12 +197,47 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
     return 'PAPA';
   });
 
-  const [rows, setRows] = useState<TerminalRow[]>(() => {
+  const [manualRows, setManualRows] = useState<TerminalRow[]>(() => {
     try {
       const stored = localStorage.getItem('bueno_terminal_information');
-      return stored ? JSON.parse(stored) : SEED_TERMINAL_ROWS;
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      return SEED_TERMINAL_ROWS;
+      return [];
+    }
+  });
+
+  const [liveTripsUpdate, setLiveTripsUpdate] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => setLiveTripsUpdate((n) => n + 1);
+    window.addEventListener('bueno_state_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('bueno_state_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const saveRows = (newRows: TerminalRow[]) => {
+    setManualRows(newRows);
+    try {
+      localStorage.setItem('bueno_terminal_information', JSON.stringify(newRows));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
+  };
+
+  const currentStationInfo = STATION_OPTIONS[selectedStation] || STATION_OPTIONS['PAPA'];
+
+  // Dynamically derive live wagons at this siding from active trips + manual entries
+  const liveTripRows = StateEngine.getStationWagonLedger(selectedStation);
+  const stationManualRows = manualRows.filter((r) => r.station === selectedStation || r.origin === selectedStation);
+  const seenWagons = new Set<string>();
+  const stationRows: TerminalRow[] = [];
+
+  [...liveTripRows, ...stationManualRows].forEach((r) => {
+    if (!seenWagons.has(r.wagonNo)) {
+      seenWagons.add(r.wagonNo);
+      stationRows.push(r);
     }
   });
 
@@ -221,17 +256,6 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
     waybillNo: `WB-BN-2026-${Math.floor(1000 + Math.random() * 9000)}`,
     daysAtStation: 1,
   });
-
-  const saveRows = (newRows: TerminalRow[]) => {
-    setRows(newRows);
-    try {
-      localStorage.setItem('bueno_terminal_information', JSON.stringify(newRows));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-    } catch {}
-  };
-
-  const currentStationInfo = STATION_OPTIONS[selectedStation] || STATION_OPTIONS['PAPA'];
-  const stationRows = rows.filter((r) => r.station === selectedStation || r.origin === selectedStation);
 
   const handleAddRow = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,7 +278,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
       station: selectedStation,
     };
 
-    saveRows([newRow, ...rows]);
+    saveRows([newRow, ...manualRows]);
     setShowAddModal(false);
   };
 
@@ -330,7 +354,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               TERMINAL INFORMATION
             </h2>
             <p className="text-xs text-slate-500">
-              Station Siding Rolling Stock Ledger, Loading Tally, Waybills, and Demurrage Counter.
+              Station Siding Rolling Stock Ledger, Loading Tally, Waybills, and Demurrage Counter — <span className="text-emerald-700 font-bold">Dynamically synchronized with active train trips & siding logs.</span>
             </p>
           </div>
 

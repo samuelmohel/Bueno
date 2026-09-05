@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { StateEngine } from '@/lib/services/StateEngine';
 
 interface InvoiceModalProps {
   invoice: any;
@@ -395,7 +396,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
             {/* Signature 1 */}
             <div className="text-center sm:text-left font-sans text-xs">
               <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic text-slate-600 font-bold">
-                Chinenye Nnamdi (Chartered Accountant)
+                {StateEngine.getSignatory('HEAD_OF_FINANCE', 'Chinenye Nnamdi')} (Chartered Accountant)
               </div>
               <p className="font-black text-slate-900">Head of Finance & Treasury</p>
               <p className="text-[10px] text-slate-400">Bueno Logistics Ltd • HQ</p>
@@ -404,7 +405,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
             {/* Signature 2 */}
             <div className="text-center sm:text-right font-sans text-xs">
               <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic text-slate-600 font-bold">
-                Babajide Sanwo (Rail Dispatch)
+                {StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')} (Rail Dispatch)
               </div>
               <p className="font-black text-slate-900">Head of Operations & Logistics</p>
               <p className="text-[10px] text-slate-400">NRC Corridor Operations Unit</p>

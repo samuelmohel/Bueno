@@ -76,14 +76,14 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
   const handleAutoStackFromTrips = () => {
     const moniyaTrips = trips.filter(
       (t) =>
-        (t.destination === 'MNY' || t.destination === 'Moniya' || (t.destination && t.destination.includes('Moniya'))) &&
+        (t.destination === 'MONI' || t.destination === 'MNY' || t.destination === 'Moniya' || (t.destination && t.destination.toLowerCase().includes('moni'))) &&
         (t.status === 'IN_TRANSIT' || t.status === 'ARRIVED' || t.status === 'COMPLETED' || t.status === 'DISCHARGED')
     );
 
     if (moniyaTrips.length === 0) {
       setCustomAlert({
         title: 'No Arrived Container Trips',
-        message: 'No active container freight train trips destined for Moniya Inland Terminal (MNY) currently pending stacking.',
+        message: 'No active container freight train trips destined for Moniya Inland Terminal (MONI/MNY) currently pending stacking.',
       });
       return;
     }
@@ -104,7 +104,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
       }));
 
       wagonsToStack.forEach((w: any, idx: number) => {
-        const contId = `MSKU-${Math.floor(100000 + Math.random() * 900000)}-${idx + 1}`;
+        const contId = w.containerId || `MSKU-${Math.floor(100000 + Math.random() * 900000)}-${idx + 1}`;
         if (!existingIds.has(contId)) {
           existingIds.add(contId);
           newStacked.push({

@@ -6,8 +6,6 @@
 import { bookingsApi, usersApi } from '@/lib/api';
 
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
-export const SEED_TRIPS: any[] = [];
-
 export const OFFICIAL_PXG_CODES = [
   "PXG 09029", "PXG 09033", "PXG 09037", "PXG 09022", "PXG 09001",
   "PXG 09031", "PXG 09036", "PXG 09023", "PXG 09021", "PXG 09025",
@@ -19,6 +17,70 @@ export const OFFICIAL_PXG_CODES = [
   "PXG 09062", "PXG 09020", "PXG 09002", "PXG 09066", "PXG 09018",
   "PXG 09035", "PXG 09032", "PXG 09060", "PXG 09011", "PXG 09024",
   "PXG 09034"
+];
+
+// ─── CANONICAL 2 SEED TRIPS (CLEAN, UNCLUTTERED PRODUCTION CACHE) ─────────────
+export const SEED_TRIPS: any[] = [
+  {
+    id: 'TRP-8841',
+    tripId: 'TRP-8841',
+    dealNumber: 'DEAL-88210',
+    locomotiveId: 'L2205',
+    origin: 'PAPA',
+    destination: 'MONI',
+    gauge: 'STANDARD_GAUGE',
+    company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
+    cargoType: 'Huaxin Portland Cement (50kg)',
+    unitOfMeasure: 'Bags',
+    wagonType: 'PXG/CGs Box Wagon',
+    quantity: 18400,
+    tonnage: '920 MT',
+    status: 'IN_TRANSIT',
+    cargoOfficerName: 'Ade Bello',
+    leadDriverName: 'Engr. Babatunde Adeleke (NRC-DRV-04)',
+    trainCrew: 'Sunday Okafor (Assoc Engineer), Audu Danladi (Brakeman)',
+    monitoringOfficer: 'Ade Bello (Bueno Operations Monitoring)',
+    dispatchTime: 'Today, 10:00 AM',
+    eta: 'Today, 03:00 PM (5 Hours transit)',
+    wagonLogs: OFFICIAL_PXG_CODES.slice(0, 23).map((wId, i) => ({
+      wagonId: wId,
+      loadedAt: '09:15 AM',
+      bagsCount: '800 Bags (40 MT)',
+      sealNumber: `SEAL-BN-${9001 + i}`,
+      condition: 'LOADED_INTACT',
+    })),
+    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+  },
+  {
+    id: 'TRP-9921',
+    tripId: 'TRP-9921',
+    dealNumber: 'DEAL-99412',
+    locomotiveId: 'L2208',
+    origin: 'APT',
+    destination: 'MONI',
+    gauge: 'STANDARD_GAUGE',
+    company: 'APM Terminals Ltd (APMT)',
+    cargoType: 'CONTAINERS-IMPORT (40ft HC)',
+    unitOfMeasure: 'TEU Containers',
+    wagonType: 'CBX Flatbed Wagon',
+    quantity: 10,
+    tonnage: '350 MT',
+    status: 'ARRIVED',
+    cargoOfficerName: 'Ngozi Eze',
+    unloadingOfficerName: 'Musa Ibrahim',
+    leadDriverName: 'Engr. Yakubu Mohammed (NRC-DRV-09)',
+    trainCrew: 'Kassim Ahmed (Crew), Tunde Bakare (Brakeman)',
+    monitoringOfficer: 'Musa Ibrahim (Moniya Yard Command)',
+    dispatchTime: 'Yesterday, 02:00 PM',
+    eta: 'Arrived at Moniya Container Terminal',
+    wagonLogs: [
+      { wagonId: 'CBX 1101', loadedAt: '01:10 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4401', containerId: 'MSKU-948210-4', condition: 'DISCHARGED' },
+      { wagonId: 'CBX 1102', loadedAt: '01:20 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4402', containerId: 'APMT-310492-1', condition: 'DISCHARGED' },
+      { wagonId: 'CBX 1103', loadedAt: '01:30 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4403', containerId: 'MSCU-884019-3', condition: 'DISCHARGED' },
+      { wagonId: 'CBX 1104', loadedAt: '01:40 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4404', containerId: 'CMAU-102938-7', condition: 'DISCHARGED' },
+    ],
+    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+  },
 ];
 
 export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
@@ -547,50 +609,23 @@ class StateEngineService {
         this.postRemote('/api/wagons.php', SEED_WAGONS);
       }
 
-      const isPurged = localStorage.getItem('bueno_prod_purge_v6');
-      if (isPurged !== 'purged') {
-        // Strip out legacy demo data
-        const currentTrips = this.readStorage<any[]>('bueno_trips', []);
-        const cleanTrips = currentTrips.filter((t: any) => t.id !== 'TRP-101' && t.id !== 'TRP-102' && t.tripId !== 'TRP-101' && t.tripId !== 'TRP-102');
-        this.writeStorage('bueno_trips', cleanTrips);
+      const isPurgedV7 = localStorage.getItem('bueno_prod_purge_v7');
+      if (isPurgedV7 !== 'purged') {
+        // Reset trips strictly to the 2 canonical production trips
+        this.writeStorage('bueno_trips', SEED_TRIPS);
+        this.postRemote('/api/trips.php', SEED_TRIPS);
 
+        // Keep costs only for the 2 canonical trips
         const currentCosts = this.readStorage<any[]>('bueno_trip_costs', []);
-        const cleanCosts = currentCosts.filter((c: any) => c.tripId !== 'TRP-101' && c.tripId !== 'TRP-102' && !c.id?.startsWith('CST-101') && !c.id?.startsWith('CST-102'));
+        const cleanCosts = currentCosts.filter((c: any) => c.tripId === 'TRP-8841' || c.tripId === 'TRP-9921');
         this.writeStorage('bueno_trip_costs', cleanCosts);
 
+        // Keep invoices only for the 2 canonical trips
         const currentInvs = this.readStorage<any[]>('bueno_invoices', []);
-        const cleanInvs = currentInvs.filter((inv: any) => inv.tripId !== 'TRP-101' && inv.tripId !== 'TRP-102' && inv.id !== 'INV-TRP-101' && inv.id !== 'INV-TRP-102');
+        const cleanInvs = currentInvs.filter((inv: any) => inv.tripId === 'TRP-8841' || inv.tripId === 'TRP-9921');
         this.writeStorage('bueno_invoices', cleanInvs);
 
-        const currentReqs = this.readStorage<any[]>('bueno_requests', []);
-        const cleanReqs = currentReqs.filter((r: any) => r.tripId !== 'TRP-101' && r.tripId !== 'TRP-102' && r.id !== 'REQ-901' && r.id !== 'REQ-902');
-        this.writeStorage('bueno_requests', cleanReqs);
-
-        // Ensure deals and users reflect canonical HBM
-        const currentDeals = this.readStorage<any[]>('bueno_deals', SEED_DEALS);
-        const cleanDeals = currentDeals.map((d: any) => {
-          if (d.tripId === 'TRP-101' || d.tripId === 'TRP-102') {
-            return { ...d, status: 'ACTIVE', tripId: undefined };
-          }
-          if (d.company && (d.company.includes('Lafarge') || d.company.includes('lafarge'))) {
-            return { ...d, company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType: 'Huaxin Portland Cement (50kg)' };
-          }
-          return d;
-        });
-        this.writeStorage('bueno_deals', cleanDeals);
-
-        const currentUsers = this.readStorage<any[]>('bueno_users', SEED_USERS);
-        const cleanUsers = currentUsers.map((u: any) => {
-          if (u.companyName && (u.companyName.includes('Lafarge') || u.companyName.includes('lafarge'))) {
-            return { ...u, companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', fullName: 'Huaxin Logistics Desk', email: 'logistics@hbm.ng' };
-          }
-          return u;
-        });
-        this.writeStorage('bueno_users', cleanUsers);
-
-        localStorage.setItem('bueno_prod_purge_v4', 'purged');
-        localStorage.setItem('bueno_prod_purge_v5', 'purged');
-        localStorage.setItem('bueno_prod_purge_v6', 'purged');
+        localStorage.setItem('bueno_prod_purge_v7', 'purged');
         this.notifyListeners();
       }
     } catch {}
@@ -847,10 +882,73 @@ class StateEngineService {
     usersApi.getAll().catch(() => {});
   }
 
+  getSignatory(role: string, fallbackName: string = 'Executive Signatory'): string {
+    const users = this.getUsers();
+    const matched = users?.find(
+      (u: any) =>
+        (u.role === role || (role === 'CEO' && (u.role === 'MD' || u.role === 'CEO')) || (role === 'MD' && u.role === 'CEO')) &&
+        (u.status === 'ACTIVE' || !u.status)
+    );
+    return matched?.fullName || fallbackName;
+  }
+
   updateUser(userId: string, updatedFields: any): void {
     const current = this.getUsers();
     const updated = current.map((u) => (u.id === userId || u.email === userId ? { ...u, ...updatedFields } : u));
     this.saveUsers(updated);
+
+    // If currently logged-in user or active session role was updated, synchronize session
+    try {
+      const activeUser = this.readStorage<any>('bueno_user', null);
+      if (activeUser && (activeUser.id === userId || activeUser.email === userId || activeUser.role === updatedFields.role)) {
+        const merged = { ...activeUser, ...updatedFields };
+        this.writeStorage('bueno_user', merged);
+      }
+    } catch {}
+
+    this.notifyListeners();
+  }
+
+  getStationWagonLedger(stationCode: string): any[] {
+    const trips = this.getTrips();
+    const rows: any[] = [];
+
+    trips.forEach((trip) => {
+      const isOrigin = trip.origin === stationCode;
+      const isDest = trip.destination === stationCode;
+
+      if (
+        (isOrigin && trip.status !== 'COMPLETED' && trip.status !== 'DISCHARGED') ||
+        (isDest && (trip.status === 'ARRIVED' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'DISCHARGED'))
+      ) {
+        (trip.wagonLogs || []).forEach((wLog: any, idx: number) => {
+          rows.push({
+            id: `TRM-${trip.id}-${wLog.wagonId || idx}`,
+            wagonNo: wLog.wagonId || `WG-${idx + 1}`,
+            condition:
+              isDest && (trip.status === 'COMPLETED' || trip.status === 'DISCHARGED')
+                ? 'DISCHARGED'
+                : wLog.condition || 'LOADED_INTACT',
+            remark: isDest
+              ? `Discharged at ${stationCode} siding (${trip.cargoType})`
+              : `Loaded & Sealed at ${stationCode} siding (Seal: ${wLog.sealNumber || 'VERIFIED'})`,
+            dateLoaded: trip.dispatchTime || 'Today',
+            trainNo: trip.id || trip.tripId,
+            origin: trip.origin,
+            destination: trip.destination,
+            content: trip.cargoType || 'Freight Cargo',
+            tonnage: wLog.bagsCount?.includes('MT') ? wLog.bagsCount : '40 MT',
+            quantity: wLog.bagsCount || '800 Bags',
+            waybillNo: `WB-BN-${trip.dealNumber || trip.id}-${String(idx + 1).padStart(3, '0')}`,
+            daysAtStation: isDest ? 1 : 0,
+            demurrage: 0,
+            station: stationCode,
+          });
+        });
+      }
+    });
+
+    return rows;
   }
 
   // ── LEGACY PERMISSIONS API (kept for backward compat) ─────────────────────

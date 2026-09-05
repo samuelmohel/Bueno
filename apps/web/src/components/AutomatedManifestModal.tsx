@@ -25,6 +25,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
   const vesselRef = trip.vesselNo || 'VSL-APMT-992-NRC';
   const driverName = trip.driverName || 'Engineer Babatunde Adeleke (NRC-DRV-04)';
   const escortName = trip.cargoOfficerName || 'Ade Bello (EWK-01)';
+  const destOfficer = trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)';
 
   const handlePrint = () => {
     window.print();
@@ -244,7 +245,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <span className="text-[9px] uppercase text-slate-500 block font-bold">DESTINATION UNLOADING OFFICER</span>
-                <p className="font-black text-slate-900 mt-0.5">Musa Ibrahim (MNY-01)</p>
+                <p className="font-black text-slate-900 mt-0.5">{destOfficer}</p>
                 <p className="text-[9px] text-slate-400">Moniya Container Terminal</p>
                 <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
               </div>

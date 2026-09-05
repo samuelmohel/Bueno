@@ -679,30 +679,44 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [currentUser, setCurrentUser] = useState<any>(user);
 
   useEffect(() => {
-    syncData();
     const syncUser = () => {
       const activeStr = typeof window !== 'undefined' ? localStorage.getItem('bueno_user') : null;
       if (activeStr) {
         try {
-          setCurrentUser(JSON.parse(activeStr));
+          const parsed = JSON.parse(activeStr);
+          const liveUsers = StateEngine.getUsers();
+          const matched = liveUsers.find((u: any) => u.id === parsed.id || u.email === parsed.email);
+          if (matched) {
+            setCurrentUser({ ...parsed, ...matched });
+          } else {
+            setCurrentUser(parsed);
+          }
         } catch {}
       }
     };
+
+    syncData();
     syncUser();
 
     StateEngine.syncRemote();
     const interval = setInterval(() => {
       StateEngine.syncRemote();
       syncData();
+      syncUser();
     }, 4000);
 
-    window.addEventListener('storage', syncData);
-    window.addEventListener('bueno_state_updated', syncData);
+    const handleAllUpdates = () => {
+      syncData();
+      syncUser();
+    };
+
+    window.addEventListener('storage', handleAllUpdates);
+    window.addEventListener('bueno_state_updated', handleAllUpdates);
     window.addEventListener('bueno_user_updated', syncUser);
     return () => {
       clearInterval(interval);
-      window.removeEventListener('storage', syncData);
-      window.removeEventListener('bueno_state_updated', syncData);
+      window.removeEventListener('storage', handleAllUpdates);
+      window.removeEventListener('bueno_state_updated', handleAllUpdates);
       window.removeEventListener('bueno_user_updated', syncUser);
     };
   }, []);
@@ -1139,11 +1153,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     StateEngine.updateUser(editingUser.id, editingUser);
     setUsersList(usersList.map((u) => (u.id === editingUser.id ? editingUser : u)));
+    if (editingUser.id === currentUser?.id || editingUser.email === currentUser?.email || editingUser.role === currentUser?.role) {
+      setCurrentUser(editingUser);
+    }
     setEditingUser(null);
+    syncData();
 
     setCustomAlert({
       title: 'User Account Updated',
-      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated successfully in database!`,
+      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated successfully in database! All executive sign-offs, manifests, invoices, and reports now reflect this change.`,
     });
   };
 
@@ -2378,7 +2396,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Executive Managing Director Sign-off</span>
                   <div className="space-y-1">
-                    <p className="font-extrabold text-slate-900 text-sm">Alhaji Bashir Umar</p>
+                    <p className="font-extrabold text-slate-900 text-sm">{StateEngine.getSignatory('CEO', 'Alhaji Bashir Umar')}</p>
                     <p className="text-slate-500 text-[11px]">Managing Director & CEO, Bueno Logistics</p>
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
@@ -2390,7 +2408,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Head of Freight Rail Operations</span>
                   <div className="space-y-1">
-                    <p className="font-extrabold text-slate-900 text-sm">Engr. Babatunde Raji</p>
+                    <p className="font-extrabold text-slate-900 text-sm">{StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')}</p>
                     <p className="text-slate-500 text-[11px]">Head of Operations, NRC Freight Corridor</p>
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
@@ -2462,6 +2480,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
                     const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
 
+                    const isNarrowGauge = ['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD'].includes(d.loadingStation);
+
                     return (
                       <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
                         <div className="flex justify-between items-center border-b border-slate-200 pb-2">
@@ -2469,9 +2489,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
                             <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
                           </div>
-                          <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
-                            {d.status || 'APPROVED'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono font-bold text-[9px] px-2.5 py-0.5 rounded-full border ${
+                              isNarrowGauge ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-50 text-blue-800 border-blue-200'
+                            }`}>
+                              {isNarrowGauge ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}
+                            </span>
+                            <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
+                              {d.status || 'APPROVED'}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">

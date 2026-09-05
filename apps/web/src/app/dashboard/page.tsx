@@ -874,21 +874,21 @@ function TripAuditReportModal({ trip, onClose }: { trip: any; onClose: () => voi
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-500 block font-bold">MANAGING DIRECTOR / CEO</span>
-              <p className="font-black text-slate-900 mt-0.5">Alhaji Bashir Umar (EXEC-01)</p>
+              <p className="font-black text-slate-900 mt-0.5">{StateEngine.getSignatory('CEO', 'Alhaji Bashir Umar')} (EXEC-01)</p>
               <p className="text-[9px] text-slate-400">Bueno Logistics Limited HQ</p>
               <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
             </div>
 
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-500 block font-bold">SUPERVISING HEAD OF OPERATIONS</span>
-              <p className="font-black text-slate-900 mt-0.5">Babajide Sanwo (EXEC-02)</p>
+              <p className="font-black text-slate-900 mt-0.5">{StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')} (EXEC-02)</p>
               <p className="text-[9px] text-slate-400">Bueno Freight OS Dispatch HQ</p>
               <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
             </div>
 
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-500 block font-bold">HEAD OF FINANCE / CHIEF ACCOUNTANT</span>
-              <p className="font-black text-slate-900 mt-0.5">Chinenye Nnamdi (EXEC-04)</p>
+              <p className="font-black text-slate-900 mt-0.5">{StateEngine.getSignatory('HEAD_OF_FINANCE', 'Chinenye Nnamdi')} (EXEC-04)</p>
               <p className="text-[9px] text-slate-400">Bueno Financial Control HQ</p>
               <div className="mt-3 pt-1 border-t border-slate-300 text-[9px] text-slate-400">Signature: __________________</div>
             </div>
