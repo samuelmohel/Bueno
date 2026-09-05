@@ -125,22 +125,17 @@ const OFFICIAL_PXG_CODES = [
   "PXG 09011", "PXG 09024", "PXG 09034"
 ];
 
-const SEED_WAGONS: any[] = [
-  ...OFFICIAL_PXG_CODES.slice(0, 15).map((code) => ({
-    id: code, wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026'
-  })),
-  { id: 'CBX 4599', wagonType: 'CBX', capacity: 20, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'CBX 5012', wagonType: 'CBX', capacity: 20, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'ZGX 8799', wagonType: 'ZGX', capacity: 60, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'OTW 1042', wagonType: 'OTW', capacity: 50, status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'CHW 3300', wagonType: 'CHW', capacity: 60, status: 'AVAILABLE', currentStation: 'PAPA', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'CBX(HS) 6100', wagonType: 'CBX(HS)', capacity: 50, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'RSV 1020', wagonType: 'RSV', capacity: 40, status: 'AVAILABLE', currentStation: 'APT', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  { id: 'CYG 5050', wagonType: 'CYG', capacity: 30, status: 'AVAILABLE', currentStation: 'MNY', gauge: 'STANDARD_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026' },
-  ...OFFICIAL_PXG_CODES.slice(15, 38).map((code) => ({
-    id: code, wagonType: 'PXG', capacity: 1200, status: 'AVAILABLE', currentStation: 'EWK', gauge: 'NARROW_GAUGE', addedBy: 'System Registry', createdAt: '07 Aug 2026'
-  })),
-];
+const SEED_WAGONS: any[] = OFFICIAL_PXG_CODES.map((code, index) => ({
+  id: code,
+  wagonType: 'PXG Covered Hopper Wagon',
+  payloadCapacity: '60 MT (1,200 Bags)',
+  capacity: 1200,
+  status: 'AVAILABLE',
+  currentStation: index < 23 ? 'EWK' : 'MNY',
+  gauge: 'STANDARD_GAUGE',
+  addedBy: 'System Registry',
+  createdAt: '07 Aug 2026',
+}));
 
 const SEED_TRIPS: any[] = [];
 

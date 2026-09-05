@@ -319,17 +319,34 @@ function initTables($pdo) {
         timestamp VARCHAR(100)
     )");
 
-    // Seed 46 Dedicated Covered Hopper Wagons if empty
+    // Seed 46 Dedicated Covered Hopper Wagons (Enforce exact official fleet)
+    $wCountStmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_wagons WHERE id LIKE 'PXG 00%' OR id LIKE 'CBX%' OR id LIKE 'WG%'");
+    $wCountRow = $wCountStmt->fetch();
+    $totalWagonsStmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_wagons");
+    $totalWagonsRow = $totalWagonsStmt->fetch();
+    if (($wCountRow && $wCountRow['cnt'] > 0) || ($totalWagonsRow && $totalWagonsRow['cnt'] != 46)) {
+        $pdo->exec("DELETE FROM bueno_wagons");
+    }
+
     $wStmt = $pdo->query("SELECT COUNT(*) as cnt FROM bueno_wagons");
     $wRow = $wStmt->fetch();
     if ($wRow && $wRow['cnt'] == 0) {
+        $officialPxgCodes = [
+            "PXG 09029", "PXG 09033", "PXG 09037", "PXG 09022", "PXG 09001",
+            "PXG 09031", "PXG 09036", "PXG 09023", "PXG 09021", "PXG 09025",
+            "PXG 09008", "PXG 09019", "PXG 09055", "PXG 09038", "PXG 09004",
+            "PXG 09015", "PXG 09040", "PXG 09056", "PXG 09016", "PXG 09009",
+            "PXG 09028", "PXG 09030", "PXG 09017", "PXG 09059", "PXG 09003",
+            "PXG 09013", "PXG 09014", "PXG 09039", "PXG 09012", "PXG 09010",
+            "PXG 09026", "PXG 09005", "PXG 09041", "PXG 09007", "PXG 09061",
+            "PXG 09062", "PXG 09020", "PXG 09002", "PXG 09066", "PXG 09018",
+            "PXG 09035", "PXG 09032", "PXG 09060", "PXG 09011", "PXG 09024",
+            "PXG 09034"
+        ];
         $wInsert = $pdo->prepare("INSERT INTO bueno_wagons (id, wagonType, payloadCapacity, capacity, status, currentStation, gauge, addedBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $date = date('d/m/Y');
-        for ($i = 1; $i <= 46; $i++) {
-            $num = str_pad($i, 4, '0', STR_PAD_LEFT);
-            $wId = "PXG " . $num;
-            $isEwk = ($i % 2 === 0);
-            $station = $isEwk ? 'EWK' : 'MNY';
+        foreach ($officialPxgCodes as $idx => $wId) {
+            $station = ($idx < 23) ? 'EWK' : 'MNY';
             $wInsert->execute([$wId, 'Covered Hopper Wagon', '60 MT (1,200 Bags)', 1200, 'AVAILABLE', $station, 'STANDARD_GAUGE', 'System Registry', $date]);
         }
     }

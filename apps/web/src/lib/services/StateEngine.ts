@@ -8,24 +8,30 @@ import { bookingsApi, usersApi } from '@/lib/api';
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
 export const SEED_TRIPS: any[] = [];
 
-export const SEED_WAGONS = [
-  // Bueno's Dedicated Cement Hopper Fleet (PXG 09001 - PXG 09046)
-  ...Array.from({ length: 46 }, (_, i) => {
-    const num = String(i + 1).padStart(4, '0');
-    const id = `PXG ${num}`;
-    const isEwk = i % 2 === 0;
-    return {
-      id,
-      wagonType: 'Covered Hopper Wagon',
-      payloadCapacity: '60 MT (1,200 Bags)',
-      status: 'AVAILABLE',
-      currentStation: isEwk ? 'EWK' : 'MNY',
-      gauge: 'STANDARD_GAUGE',
-      addedBy: 'System Registry',
-      createdAt: '07 Aug 2026',
-    };
-  }),
+export const OFFICIAL_PXG_CODES = [
+  "PXG 09029", "PXG 09033", "PXG 09037", "PXG 09022", "PXG 09001",
+  "PXG 09031", "PXG 09036", "PXG 09023", "PXG 09021", "PXG 09025",
+  "PXG 09008", "PXG 09019", "PXG 09055", "PXG 09038", "PXG 09004",
+  "PXG 09015", "PXG 09040", "PXG 09056", "PXG 09016", "PXG 09009",
+  "PXG 09028", "PXG 09030", "PXG 09017", "PXG 09059", "PXG 09003",
+  "PXG 09013", "PXG 09014", "PXG 09039", "PXG 09012", "PXG 09010",
+  "PXG 09026", "PXG 09005", "PXG 09041", "PXG 09007", "PXG 09061",
+  "PXG 09062", "PXG 09020", "PXG 09002", "PXG 09066", "PXG 09018",
+  "PXG 09035", "PXG 09032", "PXG 09060", "PXG 09011", "PXG 09024",
+  "PXG 09034"
 ];
+
+export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
+  id,
+  wagonType: 'PXG Covered Hopper Wagon',
+  payloadCapacity: '60 MT (1,200 Bags)',
+  capacity: 1200,
+  status: 'AVAILABLE',
+  currentStation: index < 23 ? 'EWK' : 'MNY',
+  gauge: 'STANDARD_GAUGE',
+  addedBy: 'System Registry',
+  createdAt: '07 Aug 2026',
+}));
 
 export const SEED_DEALS = [
   { id: 'dl_1', dealNumber: 'DEAL-88210', company: 'Purechem Cement Industries Ltd', loadingStation: 'EWK', destination: 'MNY', cargoType: 'Bagged Cement (50kg)', quantity: 1610, status: 'ACTIVE', createdAt: '01 Sep 2026' },
@@ -298,18 +304,21 @@ class StateEngineService {
         }
       }
 
-      // 4. Sync Wagons Fleet with Database API
+      // 4. Sync Wagons Fleet with Database API (Strict 46 Official Wagons)
       const wagonsRes = await fetch('/api/wagons.php').catch(() => null);
       if (wagonsRes && wagonsRes.ok) {
         const wagonsJson = await wagonsRes.json().catch(() => null);
         if (wagonsJson && wagonsJson.status === 'success' && Array.isArray(wagonsJson.data) && wagonsJson.data.length > 0) {
-          const localWagons = this.getWagons();
-          const wagonMap = new Map<string, any>();
-          wagonsJson.data.forEach((w: any) => wagonMap.set(w.id, w));
-          localWagons.forEach((w: any) => { if (!wagonMap.has(w.id)) wagonMap.set(w.id, w); });
-          const mergedWagons = Array.from(wagonMap.values());
-          if (JSON.stringify(mergedWagons) !== JSON.stringify(localWagons)) {
-            this.writeStorage('bueno_wagons', mergedWagons);
+          const validRemoteWagons = wagonsJson.data.filter((w: any) => !w.id?.startsWith('PXG 00') && !w.id?.startsWith('WG') && !w.id?.startsWith('CBX'));
+          if (validRemoteWagons.length === 46) {
+            this.writeStorage('bueno_wagons', validRemoteWagons);
+          } else {
+            const localWagons = this.getWagons().filter((w: any) => !w.id?.startsWith('PXG 00') && !w.id?.startsWith('WG') && !w.id?.startsWith('CBX'));
+            const wagonMap = new Map<string, any>();
+            validRemoteWagons.forEach((w: any) => wagonMap.set(w.id, w));
+            localWagons.forEach((w: any) => { if (!wagonMap.has(w.id)) wagonMap.set(w.id, w); });
+            const mergedWagons = Array.from(wagonMap.values());
+            this.writeStorage('bueno_wagons', mergedWagons.length === 46 ? mergedWagons : SEED_WAGONS);
           }
         }
       }
@@ -504,7 +513,14 @@ class StateEngineService {
       // Always cleanse any stray Lafarge/Elephant entries in browser storage
       this.cleanseLafargeAndMigrateHbm();
 
-      const isPurged = localStorage.getItem('bueno_prod_purge_v5');
+      // Cleanse and deduplicate wagons fleet to strictly 46 official dedicated hoppers
+      const storedWagons = this.readStorage<any[]>('bueno_wagons', SEED_WAGONS);
+      if (!Array.isArray(storedWagons) || storedWagons.length !== 46 || storedWagons.some((w: any) => w.id?.startsWith('PXG 00') || w.id?.startsWith('WG') || w.id?.startsWith('CBX'))) {
+        this.writeStorage('bueno_wagons', SEED_WAGONS);
+        this.postRemote('/api/wagons.php', SEED_WAGONS);
+      }
+
+      const isPurged = localStorage.getItem('bueno_prod_purge_v6');
       if (isPurged !== 'purged') {
         // Strip out legacy demo data
         const currentTrips = this.readStorage<any[]>('bueno_trips', []);
@@ -547,6 +563,7 @@ class StateEngineService {
 
         localStorage.setItem('bueno_prod_purge_v4', 'purged');
         localStorage.setItem('bueno_prod_purge_v5', 'purged');
+        localStorage.setItem('bueno_prod_purge_v6', 'purged');
         this.notifyListeners();
       }
     } catch {}
