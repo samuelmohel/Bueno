@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StateEngine } from '@/lib/services/StateEngine';
+import { StateEngine, CANONICAL_CORRIDORS } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { NotificationBell } from '@/components/NotificationBell';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
@@ -1060,6 +1060,51 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               </div>
 
               <form onSubmit={handleSubmitConsignmentNote} className="space-y-4 text-xs font-semibold">
+                {/* CANONICAL CORRIDOR PRESET SELECTOR */}
+                <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-2xl space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-900">
+                      QUICK SELECT ACTIVE FREIGHT CORRIDOR (CANONICAL ROUTES)
+                    </label>
+                    <span className="text-[9px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                      Documented Operations
+                    </span>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const preset = CANONICAL_CORRIDORS.find((c) => c.id === e.target.value);
+                      if (preset) {
+                        setConsignmentForm({
+                          ...consignmentForm,
+                          product: preset.cargoType.includes('Cement') ? 'CEMENT' :
+                                   preset.cargoType.includes('Gypsum') ? 'GYPSUM' :
+                                   preset.cargoType.includes('EXPORT') ? 'CONTAINERS-EXPORT' :
+                                   preset.cargoType.includes('IMPORT') ? 'CONTAINERS-IMPORT' : 'OTHERS',
+                          originStation: preset.origin,
+                          destinationStation: preset.destination,
+                        });
+                      }
+                    }}
+                    className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-[#62BC37]"
+                  >
+                    <option value="">-- Choose from 6 Operational Corridors --</option>
+                    <optgroup label="Standard Gauge Corridors (Lagos - Moniya, Ibadan)">
+                      {CANONICAL_CORRIDORS.filter(c => c.gauge === 'STANDARD_GAUGE').map((c) => (
+                        <option key={c.id} value={c.id}>
+                          [Standard Gauge] {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Narrow Gauge Corridors (Western & Lagos Districts)">
+                      {CANONICAL_CORRIDORS.filter(c => c.gauge === 'NARROW_GAUGE').map((c) => (
+                        <option key={c.id} value={c.id}>
+                          [Narrow Gauge] {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
                 {/* PRODUCT & VOLUME */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>

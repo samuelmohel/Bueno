@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
+import { TerminalInformationView } from '@/components/TerminalInformationView';
 
 // COMMODITY CONFIG MATRIX FOR CARGO OFFICERS
 const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -16,7 +17,7 @@ const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditM
 };
 
 export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history' | 'moniya'>('loading');
+  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history' | 'moniya' | 'terminal_info'>('loading');
   const [trips, setTrips] = useState<any[]>([]);
   const [wagons, setWagons] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -142,6 +143,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       { id: 'unloading' },
       { id: 'requisitions' },
       { id: 'wagons' },
+      { id: 'terminal_info' },
       { id: 'history' },
       { id: 'moniya' },
     ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
@@ -746,6 +748,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 { id: 'loading', label: 'Cargo Loading & Waybill Terminal' },
                 { id: 'dispatch', label: 'Escort Officer Dispatch' },
                 { id: 'unloading', label: 'Destination Yard Unloading Audit' },
+                { id: 'terminal_info', label: 'Terminal Information Ledger (13-Col)' },
                 { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
                 { id: 'wagons', label: 'Wagon Fleet Inventory' },
                 { id: 'requisitions', label: 'Field Fund Requisitions' },
@@ -821,6 +824,15 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             }`}
           >
             Destination Yard Unloading Audit
+          </button>
+
+          <button
+            onClick={() => setActiveTab('terminal_info')}
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
+              activeTab === 'terminal_info' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Terminal Information (STATION: ###)
           </button>
 
           <button
@@ -1324,6 +1336,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
             </div>
           </div>
+        )}
+
+        {/* ─── TAB: TERMINAL INFORMATION (13-COLUMN EXCEL LEDGER) ─── */}
+        {activeTab === 'terminal_info' && (
+          <TerminalInformationView user={user} initialStation={user?.assignedStation || 'PAPA'} />
         )}
 
         {/* ─── TAB 5: SHIFT REPORT ─── */}

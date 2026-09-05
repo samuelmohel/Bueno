@@ -6,11 +6,13 @@ import {
   DEFAULT_ROLE_TAB_PERMISSIONS,
   TAB_ALIASES,
   TAB_REGISTRY,
+  CANONICAL_CORRIDORS,
 } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { TripDossierModal } from '@/components/TripDossierModal';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
+import { TerminalInformationView } from '@/components/TerminalInformationView';
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -430,7 +432,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
 }
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet' | 'moniya'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet' | 'moniya' | 'terminal_info'>('analytics');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
   const [createDealModal, setCreateDealModal] = useState(false);
   const [registerWagonModal, setRegisterWagonModal] = useState(false);
@@ -863,9 +865,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleCreateNewDeal = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const isOriginNarrow = newDealForm.loadingStation === 'EWK' || newDealForm.loadingStation === 'IDD' || newDealForm.loadingStation === 'ILR';
-    const isDestNarrow = newDealForm.destination === 'DGB' || newDealForm.destination === 'IDD' || newDealForm.destination === 'ILR';
-    if (isOriginNarrow !== isDestNarrow) {
+    const NARROW_SET = new Set(['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD', 'EBJ', 'IGS', 'INS', 'OKK', 'FFA', 'JBB']);
+    const STANDARD_SET = new Set(['PAPA', 'MNY', 'MONI', 'ENL', 'APL', 'MBJ', 'MU', 'SH', 'SG', 'IK', 'GE', 'UJ', 'GD', 'IT', 'JK', 'KA', 'AB', 'AD']);
+
+    const isOriginNarrow = NARROW_SET.has(newDealForm.loadingStation);
+    const isOriginStandard = STANDARD_SET.has(newDealForm.loadingStation);
+    const isDestNarrow = NARROW_SET.has(newDealForm.destination);
+    const isDestStandard = STANDARD_SET.has(newDealForm.destination);
+
+    if ((isOriginNarrow && isDestStandard) || (isOriginStandard && isDestNarrow)) {
       setCustomAlert({
         title: 'Gauge Incompatibility Blocked (Page 1 Spec 04)',
         message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto ➔ Moniya Standard Gauge, or Ewekoro ➔ Dugbe Narrow Gauge).`,
@@ -1415,6 +1423,44 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </select>
               </div>
 
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  Canonical Corridor Preset (Official Documented Operations)
+                </label>
+                <select
+                  onChange={(e) => {
+                    const preset = CANONICAL_CORRIDORS.find((c) => c.id === e.target.value);
+                    if (preset) {
+                      setNewDealForm({
+                        ...newDealForm,
+                        loadingStation: preset.origin,
+                        destination: preset.destination === 'MONI' ? 'MNY' : preset.destination,
+                        cargoType: preset.cargoType.includes('Cement') ? 'Bagged Cement (50kg)' :
+                                   preset.cargoType.includes('Gypsum') ? 'Bulk Gypsum' :
+                                   preset.cargoType.includes('CONTAINERS') ? 'Shipping Containers (20ft/40ft)' : newDealForm.cargoType,
+                      });
+                    }
+                  }}
+                  className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-xs text-emerald-950 font-bold focus:ring-2 focus:ring-[#62BC37]"
+                >
+                  <option value="">-- Quick Select Operational Corridor --</option>
+                  <optgroup label="Standard Gauge Corridors (Lagos - Moniya)">
+                    {CANONICAL_CORRIDORS.filter(c => c.gauge === 'STANDARD_GAUGE').map((c) => (
+                      <option key={c.id} value={c.id}>
+                        [Standard Gauge] {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Narrow Gauge Corridors (Western & Lagos Districts)">
+                    {CANONICAL_CORRIDORS.filter(c => c.gauge === 'NARROW_GAUGE').map((c) => (
+                      <option key={c.id} value={c.id}>
+                        [Narrow Gauge] {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station (Gauge)</label>
@@ -1422,7 +1468,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     value={newDealForm.loadingStation}
                     onChange={(e) => {
                       const origin = e.target.value;
-                      const isNarrow = origin === 'EWK';
+                      const isNarrow = origin === 'EWK' || origin === 'IDD' || origin === 'ILR' || origin === 'OSB';
                       setNewDealForm({
                         ...newDealForm,
                         loadingStation: origin,
@@ -1431,9 +1477,21 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                   >
-                    <option value="PAPA">Papalanto Terminal (Standard Gauge)</option>
-                    <option value="APT">Apapa Maritime Port (Standard Gauge)</option>
-                    <option value="EWK">Ewekoro Terminal (Narrow Gauge)</option>
+                    <optgroup label="Standard Gauge (1,435mm)">
+                      <option value="PAPA">Papalanto Terminal (Bueno Terminal)</option>
+                      <option value="ENL">ENL APMT Terminal (Bueno Terminal)</option>
+                      <option value="APT">Apapa Port / Maritime Port</option>
+                      <option value="APQ">Apapa Port Siding</option>
+                      <option value="MBJ">Lagos Mobolaji (0 km)</option>
+                      <option value="AB">Abeokuta Major Station</option>
+                      <option value="MONI">Moniya Yard (Bueno Terminal)</option>
+                    </optgroup>
+                    <optgroup label="Narrow Gauge (1,067mm)">
+                      <option value="EWK">Itori / Ewekoro Siding</option>
+                      <option value="IDD">Iddo Lagos Terminus</option>
+                      <option value="ILR">Ilorin Freight Hub</option>
+                      <option value="OSB">Oshogbo Hub</option>
+                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -1443,8 +1501,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     onChange={(e) => setNewDealForm({ ...newDealForm, destination: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                   >
-                    <option value="MNY">Moniya Yard, Ibadan (Standard Gauge)</option>
-                    <option value="DGB">Dugbe Station, Ibadan (Narrow Gauge)</option>
+                    <optgroup label="Standard Gauge (1,435mm)">
+                      <option value="MNY">Moniya Yard, Ibadan (Bueno Terminal)</option>
+                      <option value="PAPA">Papalanto Terminal (Bueno Terminal)</option>
+                      <option value="ENL">ENL APMT Terminal (Bueno Terminal)</option>
+                      <option value="APT">Apapa Port / Maritime Port</option>
+                      <option value="AB">Abeokuta Major Station</option>
+                    </optgroup>
+                    <optgroup label="Narrow Gauge (1,067mm)">
+                      <option value="DGB">Dugbe Station, Ibadan</option>
+                      <option value="OSB">Oshogbo Hub</option>
+                      <option value="ILR">Ilorin Freight Hub</option>
+                      <option value="IDD">Iddo Lagos Terminus</option>
+                      <option value="APT">Apapa Port (Narrow Siding)</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -2012,6 +2082,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   { id: 'negotiations', label: 'Client Negotiations Chat' },
                   { id: 'fund_requisitions', label: 'Fund Requisition & Operational Expenses' },
                   { id: 'fleet', label: 'Fleet & Rolling Stock Management' },
+                  { id: 'terminal_info', label: 'Terminal Information Ledger (STATION: ###)' },
                   { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
                   { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
                   { id: 'manifest', label: 'Cargo Manifests & Waybills' },
@@ -3709,6 +3780,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
               </form>
             </div>
+          </div>
+        )}
+
+        {/* ─── TAB: TERMINAL INFORMATION (13-COLUMN SIDING AUDIT LEDGER) ─── */}
+        {activeTab === 'terminal_info' && (
+          <div className="space-y-6">
+            <TerminalInformationView user={user} initialStation="PAPA" />
           </div>
         )}
 

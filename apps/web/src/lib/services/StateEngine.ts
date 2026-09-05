@@ -1109,12 +1109,99 @@ export const TAB_TO_CAPABILITY: Record<string, string> = {
   telemetry:         'telemetry',
   manifest:          'manifest',
   history:           'manifest',
+  terminal_info:     'manifest',
   moniya:            'moniya',
   billing:           'billing',
   users:             'users',
   permissions:       'permissions',
   account:           'negotiations',
 };
+
+export interface CanonicalCorridor {
+  id: string;
+  name: string;
+  gauge: 'STANDARD_GAUGE' | 'NARROW_GAUGE';
+  origin: string;
+  destination: string;
+  cargoType: string;
+  wagonCode: string;
+  description: string;
+  isBuenoTerminalOrigin?: boolean;
+  isBuenoTerminalDest?: boolean;
+}
+
+export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
+  // 4 Current Operations on Standard Gauge (Lagos to Moniya, Ibadan)
+  {
+    id: 'SG_OP_1',
+    name: 'Cement: Papalanto ➔ Moniya (Ibadan)',
+    gauge: 'STANDARD_GAUGE',
+    origin: 'PAPA',
+    destination: 'MONI',
+    cargoType: 'Huaxin Portland Cement (50kg)',
+    wagonCode: 'PXG/CGs',
+    description: 'Bueno Terminal Papalanto to Bueno Terminal Moniya (5 Hours via Standard Gauge)',
+    isBuenoTerminalOrigin: true,
+    isBuenoTerminalDest: true,
+  },
+  {
+    id: 'SG_OP_2',
+    name: 'Export Containers: Moniya ➔ APMT / ENL',
+    gauge: 'STANDARD_GAUGE',
+    origin: 'MONI',
+    destination: 'APT',
+    cargoType: 'CONTAINERS-EXPORT (40ft HC)',
+    wagonCode: 'CBX',
+    description: 'Bueno Terminal Moniya to Apapa Port / ENL Terminal (Standard Gauge)',
+    isBuenoTerminalOrigin: true,
+    isBuenoTerminalDest: true,
+  },
+  {
+    id: 'SG_OP_3',
+    name: 'Import / Empty Containers: APMT / ENL ➔ Moniya',
+    gauge: 'STANDARD_GAUGE',
+    origin: 'APT',
+    destination: 'MONI',
+    cargoType: 'CONTAINERS-IMPORT (40ft HC)',
+    wagonCode: 'CBX',
+    description: 'Apapa Port / ENL Terminal to Bueno Terminal Moniya (Standard Gauge)',
+    isBuenoTerminalOrigin: true,
+    isBuenoTerminalDest: true,
+  },
+  {
+    id: 'SG_OP_4',
+    name: 'Gypsum: ENL ➔ Papalanto',
+    gauge: 'STANDARD_GAUGE',
+    origin: 'ENL',
+    destination: 'PAPA',
+    cargoType: 'Bulk Gypsum',
+    wagonCode: 'ZGX',
+    description: 'ENL Terminal (APMT) to Bueno Terminal Papalanto (Standard Gauge)',
+    isBuenoTerminalOrigin: true,
+    isBuenoTerminalDest: true,
+  },
+  // 2 Current Operations on Narrow Gauge
+  {
+    id: 'NG_OP_1',
+    name: 'Cement: Itori (Ewekoro) ➔ Ibadan (Dugbe), Oshogbo, Ilorin',
+    gauge: 'NARROW_GAUGE',
+    origin: 'EWK',
+    destination: 'DGB',
+    cargoType: 'Cement / Bagged Goods',
+    wagonCode: 'PXG/CGs',
+    description: 'Western District Cement Trains: Itori (Ewekoro) to Ibadan, Oshogbo and Ilorin (Narrow Gauge)',
+  },
+  {
+    id: 'NG_OP_2',
+    name: 'Import & Export Containers: Iddo ➔ APMT',
+    gauge: 'NARROW_GAUGE',
+    origin: 'IDD',
+    destination: 'APT',
+    cargoType: 'CONTAINERS-IMPORT / EXPORT',
+    wagonCode: 'CBX',
+    description: 'Lagos District Container Transfer between Iddo and APMT (Narrow Gauge)',
+  },
+];
 
 export const TAB_ALIASES: Record<string, string[]> = {
   analytics:         ['analytics'],
