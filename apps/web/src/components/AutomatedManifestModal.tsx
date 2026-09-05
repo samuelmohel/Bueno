@@ -59,7 +59,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
       const netT = (bags * 50) / 1000;
       const grossT = netT + 22.5;
       const sealNo = `SEAL-BN-${9800 + idx}`;
-      csvRows.push([w.wagonId, sealNo, trip.cargoType || 'Elephant Cement (50kg)', bags, 22.5, grossT, 'VERIFIED_INTACT']);
+      csvRows.push([w.wagonId, sealNo, trip.cargoType || 'Huaxin Portland Cement (50kg)', bags, 22.5, grossT, 'VERIFIED_INTACT']);
     });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
@@ -187,7 +187,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                       <tr key={w.wagonId || idx} className="hover:bg-slate-50">
                         <td className="p-3 font-black text-[#0E4B88]">{w.wagonId}</td>
                         <td className="p-3 text-slate-600 font-bold">{sealNo}</td>
-                        <td className="p-3 text-slate-800">{trip.cargoType || 'Elephant Cement (50kg)'}</td>
+                        <td className="p-3 text-slate-800">{trip.cargoType || 'Huaxin Portland Cement (50kg)'}</td>
                         <td className="p-3 font-bold text-slate-900">{bags.toLocaleString()}</td>
                         <td className="p-3 text-slate-500">22.5 T</td>
                         <td className="p-3 font-black text-slate-900">{grossT.toFixed(1)} T</td>

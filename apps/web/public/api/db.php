@@ -356,4 +356,12 @@ function initTables($pdo) {
             $insert->execute([$u[0], $u[1], $u[2], $u[3], $u[4], $u[5], $u[6], $u[7], $u[8], $u[9], $u[10], $date]);
         }
     }
+
+    // Automatically sanitize and migrate any legacy Lafarge or Elephant references across SQL tables
+    try {
+        $pdo->exec("UPDATE bueno_users SET companyName = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', fullName = 'Huaxin Logistics Desk', email = 'logistics@hbm.ng' WHERE companyName LIKE '%Lafarge%' OR email LIKE '%lafarge%'");
+        $pdo->exec("UPDATE bueno_deals SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType = 'Huaxin Portland Cement (50kg)' WHERE company LIKE '%Lafarge%' OR cargoType LIKE '%Elephant%'");
+        $pdo->exec("UPDATE bueno_trips SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType = 'Huaxin Portland Cement (50kg bags)' WHERE company LIKE '%Lafarge%' OR cargoType LIKE '%Elephant%'");
+        $pdo->exec("UPDATE bueno_invoices SET company = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)' WHERE company LIKE '%Lafarge%'");
+    } catch (Exception $e) {}
 }

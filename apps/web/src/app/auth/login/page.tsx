@@ -102,6 +102,9 @@ function LoginForm() {
     // 1.2s Splash Timer
     const splashTimer = setTimeout(() => setShowSplash(false), 1200);
 
+    // Auto-cleanse any legacy Lafarge or Elephant cache on login screen
+    StateEngine.cleanseLafargeAndMigrateHbm();
+
     const syncUsers = () => {
       const storedLocal = StateEngine.getUsers();
       setAllUsers(storedLocal);

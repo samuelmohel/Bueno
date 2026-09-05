@@ -151,7 +151,7 @@ const SEED_DEALS: any[] = [
     company: 'Dangote Cement',
     origin: 'EWK',
     destination: 'MNY',
-    cargoType: 'Elephant Cement (50kg bags)',
+    cargoType: 'Huaxin Portland Cement (50kg bags)',
     quantity: 8000,
     unitPrice: 1200,
     totalPrice: 9600000,
@@ -1582,7 +1582,7 @@ function LegacyCustomerPortalInline({ user, onSignOut }: { user: any; onSignOut:
   const [dealForm, setDealForm] = useState({
     loadingStation: 'EWK',
     destination: 'MNY',
-    cargoType: 'Elephant Cement (50kg Bags)',
+    cargoType: 'Huaxin Portland Cement (50kg Bags)',
     quantity: '5000',
     targetDate: '',
     budget: '',
@@ -1656,7 +1656,7 @@ function LegacyCustomerPortalInline({ user, onSignOut }: { user: any; onSignOut:
       localStorage.setItem('bueno_notifications', JSON.stringify([newNotif, ...notifs]));
     } catch {}
 
-    setDealForm({ loadingStation: 'EWK', destination: 'MNY', cargoType: 'Elephant Cement (50kg Bags)', quantity: '5000', targetDate: '', budget: '', notes: '' });
+    setDealForm({ loadingStation: 'EWK', destination: 'MNY', cargoType: 'Huaxin Portland Cement (50kg Bags)', quantity: '5000', targetDate: '', budget: '', notes: '' });
     setCustomAlert({
       title: 'Deal Request Submitted',
       message: 'Custom Freight Deal Request submitted successfully! Operations & Executive Command have been notified.',
@@ -1802,7 +1802,7 @@ function LegacyCustomerPortalInline({ user, onSignOut }: { user: any; onSignOut:
                         required
                         value={dealForm.cargoType}
                         onChange={(e) => setDealForm({ ...dealForm, cargoType: e.target.value })}
-                        placeholder="e.g. Elephant Cement"
+                        placeholder="e.g. Huaxin Portland Cement"
                         className={ic}
                       />
                     </div>
@@ -5967,7 +5967,7 @@ function LegacyAdminPortalInline({ user, onSignOut }: { user: any; onSignOut: ()
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lc}>Loading Station</label><select value={dealForm.loadingStation} onChange={e => setDealForm({ ...dealForm, loadingStation: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>
                 <div><label className={lc}>Destination</label><select value={dealForm.destination} onChange={e => setDealForm({ ...dealForm, destination: e.target.value })} className={ic}>{Object.entries(STATIONS).map(([code, s]) => <option key={code} value={code}>{sName(code)}</option>)}</select></div>
-                <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Elephant Cement" className={ic} /></div>
+                <div><label className={lc}>Cargo Type *</label><input required value={dealForm.cargoType} onChange={e => setDealForm({ ...dealForm, cargoType: e.target.value })} placeholder="e.g. Huaxin Portland Cement" className={ic} /></div>
                 <div><label className={lc}>Quantity (Bags)</label><input type="number" value={dealForm.quantity} onChange={e => setDealForm({ ...dealForm, quantity: e.target.value })} className={ic} /></div>
               </div>
               <div className="flex justify-end gap-3"><button type="button" onClick={() => setCreateDealModal(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancel</button><button type="submit" className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-sm">Create Deal ➔</button></div>
@@ -6849,6 +6849,10 @@ export default function Dashboard() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // ── AUTOMATIC HBM REBRANDING MIGRATION & PRODUCTION SEEDING ───────────
+    StateEngine.cleanseLafargeAndMigrateHbm();
+    StateEngine.seedInitialProductionState();
+
     // ── PERMISSION SCHEMA MIGRATION ─────────────────────────────────────────
     // Must run before any portal renders. If bueno_permissions_version is stale
     // or missing, wipe old data and re-seed from canonical defaults.

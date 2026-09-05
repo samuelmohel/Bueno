@@ -77,7 +77,19 @@ class StateEngineService {
   private readStorage<T>(key: string, fallback: T): T {
     if (typeof window === 'undefined') return fallback;
     try {
-      const item = localStorage.getItem(key);
+      let item = localStorage.getItem(key);
+      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant'))) {
+        item = item
+          .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+          .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
+          .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
+          .replace(/Lafarge/gi, 'HBM')
+          .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
+          .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
+          .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
+          .replace(/Elephant Cement/gi, 'Huaxin Portland Cement');
+        localStorage.setItem(key, item);
+      }
       return item ? JSON.parse(item) : fallback;
     } catch {
       return fallback;
@@ -410,6 +422,43 @@ class StateEngineService {
     } catch {}
   }
 
+  cleanseLafargeAndMigrateHbm(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const keys = [
+        'bueno_user',
+        'bueno_users',
+        'bueno_deals',
+        'bueno_custom_deal_negotiations',
+        'bueno_trips',
+        'bueno_invoices',
+        'bueno_requests',
+        'bueno_notifications',
+        'bueno_containers',
+      ];
+      let changed = false;
+      keys.forEach((k) => {
+        const val = localStorage.getItem(k);
+        if (val && (val.includes('Lafarge') || val.includes('lafarge') || val.includes('Elephant'))) {
+          const sanitized = val
+            .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
+            .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
+            .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
+            .replace(/Lafarge/gi, 'HBM')
+            .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
+            .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
+            .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
+            .replace(/Elephant Cement/gi, 'Huaxin Portland Cement');
+          localStorage.setItem(k, sanitized);
+          changed = true;
+        }
+      });
+      if (changed) {
+        this.notifyListeners();
+      }
+    } catch {}
+  }
+
   // ── PRODUCTION CLEAN SLATE / PURGE DEMO DATA ──────────────────────────────
   purgeDemoData(): void {
     if (typeof window === 'undefined') return;
@@ -418,18 +467,17 @@ class StateEngineService {
       this.writeStorage('bueno_trip_costs', []);
       this.writeStorage('bueno_invoices', []);
       this.writeStorage('bueno_requests', []);
-      const activeDeals = this.getDeals().map((d: any) => ({
-        ...d,
-        status: 'ACTIVE',
-        tripId: undefined,
-      }));
-      this.writeStorage('bueno_deals', activeDeals);
+      this.cleanseLafargeAndMigrateHbm();
+      this.writeStorage('bueno_deals', SEED_DEALS);
+      this.writeStorage('bueno_users', SEED_USERS);
       localStorage.setItem('bueno_prod_purge_v4', 'purged');
+      localStorage.setItem('bueno_prod_purge_v5', 'purged');
       this.postRemote('/api/trips.php', []);
       this.postRemote('/api/trip_costs.php', []);
       this.postRemote('/api/invoices.php', []);
       this.postRemote('/api/requests.php', []);
-      this.postRemote('/api/deals.php', activeDeals);
+      this.postRemote('/api/deals.php', SEED_DEALS);
+      this.postRemote('/api/users.php', SEED_USERS);
       this.notifyListeners();
     } catch {}
   }
@@ -437,7 +485,10 @@ class StateEngineService {
   seedInitialProductionState(): void {
     if (typeof window === 'undefined') return;
     try {
-      const isPurged = localStorage.getItem('bueno_prod_purge_v4');
+      // Always cleanse any stray Lafarge/Elephant entries in browser storage
+      this.cleanseLafargeAndMigrateHbm();
+
+      const isPurged = localStorage.getItem('bueno_prod_purge_v5');
       if (isPurged !== 'purged') {
         // Strip out legacy demo data
         const currentTrips = this.readStorage<any[]>('bueno_trips', []);
@@ -456,16 +507,30 @@ class StateEngineService {
         const cleanReqs = currentReqs.filter((r: any) => r.tripId !== 'TRP-101' && r.tripId !== 'TRP-102' && r.id !== 'REQ-901' && r.id !== 'REQ-902');
         this.writeStorage('bueno_requests', cleanReqs);
 
+        // Ensure deals and users reflect canonical HBM
         const currentDeals = this.readStorage<any[]>('bueno_deals', SEED_DEALS);
         const cleanDeals = currentDeals.map((d: any) => {
           if (d.tripId === 'TRP-101' || d.tripId === 'TRP-102') {
             return { ...d, status: 'ACTIVE', tripId: undefined };
           }
+          if (d.company && (d.company.includes('Lafarge') || d.company.includes('lafarge'))) {
+            return { ...d, company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', cargoType: 'Huaxin Portland Cement (50kg)' };
+          }
           return d;
         });
         this.writeStorage('bueno_deals', cleanDeals);
 
+        const currentUsers = this.readStorage<any[]>('bueno_users', SEED_USERS);
+        const cleanUsers = currentUsers.map((u: any) => {
+          if (u.companyName && (u.companyName.includes('Lafarge') || u.companyName.includes('lafarge'))) {
+            return { ...u, companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', fullName: 'Huaxin Logistics Desk', email: 'logistics@hbm.ng' };
+          }
+          return u;
+        });
+        this.writeStorage('bueno_users', cleanUsers);
+
         localStorage.setItem('bueno_prod_purge_v4', 'purged');
+        localStorage.setItem('bueno_prod_purge_v5', 'purged');
         this.notifyListeners();
       }
     } catch {}

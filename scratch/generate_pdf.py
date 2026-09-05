@@ -161,7 +161,7 @@ story.append(Paragraph("1.3 Industrial Client Logins (Customer Portal)", h3_styl
 client_data = [
     [Paragraph("Company Name", th_style), Paragraph("Contact Desk", th_style), Paragraph("Login Identifier", th_style), Paragraph("PIN", th_style), Paragraph("Portal Capabilities", th_style)],
     [Paragraph("<b>Dangote Cement</b>", td_style), Paragraph("Freight Desk", td_style), Paragraph("freight@dangotecement.ng / 08038889900", td_style), Paragraph("1111", code_style), Paragraph("Consignment booking, live satellite train tracking, manifest inspection", td_style)],
-    [Paragraph("<b>Lafarge Africa Plc</b>", td_style), Paragraph("Logistics Desk", td_style), Paragraph("logistics@lafarge.ng / 08037778899", td_style), Paragraph("1111", code_style), Paragraph("Consignment booking, live satellite train tracking, manifest inspection", td_style)],
+    [Paragraph("<b>HBM (Huaxin Building Materials Nig Plc)</b>", td_style), Paragraph("Logistics Desk", td_style), Paragraph("logistics@hbm.ng / 08037778899", td_style), Paragraph("1111", code_style), Paragraph("Consignment booking, live satellite train tracking, manifest inspection", td_style)],
     [Paragraph("<b>BUA Cement</b>", td_style), Paragraph("Logistics Desk", td_style), Paragraph("logistics@buacement.ng / 08039990011", td_style), Paragraph("1111", code_style), Paragraph("Consignment booking, live satellite train tracking, manifest inspection", td_style)],
 ]
 

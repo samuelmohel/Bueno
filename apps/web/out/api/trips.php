@@ -127,7 +127,7 @@ if ($method === 'POST') {
                 $escortWagonId = $t['escortWagonId'] ?? 'BV 01';
                 $company = $t['company'] ?? 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
                 $clientEmail = $t['clientEmail'] ?? ($t['email'] ?? 'logistics@hbm.ng');
-                $cargoType = $t['cargoType'] ?? 'Elephant Cement (50kg bags)';
+                $cargoType = $t['cargoType'] ?? 'Huaxin Portland Cement (50kg bags)';
                 $unitOfMeasure = $t['unitOfMeasure'] ?? (stripos($cargoType, 'Gypsum') !== false || stripos($cargoType, 'Limestone') !== false || stripos($cargoType, 'MT') !== false ? 'Metric Tonnes (MT)' : 'Bags');
                 $wagonType = $t['wagonType'] ?? ($unitOfMeasure === 'Metric Tonnes (MT)' ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon');
                 $quantity = strval($t['quantity'] ?? '1600');

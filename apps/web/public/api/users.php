@@ -10,6 +10,15 @@ if ($method === 'GET') {
     $result = array_map(function($r) {
         $r['permissions'] = json_decode($r['permissionsText'] ?? 'null', true);
         unset($r['permissionsText']);
+        if (isset($r['companyName']) && stripos($r['companyName'], 'Lafarge') !== false) {
+            $r['companyName'] = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
+        }
+        if (isset($r['fullName']) && stripos($r['fullName'], 'Lafarge') !== false) {
+            $r['fullName'] = 'Huaxin Logistics Desk';
+        }
+        if (isset($r['email']) && stripos($r['email'], 'lafarge') !== false) {
+            $r['email'] = 'logistics@hbm.ng';
+        }
         return $r;
     }, $raw);
     echo json_encode(['status' => 'success', 'data' => $result]);

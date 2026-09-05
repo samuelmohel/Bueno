@@ -43,7 +43,17 @@ if ($method === 'GET') {
         $result = getDealsFromFile($storeFile);
     }
 
-    echo json_encode(['status' => 'success', 'data' => $result]);
+    $sanitized = array_map(function($d) {
+        if (isset($d['company']) && stripos($d['company'], 'Lafarge') !== false) {
+            $d['company'] = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
+        }
+        if (isset($d['cargoType']) && stripos($d['cargoType'], 'Elephant') !== false) {
+            $d['cargoType'] = 'Huaxin Portland Cement (50kg)';
+        }
+        return $d;
+    }, $result);
+
+    echo json_encode(['status' => 'success', 'data' => array_values($sanitized)]);
     exit();
 }
 
