@@ -17,104 +17,9 @@ import {
 
 type Period = 'weekly' | 'monthly' | 'quarterly' | 'annually';
 
-// HISTORICAL ARCHIVED TRIPS (With Multi-Commodity Units: Bags vs Metric Tonnes MT)
+// DYNAMIC OPERATIONAL TRIPS (Derived strictly from StateEngine)
 const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
   '2026-09': StateEngine.getTrips(),
-  '2026-08': [
-    {
-      id: 'TRP-AUG-041',
-      tripId: 'TRP-AUG-041',
-      locomotiveId: 'L2205',
-      origin: 'EWK',
-      destination: 'MNY',
-      company: 'APM Terminals Ltd (APMT)',
-      dealNumber: 'DEAL-AUG-881',
-      cargoType: 'CONTAINERS-IMPORT (40ft HC)',
-      unitOfMeasure: 'Units',
-      wagonType: 'CBX Flatbed Wagon',
-      quantity: 1600,
-      cargoOfficerName: 'Ade Bello',
-      unloadingOfficerName: 'Musa Ibrahim',
-      status: 'COMPLETED',
-      dispatchTime: '15 Aug 2026, 09:00 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 2322', loadedAt: '08:10 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-901' },
-        { wagonId: 'PXG 2323', loadedAt: '08:25 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-902' },
-        { wagonId: 'PXG 2324', loadedAt: '08:40 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-AUG-903' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 1, complaintNotes: ['1 burst bag at Moniya Siding Bay 2'] },
-    },
-    {
-      id: 'TRP-AUG-042',
-      tripId: 'TRP-AUG-042',
-      locomotiveId: 'L2208',
-      origin: 'APT',
-      destination: 'MNY',
-      company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-      dealNumber: 'DEAL-AUG-882',
-      cargoType: 'Bulk Gypsum',
-      unitOfMeasure: 'Metric Tonnes (MT)',
-      wagonType: 'Open Top Gondola Wagon',
-      quantity: 2300,
-      cargoOfficerName: 'Ngozi Eze',
-      unloadingOfficerName: 'Kassim Ahmed',
-      status: 'COMPLETED',
-      dispatchTime: '22 Aug 2026, 10:15 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 4401', loadedAt: '09:00 AM', bagsCount: '115 MT', sealNumber: 'SEAL-AUG-910' },
-        { wagonId: 'PXG 4402', loadedAt: '09:15 AM', bagsCount: '115 MT', sealNumber: 'SEAL-AUG-911' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-    },
-  ],
-  '2026-07': [
-    {
-      id: 'TRP-JUL-032',
-      tripId: 'TRP-JUL-032',
-      locomotiveId: 'L2205',
-      origin: 'PAPA',
-      destination: 'MNY',
-      company: 'Purechem Cement Industries Ltd',
-      dealNumber: 'DEAL-JUL-701',
-      cargoType: 'Bagged Cement (50kg)',
-      unitOfMeasure: 'Bags',
-      wagonType: 'Covered Hopper Wagon',
-      quantity: 1800,
-      cargoOfficerName: 'Samuel Okafor',
-      unloadingOfficerName: 'Musa Ibrahim',
-      status: 'COMPLETED',
-      dispatchTime: '18 Jul 2026, 08:30 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 1101', loadedAt: '07:30 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-JUL-701' },
-        { wagonId: 'PXG 1102', loadedAt: '07:45 AM', bagsCount: '70 Bags', sealNumber: 'SEAL-JUL-702' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-    },
-  ],
-  '2026-06': [
-    {
-      id: 'TRP-JUN-019',
-      tripId: 'TRP-JUN-019',
-      locomotiveId: 'L2201',
-      origin: 'EWK',
-      destination: 'MNY',
-      company: 'BUA Cement Industries',
-      dealNumber: 'DEAL-JUN-601',
-      cargoType: 'Bulk Gypsum',
-      unitOfMeasure: 'Metric Tonnes (MT)',
-      wagonType: 'Open Top Gondola Wagon',
-      quantity: 1500,
-      cargoOfficerName: 'Tunde Bakare',
-      unloadingOfficerName: 'Kassim Ahmed',
-      status: 'COMPLETED',
-      dispatchTime: '10 Jun 2026, 09:45 AM',
-      wagonLogs: [
-        { wagonId: 'PXG 0901', loadedAt: '08:45 AM', bagsCount: '75 MT', sealNumber: 'SEAL-JUN-601' },
-        { wagonId: 'PXG 0902', loadedAt: '09:00 AM', bagsCount: '75 MT', sealNumber: 'SEAL-JUN-602' },
-      ],
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: ['Zero spillage logged at weighbridge'] },
-    },
-  ],
 };
 
 export default function PerformanceReportsPage() {
@@ -129,7 +34,7 @@ export default function PerformanceReportsPage() {
     setLoading(true);
 
     const liveTrips = StateEngine.getTrips();
-    const monthTrips = liveTrips.length > 0 ? liveTrips : (HISTORICAL_ARCHIVED_TRIPS[targetMonth] || []);
+    const monthTrips = liveTrips;
     setTrips(monthTrips);
     if (monthTrips.length > 0) {
       setSelectedTrip(monthTrips[0]);

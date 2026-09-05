@@ -58,58 +58,48 @@ function TrackingContent() {
         }
       } catch {}
 
-      // Fallback default mock items if not in localStorage yet
+      // Fallback default items tied strictly to canonical trips
       if (!foundTrip && !foundDeal) {
-        if (term === 'BU-TRK-8839' || term === 'CN-2026-0451' || term === 'TR-EWK-102') {
+        if (term === 'BU-TRK-8839' || term === 'CN-2026-0451' || term === 'TRP-8841') {
           foundTrip = {
-            id: 'TR-EWK-102',
-            trainNumber: 'TR-EWK-102',
+            id: 'TRP-8841',
+            trainNumber: 'TRP-8841',
             dealId: 'CN-2026-0451',
             trackingId: 'BU-TRK-8839',
-            clientName: 'Purechem Cement Industries Ltd',
-            origin: 'EWK',
-            destination: 'MNY',
+            clientName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
+            origin: 'PAPA',
+            destination: 'MONI',
             status: 'IN_TRANSIT',
-            loco: 'L2205 (General Electric 3000HP)',
-            wagons: ['PXG-08135', 'PXG-08151'],
-            loadedQty: 1600,
-            cargoType: 'Bagged Cement (50kg bags)',
+            loco: 'NRC-2201 (Standard Gauge 1,435mm)',
+            wagons: ['PXG-4401', 'PXG-4402', 'PXG-4403'],
+            loadedQty: 18400,
+            cargoType: 'Huaxin Portland Cement (50kg bags)',
+          };
+        } else if (term === 'BU-TRK-9921' || term === 'CN-2026-0490' || term === 'TRP-9921') {
+          foundTrip = {
+            id: 'TRP-9921',
+            trainNumber: 'TRP-9921',
+            dealId: 'CN-2026-0490',
+            trackingId: 'BU-TRK-9921',
+            clientName: 'APM Terminals Ltd (APMT)',
+            origin: 'APT',
+            destination: 'MONI',
+            status: 'ARRIVED',
+            loco: 'NRC-2204 (Standard Gauge 1,435mm)',
+            wagons: ['CBX-8101', 'CBX-8102', 'CBX-8103'],
+            loadedQty: 350,
+            cargoType: 'CONTAINERS-IMPORT (40ft HC)',
           };
         } else if (term === 'BU-TRK-7712' || term === 'CN-2026-0438') {
           foundDeal = {
             id: 'CN-2026-0438',
             trackingId: 'BU-TRK-7712',
-            clientName: 'BUA Cement Industries',
-            cargoType: 'Raw Gypsum Mineral',
-            quantity: '2430',
-            originStation: 'ITO',
+            clientName: 'DASCO Industries Ltd',
+            cargoType: 'WIRE COILS & STEEL PIPES',
+            quantity: '950',
+            originStation: 'IDD',
             destStation: 'ILR',
             status: 'DEAL_REGISTERED',
-          };
-        } else if (term === 'BU-TRK-9901' || term === 'CN-2026-0410') {
-          foundTrip = {
-            id: 'TR-EWK-102',
-            trainNumber: 'TR-EWK-102',
-            dealId: 'CN-2026-0410',
-            trackingId: 'BU-TRK-9901',
-            clientName: 'Purechem Cement Industries Ltd',
-            origin: 'EWK',
-            destination: 'MNY',
-            status: 'IN_TRANSIT',
-            loco: 'L2205',
-            loadedQty: 1600,
-          };
-        } else if (term === 'BU-TRK-4412' || term === 'CN-2026-0390' || term === 'TR-APT-301') {
-          foundTrip = {
-            id: 'TR-APT-301',
-            trainNumber: 'TR-APT-301',
-            dealId: 'CN-2026-0390',
-            trackingId: 'BU-TRK-4412',
-            clientName: 'HUAXIN BUILDING MATERIALS NIG PLC',
-            origin: 'APT',
-            destination: 'MNY',
-            status: 'ARRIVED',
-            loadedQty: 1600,
           };
         }
       }
@@ -282,10 +272,10 @@ function TrackingContent() {
             <p className="text-xs text-slate-500 mb-4">Click any reference code below to test instant live corridor tracking:</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {[
+                { code: 'TRP-8841', label: 'Train Number (HBM Cement)' },
+                { code: 'TRP-9921', label: 'Train Number (APMT Containers)' },
                 { code: 'BU-TRK-8839', label: 'Tracking ID (HBM)' },
                 { code: 'CN-2026-0451', label: 'Deal ID (HBM)' },
-                { code: 'BU-TRK-7712', label: 'Tracking ID (BUA Gypsum)' },
-                { code: 'TR-EWK-102', label: 'Train Number (Purechem)' },
               ].map(({ code, label }) => (
                 <button
                   key={code}

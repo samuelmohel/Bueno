@@ -1990,7 +1990,7 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 'notif_seed_1',
     title: 'New Client Service Request',
-    body: 'Purechem Cement requested Ewekoro ➔ Moniya freight corridor (5,000 Bags/Month)',
+    body: 'HBM Cement requested Papalanto ➔ Moniya freight corridor (18,400 Bags/Train)',
     time: '5 mins ago',
     type: 'CLIENT_REQUEST',
     read: false,
@@ -3188,7 +3188,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
       truckRegNo: 'KJA-482-XY',
       driverName: 'Ibrahim Garba',
       phone: '08031112233',
-      transporter: 'Purechem Logistics Fleet',
+      transporter: 'HBM Logistics Fleet',
       qtyContributed: String(defaultCapacity),
     }
   ]);
@@ -3313,7 +3313,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
           truckRegNo: w.truckRegNo || 'KJA-482-XY',
           driverName: w.driverDetails?.split('(')[0]?.trim() || 'Ibrahim Garba',
           phone: w.driverDetails?.match(/\((.*?)\)/)?.[1] || '08031112233',
-          transporter: w.transporter || 'Purechem Logistics Fleet',
+          transporter: w.transporter || 'HBM Logistics Fleet',
           qtyContributed: String(defaultQty),
         }
       ]);
@@ -3407,7 +3407,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
     escortOfficerName: trip.monitoringOfficer || trip.cargoOfficerName || 'Ade Bello',
     escortOfficerPhone: trip.escortPhone || '08031112233',
     escortCrewMembers: 'NRC Train Master, Escort Security (2 Personnel)',
-    clientEmail: trip.clientEmail || 'logistics@purechem.ng',
+    clientEmail: trip.clientEmail || 'logistics@hbm.ng',
     trackingMode: 'MOBILE_PHONE_BEACON',
   });
 
@@ -3953,7 +3953,7 @@ function TripWagonView({ tripId, trips, wagons, onBack, onSaveTrips }: any) {
                           required
                           value={ft.transporter}
                           onChange={e => handleUpdateFeederTruck(idx, 'transporter', e.target.value)}
-                          placeholder="e.g. Purechem Logistics Fleet"
+                          placeholder="e.g. HBM Logistics Fleet"
                           className="w-full p-2 rounded-lg border border-slate-300 text-xs"
                         />
                       </div>
@@ -4713,13 +4713,13 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
     setClientRequests(tryParse('bueno_client_requests', [
       {
         id: 'REQ-seed-01',
-        companyName: 'Purechem Cement Industries Ltd',
-        industry: 'Cement & Construction',
+        companyName: 'DASCO Industries Ltd',
+        industry: 'Manufacturing & Steel',
         contactName: 'Engr. Clement Lawson',
-        email: 'logistics@purechem.ng',
+        email: 'logistics@dasco.ng',
         phone: '08031234567',
-        volume: '5,000 Bags/Month',
-        route: 'EWK ➔ MNY (Ewekoro to Moniya)',
+        volume: '950 MT/Month',
+        route: 'IDD ➔ ILR (Iddo to Ilorin)',
         status: 'PENDING',
         createdAt: '5 mins ago',
       }
@@ -5232,7 +5232,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
                       required
                       value={form.companyName}
                       onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-                      placeholder="e.g. Purechem Cement"
+                      placeholder="e.g. HBM Cement"
                       className={ic}
                     />
                   </div>
@@ -6459,7 +6459,7 @@ const SEED_CONTAINERS = [
 ];
 
 const SEED_GATE_LOGS = [
-  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Purechem Haulage', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
+  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Mainstream Haulage Ltd', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
   { id: 'GT-88402', truckRegNo: 'LSD-901-AB', driverName: 'Suleiman Bello', driverPhone: '08023334455', transporter: 'Bello Logistics', containerId: 'APMT-310492-1', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 09:30 AM' },
 ];
 

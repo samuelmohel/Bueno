@@ -89,7 +89,7 @@ export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
   payloadCapacity: '60 MT (1,200 Bags)',
   capacity: 1200,
   status: 'AVAILABLE',
-  currentStation: index < 23 ? 'EWK' : 'MNY',
+  currentStation: index < 23 ? 'PAPA' : 'MNY',
   gauge: 'STANDARD_GAUGE',
   addedBy: 'System Registry',
   createdAt: '07 Aug 2026',
@@ -609,8 +609,8 @@ class StateEngineService {
         this.postRemote('/api/wagons.php', SEED_WAGONS);
       }
 
-      const isPurgedV7 = localStorage.getItem('bueno_prod_purge_v7');
-      if (isPurgedV7 !== 'purged') {
+      const isPurgedV8 = localStorage.getItem('bueno_prod_purge_v8');
+      if (isPurgedV8 !== 'purged') {
         // Reset trips strictly to the 2 canonical production trips
         this.writeStorage('bueno_trips', SEED_TRIPS);
         this.postRemote('/api/trips.php', SEED_TRIPS);
@@ -625,7 +625,13 @@ class StateEngineService {
         const cleanInvs = currentInvs.filter((inv: any) => inv.tripId === 'TRP-8841' || inv.tripId === 'TRP-9921');
         this.writeStorage('bueno_invoices', cleanInvs);
 
-        localStorage.setItem('bueno_prod_purge_v7', 'purged');
+        // Clear out any old legacy mock terminal entries and containers
+        localStorage.removeItem('bueno_terminal_information');
+        this.writeStorage('bueno_containers', SEED_CONTAINERS);
+        this.writeStorage('bueno_gate_logs', SEED_GATE_LOGS);
+        this.writeStorage('bueno_client_requests', []);
+
+        localStorage.setItem('bueno_prod_purge_v8', 'purged');
         this.notifyListeners();
       }
     } catch {}
