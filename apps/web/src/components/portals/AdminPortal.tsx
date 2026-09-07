@@ -418,6 +418,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     notes: '',
   });
 
+  // Deals Date Filter & Commercial Costing State (Finance / Treasurer)
+  const [dealsDateFilter, setDealsDateFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY' | 'SINGLE'>('ALL');
+  const [costingModalDeal, setCostingModalDeal] = useState<any | null>(null);
+  const [costingForm, setCostingForm] = useState({
+    tariffRatePerTon: 12500,
+    totalContractValue: 115000000,
+    budgetExpensePerTrip: 4500000,
+    paymentTerms: 'PER_TRIP_DRAWDOWN',
+    dealType: 'MONTHLY_CONTRACT',
+    totalPlannedTrips: 10,
+    trancheTonnage: 920,
+    contractMonth: '2026-09',
+  });
+
   // Staff Provisioning Form
   const [provisionForm, setProvisionForm] = useState({
     fullName: '',
@@ -913,6 +927,67 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
+  // ─── FINANCE & COMMERCIAL COSTING HANDLERS (HEAD OF FINANCE / TREASURER) ───
+  const openCostingModal = (deal: any) => {
+    setCostingModalDeal(deal);
+    const qty = Number(deal.quantity) || 9200;
+    const rate = Number(deal.tariffRatePerTon) || 12500;
+    const totalVal = Number(deal.totalContractValue) || (qty * rate);
+    const planned = Number(deal.totalPlannedTrips) || 10;
+    const trancheT = Number(deal.trancheTonnage) || Math.round(qty / planned);
+
+    setCostingForm({
+      tariffRatePerTon: rate,
+      totalContractValue: totalVal,
+      budgetExpensePerTrip: Number(deal.budgetExpensePerTrip) || 4500000,
+      paymentTerms: deal.paymentTerms || 'PER_TRIP_DRAWDOWN',
+      dealType: deal.dealType || (planned > 1 ? 'MONTHLY_CONTRACT' : 'SINGLE_TRIP'),
+      totalPlannedTrips: planned,
+      trancheTonnage: trancheT,
+      contractMonth: deal.contractMonth || '2026-09',
+    });
+  };
+
+  const handleSaveCosting = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!costingModalDeal) return;
+
+    const updated = deals.map((d) => {
+      if (d.id === costingModalDeal.id || d.dealNumber === costingModalDeal.dealNumber) {
+        return {
+          ...d,
+          ...costingForm,
+          financeStatus: 'FINANCE_APPROVED_COSTED',
+          costedBy: user?.fullName || 'Chinenye Nnamdi (Head of Finance)',
+          costedAt: new Date().toLocaleDateString('en-GB'),
+        };
+      }
+      return d;
+    });
+
+    setDeals(updated);
+    StateEngine.saveDeals(updated);
+    setCostingModalDeal(null);
+    setCustomAlert({
+      title: 'Commercial Tariff & Costing Saved',
+      message: `Commercial rates (₦${Number(costingForm.tariffRatePerTon).toLocaleString()}/MT) and contract terms for ${costingModalDeal.company || costingModalDeal.companyName} have been locked and saved!`,
+    });
+  };
+
+  const handleDispatchTranche = (deal: any) => {
+    try {
+      const nextTrip = StateEngine.dispatchDealTranche(deal.id, user);
+      setTrips(StateEngine.getTrips());
+      setDeals(StateEngine.getDeals());
+      setCustomAlert({
+        title: 'Monthly Contract Tranche Dispatched!',
+        message: `${nextTrip.trancheLabel} (Train #${nextTrip.id}) created and dispatched to ${nextTrip.origin} Siding loading queue! Assigned Loco #${nextTrip.locomotiveId}.`,
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Error dispatching tranche');
+    }
+  };
+
   // ─── ENTERPRISE FREIGHT ACCOUNTING & TRIP COSTING HANDLERS ───
   const handleRecordPaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1262,13 +1337,24 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const customerUsers = usersList.filter((u) => u.userType === 'CLIENT' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE');
 
   // DYNAMIC HISTORICAL REPORT AUDIT DATA SELECTION
-  const activeReportTrips = trips;
+  const [reportDateFilter, setReportDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('ALL');
+  const activeReportTrips = trips.filter((t: any) => {
+    if (reportDateFilter === 'ALL') return true;
+    const cat = StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt);
+    if (reportDateFilter === 'TODAY') return cat === 'TODAY';
+    if (reportDateFilter === 'YESTERDAY') return cat === 'YESTERDAY';
+    if (reportDateFilter === 'THIS_WEEK') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
+    if (reportDateFilter === 'THIS_MONTH') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK' || cat === 'THIS_MONTH';
+    return true;
+  });
   const totalReportBags = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure === 'Bags' ? (Number(t.quantity) || 0) : 0), 0);
-  const totalReportMT = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure?.includes('Tonnes') || t.unitOfMeasure?.includes('MT') ? (Number(t.quantity) || 0) : 0), 0);
+  const totalReportMT = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure?.includes('Tonnes') || t.unitOfMeasure?.includes('MT') ? (Number(t.quantity) || 0) : ((Number(t.quantity) || 0) / 20)), 0);
   const totalReportDamages = activeReportTrips.reduce((acc, t) => acc + (t.damages?.damagedUnits || t.damages?.burstBags || (t.wagonLogs || []).reduce((wAcc: number, w: any) => wAcc + (Number(w.damageQty || 0) + Number(w.burstBags || 0)), 0)), 0);
   const totalReportRevenue = activeReportTrips.reduce((acc, t) => {
     if (t.tripRevenue) return acc + Number(t.tripRevenue);
-    return acc;
+    const d = deals.find((dl) => dl.id === t.dealId || dl.dealNumber === t.dealNumber);
+    const rate = Number(d?.tariffRatePerTon) || 12500;
+    return acc + ((Number(t.quantity) || 920) * rate);
   }, 0);
 
   return (
@@ -1615,6 +1701,178 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
                   ✓ Create Deal ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── COMMERCIAL COSTING & TARIFF MODAL (HEAD OF FINANCE / TREASURER) ─── */}
+      {costingModalDeal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-teal-700 uppercase tracking-wider">HEAD OF FINANCE / TREASURY DESK</span>
+                <h3 className="text-lg font-black text-slate-900">Commercial Tariff & Contract Costing</h3>
+                <p className="text-xs text-slate-500 font-semibold">{costingModalDeal.company || costingModalDeal.companyName} • {costingModalDeal.dealNumber || costingModalDeal.id}</p>
+              </div>
+              <button onClick={() => setCostingModalDeal(null)} className="text-slate-400 font-bold hover:text-slate-900">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCosting} className="space-y-4 text-xs font-semibold">
+              {/* Deal Contract Type */}
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Structure *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCostingForm({ ...costingForm, dealType: 'MONTHLY_CONTRACT', totalPlannedTrips: 10 })}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      costingForm.dealType === 'MONTHLY_CONTRACT'
+                        ? 'bg-teal-50 border-teal-500 text-teal-900 font-black'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    📅 Monthly Master Contract<br/>
+                    <span className="text-[9px] font-normal text-slate-500">Multi-Trip Consignment Spreading</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCostingForm({ ...costingForm, dealType: 'SINGLE_TRIP', totalPlannedTrips: 1 })}
+                    className={`p-2.5 rounded-xl border text-center transition-all ${
+                      costingForm.dealType === 'SINGLE_TRIP'
+                        ? 'bg-teal-50 border-teal-500 text-teal-900 font-black'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    🚂 Single Corridor Voyage<br/>
+                    <span className="text-[9px] font-normal text-slate-500">1 Discrete Train Run</span>
+                  </button>
+                </div>
+              </div>
+
+              {costingForm.dealType === 'MONTHLY_CONTRACT' && (
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Total Trips in Schedule</label>
+                    <input
+                      type="number"
+                      value={costingForm.totalPlannedTrips}
+                      onChange={(e) => {
+                        const trips = Number(e.target.value) || 1;
+                        const totalQty = Number(costingModalDeal.quantity) || 9200;
+                        setCostingForm({
+                          ...costingForm,
+                          totalPlannedTrips: trips,
+                          trancheTonnage: Math.round(totalQty / trips),
+                        });
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tranche Tonnage / Trip (MT)</label>
+                    <input
+                      type="number"
+                      value={costingForm.trancheTonnage}
+                      onChange={(e) => setCostingForm({ ...costingForm, trancheTonnage: Number(e.target.value) || 920 })}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-emerald-800"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Commercial Pricing */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Freight Tariff Rate (₦/MT or Unit) *</label>
+                  <input
+                    type="number"
+                    value={costingForm.tariffRatePerTon}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value) || 0;
+                      const totalQty = Number(costingModalDeal.quantity) || 9200;
+                      setCostingForm({
+                        ...costingForm,
+                        tariffRatePerTon: rate,
+                        totalContractValue: totalQty * rate,
+                      });
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Total Contract Value (₦)</label>
+                  <input
+                    type="number"
+                    value={costingForm.totalContractValue}
+                    onChange={(e) => setCostingForm({ ...costingForm, totalContractValue: Number(e.target.value) || 0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-emerald-800"
+                  />
+                </div>
+              </div>
+
+              {/* Operating Budget & Margin */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">OpEx Fuel/Toll Budget (₦/Trip)</label>
+                  <input
+                    type="number"
+                    value={costingForm.budgetExpensePerTrip}
+                    onChange={(e) => setCostingForm({ ...costingForm, budgetExpensePerTrip: Number(e.target.value) || 0 })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-rose-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Commercial Payment Terms</label>
+                  <select
+                    value={costingForm.paymentTerms}
+                    onChange={(e) => setCostingForm({ ...costingForm, paymentTerms: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  >
+                    <option value="PER_TRIP_DRAWDOWN">Per-Trip Billed Drawdown</option>
+                    <option value="50_MOBILIZATION_50_DELIVERY">50% Advance, 50% on Delivery</option>
+                    <option value="100_UPFRONT">100% Upfront Freight Remittance</option>
+                    <option value="NET_30_CREDIT">30 Days Net Corporate Credit</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Estimated Profitability Card */}
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-xs">
+                <div className="flex justify-between items-center text-emerald-950 font-bold mb-1">
+                  <span>Target Net Margin:</span>
+                  <span className="font-mono font-black text-emerald-700 text-sm">
+                    ₦{Math.max(0, costingForm.totalContractValue - (costingForm.budgetExpensePerTrip * costingForm.totalPlannedTrips)).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] text-emerald-700 font-mono">
+                  <span>Gross Tariff: ₦{costingForm.totalContractValue.toLocaleString()}</span>
+                  <span>Total Planned OpEx: ₦{(costingForm.budgetExpensePerTrip * costingForm.totalPlannedTrips).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCostingModalDeal(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                >
+                  ✓ Lock Commercial Tariff & Terms
                 </button>
               </div>
             </form>
@@ -2218,6 +2476,35 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
 
+            {/* DATE CATEGORY FILTER TABS (DE-CONGESTION ENGINE) */}
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3 no-print">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter By Operational Date:</span>
+                {[
+                  { id: 'ALL', label: 'All Dates' },
+                  { id: 'TODAY', label: '📅 Today (07 Sep)' },
+                  { id: 'YESTERDAY', label: '📅 Yesterday (06 Sep)' },
+                  { id: 'THIS_WEEK', label: '📅 This Week' },
+                  { id: 'THIS_MONTH', label: '📅 September 2026' },
+                ].map((df) => (
+                  <button
+                    key={df.id}
+                    onClick={() => setReportDateFilter(df.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      reportDateFilter === df.id
+                        ? 'bg-[#62BC37] text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {df.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs font-mono font-bold text-slate-500 pr-2">
+                Audited: <b className="text-[#62BC37]">{activeReportTrips.length} Corridor Trip(s)</b>
+              </span>
+            </div>
+
             {/* TOP ANALYTICS HIGHLIGHT CARDS FOR SELECTED HISTORICAL MONTH */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
@@ -2479,66 +2766,256 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                     Commercial Freight Deals Directory
                   </h3>
+                  <p className="text-xs text-slate-500">Manage B2B industrial contracts, monthly consignment schedules, and finance tariffs.</p>
                 </div>
 
-                <button
-                  onClick={() => setCreateDealModal(true)}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-xl shadow-md transition-all flex items-center gap-2"
-                >
-                  <span>+ Create New Commercial Deal</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCreateDealModal(true)}
+                    className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                  >
+                    <span>+ Create New Commercial Deal</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* DATE & STRUCTURE FILTER PILLS */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter Contracts:</span>
+                  {[
+                    { id: 'ALL', label: `All Deals (${deals.length})` },
+                    { id: 'MONTHLY', label: '📅 Monthly Contracts' },
+                    { id: 'SINGLE', label: '🚂 Single Voyages' },
+                    { id: 'TODAY', label: '📅 Today (07 Sep)' },
+                    { id: 'THIS_WEEK', label: '📅 This Week' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setDealsDateFilter(f.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        dealsDateFilter === f.id
+                          ? 'bg-[#62BC37] text-white shadow-xs'
+                          : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-500 pr-2">
+                  Showing: <b className="text-slate-900">{
+                    deals.filter((d) => {
+                      if (dealsDateFilter === 'MONTHLY') return d.dealType === 'MONTHLY_CONTRACT';
+                      if (dealsDateFilter === 'SINGLE') return d.dealType !== 'MONTHLY_CONTRACT';
+                      if (dealsDateFilter === 'TODAY') return StateEngine.getDateCategory(d.createdAt) === 'TODAY';
+                      if (dealsDateFilter === 'THIS_WEEK') {
+                        const c = StateEngine.getDateCategory(d.createdAt);
+                        return c === 'TODAY' || c === 'YESTERDAY' || c === 'THIS_WEEK';
+                      }
+                      return true;
+                    }).length
+                  } Contract(s)</b>
+                </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {deals.filter((d) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED').length === 0 ? (
-                  <div className="col-span-2 p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-medium text-xs">
-                    No active deals awaiting trip creation. All commercial deals have been launched into operational trips.
-                  </div>
-                ) : (
-                  deals.filter((d) => d.status !== 'TRIP_CREATED' && d.status !== 'COMPLETED').map((d) => {
+                {(() => {
+                  const filteredDeals = deals.filter((d) => {
+                    if (dealsDateFilter === 'MONTHLY') return d.dealType === 'MONTHLY_CONTRACT';
+                    if (dealsDateFilter === 'SINGLE') return d.dealType !== 'MONTHLY_CONTRACT';
+                    if (dealsDateFilter === 'TODAY') return StateEngine.getDateCategory(d.createdAt) === 'TODAY';
+                    if (dealsDateFilter === 'THIS_WEEK') {
+                      const c = StateEngine.getDateCategory(d.createdAt);
+                      return c === 'TODAY' || c === 'YESTERDAY' || c === 'THIS_WEEK';
+                    }
+                    return true;
+                  });
+
+                  if (filteredDeals.length === 0) {
+                    return (
+                      <div className="col-span-2 p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-medium text-xs">
+                        No commercial deals matching this date or contract filter.
+                      </div>
+                    );
+                  }
+
+                  return filteredDeals.map((d) => {
+                    const isMonthly = d.dealType === 'MONTHLY_CONTRACT';
                     const qty = Number(d.quantity) || 1610;
                     const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') || d.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                    const wagon = d.wagonType || (d.cargoType?.includes('Gypsum') ? 'Gondola Wagon' : 'Covered Hopper Wagon');
-
                     const isNarrowGauge = ['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD'].includes(d.loadingStation);
 
+                    const totalTrips = Number(d.totalPlannedTrips) || 10;
+                    const dispatched = Number(d.dispatchedTripsCount) || (d.status === 'TRIP_CREATED' || d.status === 'COMPLETED' ? 1 : 0);
+                    const trancheT = Number(d.trancheTonnage) || Math.round(qty / totalTrips);
+                    const hauledMT = Math.min(qty, dispatched * trancheT);
+                    const rate = Number(d.tariffRatePerTon) || 12500;
+                    const totalVal = Number(d.totalContractValue) || (qty * rate);
+
                     return (
-                      <div key={d.id} className="p-5 rounded-3xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
-                        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                      <div
+                        key={d.id}
+                        className={`p-5 rounded-3xl border space-y-3.5 text-xs transition-all ${
+                          isMonthly
+                            ? 'border-emerald-300 bg-gradient-to-b from-emerald-50/40 via-white to-slate-50 shadow-sm'
+                            : 'border-slate-200 bg-slate-50'
+                        }`}
+                      >
+                        {/* CARD HEADER */}
+                        <div className="flex justify-between items-start border-b border-slate-200 pb-2.5">
                           <div>
-                            <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
-                            <h4 className="font-black text-slate-900 text-sm">{d.company || d.companyName}</h4>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
+                              {isMonthly && (
+                                <span className="bg-emerald-700 text-white font-mono text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
+                                  📅 Monthly Master ({totalTrips} Trips)
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-black text-slate-900 text-sm mt-0.5">{d.company || d.companyName}</h4>
                           </div>
-                          <div className="flex items-center gap-2">
+
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
                             <span className={`font-mono font-bold text-[9px] px-2.5 py-0.5 rounded-full border ${
                               isNarrowGauge ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-blue-50 text-blue-800 border-blue-200'
                             }`}>
-                              {isNarrowGauge ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}
+                              {isNarrowGauge ? 'Narrow (1,067mm)' : 'Standard (1,435mm)'}
                             </span>
-                            <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-3 py-1 rounded-full text-[10px] uppercase">
-                              {d.status || 'APPROVED'}
+                            <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-2.5 py-0.5 rounded-full text-[9px] uppercase">
+                              {d.status || 'ACTIVE'}
                             </span>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200">
-                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span><span className="font-bold text-slate-900">{d.loadingStation || 'EWK'} ➔ {d.destination || 'MNY'}</span></div>
-                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span><span className="font-bold text-slate-900 truncate block">{d.cargoType}</span></div>
-                          <div><span className="text-[9px] uppercase font-bold text-slate-400 block">Volume ({unit})</span><span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} {unit}</span></div>
+                        {/* CORRIDOR & PAYLOAD INFO */}
+                        <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span>
+                            <span className="font-bold text-slate-900">{d.loadingStation || 'PAPA'} ➔ {d.destination || 'MNY'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span>
+                            <span className="font-bold text-slate-900 truncate block">{d.cargoType}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Volume</span>
+                            <span className="font-mono font-bold text-emerald-700">{qty.toLocaleString()} {unit}</span>
+                          </div>
                         </div>
 
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            onClick={() => handleApproveDealAndAllocateWagons(d)}
-                            className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm"
-                          >
-                            Launch Corridor Trip ➔
-                          </button>
+                        {/* FINANCE & TARIFF AUDIT STRIP */}
+                        <div className="bg-slate-100/90 p-2.5 rounded-xl border border-slate-200 text-[10px] font-mono grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+                          <div>
+                            <span className="text-slate-400 block text-[8px] uppercase">Freight Tariff</span>
+                            <span className="font-extrabold text-slate-900">₦{rate.toLocaleString()}/MT</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[8px] uppercase">Total Contract Value</span>
+                            <span className="font-extrabold text-emerald-700">₦{totalVal.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[8px] uppercase">Per-Trip OpEx</span>
+                            <span className="font-extrabold text-rose-700">₦{(Number(d.budgetExpensePerTrip) || 4500000).toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[8px] uppercase">Finance Status</span>
+                            <span className="font-extrabold text-teal-700">{d.financeStatus === 'FINANCE_APPROVED_COSTED' ? '✓ Cost Approved' : '⏳ Pending Rates'}</span>
+                          </div>
+                        </div>
+
+                        {/* MONTHLY CONSIGNMENT TRANCHE PROGRESS */}
+                        {isMonthly && (
+                          <div className="space-y-1.5 bg-white p-3 rounded-2xl border border-emerald-200">
+                            <div className="flex justify-between items-center text-[10px] font-mono">
+                              <span className="font-bold text-slate-700">
+                                Consignment Spreading: <b className="text-emerald-800">{dispatched} of {totalTrips} Trips Dispatched</b>
+                              </span>
+                              <span className="font-bold text-emerald-700">
+                                {hauledMT.toLocaleString()} / {qty.toLocaleString()} MT ({Math.round((dispatched / totalTrips) * 100)}%)
+                              </span>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                              <div
+                                className="bg-[#62BC37] h-full transition-all duration-500 rounded-full"
+                                style={{ width: `${Math.min(100, Math.round((dispatched / totalTrips) * 100))}%` }}
+                              />
+                            </div>
+
+                            {/* Mini Tranche Step Indicators */}
+                            <div className="flex items-center gap-1 pt-1 overflow-x-auto">
+                              {Array.from({ length: totalTrips }).map((_, idx) => {
+                                const stepNum = idx + 1;
+                                const isDispatched = stepNum <= dispatched;
+                                const isCurrent = stepNum === dispatched + 1;
+                                return (
+                                  <span
+                                    key={idx}
+                                    title={`Tranche ${stepNum}: ~${trancheT} MT`}
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold shrink-0 ${
+                                      isDispatched
+                                        ? 'bg-emerald-600 text-white'
+                                        : isCurrent
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }`}
+                                  >
+                                    T{stepNum} {isDispatched ? '✓' : ''}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ACTION BUTTONS (OPS DISPATCH & FINANCE COSTING) */}
+                        <div className="flex gap-2 pt-1 flex-wrap">
+                          {isMonthly ? (
+                            <>
+                              {dispatched < totalTrips ? (
+                                <button
+                                  onClick={() => handleDispatchTranche(d)}
+                                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                                >
+                                  <span>🚂 Dispatch Tranche #{dispatched + 1} of {totalTrips} ➔</span>
+                                </button>
+                              ) : (
+                                <div className="flex-1 bg-emerald-100 text-emerald-800 font-bold text-center py-2.5 rounded-xl text-xs">
+                                  ✓ All {totalTrips} Tranches Dispatched
+                                </div>
+                              )}
+                              <button
+                                onClick={() => openCostingModal(d)}
+                                className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0"
+                                title="Head of Finance Commercial Tariff & Costing"
+                              >
+                                <span>Commercial Costing 💰</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleApproveDealAndAllocateWagons(d)}
+                                className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1"
+                              >
+                                <span>Launch Corridor Trip ➔</span>
+                              </button>
+                              <button
+                                onClick={() => openCostingModal(d)}
+                                className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0"
+                                title="Head of Finance Commercial Tariff & Costing"
+                              >
+                                <span>Commercial Costing 💰</span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
-                  })
-                )}
+                  });
+                })()}
               </div>
             </div>
           </div>

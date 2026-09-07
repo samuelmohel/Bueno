@@ -117,6 +117,7 @@ export function LiveGpsMap({
   const initialLng = Number(trip?.curLng) || originStation.lng;
 
   // Real GPS Telemetry State
+  const [gpsDateFilter, setGpsDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY'>('ALL');
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: initialLat, lng: initialLng });
   const [speed, setSpeed] = useState<number>(Number(trip?.speed) || 0);
   const [accuracy, setAccuracy] = useState<number | null>(null);
@@ -131,6 +132,60 @@ export function LiveGpsMap({
   const [mapMode, setMapMode] = useState<'MAP' | 'RADAR'>('MAP');
   const [showCallModal, setShowCallModal] = useState<boolean>(false);
   const [smsSent, setSmsSent] = useState<boolean>(false);
+
+  // Synchronize telemetry and coordinates immediately whenever the active trip changes
+  useEffect(() => {
+    if (!trip) return;
+    const oCode = (trip.origin || 'EWK').toUpperCase();
+    const dCode = (trip.destination || 'MNY').toUpperCase();
+    const oSt = STATION_COORDS[oCode] || STATION_COORDS.EWK;
+    const dSt = STATION_COORDS[dCode] || STATION_COORDS.MNY;
+
+    const isArrived = trip.status === 'ARRIVED' || trip.status === 'COMPLETED';
+    const isReturning = trip.status === 'RETURNING_EMPTY';
+
+    let lat: number;
+    let lng: number;
+    if (isArrived) {
+      lat = dSt.lat;
+      lng = dSt.lng;
+    } else if (trip.curLat && trip.curLng) {
+      lat = Number(trip.curLat);
+      lng = Number(trip.curLng);
+    } else {
+      lat = oSt.lat;
+      lng = oSt.lng;
+    }
+
+    const dist = isArrived ? 0 : calculateDistanceKm(lat, lng, dSt.lat, dSt.lng);
+    const brg = calculateBearing(lat, lng, dSt.lat, dSt.lng);
+    const totalDist = calculateDistanceKm(oSt.lat, oSt.lng, dSt.lat, dSt.lng) || 120;
+    
+    let pct: number;
+    if (isArrived) {
+      pct = 100;
+    } else if (trip.progressPercent !== undefined && Number(trip.progressPercent) > 0) {
+      pct = Number(trip.progressPercent);
+    } else {
+      pct = Math.min(99, Math.max(5, Math.round(((totalDist - dist) / totalDist) * 100)));
+    }
+
+    setCoords({ lat, lng });
+    setSpeed(isArrived ? 0 : (Number(trip.speed) || (trip.status === 'IN_TRANSIT' ? 68 : 0)));
+    setDistanceKm(dist);
+    setBearing(brg);
+    setProgress(pct);
+    setLastPing(trip.lastGpsPing || 'Just now');
+    setSignal(
+      isArrived
+        ? `Arrived at ${dSt.name}`
+        : isReturning
+        ? 'Repositioning Empty Locomotive'
+        : trip.status === 'IN_TRANSIT'
+        ? 'Corridor Transit Live GPS'
+        : `At Origin Siding (${oSt.code})`
+    );
+  }, [trip?.id, trip?.origin, trip?.destination, trip?.status, trip?.curLat, trip?.curLng]);
 
   const watchIdRef = useRef<number | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -573,30 +628,85 @@ export function LiveGpsMap({
         </div>
       </div>
 
-      {/* ─── DYNAMIC MULTI-TRIP SELECTOR BAR ─── */}
-      <div className="bg-slate-800 p-3.5 px-5 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
-            <span>🎯</span> Track Trip:
-          </span>
-          <select
-            value={trip?.id || trip?.tripId || ''}
-            onChange={(e) => handleTripChange(e.target.value)}
-            className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-[#62BC37] focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
-          >
-            {allTrips.length === 0 && (
-              <option value="">No Active Corridor Dispatches</option>
-            )}
-            {allTrips.map((t: any) => {
-              const isRet = t.status === 'RETURNING_EMPTY' || t.isReturnLeg;
-              return (
-                <option key={t.id} value={t.id}>
-                  {isRet ? '🔄 [EMPTY RETURN] ' : '🚂 '}
-                  {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
-                </option>
-              );
-            })}
-          </select>
+      {/* ─── DYNAMIC MULTI-TRIP SELECTOR BAR WITH DATE FILTERING ─── */}
+      <div className="bg-slate-800 p-3.5 px-5 border-b border-slate-700 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Quick Date Filters */}
+          <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+            {(['ALL', 'TODAY', 'YESTERDAY'] as const).map((df) => (
+              <button
+                key={df}
+                onClick={() => setGpsDateFilter(df)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
+                  gpsDateFilter === df ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {df === 'ALL' ? 'All Dates' : df === 'TODAY' ? '📅 Today' : '📅 Yesterday'}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+            <span className="text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+              <span>🎯</span> Track Train:
+            </span>
+            <select
+              value={trip?.id || trip?.tripId || ''}
+              onChange={(e) => handleTripChange(e.target.value)}
+              className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-[#62BC37] focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
+            >
+              {allTrips.length === 0 && (
+                <option value="">No Active Corridor Dispatches</option>
+              )}
+              {(() => {
+                const filtered = allTrips.filter((t: any) => {
+                  if (gpsDateFilter === 'ALL') return true;
+                  const cat = StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt);
+                  return cat === gpsDateFilter;
+                });
+
+                const todayTrips = filtered.filter((t: any) => StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt) === 'TODAY');
+                const yesterdayTrips = filtered.filter((t: any) => StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt) === 'YESTERDAY');
+                const olderTrips = filtered.filter((t: any) => {
+                  const cat = StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt);
+                  return cat !== 'TODAY' && cat !== 'YESTERDAY';
+                });
+
+                return (
+                  <>
+                    {todayTrips.length > 0 && (
+                      <optgroup label="── Today's Dispatches (07 Sep 2026) ──">
+                        {todayTrips.map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            🚂 {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {yesterdayTrips.length > 0 && (
+                      <optgroup label="── Yesterday's Dispatches (06 Sep 2026) ──">
+                        {yesterdayTrips.map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            {t.status === 'ARRIVED' ? '📍 [ARRIVED] ' : '🚂 '}
+                            {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {olderTrips.length > 0 && (
+                      <optgroup label="── Corridor Archive Dispatches ──">
+                        {olderTrips.map((t: any) => (
+                          <option key={t.id} value={t.id}>
+                            🚂 {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
+                );
+              })()}
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -605,7 +715,7 @@ export function LiveGpsMap({
               ? 'bg-amber-950 text-amber-300 border-amber-800'
               : trip?.status === 'IN_TRANSIT'
               ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-              : trip?.status === 'ARRIVED' || progress >= 98 || distanceKm <= 2
+              : trip?.status === 'ARRIVED'
               ? 'bg-purple-950 text-purple-300 border-purple-800'
               : 'bg-blue-950 text-blue-300 border-blue-800'
           }`}>
@@ -618,7 +728,7 @@ export function LiveGpsMap({
       </div>
 
       {/* ─── DESTINATION ARRIVAL GEOFENCE ALERT ─── */}
-      {Boolean(trip && (trip.id || trip.tripId)) && (distanceKm <= 2 || progress >= 98 || trip?.status === 'ARRIVED') && (
+      {Boolean(trip && (trip.id || trip.tripId)) && (trip?.status === 'ARRIVED' || (distanceKm <= 0.5 && progress >= 99 && trip?.status !== 'LOADING' && trip?.status !== 'IN_TRANSIT')) && (
         <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-b-2 border-purple-500 text-white p-4 px-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center font-black text-xl animate-bounce shrink-0">

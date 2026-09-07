@@ -65,7 +65,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   ADMIN: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export', 'yard.manage'],
   CEO: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'user.provision', 'user.edit', 'report.export', 'yard.manage'],
   HEAD_OF_OPERATIONS: ['deal.create', 'deal.lock', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'invoice.create', 'expense.request', 'expense.approve', 'report.export', 'yard.manage'],
-  HEAD_OF_FINANCE: ['invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+  HEAD_OF_FINANCE: ['deal.create', 'deal.lock', 'invoice.create', 'expense.request', 'expense.approve', 'report.export'],
   CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.register', 'wagon.transfer', 'expense.request', 'report.export', 'yard.manage'],
   CUSTOMER: ['report.export'],
 };
@@ -4693,7 +4693,7 @@ function UserProvisioningSection({ users, onSaveUsers }: { users: any[]; onSaveU
       ADMIN: PERMISSIONS_CATALOG.map(p => p.code),
       HEAD_OF_OPERATIONS: ['deal.create', 'trip.create', 'trip.dispatch', 'trip.complete', 'wagon.transfer', 'expense.approve', 'report.export'],
       CEO: ['deal.create', 'trip.complete', 'invoice.create', 'expense.approve', 'report.export'],
-      HEAD_OF_FINANCE: ['invoice.create', 'expense.request', 'expense.approve', 'report.export'],
+      HEAD_OF_FINANCE: ['deal.create', 'deal.lock', 'invoice.create', 'expense.request', 'expense.approve', 'report.export'],
       CARGO_OFFICER: ['trip.create', 'trip.dispatch', 'trip.complete', 'wagon.transfer', 'expense.request'],
       CUSTOMER: ['report.export'],
     });

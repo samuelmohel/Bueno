@@ -24,6 +24,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
   const [selectedTripId, setSelectedTripId] = useState<string>('');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
+  // DATE FILTERING STATES FOR DE-CONGESTION
+  const [dealsQueueFilter, setDealsQueueFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY'>('ALL');
+  const [historyDateFilter, setHistoryDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('ALL');
+  const [unloadingDateFilter, setUnloadingDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY'>('ALL');
+
   // TRIP CREATION FROM DEALS STATE
   const [createTripModalDeal, setCreateTripModalDeal] = useState<any | null>(null);
   const [tripForm, setTripForm] = useState({
@@ -210,12 +215,19 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     if (!createTripModalDeal) return;
 
     const deal = createTripModalDeal;
+    const isMonthly = deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
+    const totalPlannedTrips = deal.totalPlannedTrips || 10;
+    const nextTrancheNum = (deal.dispatchedTripsCount || 0) + 1;
+    const trancheVolume = isMonthly
+      ? (deal.trancheTonnage || Math.round((Number(deal.quantity) || 9200) / totalPlannedTrips))
+      : (Number(deal.quantity) || 1600);
+
     const dealCargoType = deal?.cargoType || 'Bagged Cement (50kg)';
     const unitLabel = COMMODITY_CONFIG[dealCargoType]?.unit || 'Bags';
     const wagonTypeLabel = COMMODITY_CONFIG[dealCargoType]?.wagonType || 'Covered Hopper Wagon';
     const newTripId = 'TRP-' + Math.floor(1000 + Math.random() * 8999);
 
-    const newTrip = {
+    const newTrip: any = {
       id: newTripId,
       tripId: newTripId,
       locomotiveId: tripForm.locomotiveId || 'L2205',
@@ -223,16 +235,24 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       destination: deal.destination || 'MNY',
       company: deal.companyName || deal.company || 'Consignee Client',
       dealNumber: deal.dealNumber || deal.id,
+      dealType: isMonthly ? 'MONTHLY_CONTRACT' : 'SINGLE_SPOT',
+      trancheNumber: isMonthly ? nextTrancheNum : undefined,
+      totalPlannedTrips: isMonthly ? totalPlannedTrips : undefined,
+      trancheLabel: isMonthly ? `Tranche ${nextTrancheNum} of ${totalPlannedTrips} (${deal.companyName || deal.company})` : undefined,
       cargoType: dealCargoType,
       unitOfMeasure: unitLabel,
       wagonType: wagonTypeLabel,
-      quantity: Number(deal.quantity) || 1600,
+      quantity: trancheVolume,
+      tonnage: `${trancheVolume} MT`,
       cargoOfficerName: user?.fullName || 'Ade Bello',
       unloadingOfficerName: 'Musa Ibrahim',
       escortOfficerName: tripForm.escortName || 'Inspector Segun Alabi',
       escortBadgeId: tripForm.badgeId || 'NRC-ESC-2026-08',
       status: 'LOADING',
+      speed: 68,
+      progressPercent: 5,
       dispatchTime: new Date().toLocaleString('en-GB'),
+      createdAt: 'Today, 07 Sep 2026',
       wagonLogs: [],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
@@ -240,13 +260,25 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     StateEngine.saveTrips([newTrip, ...trips]);
     setTrips([newTrip, ...trips]);
 
-    // Update Deal to TRIP_CREATED so it leaves the deals list
+    // Update Deal: If monthly, increment dispatched count and keep in queue until all tranches launched
     const currentDeals = StateEngine.getDeals();
-    const updatedDeals = currentDeals.map((d: any) =>
-      d.id === deal.id || d.dealNumber === deal.id || d.id === deal.dealNumber
-        ? { ...d, status: 'TRIP_CREATED', tripId: newTrip.id }
-        : d
-    );
+    const updatedDeals = currentDeals.map((d: any) => {
+      if (d.id === deal.id || d.dealNumber === deal.id || d.id === deal.dealNumber) {
+        if (isMonthly) {
+          const newCount = (d.dispatchedTripsCount || 0) + 1;
+          const allFinished = newCount >= totalPlannedTrips;
+          return {
+            ...d,
+            dispatchedTripsCount: newCount,
+            status: allFinished ? 'TRIP_CREATED' : 'APPROVED',
+            tripId: newTrip.id,
+            lastDispatchedTripId: newTrip.id,
+          };
+        }
+        return { ...d, status: 'TRIP_CREATED', tripId: newTrip.id };
+      }
+      return d;
+    });
     StateEngine.saveDeals(updatedDeals);
     setDeals(updatedDeals);
 
@@ -255,8 +287,12 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     setActiveTab('loading');
 
     setCustomAlert({
-      title: 'Freight Trip Created & Waybill Issued',
-      message: 'Trip #' + newTrip.id + ' created for ' + newTrip.company + ' at ' + newTrip.origin + ' Siding!',
+      title: isMonthly
+        ? `Monthly Contract Tranche ${nextTrancheNum}/${totalPlannedTrips} Created`
+        : 'Freight Trip Created & Waybill Issued',
+      message: `Trip #${newTrip.id} created for ${newTrip.company} at ${newTrip.origin} Siding!${
+        isMonthly ? ` Tranche ${nextTrancheNum} of ${totalPlannedTrips} (${trancheVolume} MT) queued for loading.` : ''
+      }`,
     });
   };
 
@@ -788,11 +824,42 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               onChange={(e) => setSelectedTripId(e.target.value)}
               className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
             >
-              {trips.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
-                </option>
-              ))}
+              {(() => {
+                const todayTrips = trips.filter((t) => StateEngine.getDateCategory(t.createdAt || t.dispatchTime) === 'TODAY');
+                const yesterdayTrips = trips.filter((t) => StateEngine.getDateCategory(t.createdAt || t.dispatchTime) === 'YESTERDAY');
+                const earlierTrips = trips.filter((t) => !['TODAY', 'YESTERDAY'].includes(StateEngine.getDateCategory(t.createdAt || t.dispatchTime)));
+                return (
+                  <>
+                    {todayTrips.length > 0 && (
+                      <optgroup label="── Today (07 Sep 2026) ──">
+                        {todayTrips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.id} • {t.company || 'Industrial Consignee'} {t.trancheNumber ? `[Tranche ${t.trancheNumber}/${t.totalPlannedTrips || 10}]` : ''} ({t.origin} ➔ {t.destination})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {yesterdayTrips.length > 0 && (
+                      <optgroup label="── Yesterday (06 Sep 2026) ──">
+                        {yesterdayTrips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {earlierTrips.length > 0 && (
+                      <optgroup label="── Earlier Consignments ──">
+                        {earlierTrips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
+                );
+              })()}
             </select>
           </div>
         </div>
@@ -890,41 +957,106 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       COMMERCIAL DISPATCH DESK QUEUE
                     </span>
                     <h3 className="text-base font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                      Approved Deals Awaiting Freight Trip Creation ({deals.length} Commercial Deals)
+                      Approved Deals Awaiting Freight Trip Creation
                     </h3>
                   </div>
-                  <span className="text-xs bg-[#62BC37]/20 text-[#62BC37] font-mono font-bold px-3 py-1 rounded-full border border-[#62BC37]/40">
-                    ● Live Siding Pipeline
-                  </span>
+                  {/* DATE & CONTRACT TYPE FILTER PILLS */}
+                  <div className="flex flex-wrap items-center gap-1.5 bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
+                    {[
+                      { id: 'ALL', label: 'All Deals' },
+                      { id: 'MONTHLY', label: 'Monthly Contracts (Tranches)' },
+                      { id: 'TODAY', label: 'Today (07 Sep)' },
+                      { id: 'THIS_WEEK', label: 'This Week' },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setDealsQueueFilter(f.id as any)}
+                        className={`text-[10px] font-bold px-3 py-1 rounded-xl transition-all ${
+                          dealsQueueFilter === f.id
+                            ? 'bg-[#62BC37] text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {deals.map((deal, idx) => (
-                    <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
-                          <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
+                  {deals
+                    .filter((deal) => {
+                      if (deal.status === 'TRIP_CREATED' && deal.dealType !== 'MONTHLY_CONTRACT') return false;
+                      if (deal.dealType === 'MONTHLY_CONTRACT' && (deal.dispatchedTripsCount || 0) >= (deal.totalPlannedTrips || 10)) return false;
+                      if (dealsQueueFilter === 'MONTHLY') return deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
+                      if (dealsQueueFilter === 'TODAY') return StateEngine.getDateCategory(deal.createdAt) === 'TODAY';
+                      if (dealsQueueFilter === 'THIS_WEEK') {
+                        const cat = StateEngine.getDateCategory(deal.createdAt);
+                        return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
+                      }
+                      return true;
+                    })
+                    .map((deal, idx) => {
+                      const isMonthly = deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
+                      const nextTranche = (deal.dispatchedTripsCount || 0) + 1;
+                      const totalTrips = deal.totalPlannedTrips || 10;
+                      return (
+                        <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
+                              <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {isMonthly ? (
+                                <span className="text-[9px] font-mono font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/40">
+                                  MONTHLY CONTRACT
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                                  APPROVED
+                                </span>
+                              )}
+                              {isMonthly && (
+                                <span className="text-[9px] font-mono font-bold bg-[#62BC37]/20 text-[#62BC37] px-2 py-0.5 rounded">
+                                  Tranche {nextTranche} of {totalTrips}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {isMonthly && (
+                            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                              <div className="flex justify-between text-[10px] font-mono">
+                                <span className="text-slate-400">Tranche Progress</span>
+                                <span className="text-emerald-400 font-bold">
+                                  {deal.dispatchedTripsCount || 0}/{totalTrips} Trips ({((deal.dispatchedTripsCount || 0) * (deal.trancheTonnage || 920)).toLocaleString()}/{Number(deal.quantity || 9200).toLocaleString()} MT)
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className="bg-[#62BC37] h-1.5 rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, Math.round(((deal.dispatchedTripsCount || 0) / totalTrips) * 100))}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="text-[11px] text-slate-300 space-y-1 font-mono">
+                            <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
+                            <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{isMonthly ? `${deal.trancheTonnage || 920} MT / Trip (${deal.quantity || 9200} MT Total)` : `${deal.quantity} Units`}</span></p>
+                            <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} ➔ {deal.destination || 'MNY'}</span></p>
+                          </div>
+
+                          <button
+                            onClick={() => setCreateTripModalDeal(deal)}
+                            className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+                          >
+                            {isMonthly ? `⚡ Dispatch Tranche #${nextTranche} (of ${totalTrips}) ➔` : '⚡ Create & Launch Freight Trip'}
+                          </button>
                         </div>
-                        <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
-                          APPROVED
-                        </span>
-                      </div>
-
-                      <div className="text-[11px] text-slate-300 space-y-1 font-mono">
-                        <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
-                        <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{deal.quantity} Units</span></p>
-                        <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} ➔ {deal.destination || 'MNY'}</span></p>
-                      </div>
-
-                      <button
-                        onClick={() => setCreateTripModalDeal(deal)}
-                        className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-                      >
-                        ⚡ Create & Launch Freight Trip
-                      </button>
-                    </div>
-                  ))}
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -1059,7 +1191,41 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
         {/* ─── TAB 3: DESTINATION YARD UNLOADING ─── */}
         {activeTab === 'unloading' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+          <div className="space-y-6 font-sans">
+            {/* DATE FILTER PILLS FOR UNLOADING YARD */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Destination Inbound Corridor:</span>
+                <span className="text-xs font-black text-slate-900">
+                  {unloadingDateFilter === 'ALL'
+                    ? 'All Inbound Consignments'
+                    : unloadingDateFilter === 'TODAY'
+                    ? "Today's Inbound Trains (07 Sep 2026)"
+                    : "Yesterday's Discharged Trains (06 Sep 2026)"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                {[
+                  { id: 'ALL', label: 'All Dates' },
+                  { id: 'TODAY', label: "Today's Arrivals" },
+                  { id: 'YESTERDAY', label: 'Yesterday' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setUnloadingDateFilter(f.id as any)}
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
+                      unloadingDateFilter === f.id
+                        ? 'bg-[#62BC37] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Destination Discharge Audit</span>
@@ -1238,6 +1404,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               )}
             </div>
           </div>
+          </div>
         )}
 
         {/* ─── TAB: MONIYA CONTAINER TERMINAL MANAGEMENT (PAGE 1 SPEC 08) ─── */}
@@ -1347,32 +1514,168 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         )}
 
         {/* ─── TAB 5: SHIFT REPORT ─── */}
-        {activeTab === 'history' && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Terminal Shift Summary</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Officer Shift Tally Audit Ledger — Station: {user?.stationName || station}
-                </h3>
-              </div>
-              <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all">
-                Print Official Shift Tally (PDF)
-              </button>
-            </div>
+        {activeTab === 'history' && (() => {
+          const filteredTrips = trips.filter((t) => {
+            if (historyDateFilter === 'ALL') return true;
+            const cat = StateEngine.getDateCategory(t.createdAt || t.dispatchTime);
+            if (historyDateFilter === 'TODAY') return cat === 'TODAY';
+            if (historyDateFilter === 'YESTERDAY') return cat === 'YESTERDAY';
+            if (historyDateFilter === 'THIS_WEEK') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
+            if (historyDateFilter === 'THIS_MONTH') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK' || cat === 'THIS_MONTH';
+            return true;
+          });
 
-            <div className="space-y-4 font-mono text-xs">
-              {trips.map((t) => (
-                <div key={t.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between items-center font-sans">
-                    <span className="font-bold text-[#62BC37] text-sm">{t.id} • {t.company}</span>
-                    <span className="text-slate-500 font-mono text-[10px]">Dispatch: {t.dispatchTime}</span>
+          const totalHistoricalTonnage = filteredTrips.reduce((acc, t) => acc + (Number(t.quantity) || 0), 0);
+          const completedCount = filteredTrips.filter((t) => t.status === 'COMPLETED' || t.status === 'ARRIVED').length;
+          const inTransitCount = filteredTrips.filter((t) => t.status === 'IN_TRANSIT').length;
+
+          return (
+            <div className="space-y-6 font-sans">
+              {/* SUMMARY STATS HEADER */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 font-mono">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Consignments Logged</span>
+                  <span className="text-2xl font-black text-slate-900">{filteredTrips.length}</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">Filtered View</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] text-emerald-500 font-bold uppercase block">Net Volume Moved</span>
+                  <span className="text-2xl font-black text-emerald-700">{totalHistoricalTonnage.toLocaleString()} MT</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">Standard & Narrow Gauge</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] text-blue-500 font-bold uppercase block">Delivered & Closed</span>
+                  <span className="text-2xl font-black text-blue-700">{completedCount}</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">Discharge Tally Audited</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[10px] text-amber-500 font-bold uppercase block">Corridor En Route</span>
+                  <span className="text-2xl font-black text-amber-700">{inTransitCount}</span>
+                  <span className="text-[10px] text-slate-500 block font-sans">Live Satellite Tracking</span>
+                </div>
+              </div>
+
+              {/* AUDIT LEDGER CONTAINER */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Terminal Shift Summary</span>
+                    <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                      Officer Shift Tally Audit Ledger — Station: {user?.stationName || station}
+                    </h3>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* DATE CATEGORY FILTER PILLS */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                      {[
+                        { id: 'ALL', label: 'All Records' },
+                        { id: 'TODAY', label: 'Today (07 Sep)' },
+                        { id: 'YESTERDAY', label: 'Yesterday (06 Sep)' },
+                        { id: 'THIS_WEEK', label: 'This Week' },
+                        { id: 'THIS_MONTH', label: 'September 2026' },
+                      ].map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setHistoryDateFilter(f.id as any)}
+                          className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
+                            historyDateFilter === f.id
+                              ? 'bg-[#62BC37] text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-xs"
+                    >
+                      Print Shift Tally (PDF)
+                    </button>
                   </div>
                 </div>
-              ))}
+
+                {filteredTrips.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-2">
+                    <p className="text-sm font-bold">No freight records found for the selected date filter.</p>
+                    <p className="text-xs">Adjust the filter above to view historical shift dispatches.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 font-sans">
+                    {filteredTrips.map((t) => {
+                      const isCompleted = t.status === 'COMPLETED' || t.status === 'ARRIVED';
+                      const isInTransit = t.status === 'IN_TRANSIT';
+                      const isMonthlyTranche = Boolean(t.trancheNumber || t.dealType === 'MONTHLY_CONTRACT');
+                      const wagonCount = t.wagonLogs?.length || 23;
+                      const dateCat = StateEngine.getDateCategory(t.createdAt || t.dispatchTime);
+
+                      return (
+                        <div
+                          key={t.id}
+                          className="bg-slate-50 hover:bg-slate-100/80 p-4 rounded-2xl border border-slate-200 transition-all space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-black text-slate-900 text-sm">{t.id}</span>
+                              <span className="text-xs font-black text-[#0E4B88]">{t.company}</span>
+                              {isMonthlyTranche && (
+                                <span className="bg-indigo-100 text-indigo-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-indigo-200">
+                                  Tranche {t.trancheNumber || 1} of {t.totalPlannedTrips || 10}
+                                </span>
+                              )}
+                              <span className="bg-slate-200 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
+                                {dateCat === 'TODAY' ? 'TODAY (07 SEP)' : dateCat === 'YESTERDAY' ? 'YESTERDAY (06 SEP)' : 'SEPTEMBER 2026'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-mono font-black px-2.5 py-1 rounded-lg uppercase ${
+                                  isCompleted
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : isInTransit
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                ● {t.status}
+                              </span>
+                              <span className="text-slate-400 font-mono text-[10px]">{t.dispatchTime}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200 text-xs font-mono">
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Corridor Path</span>
+                              <span className="font-bold text-slate-800">{t.origin} ➔ {t.destination}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Cargo Consist</span>
+                              <span className="font-bold text-slate-800">{t.quantity || 920} MT ({wagonCount} Wagons)</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Locomotive</span>
+                              <span className="font-bold text-slate-800">{t.locomotiveId || 'L2205'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Discrepancy Audit</span>
+                              <span className={`font-bold ${t.damages?.damagedUnits > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                {t.damages?.damagedUnits > 0 ? `${t.damages.damagedUnits} Units Flagged` : '✓ 0 Discrepancies (100% Intact)'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ─── TAB: FIELD FUND REQUISITIONS ─── */}
         {activeTab === 'requisitions' && (
