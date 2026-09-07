@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
@@ -404,11 +404,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   // Active Selected Thread & Search
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const activeDealIdRef = useRef<string | null>(null);
+  activeDealIdRef.current = activeDealId;
   const [searchQuery, setSearchQuery] = useState('');
   const [replyInput, setReplyInput] = useState('');
 
-  // Dynamic Freight Deal Form
+  // Dynamic Freight Deal Form (Single Trip vs Monthly Master Contract)
   const [newDealForm, setNewDealForm] = useState({
+    dealType: 'SINGLE_TRIP' as 'SINGLE_TRIP' | 'MONTHLY_CONTRACT',
     companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
     loadingStation: 'PAPA',
     destination: 'MNY',
@@ -416,6 +419,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     quantity: '2000',
     targetDate: '',
     notes: '',
+    totalPlannedTrips: 10,
+    trancheTonnage: 200,
+    cadence: 'Every 3 Days',
+    contractMonth: '2026-09',
   });
 
   // Deals Date Filter & Commercial Costing State (Finance / Treasurer)
@@ -670,9 +677,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       return finalThreads;
     });
 
-    if (finalThreads.length > 0 && (!activeDealId || !finalThreads.some((t) => t.id === activeDealId))) {
-      setActiveDealId(finalThreads[0].id);
-    }
+    setActiveDealId((prevId) => {
+      const currentSelected = prevId || activeDealIdRef.current;
+      if (currentSelected && finalThreads.some((t) => t.id === currentSelected)) {
+        return currentSelected;
+      }
+      return finalThreads[0]?.id || null;
+    });
   };
 
   const [currentUser, setCurrentUser] = useState<any>(user);
@@ -896,16 +907,31 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     const dealId = `DEAL-${Math.floor(10000 + Math.random() * 89999)}`;
     const conf = COMMODITY_CONFIG[newDealForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' };
+    const isMonthly = newDealForm.dealType === 'MONTHLY_CONTRACT';
+    const totalTrips = isMonthly ? (Number(newDealForm.totalPlannedTrips) || 10) : 1;
+    const totalQty = Number(newDealForm.quantity) || 2000;
+    const trancheTonnage = isMonthly
+      ? (Number(newDealForm.trancheTonnage) || Math.round(totalQty / totalTrips))
+      : totalQty;
 
     const newDealObj = {
       id: dealId,
       dealNumber: dealId,
+      dealType: newDealForm.dealType,
+      isMonthlyContract: isMonthly,
       company: newDealForm.companyName,
       companyName: newDealForm.companyName,
       loadingStation: newDealForm.loadingStation,
       destination: newDealForm.destination,
       cargoType: newDealForm.cargoType,
-      quantity: Number(newDealForm.quantity) || 2000,
+      quantity: totalQty,
+      totalPlannedTrips: totalTrips,
+      dispatchedTripsCount: 0,
+      completedTripsCount: 0,
+      remainingTonnage: totalQty,
+      trancheTonnage: trancheTonnage,
+      cadence: isMonthly ? newDealForm.cadence : 'Single Voyage Run',
+      contractMonth: isMonthly ? newDealForm.contractMonth : undefined,
       unitOfMeasure: conf.unit,
       wagonType: conf.wagonType,
       status: 'APPROVED',
@@ -922,8 +948,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setCreateDealModal(false);
 
     setCustomAlert({
-      title: 'Commercial Freight Deal Registered',
-      message: `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
+      title: isMonthly
+        ? `Monthly Master Contract Registered (${totalTrips} Planned Trips)`
+        : 'Single-Trip Freight Deal Registered',
+      message: isMonthly
+        ? `Monthly Master Contract ${dealId} for ${newDealObj.company} created! Total: ${totalQty.toLocaleString()} ${conf.unit} spread across ${totalTrips} train trips (~${trancheTonnage.toLocaleString()} ${conf.unit}/trip). Tranche 1 is ready for siding dispatch!`
+        : `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
     });
   };
 
@@ -1354,8 +1384,69 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if (t.tripRevenue) return acc + Number(t.tripRevenue);
     const d = deals.find((dl) => dl.id === t.dealId || dl.dealNumber === t.dealNumber);
     const rate = Number(d?.tariffRatePerTon) || 12500;
-    return acc + ((Number(t.quantity) || 920) * rate);
+    return acc + ((Number(t.quantity) || 0) * rate);
   }, 0);
+
+  const stationBenchmarks = useMemo(() => {
+    if (activeReportTrips.length === 0) return [];
+    const map: Record<string, { station: string; actual: number; tonnage: number }> = {};
+    activeReportTrips.forEach((t: any) => {
+      const st = t.loadingStation || t.origin || 'Kajola / Moniya';
+      const stName = st === 'EWK' ? 'Ewekoro Siding (EWK)' :
+                     st === 'MNY' || st === 'MONI' ? 'Moniya Yard (MNY)' :
+                     st === 'PAPA' ? 'Papalanto Terminal (PAPA)' :
+                     st === 'APT' ? 'Apapa Port (APT)' :
+                     st === 'ENL' ? 'ENL APMT Terminal (ENL)' : st;
+      const qty = Number(t.quantity) || 0;
+      const mt = t.unitOfMeasure === 'Bags' ? qty / 20 : qty;
+      if (!map[stName]) {
+        map[stName] = { station: stName, actual: 0, tonnage: 0 };
+      }
+      map[stName].actual += 1;
+      map[stName].tonnage += mt;
+    });
+    return Object.values(map).map((item) => {
+      const target = Math.max(item.actual, 10);
+      const eff = `${Math.min(100, Math.round((item.actual / target) * 100))}%`;
+      return {
+        station: item.station,
+        target,
+        actual: item.actual,
+        tonnage: `${Math.round(item.tonnage).toLocaleString()} MT`,
+        efficiency: eff,
+        turnaround: '2.9 hrs/train',
+      };
+    });
+  }, [activeReportTrips]);
+
+  const officerKpis = useMemo(() => {
+    if (activeReportTrips.length === 0) return [];
+    const map: Record<string, { name: string; station: string; trips: number; defects: number; totalQty: number }> = {};
+    activeReportTrips.forEach((t: any) => {
+      const officer = t.cargoOfficer || t.createdBy || t.driver || 'Field Operations Officer';
+      const station = t.loadingStation || 'Operations Hub';
+      const qty = Number(t.quantity) || 0;
+      const dmg = Number(t.damages?.damagedUnits || t.damages?.burstBags || 0);
+      if (!map[officer]) {
+        map[officer] = { name: officer, station: `${station} Terminal`, trips: 0, defects: 0, totalQty: 0 };
+      }
+      map[officer].trips += 1;
+      map[officer].defects += dmg;
+      map[officer].totalQty += qty;
+    });
+    return Object.values(map).map((item) => {
+      const acc = item.totalQty > 0 ? (100 - (item.defects / item.totalQty * 100)).toFixed(1) + '%' : '100.0%';
+      return {
+        name: item.name,
+        station: item.station,
+        trips: item.trips,
+        accuracy: acc,
+        speed: '72 km/h',
+        rating: '5.0 ★',
+        tier: item.trips >= 5 ? 'EXEMPLARY' : 'ACTIVE DISPATCH',
+      };
+    });
+  }, [activeReportTrips]);
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
@@ -1514,7 +1605,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       {/* ─── CREATE NEW DEAL MODAL ─── */}
       {createDealModal && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
                 <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">COMMERCIAL CONTRACT REGISTRATION</span>
@@ -1526,6 +1617,122 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </div>
 
             <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
+              {/* Contract Operational Scope / Type Selector */}
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Operational Scope *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewDealForm({ ...newDealForm, dealType: 'SINGLE_TRIP', totalPlannedTrips: 1 })}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      newDealForm.dealType === 'SINGLE_TRIP'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-black shadow-sm ring-1 ring-emerald-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">🚆</span>
+                      <span className="text-xs font-bold">Single-Trip Spot Run</span>
+                    </div>
+                    <p className="text-[10px] font-normal text-slate-500 mt-1">1 Dedicated Train Voyage (e.g. ad-hoc single shipment)</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const qty = Number(newDealForm.quantity) || 2000;
+                      const trips = 10;
+                      setNewDealForm({
+                        ...newDealForm,
+                        dealType: 'MONTHLY_CONTRACT',
+                        totalPlannedTrips: trips,
+                        trancheTonnage: Math.round(qty / trips),
+                      });
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      newDealForm.dealType === 'MONTHLY_CONTRACT'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-black shadow-sm ring-1 ring-emerald-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base">📅</span>
+                      <span className="text-xs font-bold">Monthly Master Contract</span>
+                    </div>
+                    <p className="text-[10px] font-normal text-slate-500 mt-1">Multi-trip consignment spread across the month (e.g. HBM 10 Trips)</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Monthly Master Contract Dispatch Scheduling Controls */}
+              {newDealForm.dealType === 'MONTHLY_CONTRACT' && (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-emerald-900 tracking-wider">MONTHLY CONSIGNMENT DISPATCH SCHEDULE</span>
+                    <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">Multi-Tranche</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Planned Trips</label>
+                      <input
+                        type="number"
+                        min="2"
+                        max="60"
+                        value={newDealForm.totalPlannedTrips}
+                        onChange={(e) => {
+                          const trips = Math.max(1, Number(e.target.value) || 1);
+                          const qty = Number(newDealForm.quantity) || 2000;
+                          setNewDealForm({
+                            ...newDealForm,
+                            totalPlannedTrips: trips,
+                            trancheTonnage: Math.round(qty / trips),
+                          });
+                        }}
+                        className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Tranche Vol. ({currentCargoConfig.unit})</label>
+                      <input
+                        type="number"
+                        value={newDealForm.trancheTonnage}
+                        onChange={(e) => setNewDealForm({ ...newDealForm, trancheTonnage: Number(e.target.value) || 0 })}
+                        className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Contract Month</label>
+                      <input
+                        type="month"
+                        value={newDealForm.contractMonth}
+                        onChange={(e) => setNewDealForm({ ...newDealForm, contractMonth: e.target.value })}
+                        className="w-full bg-white border border-emerald-300 rounded-lg px-2 py-1.5 text-[11px] text-slate-900 font-bold font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Dispatch Cadence</label>
+                    <select
+                      value={newDealForm.cadence}
+                      onChange={(e) => setNewDealForm({ ...newDealForm, cadence: e.target.value })}
+                      className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold"
+                    >
+                      <option value="Every 3 Days">Every 3 Days (Standard 10-trip monthly rotation)</option>
+                      <option value="Twice Weekly">Twice Weekly (8 trips / month)</option>
+                      <option value="Weekly">Weekly (4 trips / month)</option>
+                      <option value="Daily Shunt">Daily Shunt (Dedicated corridor turnarounds)</option>
+                      <option value="On-Demand Drawdown">On-Demand Drawdown (Customer Call-Offs)</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-emerald-800 leading-snug">
+                    💡 <b>Operational Drawdown:</b> Total payload of <b>{Number(newDealForm.quantity || 0).toLocaleString()} {currentCargoConfig.unit}</b> will be drawn down across <b>{newDealForm.totalPlannedTrips} separate train trips</b> (~{Number(newDealForm.trancheTonnage || 0).toLocaleString()} {currentCargoConfig.unit}/trip).
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Industrial Consignee Client *</label>
                 <select
@@ -1668,7 +1875,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     required
                     type="number"
                     value={newDealForm.quantity}
-                    onChange={(e) => setNewDealForm({ ...newDealForm, quantity: e.target.value })}
+                    onChange={(e) => {
+                      const qtyVal = e.target.value;
+                      const num = Number(qtyVal) || 0;
+                      const trips = newDealForm.dealType === 'MONTHLY_CONTRACT' ? (Number(newDealForm.totalPlannedTrips) || 10) : 1;
+                      setNewDealForm({
+                        ...newDealForm,
+                        quantity: qtyVal,
+                        trancheTonnage: Math.round(num / trips),
+                      });
+                    }}
                     placeholder={`Quantity in ${currentCargoConfig.unit}...`}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
                   />
@@ -2546,30 +2762,33 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { station: 'Ewekoro Siding (EWK)', target: 24, actual: 21, tonnage: '31,500 MT', efficiency: '92.4%', turnaround: '3.2 hrs/train' },
-                  { station: 'Moniya Yard (MNY)', target: 30, actual: 28, tonnage: '42,000 MT', efficiency: '94.8%', turnaround: '2.8 hrs/train' },
-                  { station: 'Apapa Port (APT)', target: 18, actual: 16, tonnage: '24,000 MT', efficiency: '88.9%', turnaround: '4.1 hrs/train' },
-                ].map((b, idx) => (
-                  <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-black text-slate-900">{b.station}</span>
-                      <span className="text-xs font-black text-[#62BC37] font-mono">{b.efficiency} Target</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase">Target vs Actual</span>
-                        <span className="font-extrabold text-slate-800">{b.actual} / {b.target} Trains</span>
+              {stationBenchmarks.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-mono text-xs">
+                  <p className="font-bold text-slate-700">No Terminal Train Movements In Selected Window</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Terminal train targets and live completion metrics will auto-aggregate here as corridor trips are dispatched.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {stationBenchmarks.map((b, idx) => (
+                    <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-black text-slate-900">{b.station}</span>
+                        <span className="text-xs font-black text-[#62BC37] font-mono">{b.efficiency} Target</span>
                       </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase">Tonnage Completed</span>
-                        <span className="font-extrabold text-emerald-700">{b.tonnage}</span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                        <div>
+                          <span className="text-slate-400 block text-[9px] uppercase">Target vs Actual</span>
+                          <span className="font-extrabold text-slate-800">{b.actual} / {b.target} Trains</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px] uppercase">Tonnage Completed</span>
+                          <span className="font-extrabold text-emerald-700">{b.tonnage}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* SECTION 2: LIVE OFFICER KPI EVALUATION ENGINE */}
@@ -2597,25 +2816,29 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {[
-                      { name: 'Segun Alabi (Inspector)', station: 'EWK Terminal', trips: 18, accuracy: '99.4%', speed: '74 km/h', rating: '5.0 ★', tier: 'EXEMPLARY' },
-                      { name: 'Ade Bello (Cargo Officer)', station: 'MNY Terminal', trips: 15, accuracy: '98.8%', speed: '68 km/h', rating: '4.9 ★', tier: 'TOP PERFORMER' },
-                      { name: 'Inspector Ibrahim (Escort)', station: 'APT Terminal', trips: 12, accuracy: '97.5%', speed: '70 km/h', rating: '4.8 ★', tier: 'COMMENDED' },
-                    ].map((kpi, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-slate-900 font-sans">{kpi.name}</td>
-                        <td className="p-3 text-slate-600">{kpi.station}</td>
-                        <td className="p-3 font-extrabold text-slate-800">{kpi.trips} Trips</td>
-                        <td className="p-3 font-bold text-emerald-700">{kpi.accuracy}</td>
-                        <td className="p-3 text-slate-700">{kpi.speed}</td>
-                        <td className="p-3 font-black text-amber-600">{kpi.rating}</td>
-                        <td className="p-3 text-right">
-                          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
-                            {kpi.tier}
-                          </span>
+                    {officerKpis.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-8 text-slate-400 font-mono text-xs">
+                          No field officer escort records logged for this filter window. Dispatched trips will populate live officer KPI ratings here.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      officerKpis.map((kpi, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900 font-sans">{kpi.name}</td>
+                          <td className="p-3 text-slate-600">{kpi.station}</td>
+                          <td className="p-3 font-extrabold text-slate-800">{kpi.trips} Trips</td>
+                          <td className="p-3 font-bold text-emerald-700">{kpi.accuracy}</td>
+                          <td className="p-3 text-slate-700">{kpi.speed}</td>
+                          <td className="p-3 font-black text-amber-600">{kpi.rating}</td>
+                          <td className="p-3 text-right">
+                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
+                              {kpi.tier}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2647,44 +2870,52 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {activeReportTrips.map((t, idx) => {
-                      const qty = Number(t.quantity) || 1600;
-                      const unit = t.unitOfMeasure || (t.cargoType?.includes('Gypsum') || t.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
-                      const damages = t.damages?.damagedUnits || t.damages?.burstBags || (t.wagonLogs || []).reduce((acc: number, w: any) => acc + (Number(w.damageQty || 0) + Number(w.burstBags || 0)), 0);
-                      const isCompleted = t.status === 'COMPLETED';
-                      const isInTransit = t.status === 'IN_TRANSIT';
-                      const isLoading = t.status === 'LOADING';
+                    {activeReportTrips.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8 text-slate-400 font-mono text-xs">
+                          No archived consignment audit records found for this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      activeReportTrips.map((t, idx) => {
+                        const qty = Number(t.quantity) || 0;
+                        const unit = t.unitOfMeasure || (t.cargoType?.includes('Gypsum') || t.cargoType?.includes('Limestone') ? 'Metric Tonnes (MT)' : 'Bags');
+                        const damages = t.damages?.damagedUnits || t.damages?.burstBags || (t.wagonLogs || []).reduce((acc: number, w: any) => acc + (Number(w.damageQty || 0) + Number(w.burstBags || 0)), 0);
+                        const isCompleted = t.status === 'COMPLETED';
+                        const isInTransit = t.status === 'IN_TRANSIT';
+                        const isLoading = t.status === 'LOADING';
 
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-amber-800">{t.id || t.tripId}</td>
-                          <td className="p-3 font-bold font-sans text-slate-900">{t.company}</td>
-                          <td className="p-3 font-sans font-bold text-slate-700">{t.cargoType || 'Bagged Cement'}</td>
-                          <td className="p-3 font-extrabold text-emerald-700">{qty.toLocaleString()} {unit}</td>
-                          <td className="p-3 text-slate-600">{t.dispatchTime || t.departedAt || 'Today'}</td>
-                          <td className="p-3 font-extrabold text-rose-600">{damages} Defect(s)</td>
-                          <td className="p-3">
-                            <span className={`text-[9px] font-bold px-2.5 py-0.5 rounded uppercase ${
-                              isCompleted ? 'bg-emerald-100 text-emerald-800' :
-                              isInTransit ? 'bg-blue-100 text-blue-800' :
-                              isLoading ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
-                            }`}>
-                              {isCompleted ? '✓ COMPLETED & AUDITED' :
-                               isInTransit ? '📡 IN TRANSIT (LIVE GPS)' :
-                               isLoading ? '⏳ LOADING AT STATION' : (t.status || 'ACTIVE')}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => setSelectedAuditTrip(t)}
-                              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto"
-                            >
-                              <span>📋 View Audit & PDF</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-amber-800">{t.id || t.tripId}</td>
+                            <td className="p-3 font-bold font-sans text-slate-900">{t.company}</td>
+                            <td className="p-3 font-sans font-bold text-slate-700">{t.cargoType || 'Bagged Cement'}</td>
+                            <td className="p-3 font-extrabold text-emerald-700">{qty.toLocaleString()} {unit}</td>
+                            <td className="p-3 text-slate-600">{t.dispatchTime || t.departedAt || 'Today'}</td>
+                            <td className="p-3 font-extrabold text-rose-600">{damages} Defect(s)</td>
+                            <td className="p-3">
+                              <span className={`text-[9px] font-bold px-2.5 py-0.5 rounded uppercase ${
+                                isCompleted ? 'bg-emerald-100 text-emerald-800' :
+                                isInTransit ? 'bg-blue-100 text-blue-800' :
+                                isLoading ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
+                              }`}>
+                                {isCompleted ? '✓ COMPLETED & AUDITED' :
+                                 isInTransit ? '📡 IN TRANSIT (LIVE GPS)' :
+                                 isLoading ? '⏳ LOADING AT STATION' : (t.status || 'ACTIVE')}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => setSelectedAuditTrip(t)}
+                                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto"
+                              >
+                                <span>📋 View Audit & PDF</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

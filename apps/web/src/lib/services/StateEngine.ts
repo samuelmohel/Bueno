@@ -19,85 +19,8 @@ export const OFFICIAL_PXG_CODES = [
   "PXG 09034"
 ];
 
-// ─── CANONICAL 2 SEED TRIPS (CLEAN, UNCLUTTERED PRODUCTION CACHE) ─────────────
-export const SEED_TRIPS: any[] = [
-  {
-    id: 'TRP-8841',
-    tripId: 'TRP-8841',
-    dealNumber: 'DEAL-88210',
-    dealId: 'dl_1',
-    trancheNumber: 1,
-    totalPlannedTrips: 10,
-    trancheLabel: 'Tranche 1 of 10 (September Monthly Contract)',
-    locomotiveId: 'L2205',
-    origin: 'PAPA',
-    destination: 'MONI',
-    curLat: 6.8974,
-    curLng: 3.2141,
-    speed: 68,
-    progressPercent: 5,
-    gauge: 'STANDARD_GAUGE',
-    company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    cargoType: 'Huaxin Portland Cement (50kg)',
-    unitOfMeasure: 'Metric Tonnes (MT)',
-    wagonType: 'PXG/CGs Box Wagon',
-    quantity: 920,
-    tonnage: '920 MT',
-    status: 'IN_TRANSIT',
-    cargoOfficerName: 'Ade Bello',
-    leadDriverName: 'Engr. Babatunde Adeleke (NRC-DRV-04)',
-    trainCrew: 'Sunday Okafor (Assoc Engineer), Audu Danladi (Brakeman)',
-    monitoringOfficer: 'Ade Bello (Bueno Operations Monitoring)',
-    dispatchTime: 'Today, 10:00 AM',
-    eta: 'Today, 03:00 PM (5 Hours transit)',
-    wagonLogs: OFFICIAL_PXG_CODES.slice(0, 23).map((wId, i) => ({
-      wagonId: wId,
-      loadedAt: '09:15 AM',
-      bagsCount: '800 Bags (40 MT)',
-      sealNumber: `SEAL-BN-${9001 + i}`,
-      condition: 'LOADED_INTACT',
-    })),
-    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-  },
-  {
-    id: 'TRP-9921',
-    tripId: 'TRP-9921',
-    dealNumber: 'DEAL-99412',
-    dealId: 'dl_2',
-    trancheNumber: 1,
-    totalPlannedTrips: 1,
-    trancheLabel: 'Single Voyage Run',
-    locomotiveId: 'L2208',
-    origin: 'APT',
-    destination: 'MONI',
-    curLat: 7.4610,
-    curLng: 3.9470,
-    speed: 0,
-    progressPercent: 100,
-    gauge: 'STANDARD_GAUGE',
-    company: 'APM Terminals Ltd (APMT)',
-    cargoType: 'CONTAINERS-IMPORT (40ft HC)',
-    unitOfMeasure: 'TEU Containers',
-    wagonType: 'CBX Flatbed Wagon',
-    quantity: 10,
-    tonnage: '350 MT',
-    status: 'ARRIVED',
-    cargoOfficerName: 'Ngozi Eze',
-    unloadingOfficerName: 'Musa Ibrahim',
-    leadDriverName: 'Engr. Yakubu Mohammed (NRC-DRV-09)',
-    trainCrew: 'Kassim Ahmed (Crew), Tunde Bakare (Brakeman)',
-    monitoringOfficer: 'Musa Ibrahim (Moniya Yard Command)',
-    dispatchTime: 'Yesterday, 02:00 PM',
-    eta: 'Arrived at Moniya Container Terminal',
-    wagonLogs: [
-      { wagonId: 'CBX 1101', loadedAt: '01:10 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4401', containerId: 'MSKU-948210-4', condition: 'DISCHARGED' },
-      { wagonId: 'CBX 1102', loadedAt: '01:20 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4402', containerId: 'APMT-310492-1', condition: 'DISCHARGED' },
-      { wagonId: 'CBX 1103', loadedAt: '01:30 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4403', containerId: 'MSCU-884019-3', condition: 'DISCHARGED' },
-      { wagonId: 'CBX 1104', loadedAt: '01:40 PM', bagsCount: '1 TEU (35 MT)', sealNumber: 'SEAL-APMT-4404', containerId: 'CMAU-102938-7', condition: 'DISCHARGED' },
-    ],
-    damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-  },
-];
+// ─── CANONICAL SEED TRIPS (EMPTY CLEAN SLATE) ─────────────────────────────────
+export const SEED_TRIPS: any[] = [];
 
 export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
   id,
@@ -111,90 +34,8 @@ export const SEED_WAGONS = OFFICIAL_PXG_CODES.map((id, index) => ({
   createdAt: '07 Aug 2026',
 }));
 
-export const SEED_DEALS = [
-  {
-    id: 'dl_1',
-    dealNumber: 'DEAL-88210',
-    dealType: 'MONTHLY_CONTRACT',
-    company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    loadingStation: 'PAPA',
-    destination: 'MONI',
-    gauge: 'STANDARD_GAUGE',
-    cargoType: 'Huaxin Portland Cement (50kg)',
-    unitOfMeasure: 'Metric Tonnes (MT)',
-    wagonType: 'PXG/CGs Box Wagon',
-    quantity: 9200, // 9,200 MT total contracted
-    contractMonth: '2026-09',
-    totalPlannedTrips: 10,
-    dispatchedTripsCount: 1, // TRP-8841 is Tranche 1
-    completedTripsCount: 0,
-    remainingTonnage: 8280,
-    trancheTonnage: 920,
-    wagonsPerTrip: 23,
-    tariffRatePerTon: 12500, // ₦12,500 / MT
-    totalContractValue: 115000000, // ₦115,000,000
-    budgetExpensePerTrip: 4500000, // ₦4,500,000
-    paymentTerms: 'PER_TRIP_DRAWDOWN',
-    financeStatus: 'FINANCE_APPROVED_COSTED',
-    status: 'ACTIVE',
-    createdAt: '01 Sep 2026',
-  },
-  {
-    id: 'dl_2',
-    dealNumber: 'DEAL-99412',
-    dealType: 'SINGLE_TRIP',
-    company: 'APM Terminals Ltd (APMT)',
-    companyName: 'APM Terminals Ltd (APMT)',
-    loadingStation: 'APT',
-    destination: 'MONI',
-    gauge: 'STANDARD_GAUGE',
-    cargoType: 'CONTAINERS-IMPORT (40ft HC)',
-    unitOfMeasure: 'TEU Containers',
-    wagonType: 'CBX Flatbed Wagon',
-    quantity: 10,
-    totalPlannedTrips: 1,
-    dispatchedTripsCount: 1,
-    completedTripsCount: 1,
-    remainingTonnage: 0,
-    trancheTonnage: 10,
-    wagonsPerTrip: 10,
-    tariffRatePerTon: 250000,
-    totalContractValue: 2500000,
-    budgetExpensePerTrip: 1200000,
-    paymentTerms: '100_UPFRONT',
-    financeStatus: 'FINANCE_APPROVED_COSTED',
-    status: 'COMPLETED',
-    createdAt: '02 Sep 2026',
-  },
-  {
-    id: 'dl_3',
-    dealNumber: 'DEAL-77104',
-    dealType: 'SINGLE_TRIP',
-    company: 'DASCO Industries Ltd',
-    companyName: 'DASCO Industries Ltd',
-    loadingStation: 'IDD',
-    destination: 'ILR',
-    gauge: 'NARROW_GAUGE',
-    cargoType: 'WIRE COILS & STEEL PIPES',
-    unitOfMeasure: 'Metric Tonnes (MT)',
-    wagonType: 'CBX Flatbed Wagon',
-    quantity: 950,
-    totalPlannedTrips: 1,
-    dispatchedTripsCount: 0,
-    completedTripsCount: 0,
-    remainingTonnage: 950,
-    trancheTonnage: 950,
-    wagonsPerTrip: 24,
-    tariffRatePerTon: 14000,
-    totalContractValue: 13300000,
-    budgetExpensePerTrip: 3800000,
-    paymentTerms: '50_MOBILIZATION_50_DELIVERY',
-    financeStatus: 'PENDING_FINANCE_RATES',
-    status: 'ACTIVE',
-    createdAt: '03 Sep 2026',
-  },
-];
+// ─── CANONICAL SEED DEALS (EMPTY CLEAN SLATE) ─────────────────────────────────
+export const SEED_DEALS: any[] = [];
 
 export const SEED_REQUESTS: any[] = [];
 
@@ -305,9 +146,11 @@ class StateEngineService {
       if (dealsRes && dealsRes.ok) {
         const dealsJson = await dealsRes.json().catch(() => null);
         if (dealsJson && dealsJson.status === 'success' && Array.isArray(dealsJson.data)) {
-          const localDeals = this.getDeals();
+          const LEGACY_PURGED_IDS = new Set(['dl_1', 'dl_2', 'dl_3', 'DEAL-0138', 'DEAL-0139', 'DEAL-0140', 'DEAL-88210', 'DEAL-99412', 'DEAL-77104', 'TRP-8841', 'TRP-9921']);
+          const cleanRemoteDeals = dealsJson.data.filter((d: any) => !LEGACY_PURGED_IDS.has(d.id) && !LEGACY_PURGED_IDS.has(d.dealNumber));
+          const localDeals = this.getDeals().filter((d: any) => !LEGACY_PURGED_IDS.has(d.id) && !LEGACY_PURGED_IDS.has(d.dealNumber));
           const dealMap = new Map<string, any>();
-          dealsJson.data.forEach((d: any) => dealMap.set(d.id, d));
+          cleanRemoteDeals.forEach((d: any) => dealMap.set(d.id, d));
           let hasLocalDealsPush = false;
           localDeals.forEach((localD: any) => {
             const remoteD = dealMap.get(localD.id);
@@ -327,7 +170,7 @@ class StateEngineService {
           if (JSON.stringify(mergedDeals) !== JSON.stringify(localDeals)) {
             this.writeStorage('bueno_deals', mergedDeals);
           }
-          if (hasLocalDealsPush || mergedDeals.length > dealsJson.data.length) {
+          if (hasLocalDealsPush || mergedDeals.length > cleanRemoteDeals.length) {
             this.postRemote('/api/deals.php', mergedDeals);
           }
         }
@@ -338,9 +181,11 @@ class StateEngineService {
       if (tripsRes && tripsRes.ok) {
         const tripsJson = await tripsRes.json().catch(() => null);
         if (tripsJson && tripsJson.status === 'success' && Array.isArray(tripsJson.data)) {
-          const localTrips = this.getTrips();
+          const LEGACY_PURGED_IDS = new Set(['dl_1', 'dl_2', 'dl_3', 'DEAL-0138', 'DEAL-0139', 'DEAL-0140', 'DEAL-88210', 'DEAL-99412', 'DEAL-77104', 'TRP-8841', 'TRP-9921']);
+          const cleanRemoteTrips = tripsJson.data.filter((t: any) => !LEGACY_PURGED_IDS.has(t.id) && !LEGACY_PURGED_IDS.has(t.tripId));
+          const localTrips = this.getTrips().filter((t: any) => !LEGACY_PURGED_IDS.has(t.id) && !LEGACY_PURGED_IDS.has(t.tripId));
           const tripMap = new Map<string, any>();
-          tripsJson.data.forEach((t: any) => tripMap.set(t.id, t));
+          cleanRemoteTrips.forEach((t: any) => tripMap.set(t.id, t));
 
           const statusRank: Record<string, number> = {
             'PLANNED': 1,
@@ -656,6 +501,10 @@ class StateEngineService {
 
   // ── PRODUCTION CLEAN SLATE / PURGE DEMO DATA ──────────────────────────────
   purgeDemoData(): void {
+    this.cleanProductionPurge();
+  }
+
+  cleanProductionPurge(): void {
     if (typeof window === 'undefined') return;
     try {
       this.writeStorage('bueno_trips', []);
@@ -663,15 +512,14 @@ class StateEngineService {
       this.writeStorage('bueno_invoices', []);
       this.writeStorage('bueno_requests', []);
       this.cleanseLafargeAndMigrateHbm();
-      this.writeStorage('bueno_deals', SEED_DEALS);
+      this.writeStorage('bueno_deals', []);
       this.writeStorage('bueno_users', SEED_USERS);
-      localStorage.setItem('bueno_prod_purge_v4', 'purged');
-      localStorage.setItem('bueno_prod_purge_v5', 'purged');
-      this.postRemote('/api/trips.php', []);
+      localStorage.setItem('bueno_prod_purge_v12', 'purged');
+      this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
       this.postRemote('/api/trip_costs.php', []);
       this.postRemote('/api/invoices.php', []);
       this.postRemote('/api/requests.php', []);
-      this.postRemote('/api/deals.php', SEED_DEALS);
+      this.postRemote('/api/deals.php', { action: 'PURGE_ALL' });
       this.postRemote('/api/users.php', SEED_USERS);
       this.notifyListeners();
     } catch {}
@@ -690,33 +538,30 @@ class StateEngineService {
         this.postRemote('/api/wagons.php', SEED_WAGONS);
       }
 
-      const isPurgedV9 = localStorage.getItem('bueno_prod_purge_v9');
-      if (isPurgedV9 !== 'purged') {
-        // Reset trips strictly to the 2 canonical production trips with coordinate telemetry
-        this.writeStorage('bueno_trips', SEED_TRIPS);
-        this.postRemote('/api/trips.php', SEED_TRIPS);
+      const isPurgedV12 = localStorage.getItem('bueno_prod_purge_v12');
+      if (isPurgedV12 !== 'purged') {
+        // Complete Clean Slate Purge: Zero initial mock deals or trips
+        this.writeStorage('bueno_trips', []);
+        this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
 
-        // Reseed deals with the enriched Monthly Contract (HBM) and single voyages
-        this.writeStorage('bueno_deals', SEED_DEALS);
-        this.postRemote('/api/deals.php', SEED_DEALS);
+        this.writeStorage('bueno_deals', []);
+        this.postRemote('/api/deals.php', { action: 'PURGE_ALL' });
 
-        // Keep costs only for the 2 canonical trips
-        const currentCosts = this.readStorage<any[]>('bueno_trip_costs', []);
-        const cleanCosts = currentCosts.filter((c: any) => c.tripId === 'TRP-8841' || c.tripId === 'TRP-9921');
-        this.writeStorage('bueno_trip_costs', cleanCosts);
+        this.writeStorage('bueno_trip_costs', []);
+        this.postRemote('/api/trip_costs.php', []);
 
-        // Keep invoices only for the 2 canonical trips
-        const currentInvs = this.readStorage<any[]>('bueno_invoices', []);
-        const cleanInvs = currentInvs.filter((inv: any) => inv.tripId === 'TRP-8841' || inv.tripId === 'TRP-9921');
-        this.writeStorage('bueno_invoices', cleanInvs);
+        this.writeStorage('bueno_invoices', []);
+        this.postRemote('/api/invoices.php', []);
 
-        // Clear out any old legacy mock terminal entries and containers
+        this.writeStorage('bueno_requests', []);
+        this.postRemote('/api/requests.php', []);
+
         localStorage.removeItem('bueno_terminal_information');
         this.writeStorage('bueno_containers', SEED_CONTAINERS);
         this.writeStorage('bueno_gate_logs', SEED_GATE_LOGS);
         this.writeStorage('bueno_client_requests', []);
 
-        localStorage.setItem('bueno_prod_purge_v9', 'purged');
+        localStorage.setItem('bueno_prod_purge_v12', 'purged');
         this.notifyListeners();
       }
     } catch {}

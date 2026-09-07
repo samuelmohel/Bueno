@@ -69,6 +69,18 @@ if ($method === 'POST') {
         exit();
     }
 
+    // Check if purge all request { action: 'PURGE_ALL' }
+    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
+        @unlink($storeFile);
+        if ($pdo) {
+            try {
+                $pdo->exec("DELETE FROM bueno_deals");
+            } catch (Exception $e) {}
+        }
+        echo json_encode(['status' => 'success', 'message' => 'All deals purged successfully']);
+        exit();
+    }
+
     // Check if single deletion request { action: 'DELETE', id: 'DEAL-001' }
     if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
         try {

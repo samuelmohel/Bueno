@@ -140,57 +140,7 @@ const SEED_WAGONS: any[] = OFFICIAL_PXG_CODES.map((code, index) => ({
 
 const SEED_TRIPS: any[] = [];
 
-const SEED_DEALS: any[] = [
-  {
-    id: 'DEAL-0138',
-    dealNumber: 'DEAL-0138',
-    company: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-    origin: 'EWK',
-    destination: 'MNY',
-    cargoType: 'Huaxin Portland Cement (50kg bags)',
-    quantity: 1200,
-    unitPrice: 14800,
-    totalPrice: 17760000,
-    assignedStation: 'EWK',
-    loadingStation: 'EWK',
-    date: '07 Aug 2026',
-    createdAt: '07 Aug 2026, 14:00',
-    createdBy: 'Admin (Folake Adeyemi)',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'DEAL-0139',
-    dealNumber: 'DEAL-0139',
-    company: 'APM Terminals Ltd (APMT)',
-    origin: 'APT',
-    destination: 'MNY',
-    cargoType: 'CONTAINERS-IMPORT (40ft HC)',
-    quantity: 850,
-    unitPrice: 18500,
-    totalPrice: 15725000,
-    assignedStation: 'APT',
-    loadingStation: 'APT',
-    date: '07 Aug 2026, 14:15',
-    createdBy: 'Admin (Folake Adeyemi)',
-    status: 'ACTIVE',
-  },
-  {
-    id: 'DEAL-0140',
-    dealNumber: 'DEAL-0140',
-    company: 'DASCO Industries Ltd',
-    origin: 'IDD',
-    destination: 'ILR',
-    cargoType: 'WIRE COILS & STEEL PIPES',
-    quantity: 950,
-    unitPrice: 16200,
-    totalPrice: 15390000,
-    assignedStation: 'IDD',
-    loadingStation: 'IDD',
-    date: '08 Aug 2026, 09:30',
-    createdBy: 'Admin (Folake Adeyemi)',
-    status: 'ACTIVE',
-  },
-];
+const SEED_DEALS: any[] = [];
 
 const DEFAULT_PROVISIONED_USERS = [
   { id: 'usr_1', fullName: 'Ade Bello', email: 'ade.bello@bueno.ng', phone: '08031112233', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-01', pin: '1111', status: 'ACTIVE' },

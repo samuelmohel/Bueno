@@ -80,7 +80,7 @@ export default function PerformanceReportsPage() {
 
       const matchedDeal = liveDeals.find((d: any) => d.id === t.dealId || d.dealNumber === t.dealNumber);
       const rate = Number(matchedDeal?.tariffRatePerTon) || 12500;
-      grossRev += (qty > 0 ? qty : 920) * rate;
+      grossRev += qty * rate;
     });
 
     // Real operational expenses from approved requisitions
@@ -94,18 +94,18 @@ export default function PerformanceReportsPage() {
 
     setData({
       financial: {
-        grossFreightRevenue: grossRev || (trains > 0 ? 11500000 * trains : 0),
-        totalFuelCost: fuelCost || 4500000,
-        netFreightMargin: netMargin > 0 ? netMargin : (trains > 0 ? 7000000 * trains : 0),
-        marginPercentage: marginPct !== '0.0%' ? marginPct : '60.9%',
-        pendingReceivables: Math.round((grossRev || 11500000) * 0.15),
+        grossFreightRevenue: grossRev,
+        totalFuelCost: fuelCost,
+        netFreightMargin: grossRev > 0 ? netMargin : 0,
+        marginPercentage: marginPct,
+        pendingReceivables: trains > 0 ? Math.round(grossRev * 0.15) : 0,
       },
       operational: {
         totalTrainsRun: trains,
         completedTrips: completed,
-        totalTonnageHauled: Math.round(totalTonnage) || (trains * 920),
-        totalLoadedBags: totalLoadedBags || (trains * 18400),
-        totalIntactDeliveredBags: Math.max(0, (totalLoadedBags || (trains * 18400)) - totalBurstBags),
+        totalTonnageHauled: Math.round(totalTonnage),
+        totalLoadedBags: totalLoadedBags,
+        totalIntactDeliveredBags: Math.max(0, totalLoadedBags - totalBurstBags),
         totalBurstBags,
         burstDefectRate: defectPct,
       },
@@ -279,24 +279,30 @@ export default function PerformanceReportsPage() {
               </div>
 
               <div className="flex overflow-x-auto gap-2">
-                {trips.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTrip(t)}
-                    className={`px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border ${
-                      selectedTrip?.id === t.id
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md font-extrabold'
-                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className="font-mono">{t.id}</span> • {t.company || 'Industrial Consignee'}
-                  </button>
-                ))}
+                {trips.length === 0 ? (
+                  <div className="w-full py-4 text-center text-gray-400 font-mono text-xs">
+                    No corridor trips archived for this time window.
+                  </div>
+                ) : (
+                  trips.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTrip(t)}
+                      className={`px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all border ${
+                        selectedTrip?.id === t.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md font-extrabold'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span className="font-mono">{t.id}</span> • {t.company || 'Industrial Consignee'}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
 
             {/* SINGLE-TRIP RECONCILIATION DOCKET (DYNAMIC COMMODITY UNITS VIEW) */}
-            {selectedTrip && (
+            {selectedTrip ? (
               <div className="bg-white rounded-3xl border border-gray-200 shadow-lg p-6 space-y-6">
                 {/* DOCKET HEADER */}
                 <div className="flex justify-between items-start border-b border-gray-200 pb-4">
@@ -511,6 +517,11 @@ export default function PerformanceReportsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl border border-dashed border-gray-200 p-12 text-center text-gray-400 space-y-2">
+                <p className="text-sm font-bold text-gray-700">No Audited Trip Dockets Available</p>
+                <p className="text-xs text-gray-400 font-mono">Dispatched train journeys will automatically record single-trip audited dockets and sign-off sheets here.</p>
               </div>
             )}
           </div>
