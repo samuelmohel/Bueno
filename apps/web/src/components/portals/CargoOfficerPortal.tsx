@@ -852,7 +852,10 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
           >
             <span>Field Fund Requisitions</span>
             {requests.filter((r: any) => r.status === 'PENDING').length > 0 && (
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+              </span>
             )}
           </button>
 

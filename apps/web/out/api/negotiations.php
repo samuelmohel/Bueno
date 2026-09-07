@@ -28,6 +28,7 @@ if ($method === 'POST') {
     $id = htmlspecialchars($data['id']);
     $companyName = htmlspecialchars($data['companyName'] ?? '');
     $contactName = htmlspecialchars($data['contactName'] ?? '');
+    $email = htmlspecialchars(strtolower($data['email'] ?? ''));
     $loadingStation = htmlspecialchars($data['loadingStation'] ?? 'EWK');
     $destination = htmlspecialchars($data['destination'] ?? 'MNY');
     $cargoType = htmlspecialchars($data['cargoType'] ?? '');
@@ -37,11 +38,11 @@ if ($method === 'POST') {
     $messagesText = json_encode($data['messages'] ?? []);
     $createdAt = date('d/m/Y');
 
-    $stmt = $pdo->prepare("REPLACE INTO bueno_negotiations (id, companyName, contactName, loadingStation, destination, cargoType, quantity, targetDate, status, messagesText, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $pdo->prepare("REPLACE INTO bueno_negotiations (id, companyName, contactName, email, loadingStation, destination, cargoType, quantity, targetDate, status, messagesText, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $stmt->execute([
-        $id, $companyName, $contactName, $loadingStation, $destination, $cargoType, $quantity, $targetDate, $status, $messagesText, $createdAt
+        $id, $companyName, $contactName, $email, $loadingStation, $destination, $cargoType, $quantity, $targetDate, $status, $messagesText, $createdAt
     ]);
 
     echo json_encode(['status' => 'success', 'message' => 'Negotiation thread updated']);

@@ -113,6 +113,7 @@ function initTables($pdo) {
         id VARCHAR(100) PRIMARY KEY,
         companyName VARCHAR(255) NOT NULL,
         contactName VARCHAR(255),
+        email VARCHAR(255),
         loadingStation VARCHAR(50),
         destination VARCHAR(50),
         cargoType VARCHAR(255),
@@ -122,6 +123,7 @@ function initTables($pdo) {
         messagesText TEXT,
         createdAt VARCHAR(100)
     )");
+    try { $pdo->exec("ALTER TABLE bueno_negotiations ADD COLUMN email VARCHAR(255)"); } catch (Exception $e) {}
 
     // 4. Official Deals Table
     $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_deals (

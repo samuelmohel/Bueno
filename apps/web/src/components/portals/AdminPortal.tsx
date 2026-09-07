@@ -484,16 +484,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     // 1. Initialize Thread for Every Registered Client User
     clientUsers.forEach((client: any) => {
-      const clientEmail = (client.email || '').toLowerCase();
+      const clientEmail = (client.email || '').toLowerCase().trim();
       if (!clientEmail) return;
 
+      const station = client.assignedStation && client.assignedStation !== 'HQ' ? client.assignedStation : 'PAPA';
       mergedMap.set(clientEmail, {
         id: `DEAL-NEG-${client.id}`,
         companyName: client.companyName || client.fullName,
         email: clientEmail,
         contactName: client.fullName,
         phone: client.phone || 'N/A',
-        loadingStation: 'EWK',
+        loadingStation: station,
         destination: 'MNY',
         cargoType: 'Bagged Cement (50kg)',
         quantity: '2,000 Bags',
@@ -507,24 +508,49 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     // 2. Merge Web Requisitions
     if (liveReqs.length > 0) {
       liveReqs.forEach((req: any) => {
-        const reqEmail = (req.email || '').toLowerCase();
-        if (!reqEmail) return;
+        const reqEmail = (req.email || '').toLowerCase().trim();
+        const reqCompany = (req.companyName || '').toLowerCase().trim();
+        if (!reqEmail && !reqCompany) return;
 
-        const existing = mergedMap.get(reqEmail) || {
-          id: `DEAL-NEG-${req.id || Date.now()}`,
-          companyName: req.companyName || req.contactName || 'Industrial Consignee Client',
-          email: reqEmail,
-          contactName: req.contactName || 'Logistics Lead',
-          phone: req.phone || '',
-          loadingStation: req.route?.includes('EWK') ? 'EWK' : req.route?.includes('APT') ? 'APT' : 'PAPA',
-          destination: 'MNY',
-          cargoType: req.product || 'Bagged Cement (50kg)',
-          quantity: req.volume || '2,000 Bags',
-          status: 'PENDING_REVIEW',
-          createdAt: req.createdAt || 'Today',
-          messages: [],
-          hasUnread: true,
-        };
+        let existingKey: string = reqEmail || '';
+        let existing: any = null;
+
+        if (reqEmail && mergedMap.has(reqEmail)) {
+          existingKey = reqEmail;
+          existing = mergedMap.get(reqEmail);
+        } else {
+          mergedMap.forEach((t: any, key: string) => {
+            if (existing) return;
+            const tEmail = (t.email || '').toLowerCase().trim();
+            const tCompany = (t.companyName || '').toLowerCase().trim();
+            if (reqEmail && tEmail === reqEmail) {
+              existingKey = key;
+              existing = t;
+            } else if (reqCompany && tCompany && (tCompany === reqCompany || tCompany.includes(reqCompany) || reqCompany.includes(tCompany))) {
+              existingKey = key;
+              existing = t;
+            }
+          });
+        }
+
+        if (!existing) {
+          existingKey = reqEmail || `req_${req.id || Date.now()}`;
+          existing = {
+            id: `DEAL-NEG-${req.id || Date.now()}`,
+            companyName: req.companyName || req.contactName || 'Industrial Consignee Client',
+            email: reqEmail,
+            contactName: req.contactName || 'Logistics Lead',
+            phone: req.phone || '',
+            loadingStation: req.route?.includes('EWK') ? 'EWK' : req.route?.includes('APT') ? 'APT' : 'PAPA',
+            destination: 'MNY',
+            cargoType: req.product || 'Bagged Cement (50kg)',
+            quantity: req.volume || '2,000 Bags',
+            status: 'PENDING_REVIEW',
+            createdAt: req.createdAt || 'Today',
+            messages: [],
+            hasUnread: true,
+          };
+        }
 
         const reqMsg = {
           sender: req.contactName || 'Consignee Client',
@@ -539,48 +565,96 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         }
         existing.status = 'PENDING_REVIEW';
         existing.hasUnread = true;
-        mergedMap.set(reqEmail, existing);
+        if (req.companyName && (!existing.companyName || existing.companyName === 'Bueno Logistics HQ')) {
+          existing.companyName = req.companyName;
+        }
+        if (req.product) existing.cargoType = req.product;
+        if (req.volume) existing.quantity = req.volume;
+        mergedMap.set(existingKey, existing);
       });
     }
 
     // 3. Merge Live Deal Chat Messages from Storage
     if (liveDealsNeg.length > 0) {
       liveDealsNeg.forEach((deal: any) => {
-        const dealEmail = (deal.email || '').toLowerCase();
-        const existing = (dealEmail && mergedMap.get(dealEmail)) || {
-          id: deal.id,
-          companyName: deal.companyName || deal.contactName || 'Industrial Client',
-          email: dealEmail || `client_${Date.now()}@bueno.ng`,
-          contactName: deal.contactName || deal.companyName,
-          phone: deal.phone || '',
-          loadingStation: deal.loadingStation || 'EWK',
-          destination: deal.destination || 'MNY',
-          cargoType: deal.cargoType || 'Bagged Cement (50kg)',
-          quantity: deal.quantity || '2,000 Bags',
-          status: deal.status || 'IN_NEGOTIATION',
-          createdAt: deal.createdAt || 'Today',
-          messages: deal.messages || [],
-          hasUnread: true,
-        };
+        const dealEmail = (deal.email || '').toLowerCase().trim();
+        const dealCompany = (deal.companyName || '').toLowerCase().trim();
 
-        if (deal.messages && deal.messages.length > 0) {
-          // Deduplicate messages
-          const existingTexts = new Set((existing.messages || []).map((m: any) => m.text));
-          deal.messages.forEach((m: any) => {
-            if (!existingTexts.has(m.text)) {
-              existing.messages.push(m);
+        let existingKey: string = dealEmail || '';
+        let existing: any = null;
+
+        // Match existing thread in mergedMap by email, deal id, company name, or contact name
+        if (dealEmail && mergedMap.has(dealEmail)) {
+          existingKey = dealEmail;
+          existing = mergedMap.get(dealEmail);
+        } else {
+          mergedMap.forEach((t: any, key: string) => {
+            if (existing) return;
+            const tEmail = (t.email || '').toLowerCase().trim();
+            const tCompany = (t.companyName || '').toLowerCase().trim();
+            if (deal.id && t.id === deal.id) {
+              existingKey = key;
+              existing = t;
+            } else if (dealEmail && tEmail === dealEmail) {
+              existingKey = key;
+              existing = t;
+            } else if (dealCompany && tCompany && (tCompany === dealCompany || tCompany.includes(dealCompany) || dealCompany.includes(tCompany))) {
+              existingKey = key;
+              existing = t;
             }
           });
         }
 
+        if (!existing) {
+          existingKey = dealEmail || `thread_${deal.id || Date.now()}`;
+          existing = {
+            id: deal.id || `DEAL-NEG-${Date.now()}`,
+            companyName: deal.companyName || deal.contactName || 'Industrial Client',
+            email: dealEmail || `client_${Date.now()}@bueno.ng`,
+            contactName: deal.contactName || deal.companyName,
+            phone: deal.phone || '',
+            loadingStation: deal.loadingStation || 'PAPA',
+            destination: deal.destination || 'MNY',
+            cargoType: deal.cargoType || 'Bagged Cement (50kg)',
+            quantity: deal.quantity || '2,000 Bags',
+            status: deal.status || 'IN_NEGOTIATION',
+            createdAt: deal.createdAt || 'Today',
+            messages: [],
+            hasUnread: true,
+          };
+        }
+
+        if (deal.messages && deal.messages.length > 0) {
+          // Deduplicate messages
+          const existingTexts = new Set((existing.messages || []).map((m: any) => `${m.sender}_${(m.text || '').substring(0, 40)}`));
+          deal.messages.forEach((m: any) => {
+            const k = `${m.sender}_${(m.text || '').substring(0, 40)}`;
+            if (!existingTexts.has(k)) {
+              existing.messages.push(m);
+              existingTexts.add(k);
+            }
+          });
+          existing.hasUnread = true;
+        }
+
         if (deal.status) existing.status = deal.status;
-        const targetKey = dealEmail || existing.email;
-        mergedMap.set(targetKey, existing);
+        if (deal.cargoType && deal.cargoType !== 'Bagged Cement (50kg)') existing.cargoType = deal.cargoType;
+        if (deal.quantity) existing.quantity = deal.quantity;
+        if (deal.loadingStation) existing.loadingStation = deal.loadingStation;
+        if (deal.destination) existing.destination = deal.destination;
+        if (deal.companyName && (!existing.companyName || existing.companyName === 'Bueno Logistics HQ')) {
+          existing.companyName = deal.companyName;
+        }
+
+        mergedMap.set(existingKey, existing);
       });
     }
 
     const finalThreads = Array.from(mergedMap.values());
-    setNegotiations(finalThreads);
+    setNegotiations((prev) => {
+      if (JSON.stringify(prev) === JSON.stringify(finalThreads)) return prev;
+      return finalThreads;
+    });
 
     if (finalThreads.length > 0 && (!activeDealId || !finalThreads.some((t) => t.id === activeDealId))) {
       setActiveDealId(finalThreads[0].id);
@@ -1021,24 +1095,59 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleProvisionUser = (e: React.FormEvent) => {
     e.preventDefault();
     const newUserId = `usr_${Date.now()}`;
+    const isCustomer = provisionForm.role === 'CUSTOMER' || provisionForm.role === 'CONSIGNEE';
+    const effectiveUserType = isCustomer ? 'CUSTOMER' : 'STAFF';
+    const effectiveCompany = isCustomer
+      ? (provisionForm.companyName.trim() || provisionForm.fullName.trim())
+      : (provisionForm.companyName.trim() || 'Bueno Logistics HQ');
 
     const newUserObj = {
       id: newUserId,
-      fullName: provisionForm.fullName,
-      email: provisionForm.email,
-      phone: provisionForm.phone,
-      userType: provisionForm.userType,
+      fullName: provisionForm.fullName.trim(),
+      email: provisionForm.email.toLowerCase().trim(),
+      phone: provisionForm.phone.trim(),
+      userType: effectiveUserType,
       role: provisionForm.role,
       assignedStation: provisionForm.assignedStation,
       stationName: provisionForm.assignedStation === 'EWK' ? 'Ewekoro Terminal' : provisionForm.assignedStation === 'MNY' ? 'Moniya Yard' : 'Apapa Port',
-      companyName: provisionForm.companyName || (provisionForm.userType === 'CUSTOMER' ? provisionForm.fullName : 'Bueno Logistics HQ'),
-      staffId: `${provisionForm.assignedStation}-${Math.floor(10 + Math.random() * 89)}`,
+      companyName: effectiveCompany,
+      staffId: isCustomer ? `CUST-${Math.floor(1000 + Math.random() * 9000)}` : `${provisionForm.assignedStation}-${Math.floor(10 + Math.random() * 89)}`,
       pin: provisionForm.pin || '1111',
       status: 'ACTIVE',
+      createdAt: new Date().toLocaleDateString('en-GB'),
     };
 
     StateEngine.saveUsers([newUserObj, ...usersList]);
     setUsersList([newUserObj, ...usersList]);
+
+    if (isCustomer) {
+      const initialDeal = {
+        id: `DEAL-NEG-${newUserObj.id}`,
+        companyName: newUserObj.companyName,
+        email: newUserObj.email,
+        contactName: newUserObj.fullName,
+        loadingStation: newUserObj.assignedStation && newUserObj.assignedStation !== 'HQ' ? newUserObj.assignedStation : 'PAPA',
+        destination: 'MNY',
+        cargoType: 'Bagged Cement (50kg)',
+        quantity: '2,000 Bags',
+        status: 'IN_NEGOTIATION',
+        createdAt: new Date().toLocaleDateString('en-GB'),
+        messages: [
+          {
+            sender: 'Head of Operations',
+            role: 'Head of Operations',
+            text: `Welcome ${newUserObj.companyName}! Your client portal is active. Operations Command is standing by to coordinate rail freight corridors, wagon manifests, and commercial tariffs with your team.`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ],
+      };
+      const curDeals = tryParse('bueno_custom_deal_negotiations', []);
+      const exists = curDeals.some((d: any) => d.email?.toLowerCase() === newUserObj.email);
+      if (!exists) {
+        localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([initialDeal, ...curDeals]));
+        StateEngine.saveNegotiations([initialDeal, ...curDeals]);
+      }
+    }
 
     setCustomAlert({
       title: 'New Account Provisioned',
@@ -2522,8 +2631,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                           {activeThread.companyName}
                         </h3>
-                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 font-mono">
-                          <span className="w-2 h-2 bg-[#62BC37] rounded-full animate-ping inline-block" />
+                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1.5 font-mono">
+                          <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#62BC37]"></span>
+                          </span>
                           Online • B2B Logistics Desk ({activeThread.cargoType || 'Bagged Cement'})
                         </span>
                       </div>
@@ -3341,7 +3453,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Role Classification</label>
                     <select
                       value={provisionForm.role}
-                      onChange={(e) => setProvisionForm({ ...provisionForm, role: e.target.value })}
+                      onChange={(e) => {
+                        const newRole = e.target.value;
+                        setProvisionForm({
+                          ...provisionForm,
+                          role: newRole,
+                          userType: newRole === 'CUSTOMER' ? 'CUSTOMER' : 'STAFF',
+                        });
+                      }}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                     >
                       <option value="CARGO_OFFICER">Cargo Officer</option>
@@ -3367,6 +3486,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </select>
                   </div>
                 </div>
+
+                {provisionForm.role === 'CUSTOMER' && (
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Company / Organization Name *</label>
+                    <input
+                      required
+                      value={provisionForm.companyName}
+                      onChange={(e) => setProvisionForm({ ...provisionForm, companyName: e.target.value })}
+                      placeholder="e.g. Dangote Cement Plc / BUA Logistics"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    />
+                  </div>
+                )}
 
                 <button
                   type="submit"

@@ -118,15 +118,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     );
 
     if (companyDeals.length > 0) {
-      setNegotiations(companyDeals);
-      if (!activeDealId) setActiveDealId(companyDeals[0].id);
+      setNegotiations((prev) => (JSON.stringify(prev) === JSON.stringify(companyDeals) ? prev : companyDeals));
+      if (!activeDealId || !companyDeals.some((d: any) => d.id === activeDealId)) {
+        setActiveDealId(companyDeals[0].id);
+      }
     } else if (companyReqs.length > 0) {
       const req = companyReqs[0];
       const autoDeal = {
-        id: `DEAL-NEG-${req.id || Date.now()}`,
+        id: `DEAL-NEG-${req.id || user?.id || Date.now()}`,
         companyName: companyName,
-        email: clientEmail,
-        contactName: req.contactName || user?.fullName || 'Logistics Desk',
+        email: clientEmail.toLowerCase(),
+        contactName: req.contactName || user?.fullName || `${companyName} Logistics Desk`,
         loadingStation: req.route?.includes('EWK') ? 'EWK' : 'PAPA',
         destination: 'MNY',
         cargoType: `${req.product || 'Cement'} (${req.volume || 'Bulk Haulage'})`,
@@ -141,18 +143,45 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             time: req.createdAt || 'Just now',
           },
           {
-            sender: opsUser?.fullName || 'Head of Operations',
+            sender: opsLeadName || 'Head of Operations',
             role: 'Head of Operations',
-            text: `Welcome ${companyName}! Requisition #${req.id || 'REQ-2026'} is received at Operations Command. We are reviewing locomotive capacity and wagon siding availability at Ewekoro/Papalanto.`,
+            text: `Welcome ${companyName}! Requisition #${req.id || 'REQ-2026'} is received at Operations Command. We are reviewing locomotive capacity and wagon siding availability at Papalanto/Ewekoro.`,
             time: 'System Auto-Response',
           },
         ],
       };
       setNegotiations([autoDeal]);
       setActiveDealId(autoDeal.id);
-      localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([autoDeal, ...allDeals]));
+      const updated = [autoDeal, ...allDeals];
+      localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updated));
+      StateEngine.saveNegotiations(updated);
     } else {
-      setNegotiations([]);
+      // Auto-initialize default conversation thread for any registered client
+      const autoDeal = {
+        id: `DEAL-NEG-${user?.id || Date.now()}`,
+        companyName: companyName,
+        email: clientEmail.toLowerCase(),
+        contactName: user?.fullName || `${companyName} Logistics Desk`,
+        loadingStation: 'PAPA',
+        destination: 'MNY',
+        cargoType: 'Bagged Cement (50kg)',
+        quantity: '2,000 Bags',
+        status: 'IN_NEGOTIATION',
+        createdAt: new Date().toLocaleDateString('en-GB'),
+        messages: [
+          {
+            sender: opsLeadName || 'Head of Operations',
+            role: 'Head of Operations',
+            text: `Welcome ${companyName}! Operations Command is active and standing by. You can negotiate tariffs, submit consignment notes, and coordinate rail freight dispatches directly in this corridor thread.`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ],
+      };
+      setNegotiations([autoDeal]);
+      setActiveDealId(autoDeal.id);
+      const updated = [autoDeal, ...allDeals];
+      localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updated));
+      StateEngine.saveNegotiations(updated);
     }
   };
 
@@ -201,7 +230,9 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           (d.email && d.email.toLowerCase() === clientEmail.toLowerCase())
         )
     );
-    localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([...updatedCompanyDeals, ...otherDeals]));
+    const merged = [...updatedCompanyDeals, ...otherDeals];
+    localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(merged));
+    StateEngine.saveNegotiations(merged);
     window.dispatchEvent(new Event('bueno_state_updated'));
   };
 
@@ -227,7 +258,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     const newDeal = {
       id: newDealId,
       companyName: companyName,
-      email: clientEmail,
+      email: clientEmail.toLowerCase(),
       contactName: user?.fullName || `${companyName} Logistics Lead`,
       loadingStation: consignmentForm.originStation,
       destination: consignmentForm.destinationStation,
@@ -274,22 +305,32 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     let updatedDeals: any[] = [];
     if (activeDealId && negotiations.some((n) => n.id === activeDealId)) {
       updatedDeals = negotiations.map((d) =>
-        d.id === activeDealId ? { ...d, email: clientEmail.toLowerCase(), messages: [...(d.messages || []), newMsg] } : d
+        d.id === activeDealId
+          ? {
+              ...d,
+              email: clientEmail.toLowerCase(),
+              companyName: companyName,
+              messages: [...(d.messages || []), newMsg],
+              status: 'IN_NEGOTIATION',
+              hasUnread: true,
+            }
+          : d
       );
     } else {
-      const threadId = `DEAL-NEG-${Date.now()}`;
+      const threadId = `DEAL-NEG-${user?.id || Date.now()}`;
       const newThread = {
         id: threadId,
         companyName: companyName,
         email: clientEmail.toLowerCase(),
         contactName: user?.fullName || companyName,
-        loadingStation: 'EWK',
+        loadingStation: 'PAPA',
         destination: 'MNY',
         cargoType: 'Bagged Cement (50kg)',
         quantity: '2,000 Bags',
         status: 'IN_NEGOTIATION',
         createdAt: 'Today',
         messages: [newMsg],
+        hasUnread: true,
       };
       updatedDeals = [newThread, ...negotiations];
       setActiveDealId(threadId);
@@ -479,7 +520,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 <span>+ Fill Consignment Note</span>
               </button>
               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
-                <div className="w-3 h-3 bg-[#62BC37] rounded-full animate-ping" />
+                <span className="relative flex h-3 w-3 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[#62BC37]"></span>
+                </span>
                 <div className="text-xs">
                   <span className="text-slate-400 block text-[10px] font-bold uppercase">Assigned Operations Lead</span>
                   <span className="font-extrabold text-slate-200">{opsLeadName}</span>
@@ -586,8 +630,11 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                           Operations Command ({opsLeadName})
                         </h3>
-                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 font-mono">
-                          <span className="w-2 h-2 bg-[#62BC37] rounded-full animate-ping inline-block" />
+                        <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1.5 font-mono">
+                          <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#62BC37]"></span>
+                          </span>
                           Online • Direct Corridor Communication Channel
                         </span>
                       </div>

@@ -155,12 +155,11 @@ class StateEngineService {
     if (typeof window === 'undefined') return fallback;
     try {
       let item = localStorage.getItem(key);
-      if (item && (item.includes('Lafarge') || item.includes('lafarge') || item.includes('Elephant') || item.includes('Dangote') || item.includes('dangote') || item.includes('Purechem') || item.includes('purechem') || item.includes('BUA') || item.includes('buacement'))) {
+      if (item && (item.includes('Lafarge Africa') || item.includes('logistics@lafarge.ng') || item.includes('Elephant Cement') || item.includes('freight@dangotecement.ng') || item.includes('Dangote Cement Industry') || item.includes('Purechem Cement') || item.includes('logistics@buacement.ng'))) {
         item = item
           .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
           .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
           .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
-          .replace(/Lafarge/gi, 'HBM')
           .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
           .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
           .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
@@ -168,20 +167,13 @@ class StateEngineService {
           .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
           .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
           .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
-          .replace(/Purechem/gi, 'APMT')
           .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
           .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
           .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
-          .replace(/BUA Cement/gi, 'DASCO')
-          .replace(/BUA/gi, 'DASCO')
           .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
           .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-          .replace(/Dangote Cement/gi, 'Huaxin Portland Cement')
           .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
-          .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng')
-          .replace(/Dangote Logistics Fleet/gi, 'HBM Logistics Fleet')
-          .replace(/Dangote Haulage/gi, 'HBM Haulage')
-          .replace(/Dangote/gi, 'HBM');
+          .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng');
         localStorage.setItem(key, item);
       }
       return item ? JSON.parse(item) : fallback;
@@ -457,6 +449,8 @@ class StateEngineService {
               negMap.set(localN.id, {
                 ...remoteN,
                 ...localN,
+                email: localN.email || remoteN.email,
+                companyName: localN.companyName || remoteN.companyName,
                 status: (localN.status === 'APPROVED_DISPATCHED' || remoteN.status === 'APPROVED_DISPATCHED') ? 'APPROVED_DISPATCHED' : (remoteN.status || localN.status),
                 messages: Array.from(msgMap.values()),
               });
@@ -536,12 +530,11 @@ class StateEngineService {
       let changed = false;
       keys.forEach((k) => {
         const val = localStorage.getItem(k);
-        if (val && (val.includes('Lafarge') || val.includes('lafarge') || val.includes('Elephant') || val.includes('Dangote') || val.includes('dangote'))) {
+        if (val && (val.includes('Lafarge Africa') || val.includes('logistics@lafarge.ng') || val.includes('Elephant Cement') || val.includes('freight@dangotecement.ng') || val.includes('Dangote Cement Industry') || val.includes('Purechem Cement') || val.includes('logistics@buacement.ng'))) {
           const sanitized = val
             .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
             .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
             .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
-            .replace(/Lafarge/gi, 'HBM')
             .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
             .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
             .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
@@ -549,20 +542,13 @@ class StateEngineService {
             .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
             .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
             .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
-            .replace(/Purechem/gi, 'APMT')
             .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
             .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
             .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
-            .replace(/BUA Cement/gi, 'DASCO')
-            .replace(/BUA/gi, 'DASCO')
             .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
             .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-            .replace(/Dangote Cement/gi, 'Huaxin Portland Cement')
             .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
-            .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng')
-            .replace(/Dangote Logistics Fleet/gi, 'HBM Logistics Fleet')
-            .replace(/Dangote Haulage/gi, 'HBM Haulage')
-            .replace(/Dangote/gi, 'HBM');
+            .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng');
           localStorage.setItem(k, sanitized);
           changed = true;
         }
