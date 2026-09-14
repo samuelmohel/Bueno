@@ -124,10 +124,12 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       }
     } else if (companyReqs.length > 0) {
       const req = companyReqs[0];
+      const cleanEmail = clientEmail.toLowerCase();
+      const stableThreadId = `THREAD-${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
       const autoDeal = {
-        id: `DEAL-NEG-${req.id || user?.id || Date.now()}`,
+        id: stableThreadId,
         companyName: companyName,
-        email: clientEmail.toLowerCase(),
+        email: cleanEmail,
         contactName: req.contactName || user?.fullName || `${companyName} Logistics Desk`,
         loadingStation: req.route?.includes('EWK') ? 'EWK' : 'PAPA',
         destination: 'MNY',
@@ -152,15 +154,26 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       };
       setNegotiations([autoDeal]);
       setActiveDealId(autoDeal.id);
-      const updated = [autoDeal, ...allDeals];
+
+      const existingIdx = allDeals.findIndex((d: any) =>
+        (d.email && d.email.toLowerCase() === cleanEmail) ||
+        (d.companyName && d.companyName.toLowerCase().includes(companyName.toLowerCase())) ||
+        d.id === stableThreadId
+      );
+      const updated = existingIdx >= 0
+        ? allDeals.map((d: any, idx: number) => (idx === existingIdx ? { ...d, ...autoDeal } : d))
+        : [autoDeal, ...allDeals];
+
       localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updated));
       StateEngine.saveNegotiations(updated);
     } else {
       // Auto-initialize default conversation thread for any registered client
+      const cleanEmail = clientEmail.toLowerCase();
+      const stableThreadId = `THREAD-${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
       const autoDeal = {
-        id: `DEAL-NEG-${user?.id || Date.now()}`,
+        id: stableThreadId,
         companyName: companyName,
-        email: clientEmail.toLowerCase(),
+        email: cleanEmail,
         contactName: user?.fullName || `${companyName} Logistics Desk`,
         loadingStation: 'PAPA',
         destination: 'MNY',
@@ -179,7 +192,16 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
       };
       setNegotiations([autoDeal]);
       setActiveDealId(autoDeal.id);
-      const updated = [autoDeal, ...allDeals];
+
+      const existingIdx = allDeals.findIndex((d: any) =>
+        (d.email && d.email.toLowerCase() === cleanEmail) ||
+        (d.companyName && d.companyName.toLowerCase().includes(companyName.toLowerCase())) ||
+        d.id === stableThreadId
+      );
+      const updated = existingIdx >= 0
+        ? allDeals.map((d: any, idx: number) => (idx === existingIdx ? { ...d, ...autoDeal } : d))
+        : [autoDeal, ...allDeals];
+
       localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify(updated));
       StateEngine.saveNegotiations(updated);
     }

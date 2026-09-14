@@ -252,7 +252,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       speed: 68,
       progressPercent: 5,
       dispatchTime: new Date().toLocaleString('en-GB'),
-      createdAt: 'Today, 07 Sep 2026',
+      createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       wagonLogs: [],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
@@ -365,6 +365,10 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       }).catch(() => {});
     } catch {}
 
+    setSelectedTripId(dispatchModalTrip.id);
+    try {
+      localStorage.setItem('bueno_active_gps_trip_id', dispatchModalTrip.id);
+    } catch {}
     setDispatchModalTrip(null);
     setActiveTab('dispatch');
 
@@ -831,7 +835,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 return (
                   <>
                     {todayTrips.length > 0 && (
-                      <optgroup label="── Today (07 Sep 2026) ──">
+                      <optgroup label={`── ${StateEngine.getTodayLabel()} ──`}>
                         {todayTrips.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.id} • {t.company || 'Industrial Consignee'} {t.trancheNumber ? `[Tranche ${t.trancheNumber}/${t.totalPlannedTrips || 10}]` : ''} ({t.origin} ➔ {t.destination})
@@ -840,7 +844,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       </optgroup>
                     )}
                     {yesterdayTrips.length > 0 && (
-                      <optgroup label="── Yesterday (06 Sep 2026) ──">
+                      <optgroup label={`── ${StateEngine.getYesterdayLabel()} ──`}>
                         {yesterdayTrips.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
@@ -965,7 +969,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     {[
                       { id: 'ALL', label: 'All Deals' },
                       { id: 'MONTHLY', label: 'Monthly Contracts (Tranches)' },
-                      { id: 'TODAY', label: 'Today (07 Sep)' },
+                      { id: 'TODAY', label: StateEngine.getTodayLabel() },
                       { id: 'THIS_WEEK', label: 'This Week' },
                     ].map((f) => (
                       <button
@@ -1200,8 +1204,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   {unloadingDateFilter === 'ALL'
                     ? 'All Inbound Consignments'
                     : unloadingDateFilter === 'TODAY'
-                    ? "Today's Inbound Trains (07 Sep 2026)"
-                    : "Yesterday's Discharged Trains (06 Sep 2026)"}
+                    ? `Today's Inbound Trains (${StateEngine.getTodayLabel()})`
+                    : `Yesterday's Discharged Trains (${StateEngine.getYesterdayLabel()})`}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
@@ -1570,10 +1574,10 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                       {[
                         { id: 'ALL', label: 'All Records' },
-                        { id: 'TODAY', label: 'Today (07 Sep)' },
-                        { id: 'YESTERDAY', label: 'Yesterday (06 Sep)' },
+                        { id: 'TODAY', label: StateEngine.getTodayLabel() },
+                        { id: 'YESTERDAY', label: StateEngine.getYesterdayLabel() },
                         { id: 'THIS_WEEK', label: 'This Week' },
-                        { id: 'THIS_MONTH', label: 'September 2026' },
+                        { id: 'THIS_MONTH', label: StateEngine.getThisMonthLabel() },
                       ].map((f) => (
                         <button
                           key={f.id}

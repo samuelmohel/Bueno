@@ -51,10 +51,10 @@ async function main() {
     create: { fullName: 'Chidinma Okonkwo', email: 'customer@bueno.ng', phone: '+2348012345678', passwordHash: await hash('demo1234'), role: UserRole.CUSTOMER, verified: true },
   });
 
-  const customerDangote = await prisma.user.upsert({
-    where: { email: 'dangote@bueno.ng' },
+  const customerDasco = await prisma.user.upsert({
+    where: { email: 'dasco@bueno.ng' },
     update: {},
-    create: { fullName: 'Tunde Bakare', email: 'dangote@bueno.ng', phone: '+2348012345679', passwordHash: await hash('demo1234'), role: UserRole.CUSTOMER, verified: true },
+    create: { fullName: 'DASCO Industrial Haulage', email: 'dasco@bueno.ng', phone: '+2348012345679', passwordHash: await hash('demo1234'), role: UserRole.CUSTOMER, verified: true },
   });
 
   const driverUser1 = await prisma.user.upsert({
@@ -221,7 +221,7 @@ async function main() {
 
   // Trip 2 — paid, coordinating, not yet allocated
   const trip2 = await makeBooking({
-    id: 'trip-002', customerId: customerDangote.id, routeId: routePapalantoMoniya.id, cargoTypeId: cargoGypsum.id,
+    id: 'trip-002', customerId: customerDasco.id, routeId: routePapalantoMoniya.id, cargoTypeId: cargoGypsum.id,
     weight: 70, wagonsRequired: 2, locosRequired: 1, pricePerWagon: 310000,
     status: BookingStatus.COORDINATING, createdAt: hoursAgo(20),
   });
@@ -290,8 +290,8 @@ async function main() {
 
   // Trip 6 — arrived at destination, ready for the unload demo (loaded qty set, unloaded qty pending)
   const trip6 = await makeBooking({
-    id: 'trip-006', customerId: customerDangote.id, routeId: routePapalantoMoniya.id, cargoTypeId: cargoGypsum.id,
-    weight: 105, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 310000, trainNumber: 'TR-DGT-106',
+    id: 'trip-006', customerId: customerDasco.id, routeId: routePapalantoMoniya.id, cargoTypeId: cargoGypsum.id,
+    weight: 105, wagonsRequired: 3, locosRequired: 1, pricePerWagon: 310000, trainNumber: 'TR-DSC-106',
     status: BookingStatus.ARRIVED_DESTINATION, createdAt: daysAgo(2),
   });
   const trip6Wagons = availableWagons.filter(w => w.wagonType === 'HOPPER').slice(4, 6).concat(availableWagons.filter(w => w.wagonType === 'FLAT').slice(0, 1));
@@ -344,7 +344,7 @@ async function main() {
       truckRegNo: 'LSR-914-YD',
       driverName: 'Mustapha Garba',
       driverPhone: '+2348035544332',
-      transporterName: 'Dangote Transport Fleet',
+      transporterName: 'DASCO Logistics Fleet',
       loadingSource: 'HBM Silo Bay 1',
       quantityLoaded: 1180,
       unit: CargoUnit.BAGS,

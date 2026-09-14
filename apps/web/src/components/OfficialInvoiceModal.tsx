@@ -20,8 +20,8 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
     const csvRows = [
       ['BUENO LOGISTICS LIMITED - FREIGHT INVOICE & SETTLEMENT'],
       ['Invoice Number', invoice.invoiceNumber || invoice.id],
-      ['Date of Issue', invoice.issueDate || '24 Aug 2026'],
-      ['Due Date', invoice.dueDate || '07 Sep 2026'],
+      ['Date of Issue', invoice.issueDate || new Date().toLocaleDateString('en-GB')],
+      ['Due Date', invoice.dueDate || new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-GB')],
       ['Consignee Company', invoice.companyName],
       ['Consignee Email', invoice.clientEmail || 'N/A'],
       ['Trip Reference', invoice.tripId || 'N/A'],
@@ -170,8 +170,8 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                 {invoice.invoiceNumber || invoice.id}
               </h2>
               <div className="text-xs text-slate-600 mt-2 space-y-0.5">
-                <p><strong className="text-slate-900">Issue Date:</strong> {invoice.issueDate || '24 Aug 2026'}</p>
-                <p><strong className="text-slate-900">Due Date:</strong> {invoice.dueDate || '07 Sep 2026'}</p>
+                <p><strong className="text-slate-900">Issue Date:</strong> {invoice.issueDate || new Date().toLocaleDateString('en-GB')}</p>
+                <p><strong className="text-slate-900">Due Date:</strong> {invoice.dueDate || new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-GB')}</p>
                 <p><strong className="text-slate-900">Corridor Trip ID:</strong> {invoice.tripId || 'N/A'}</p>
                 <p><strong className="text-slate-900">Deal Ref:</strong> {invoice.dealId || 'N/A'}</p>
               </div>

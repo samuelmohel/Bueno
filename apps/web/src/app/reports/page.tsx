@@ -25,7 +25,7 @@ const HISTORICAL_ARCHIVED_TRIPS: Record<string, any[]> = {
 export default function PerformanceReportsPage() {
   const [period, setPeriod] = useState<Period>('monthly');
   const [archiveMonth, setArchiveMonth] = useState<string>('2026-09');
-  const [dateCategoryFilter, setDateCategoryFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('ALL');
+  const [dateCategoryFilter, setDateCategoryFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('TODAY');
   const [data, setData] = useState<any>(null);
   const [trips, setTrips] = useState<any[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<any | null>(null);
@@ -219,11 +219,11 @@ export default function PerformanceReportsPage() {
                 <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider pl-2">Filter By Operational Date:</span>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {[
+                    { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
+                    { id: 'YESTERDAY', label: `📅 ${StateEngine.getYesterdayLabel()}` },
+                    { id: 'THIS_WEEK', label: '📅 This Week' },
+                    { id: 'THIS_MONTH', label: `📅 ${StateEngine.getThisMonthLabel()}` },
                     { id: 'ALL', label: 'All Dates' },
-                    { id: 'TODAY', label: '📅 Today (07 Sep)' },
-                    { id: 'YESTERDAY', label: '📅 Yesterday (06 Sep)' },
-                    { id: 'THIS_WEEK', label: '📅 This Week (01–07 Sep)' },
-                    { id: 'THIS_MONTH', label: '📅 September 2026' },
                   ].map((df) => (
                     <button
                       key={df.id}

@@ -92,7 +92,12 @@ export function LiveGpsMap({
       return;
     }
     const all = propTrips || StateEngine.getTrips();
-    const active = all.find((t: any) => t.status === 'IN_TRANSIT' || t.status === 'LOADING' || t.status === 'RETURNING_EMPTY') || all[0];
+    const savedTripId = typeof window !== 'undefined' ? localStorage.getItem('bueno_active_gps_trip_id') : null;
+    const active = (savedTripId ? all.find((t: any) => t.id === savedTripId || t.tripId === savedTripId) : null)
+      || all.find((t: any) => t.status === 'IN_TRANSIT')
+      || all.find((t: any) => t.status === 'LOADING')
+      || all.find((t: any) => t.status === 'RETURNING_EMPTY')
+      || all[0];
     setLocalTrip(active);
   }, [propTrip, propTrips]);
 
@@ -102,6 +107,9 @@ export function LiveGpsMap({
     const chosen = allTrips.find((t: any) => t.id === selectedId || t.tripId === selectedId);
     if (chosen) {
       setLocalTrip(chosen);
+      try {
+        localStorage.setItem('bueno_active_gps_trip_id', chosen.id);
+      } catch {}
       if (onSelectTrip) onSelectTrip(chosen);
     }
   };
@@ -117,7 +125,7 @@ export function LiveGpsMap({
   const initialLng = Number(trip?.curLng) || originStation.lng;
 
   // Real GPS Telemetry State
-  const [gpsDateFilter, setGpsDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY'>('ALL');
+  const [gpsDateFilter, setGpsDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY'>('TODAY');
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: initialLat, lng: initialLng });
   const [speed, setSpeed] = useState<number>(Number(trip?.speed) || 0);
   const [accuracy, setAccuracy] = useState<number | null>(null);
@@ -141,7 +149,7 @@ export function LiveGpsMap({
     const oSt = STATION_COORDS[oCode] || STATION_COORDS.EWK;
     const dSt = STATION_COORDS[dCode] || STATION_COORDS.MNY;
 
-    const isArrived = trip.status === 'ARRIVED' || trip.status === 'COMPLETED';
+    const isArrived = trip.status === 'ARRIVED' || (trip.status === 'COMPLETED' && Number(trip.progressPercent) >= 100);
     const isReturning = trip.status === 'RETURNING_EMPTY';
 
     let lat: number;
@@ -149,7 +157,7 @@ export function LiveGpsMap({
     if (isArrived) {
       lat = dSt.lat;
       lng = dSt.lng;
-    } else if (trip.curLat && trip.curLng) {
+    } else if (trip.curLat && trip.curLng && trip.status === 'IN_TRANSIT') {
       lat = Number(trip.curLat);
       lng = Number(trip.curLng);
     } else {
@@ -166,8 +174,10 @@ export function LiveGpsMap({
       pct = 100;
     } else if (trip.progressPercent !== undefined && Number(trip.progressPercent) > 0) {
       pct = Number(trip.progressPercent);
+    } else if (trip.status === 'IN_TRANSIT') {
+      pct = 5;
     } else {
-      pct = Math.min(99, Math.max(5, Math.round(((totalDist - dist) / totalDist) * 100)));
+      pct = 0;
     }
 
     setCoords({ lat, lng });
@@ -675,7 +685,7 @@ export function LiveGpsMap({
                 return (
                   <>
                     {todayTrips.length > 0 && (
-                      <optgroup label="── Today's Dispatches (07 Sep 2026) ──">
+                      <optgroup label={`── ${StateEngine.getTodayLabel()} Dispatches ──`}>
                         {todayTrips.map((t: any) => (
                           <option key={t.id} value={t.id}>
                             🚂 {t.tripId || t.id} — {t.company || 'Freight'} ({t.origin} ➔ {t.destination}) [{t.status}]
@@ -684,7 +694,7 @@ export function LiveGpsMap({
                       </optgroup>
                     )}
                     {yesterdayTrips.length > 0 && (
-                      <optgroup label="── Yesterday's Dispatches (06 Sep 2026) ──">
+                      <optgroup label={`── ${StateEngine.getYesterdayLabel()} Dispatches ──`}>
                         {yesterdayTrips.map((t: any) => (
                           <option key={t.id} value={t.id}>
                             {t.status === 'ARRIVED' ? '📍 [ARRIVED] ' : '🚂 '}
@@ -728,7 +738,7 @@ export function LiveGpsMap({
       </div>
 
       {/* ─── DESTINATION ARRIVAL GEOFENCE ALERT ─── */}
-      {Boolean(trip && (trip.id || trip.tripId)) && (trip?.status === 'ARRIVED' || (distanceKm <= 0.5 && progress >= 99 && trip?.status !== 'LOADING' && trip?.status !== 'IN_TRANSIT')) && (
+      {Boolean(trip && (trip.id || trip.tripId)) && (trip?.status === 'ARRIVED' || (trip?.status === 'COMPLETED' && progress >= 100)) && (
         <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-b-2 border-purple-500 text-white p-4 px-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center font-black text-xl animate-bounce shrink-0">

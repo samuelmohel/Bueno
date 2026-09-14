@@ -141,317 +141,54 @@ class StateEngineService {
   async syncRemote(): Promise<void> {
     if (typeof window === 'undefined') return;
     try {
-      // 1. Sync Deals with Database API (Preserve TRIP_CREATED status & Two-Way Sync)
-      const dealsRes = await fetch('/api/deals.php').catch(() => null);
-      if (dealsRes && dealsRes.ok) {
-        const dealsJson = await dealsRes.json().catch(() => null);
-        if (dealsJson && dealsJson.status === 'success' && Array.isArray(dealsJson.data)) {
-          const LEGACY_PURGED_IDS = new Set(['dl_1', 'dl_2', 'dl_3', 'DEAL-0138', 'DEAL-0139', 'DEAL-0140', 'DEAL-88210', 'DEAL-99412', 'DEAL-77104', 'TRP-8841', 'TRP-9921']);
-          const cleanRemoteDeals = dealsJson.data.filter((d: any) => !LEGACY_PURGED_IDS.has(d.id) && !LEGACY_PURGED_IDS.has(d.dealNumber));
-          const localDeals = this.getDeals().filter((d: any) => !LEGACY_PURGED_IDS.has(d.id) && !LEGACY_PURGED_IDS.has(d.dealNumber));
-          const dealMap = new Map<string, any>();
-          cleanRemoteDeals.forEach((d: any) => dealMap.set(d.id, d));
-          let hasLocalDealsPush = false;
-          localDeals.forEach((localD: any) => {
-            const remoteD = dealMap.get(localD.id);
-            if (!remoteD) {
-              dealMap.set(localD.id, localD);
-              hasLocalDealsPush = true;
-            } else {
-              if (localD.status === 'TRIP_CREATED' || localD.status === 'COMPLETED' || localD.tripId) {
-                dealMap.set(localD.id, { ...remoteD, ...localD });
-                if (remoteD.status !== localD.status) hasLocalDealsPush = true;
-              } else {
-                dealMap.set(localD.id, { ...localD, ...remoteD });
-              }
-            }
-          });
-          const mergedDeals = Array.from(dealMap.values());
-          if (JSON.stringify(mergedDeals) !== JSON.stringify(localDeals)) {
-            this.writeStorage('bueno_deals', mergedDeals);
-          }
-          if (hasLocalDealsPush || mergedDeals.length > cleanRemoteDeals.length) {
-            this.postRemote('/api/deals.php', mergedDeals);
-          }
-        }
-      }
+      // 1. Authoritative REST Sync with NestJS Backend
+      const token = localStorage.getItem('bueno_token');
+      if (token) {
+        try {
+          const res = await bookingsApi.getAll().catch(() => null);
+          if (res && res.data && Array.isArray(res.data)) {
+            const remoteBookings = res.data;
+            if (remoteBookings.length > 0) {
+              const mappedTrips = remoteBookings.map((b: any) => ({
+                id: b.id,
+                tripId: b.bookingCode || b.id,
+                company: b.customer?.fullName || b.customer?.email || 'Industrial Consignee',
+                origin: b.route?.originTerminal || 'PAPA',
+                destination: b.route?.destinationTerminal || 'MNY',
+                cargoType: b.cargoType?.name || 'Bagged Cement (50kg)',
+                quantity: b.cargoWeightTonnes || 60,
+                unitOfMeasure: 'Metric Tonnes (MT)',
+                status: b.bookingStatus || 'LOADING',
+                progressPercent: b.bookingStatus === 'COMPLETED' ? 100 : (b.bookingStatus === 'IN_TRANSIT' ? 45 : 5),
+                speed: b.bookingStatus === 'IN_TRANSIT' ? 68 : 0,
+                locomotiveId: b.trainNumber || 'L2205',
+                createdAt: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB') : 'Today',
+                wagonLogs: (b.wagonAllocations || []).map((wa: any, i: number) => ({
+                  wagonId: wa.wagon?.serialNumber || `PXG 090${20 + i}`,
+                  loadedAt: wa.allocatedAt ? new Date(wa.allocatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ready',
+                  condition: 'LOADED_INTACT',
+                  bagsCount: '1,200 Bags (60 MT)',
+                  burstBags: 0,
+                  damageQty: 0,
+                })),
+                damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+              }));
 
-      // 2. Sync Trips with Database API (Deep consist & per-wagon reconciliation & Two-Way Push)
-      const tripsRes = await fetch('/api/trips.php').catch(() => null);
-      if (tripsRes && tripsRes.ok) {
-        const tripsJson = await tripsRes.json().catch(() => null);
-        if (tripsJson && tripsJson.status === 'success' && Array.isArray(tripsJson.data)) {
-          const LEGACY_PURGED_IDS = new Set(['dl_1', 'dl_2', 'dl_3', 'DEAL-0138', 'DEAL-0139', 'DEAL-0140', 'DEAL-88210', 'DEAL-99412', 'DEAL-77104', 'TRP-8841', 'TRP-9921']);
-          const cleanRemoteTrips = tripsJson.data.filter((t: any) => !LEGACY_PURGED_IDS.has(t.id) && !LEGACY_PURGED_IDS.has(t.tripId));
-          const localTrips = this.getTrips().filter((t: any) => !LEGACY_PURGED_IDS.has(t.id) && !LEGACY_PURGED_IDS.has(t.tripId));
-          const tripMap = new Map<string, any>();
-          cleanRemoteTrips.forEach((t: any) => tripMap.set(t.id, t));
-
-          const statusRank: Record<string, number> = {
-            'PLANNED': 1,
-            'SCHEDULED': 1,
-            'LOADING': 2,
-            'LOADED': 3,
-            'READY_TO_DEPART': 3,
-            'DISPATCHED': 4,
-            'IN_TRANSIT': 4,
-            'ARRIVED': 5,
-            'UNLOADING': 5,
-            'COMPLETED': 6,
-          };
-
-          let hasLocalNewTripsOrUpdates = false;
-
-          localTrips.forEach((localT: any) => {
-            const remoteT = tripMap.get(localT.id);
-            if (!remoteT) {
-              tripMap.set(localT.id, localT);
-              hasLocalNewTripsOrUpdates = true;
-            } else {
-              // Reconcile status according to progression rank (never downgrade)
-              const localRank = statusRank[localT.status] || 0;
-              const remoteRank = statusRank[remoteT.status] || 0;
-              const chosenStatus = remoteRank > localRank ? remoteT.status : (localT.status || remoteT.status);
-              if (localRank > remoteRank) {
-                hasLocalNewTripsOrUpdates = true;
-              }
-
-              // Per-wagon deep merge
-              const localLogs: any[] = Array.isArray(localT.wagonLogs) ? localT.wagonLogs : [];
-              const remoteLogs: any[] = Array.isArray(remoteT.wagonLogs) ? remoteT.wagonLogs : [];
-              const wagonIdMap = new Map<string, any>();
-
-              // Remote wagons first
-              remoteLogs.forEach((w: any, idx: number) => {
-                const wId = w.wagonId || w.id || `W_${idx}`;
-                wagonIdMap.set(wId, { ...w });
+              const localTrips = this.getTrips();
+              const mergedMap = new Map<string, any>();
+              localTrips.forEach((t: any) => mergedMap.set(t.id, t));
+              mappedTrips.forEach((t: any) => {
+                const existing = mergedMap.get(t.id);
+                mergedMap.set(t.id, existing ? { ...t, ...existing } : t);
               });
-
-              // Merge local wagons with conflict resolution
-              localLogs.forEach((w: any, idx: number) => {
-                const wId = w.wagonId || w.id || `W_${idx}`;
-                if (!wagonIdMap.has(wId)) {
-                  wagonIdMap.set(wId, { ...w });
-                  hasLocalNewTripsOrUpdates = true;
-                } else {
-                  const existingW = wagonIdMap.get(wId);
-                  const isLocalUnloaded = w.unloadStatus === 'UNLOADED' || w.status === 'UNLOADED' || Number(w.burstBags || 0) > 0 || Number(w.damageQty || 0) > 0;
-                  const isRemoteUnloaded = existingW.unloadStatus === 'UNLOADED' || existingW.status === 'UNLOADED' || Number(existingW.burstBags || 0) > 0 || Number(existingW.damageQty || 0) > 0;
-
-                  if (isLocalUnloaded && !isRemoteUnloaded) {
-                    hasLocalNewTripsOrUpdates = true;
-                  }
-
-                  const mergedWagon = {
-                    ...existingW,
-                    ...w,
-                    status: (isRemoteUnloaded || isLocalUnloaded) ? 'UNLOADED' : (w.status === 'LOADED' || existingW.status === 'LOADED' ? 'LOADED' : (w.status || existingW.status)),
-                    unloadStatus: (isRemoteUnloaded || isLocalUnloaded) ? 'UNLOADED' : (existingW.unloadStatus || w.unloadStatus),
-                    burstBags: Math.max(Number(existingW.burstBags || 0), Number(w.burstBags || 0)),
-                    damageQty: Math.max(Number(existingW.damageQty || 0), Number(w.damageQty || 0)),
-                    correctQty: w.correctQty !== undefined ? w.correctQty : existingW.correctQty,
-                    unloadedQty: w.unloadedQty !== undefined ? w.unloadedQty : existingW.unloadedQty,
-                    complaintNotes: [existingW.complaintNotes, w.complaintNotes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('; ') || null,
-                  };
-                  wagonIdMap.set(wId, mergedWagon);
-                }
-              });
-
-              const mergedLogs = Array.from(wagonIdMap.values());
-
-              // Reconcile overall damages
-              const mergedDamages = {
-                damagedUnits: Math.max(Number(localT.damages?.damagedUnits || 0), Number(remoteT.damages?.damagedUnits || 0)),
-                burstBags: Math.max(Number(localT.damages?.burstBags || 0), Number(remoteT.damages?.burstBags || 0)),
-                complaintNotes: Array.from(new Set([
-                  ...(Array.isArray(localT.damages?.complaintNotes) ? localT.damages.complaintNotes : [localT.damages?.complaintNotes]),
-                  ...(Array.isArray(remoteT.damages?.complaintNotes) ? remoteT.damages.complaintNotes : [remoteT.damages?.complaintNotes]),
-                ].filter(Boolean))),
-              };
-
-              // Reconcile telemetry
-              const chosenLat = (remoteT.speed > 0 || remoteT.curLat !== 6.8974) ? remoteT.curLat : (localT.curLat || remoteT.curLat);
-              const chosenLng = (remoteT.speed > 0 || remoteT.curLng !== 3.2141) ? remoteT.curLng : (localT.curLng || remoteT.curLng);
-              const chosenSpeed = Math.max(Number(remoteT.speed || 0), Number(localT.speed || 0));
-
-              tripMap.set(localT.id, {
-                ...remoteT,
-                ...localT,
-                status: chosenStatus,
-                wagonLogs: mergedLogs,
-                damages: mergedDamages,
-                curLat: chosenLat,
-                curLng: chosenLng,
-                speed: chosenSpeed,
-                departedAt: remoteT.departedAt || localT.departedAt,
-                completedAt: remoteT.completedAt || localT.completedAt,
-              });
-            }
-          });
-          const mergedTrips = Array.from(tripMap.values());
-          if (JSON.stringify(mergedTrips) !== JSON.stringify(localTrips)) {
-            this.writeStorage('bueno_trips', mergedTrips);
-          }
-
-          // Two-Way Push: If local had trips or advances missing remotely, push back to SQL database immediately
-          if (hasLocalNewTripsOrUpdates || mergedTrips.length > tripsJson.data.length) {
-            this.postRemote('/api/trips.php', mergedTrips);
-          }
-        }
-      }
-
-      // 3. Sync Fund Requests with Database API
-      const reqsRes = await fetch('/api/requests.php').catch(() => null);
-      if (reqsRes && reqsRes.ok) {
-        const reqsJson = await reqsRes.json().catch(() => null);
-        if (reqsJson && reqsJson.status === 'success' && Array.isArray(reqsJson.data) && reqsJson.data.length > 0) {
-          const localReqs = this.getRequests();
-          const reqMap = new Map<string, any>();
-          reqsJson.data.forEach((r: any) => reqMap.set(r.id, r));
-          localReqs.forEach((r: any) => { if (!reqMap.has(r.id)) reqMap.set(r.id, r); });
-          const mergedReqs = Array.from(reqMap.values());
-          if (JSON.stringify(mergedReqs) !== JSON.stringify(localReqs)) {
-            this.writeStorage('bueno_requests', mergedReqs);
-          }
-        }
-      }
-
-      // 4. Sync Wagons Fleet with Database API (Strict 46 Official Wagons)
-      const wagonsRes = await fetch('/api/wagons.php').catch(() => null);
-      if (wagonsRes && wagonsRes.ok) {
-        const wagonsJson = await wagonsRes.json().catch(() => null);
-        if (wagonsJson && wagonsJson.status === 'success' && Array.isArray(wagonsJson.data) && wagonsJson.data.length > 0) {
-          const validRemoteWagons = wagonsJson.data.filter((w: any) => !w.id?.startsWith('PXG 00') && !w.id?.startsWith('WG') && !w.id?.startsWith('CBX'));
-          if (validRemoteWagons.length === 46) {
-            this.writeStorage('bueno_wagons', validRemoteWagons);
-          } else {
-            const localWagons = this.getWagons().filter((w: any) => !w.id?.startsWith('PXG 00') && !w.id?.startsWith('WG') && !w.id?.startsWith('CBX'));
-            const wagonMap = new Map<string, any>();
-            validRemoteWagons.forEach((w: any) => wagonMap.set(w.id, w));
-            localWagons.forEach((w: any) => { if (!wagonMap.has(w.id)) wagonMap.set(w.id, w); });
-            const mergedWagons = Array.from(wagonMap.values());
-            this.writeStorage('bueno_wagons', mergedWagons.length === 46 ? mergedWagons : SEED_WAGONS);
-          }
-        }
-      }
-
-      // 5. Sync Role Permissions Matrix with Database API
-      const permsRes = await fetch('/api/permissions.php').catch(() => null);
-      if (permsRes && permsRes.ok) {
-        const permsJson = await permsRes.json().catch(() => null);
-        if (permsJson && permsJson.status === 'success' && permsJson.matrix && typeof permsJson.matrix === 'object' && Object.keys(permsJson.matrix).length > 0) {
-          const localPerms = this.getRolePermissions();
-          if (JSON.stringify(permsJson.matrix) !== JSON.stringify(localPerms)) {
-            this.writeStorage('bueno_role_permissions', permsJson.matrix);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new Event('bueno_permissions_updated'));
+              this.writeStorage('bueno_trips', Array.from(mergedMap.values()));
             }
           }
-        }
-      }
-
-      // 6. Sync Notifications with Database API
-      const notifsRes = await fetch('/api/notifications.php').catch(() => null);
-      if (notifsRes && notifsRes.ok) {
-        const notifsJson = await notifsRes.json().catch(() => null);
-        if (notifsJson && notifsJson.status === 'success' && Array.isArray(notifsJson.data)) {
-          const localNotifs = this.readStorage('bueno_notifications', []);
-          const notifMap = new Map<string, any>();
-          notifsJson.data.forEach((n: any) => notifMap.set(n.id, n));
-          localNotifs.forEach((n: any) => { if (!notifMap.has(n.id)) notifMap.set(n.id, n); });
-          const mergedNotifs = Array.from(notifMap.values());
-          if (JSON.stringify(mergedNotifs) !== JSON.stringify(localNotifs)) {
-            this.writeStorage('bueno_notifications', mergedNotifs);
-          }
-        }
-      }
-
-      // 7. Sync Negotiations Chat with Database API
-      const negsRes = await fetch('/api/negotiations.php').catch(() => null);
-      if (negsRes && negsRes.ok) {
-        const negsJson = await negsRes.json().catch(() => null);
-        if (negsJson && negsJson.status === 'success' && Array.isArray(negsJson.data)) {
-          const localNegs = this.getNegotiations();
-          const negMap = new Map<string, any>();
-          negsJson.data.forEach((n: any) => negMap.set(n.id, n));
-          localNegs.forEach((localN: any) => {
-            const remoteN = negMap.get(localN.id);
-            if (!remoteN) {
-              negMap.set(localN.id, localN);
-            } else {
-              const localMsgs = Array.isArray(localN.messages) ? localN.messages : [];
-              const remoteMsgs = Array.isArray(remoteN.messages) ? remoteN.messages : [];
-              const msgMap = new Map<string, any>();
-              [...remoteMsgs, ...localMsgs].forEach((m: any) => {
-                const key = `${m.sender}_${m.time}_${m.text?.substring(0, 30)}`;
-                msgMap.set(key, m);
-              });
-              negMap.set(localN.id, {
-                ...remoteN,
-                ...localN,
-                email: localN.email || remoteN.email,
-                companyName: localN.companyName || remoteN.companyName,
-                status: (localN.status === 'APPROVED_DISPATCHED' || remoteN.status === 'APPROVED_DISPATCHED') ? 'APPROVED_DISPATCHED' : (remoteN.status || localN.status),
-                messages: Array.from(msgMap.values()),
-              });
-            }
-          });
-          const mergedNegs = Array.from(negMap.values());
-          if (JSON.stringify(mergedNegs) !== JSON.stringify(localNegs)) {
-            this.writeStorage('bueno_custom_deal_negotiations', mergedNegs);
-          }
-        }
-      }
-
-      // 8. Sync Users with Database API
-      const usersRes = await fetch('/api/users.php').catch(() => null);
-      if (usersRes && usersRes.ok) {
-        const usersJson = await usersRes.json().catch(() => null);
-        if (usersJson && usersJson.status === 'success' && Array.isArray(usersJson.data) && usersJson.data.length > 0) {
-          const localUsers = this.getUsers();
-          const userMap = new Map<string, any>();
-          usersJson.data.forEach((u: any) => userMap.set(u.id, u));
-          localUsers.forEach((u: any) => { if (!userMap.has(u.id)) userMap.set(u.id, u); });
-          const mergedUsers = Array.from(userMap.values());
-          if (JSON.stringify(mergedUsers) !== JSON.stringify(localUsers)) {
-            this.writeStorage('bueno_users', mergedUsers);
-          }
-        }
-      }
-
-      // 9. Sync Invoices with Database API
-      const invsRes = await fetch('/api/invoices.php').catch(() => null);
-      if (invsRes && invsRes.ok) {
-        const invsJson = await invsRes.json().catch(() => null);
-        if (invsJson && invsJson.status === 'success' && Array.isArray(invsJson.data) && invsJson.data.length > 0) {
-          const localInvs = this.getInvoices();
-          const invMap = new Map<string, any>();
-          invsJson.data.forEach((inv: any) => invMap.set(inv.id, inv));
-          localInvs.forEach((inv: any) => { if (!invMap.has(inv.id)) invMap.set(inv.id, inv); });
-          const mergedInvs = Array.from(invMap.values());
-          if (JSON.stringify(mergedInvs) !== JSON.stringify(localInvs)) {
-            this.writeStorage('bueno_invoices', mergedInvs);
-          }
-        }
-      }
-
-      // 10. Sync Trip Direct Costs with Database API
-      const costsRes = await fetch('/api/trip_costs.php').catch(() => null);
-      if (costsRes && costsRes.ok) {
-        const costsJson = await costsRes.json().catch(() => null);
-        if (costsJson && costsJson.status === 'success' && Array.isArray(costsJson.data) && costsJson.data.length > 0) {
-          const localCosts = this.getTripCosts();
-          const costMap = new Map<string, any>();
-          costsJson.data.forEach((c: any) => costMap.set(c.id, c));
-          localCosts.forEach((c: any) => { if (!costMap.has(c.id)) costMap.set(c.id, c); });
-          const mergedCosts = Array.from(costMap.values());
-          if (JSON.stringify(mergedCosts) !== JSON.stringify(localCosts)) {
-            this.writeStorage('bueno_trip_costs', mergedCosts);
-          }
-        }
+        } catch {}
       }
     } catch {}
   }
+
 
   cleanseLafargeAndMigrateHbm(): void {
     if (typeof window === 'undefined') return;
@@ -513,8 +250,10 @@ class StateEngineService {
       this.writeStorage('bueno_requests', []);
       this.cleanseLafargeAndMigrateHbm();
       this.writeStorage('bueno_deals', []);
+      this.writeStorage('bueno_custom_deal_negotiations', []);
+      this.writeStorage('bueno_client_requests', []);
       this.writeStorage('bueno_users', SEED_USERS);
-      localStorage.setItem('bueno_prod_purge_v12', 'purged');
+      localStorage.setItem('bueno_prod_purge_clean_v15', 'purged');
       this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
       this.postRemote('/api/trip_costs.php', []);
       this.postRemote('/api/invoices.php', []);
@@ -528,40 +267,30 @@ class StateEngineService {
   seedInitialProductionState(): void {
     if (typeof window === 'undefined') return;
     try {
-      // Always cleanse any stray Lafarge/Elephant entries in browser storage
+      // Always cleanse any stray legacy mock entries in browser storage
       this.cleanseLafargeAndMigrateHbm();
 
       // Cleanse and deduplicate wagons fleet to strictly 46 official dedicated hoppers
       const storedWagons = this.readStorage<any[]>('bueno_wagons', SEED_WAGONS);
       if (!Array.isArray(storedWagons) || storedWagons.length !== 46 || storedWagons.some((w: any) => w.id?.startsWith('PXG 00') || w.id?.startsWith('WG') || w.id?.startsWith('CBX'))) {
         this.writeStorage('bueno_wagons', SEED_WAGONS);
-        this.postRemote('/api/wagons.php', SEED_WAGONS);
       }
 
-      const isPurgedV12 = localStorage.getItem('bueno_prod_purge_v12');
-      if (isPurgedV12 !== 'purged') {
+      const isPurged = localStorage.getItem('bueno_prod_purge_clean_v15');
+      if (isPurged !== 'purged') {
         // Complete Clean Slate Purge: Zero initial mock deals or trips
         this.writeStorage('bueno_trips', []);
-        this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
-
         this.writeStorage('bueno_deals', []);
-        this.postRemote('/api/deals.php', { action: 'PURGE_ALL' });
-
         this.writeStorage('bueno_trip_costs', []);
-        this.postRemote('/api/trip_costs.php', []);
-
         this.writeStorage('bueno_invoices', []);
-        this.postRemote('/api/invoices.php', []);
-
         this.writeStorage('bueno_requests', []);
-        this.postRemote('/api/requests.php', []);
-
+        this.writeStorage('bueno_custom_deal_negotiations', []);
+        this.writeStorage('bueno_client_requests', []);
         localStorage.removeItem('bueno_terminal_information');
         this.writeStorage('bueno_containers', SEED_CONTAINERS);
         this.writeStorage('bueno_gate_logs', SEED_GATE_LOGS);
-        this.writeStorage('bueno_client_requests', []);
 
-        localStorage.setItem('bueno_prod_purge_v12', 'purged');
+        localStorage.setItem('bueno_prod_purge_clean_v15', 'purged');
         this.notifyListeners();
       }
     } catch {}
@@ -664,7 +393,7 @@ class StateEngineService {
       monitoringOfficer: 'Ade Bello (Bueno Operations Monitoring)',
       status: 'LOADING',
       dispatchTime: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      createdAt: 'Today, 07 Sep 2026',
+      createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       wagonLogs: OFFICIAL_PXG_CODES.slice(0, 23).map((wId, i) => ({
         wagonId: wId,
         loadedAt: 'Just Now',
@@ -697,11 +426,30 @@ class StateEngineService {
     return newTrip;
   }
 
+  getTodayLabel(): string {
+    const formatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    return `Today (${formatted})`;
+  }
+
+  getYesterdayLabel(): string {
+    const yesterday = new Date(Date.now() - 86400000);
+    const formatted = yesterday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    return `Yesterday (${formatted})`;
+  }
+
+  getThisMonthLabel(): string {
+    return new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  getFormattedToday(): string {
+    return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
   getDateCategory(dateInput?: string | Date): 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'OLDER' {
     if (!dateInput) return 'TODAY';
-    const str = String(dateInput).toLowerCase();
-    if (str.includes('today') || str.includes('07 sep') || str.includes('2026-09-07')) return 'TODAY';
-    if (str.includes('yesterday') || str.includes('06 sep') || str.includes('2026-09-06')) return 'YESTERDAY';
+    const str = String(dateInput).toLowerCase().trim();
+    if (str.includes('today') || str.includes('just now')) return 'TODAY';
+    if (str.includes('yesterday')) return 'YESTERDAY';
 
     let d: Date;
     if (dateInput instanceof Date) {
@@ -711,18 +459,26 @@ class StateEngineService {
     }
 
     if (isNaN(d.getTime())) {
-      if (str.includes('sep') || str.includes('2026-09')) return 'THIS_WEEK';
-      return 'OLDER';
+      // Try to parse common UK formats like "DD/MM/YYYY" or "DD MMM YYYY"
+      const ukMatch = str.match(/(\d{1,2})[\/\s-]([a-z]{3}|\d{1,2})[\/\s-](\d{4})/i);
+      if (ukMatch) {
+        d = new Date(dateInput);
+      }
+      if (isNaN(d.getTime())) return 'TODAY';
     }
 
-    const now = new Date('2026-09-07T12:00:00');
-    const diffMs = now.getTime() - d.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    if (diffDays <= 0) return 'TODAY';
-    if (diffDays === 1) return 'YESTERDAY';
-    if (diffDays >= 2 && diffDays <= 7) return 'THIS_WEEK';
-    if (diffDays > 7 && diffDays <= 30) return 'THIS_MONTH';
+    if (d >= startOfToday) return 'TODAY';
+    if (d >= startOfYesterday) return 'YESTERDAY';
+    if (d >= startOfWeek) return 'THIS_WEEK';
+    if (d >= startOfMonth) return 'THIS_MONTH';
     return 'OLDER';
   }
 

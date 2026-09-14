@@ -343,7 +343,11 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
 }
 
 export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet' | 'moniya' | 'terminal_info'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'deals' | 'negotiations' | 'telemetry' | 'manifest' | 'billing' | 'users' | 'permissions' | 'fund_requisitions' | 'fleet' | 'moniya' | 'terminal_info'>(() => {
+    if (user?.role === 'HEAD_OF_FINANCE' || user?.role === 'ACCOUNTANT') return 'billing';
+    if (user?.role === 'HEAD_OF_OPERATIONS') return 'deals';
+    return 'analytics';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true); // Open by default for easy navigation
   const [createDealModal, setCreateDealModal] = useState(false);
   const [registerWagonModal, setRegisterWagonModal] = useState(false);
@@ -378,7 +382,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // Enterprise Accounting & Dynamic Trip Costing State
   const [invoices, setInvoices] = useState<any[]>([]);
   const [tripCosts, setTripCosts] = useState<any[]>([]);
-  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'pnl' | 'customers'>('invoices');
+  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'pnl' | 'customers' | 'deal_costing'>('invoices');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'SETTLED' | 'PARTIALLY_PAID' | 'ISSUED'>('ALL');
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
@@ -403,9 +407,24 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [editingTripCost, setEditingTripCost] = useState<any | null>(null);
 
   // Active Selected Thread & Search
-  const [activeDealId, setActiveDealId] = useState<string | null>(null);
-  const activeDealIdRef = useRef<string | null>(null);
+  const [activeDealId, setActiveDealId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bueno_admin_active_deal_id') || null;
+    }
+    return null;
+  });
+  const activeDealIdRef = useRef<string | null>(activeDealId);
   activeDealIdRef.current = activeDealId;
+
+  const handleSelectThread = (thread: any) => {
+    const threadId = thread.id;
+    setActiveDealId(threadId);
+    activeDealIdRef.current = threadId;
+    try {
+      localStorage.setItem('bueno_admin_active_deal_id', threadId);
+    } catch {}
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [replyInput, setReplyInput] = useState('');
 
@@ -426,7 +445,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
 
   // Deals Date Filter & Commercial Costing State (Finance / Treasurer)
-  const [dealsDateFilter, setDealsDateFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY' | 'SINGLE'>('ALL');
+  const [dealsDateFilter, setDealsDateFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY' | 'SINGLE'>('TODAY');
   const [costingModalDeal, setCostingModalDeal] = useState<any | null>(null);
   const [costingForm, setCostingForm] = useState({
     tariffRatePerTon: 12500,
@@ -509,8 +528,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       if (!clientEmail) return;
 
       const station = client.assignedStation && client.assignedStation !== 'HQ' ? client.assignedStation : 'PAPA';
-      mergedMap.set(clientEmail, {
-        id: `DEAL-NEG-${client.id}`,
+      const cleanEmailKey = clientEmail.toLowerCase();
+      const stableThreadId = `THREAD-${cleanEmailKey.replace(/[^a-z0-9]/g, '_')}`;
+      mergedMap.set(cleanEmailKey, {
+        id: stableThreadId,
         companyName: client.companyName || client.fullName,
         email: clientEmail,
         contactName: client.fullName,
@@ -555,9 +576,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         }
 
         if (!existing) {
-          existingKey = reqEmail || `req_${req.id || Date.now()}`;
+          const cleanReqKey = reqEmail ? reqEmail.toLowerCase() : `req_${req.id || 'unassigned'}`;
+          existingKey = cleanReqKey;
           existing = {
-            id: `DEAL-NEG-${req.id || Date.now()}`,
+            id: `THREAD-${cleanReqKey.replace(/[^a-z0-9]/g, '_')}`,
             companyName: req.companyName || req.contactName || 'Industrial Consignee Client',
             email: reqEmail,
             contactName: req.contactName || 'Logistics Lead',
@@ -627,11 +649,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         }
 
         if (!existing) {
-          existingKey = dealEmail || `thread_${deal.id || Date.now()}`;
+          const cleanDealKey = dealEmail ? dealEmail.toLowerCase() : (deal.id || 'deal_custom');
+          existingKey = cleanDealKey;
           existing = {
-            id: deal.id || `DEAL-NEG-${Date.now()}`,
+            id: deal.id || `THREAD-${cleanDealKey.replace(/[^a-z0-9]/g, '_')}`,
             companyName: deal.companyName || deal.contactName || 'Industrial Client',
-            email: dealEmail || `client_${Date.now()}@bueno.ng`,
+            email: dealEmail || `client_${deal.id || 'custom'}@bueno.ng`,
             contactName: deal.contactName || deal.companyName,
             phone: deal.phone || '',
             loadingStation: deal.loadingStation || 'PAPA',
@@ -678,11 +701,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
 
     setActiveDealId((prevId) => {
-      const currentSelected = prevId || activeDealIdRef.current;
-      if (currentSelected && finalThreads.some((t) => t.id === currentSelected)) {
-        return currentSelected;
+      const savedId = typeof window !== 'undefined' ? localStorage.getItem('bueno_admin_active_deal_id') : null;
+      const target = prevId || activeDealIdRef.current || savedId;
+      if (target) {
+        const matched = finalThreads.find((t) => t.id === target || t.email === target || (target && target.includes(t.email)) || (t.id && target.includes(t.id)));
+        if (matched) {
+          activeDealIdRef.current = matched.id;
+          return matched.id;
+        }
       }
-      return finalThreads[0]?.id || null;
+      const fallback = finalThreads[0]?.id || null;
+      activeDealIdRef.current = fallback;
+      return fallback;
     });
   };
 
@@ -1367,7 +1397,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const customerUsers = usersList.filter((u) => u.userType === 'CLIENT' || u.role === 'CUSTOMER' || u.role === 'CONSIGNEE');
 
   // DYNAMIC HISTORICAL REPORT AUDIT DATA SELECTION
-  const [reportDateFilter, setReportDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('ALL');
+  const [reportDateFilter, setReportDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('TODAY');
   const activeReportTrips = trips.filter((t: any) => {
     if (reportDateFilter === 'ALL') return true;
     const cat = StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt);
@@ -2697,11 +2727,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter By Operational Date:</span>
                 {[
-                  { id: 'ALL', label: 'All Dates' },
-                  { id: 'TODAY', label: '📅 Today (07 Sep)' },
-                  { id: 'YESTERDAY', label: '📅 Yesterday (06 Sep)' },
+                  { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
+                  { id: 'YESTERDAY', label: `📅 ${StateEngine.getYesterdayLabel()}` },
                   { id: 'THIS_WEEK', label: '📅 This Week' },
-                  { id: 'THIS_MONTH', label: '📅 September 2026' },
+                  { id: 'THIS_MONTH', label: `📅 ${StateEngine.getThisMonthLabel()}` },
+                  { id: 'ALL', label: `All Dates (${trips.length})` },
                 ].map((df) => (
                   <button
                     key={df.id}
@@ -3015,11 +3045,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter Contracts:</span>
                   {[
-                    { id: 'ALL', label: `All Deals (${deals.length})` },
+                    { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
+                    { id: 'THIS_WEEK', label: '📅 This Week' },
                     { id: 'MONTHLY', label: '📅 Monthly Contracts' },
                     { id: 'SINGLE', label: '🚂 Single Voyages' },
-                    { id: 'TODAY', label: '📅 Today (07 Sep)' },
-                    { id: 'THIS_WEEK', label: '📅 This Week' },
+                    { id: 'ALL', label: `All Deals (${deals.length})` },
                   ].map((f) => (
                     <button
                       key={f.id}
@@ -3284,7 +3314,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     return (
                       <button
                         key={thread.id}
-                        onClick={() => setActiveDealId(thread.id)}
+                        onClick={() => handleSelectThread(thread)}
                         className={`w-full text-left p-4 transition-all flex items-start gap-3 relative ${
                           isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
                         }`}
@@ -3585,6 +3615,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   }`}
                 >
                   <span>Consignee Statement of Account</span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('deal_costing')}
+                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                    accountingSubTab === 'deal_costing'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Contract Costing & Tariffs (Finance / Deals)</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'deal_costing' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {deals.length}
+                  </span>
                 </button>
               </div>
 
@@ -4103,6 +4147,105 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 4: Dedicated Contract Costing & Deal Tariffs Desk (Finance / Treasurer) */}
+              {accountingSubTab === 'deal_costing' && (
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-teal-700 uppercase">
+                          HEAD OF FINANCE / TREASURY DESK
+                        </span>
+                        <span className="bg-teal-50 text-teal-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full border border-teal-200">
+                          Tariff & OpEx Control
+                        </span>
+                      </div>
+                      <h3 className="text-base font-black text-slate-900 mt-0.5">
+                        Commercial Freight Contract Costing & Operating Tariffs
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Head of Finance ledger to set customer freight rates (₦/MT), evaluate total contract gross values, allocate per-trip budgeted expenses, and model projected profit margins.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="bg-slate-100 text-slate-700 text-xs font-bold font-mono px-3 py-1.5 rounded-xl border border-slate-200">
+                        {deals.length} Commercial Contract(s)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10px] uppercase font-mono text-slate-400">
+                          <th className="p-3">Deal ID / Contract #</th>
+                          <th className="p-3">Consignee Client</th>
+                          <th className="p-3">Route & Commodity</th>
+                          <th className="p-3">Contract Structure</th>
+                          <th className="p-3">Freight Tariff</th>
+                          <th className="p-3">Contract Value</th>
+                          <th className="p-3">Budgeted OpEx/Trip</th>
+                          <th className="p-3">Finance Status</th>
+                          <th className="p-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono">
+                        {deals.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="text-center py-10 text-slate-400 font-mono text-xs">
+                              No commercial contracts currently registered.
+                            </td>
+                          </tr>
+                        ) : (
+                          deals.map((d) => {
+                            const isMonthly = d.dealType === 'MONTHLY_CONTRACT';
+                            const qty = Number(d.quantity) || 1610;
+                            const unit = d.unitOfMeasure || (d.cargoType?.includes('Gypsum') ? 'MT' : 'Bags');
+                            const totalTrips = Number(d.totalPlannedTrips) || (isMonthly ? 10 : 1);
+                            const rate = Number(d.tariffRatePerTon) || 12500;
+                            const totalVal = Number(d.totalContractValue) || (qty * rate);
+                            const perTripOpEx = Number(d.budgetExpensePerTrip) || 4500000;
+                            const isCosted = d.financeStatus === 'FINANCE_APPROVED_COSTED';
+
+                            return (
+                              <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-3 font-bold text-amber-800">{d.dealNumber || d.id}</td>
+                                <td className="p-3 font-bold font-sans text-slate-900">{d.company || d.companyName}</td>
+                                <td className="p-3 font-sans text-slate-700">
+                                  {d.loadingStation} ➔ {d.destination} • {d.cargoType} ({qty.toLocaleString()} {unit})
+                                </td>
+                                <td className="p-3 font-sans">
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${isMonthly ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                    {isMonthly ? `📅 Monthly (${totalTrips} Trips)` : '🚂 Single Voyage'}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-bold text-slate-900">₦{rate.toLocaleString()}/MT</td>
+                                <td className="p-3 font-extrabold text-emerald-700">₦{totalVal.toLocaleString()}</td>
+                                <td className="p-3 font-bold text-rose-700">₦{perTripOpEx.toLocaleString()}</td>
+                                <td className="p-3 font-sans">
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isCosted ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800'}`}>
+                                    {isCosted ? '✓ Cost Approved' : '⏳ Pending Rates'}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-right">
+                                  <button
+                                    onClick={() => openCostingModal(d)}
+                                    className="bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] px-3.5 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                                  >
+                                    <span>💰 Edit Tariff & Cost</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
