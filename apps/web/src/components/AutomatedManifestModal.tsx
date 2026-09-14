@@ -79,7 +79,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
         {/* Printable Action Bar */}
         <div className="bg-slate-900 text-white p-4 flex flex-wrap justify-between items-center gap-3 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-xl bg-[#62BC37]/20 text-[#62BC37] flex items-center justify-center font-black">📄</span>
+            <span className="w-9 h-9 rounded-xl bg-[#62BC37]/20 text-[#62BC37] flex items-center justify-center font-black"></span>
             <div>
               <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">AUTOMATED MANIFEST GENERATOR</span>
               <h3 className="text-sm font-black text-white">NRC & Bueno Railway Consignment Manifest #{manifestNo}</h3>
@@ -87,13 +87,13 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleDownloadCsv} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-all">
-              Export CSV 📊
+              Export CSV 
             </button>
             <button onClick={handlePrint} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2 rounded-xl shadow-md transition-all">
-              Print Official PDF 🖨️
+              Print Official PDF 
             </button>
             <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-3 py-2 text-xs rounded-xl font-bold">
-              ✕
+              ×
             </button>
           </div>
         </div>
@@ -136,7 +136,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">CORRIDOR ROUTE</span>
-              <span className="font-black text-slate-900">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
+              <span className="font-black text-slate-900">{trip.origin || 'EWK'} → {trip.destination || 'MNY'}</span>
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">VESSEL IMPORT REF</span>
@@ -196,7 +196,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                         <td className="p-3 font-bold text-slate-900">{bags.toLocaleString()}</td>
                         <td className="p-3 text-slate-500">22.5 T</td>
                         <td className="p-3 font-black text-slate-900">{grossT.toFixed(1)} T</td>
-                        <td className="p-3 text-emerald-700 font-extrabold">✓ VERIFIED INTACT</td>
+                        <td className="p-3 text-emerald-700 font-extrabold">VERIFIED INTACT</td>
                       </tr>
                     );
                   })}

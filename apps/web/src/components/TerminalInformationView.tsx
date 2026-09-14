@@ -226,13 +226,13 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               onClick={handleExportCsv}
               className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
             >
-              <span>Export Excel / CSV 📊</span>
+              <span>Export Excel / CSV </span>
             </button>
             <button
               onClick={() => window.print()}
               className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
             >
-              <span>Print Ledger 🖨️</span>
+              <span>Print Ledger </span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
@@ -256,7 +256,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             >
               {Object.entries(STATION_OPTIONS).map(([code, opt]) => (
                 <option key={code} value={code}>
-                  {code} — {opt.name} {opt.isBuenoTerminal ? '★ BUENO TERMINAL' : ''}
+                  {code} — {opt.name} {opt.isBuenoTerminal ? '[BUENO TERMINAL]' : ''}
                 </option>
               ))}
             </select>
@@ -409,7 +409,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 onClick={() => setShowAddModal(false)}
                 className="text-slate-400 hover:text-slate-700 font-bold text-base"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -557,7 +557,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                   type="submit"
                   className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
                 >
-                  Save Entry to Ledger ➔
+                  Save Entry to Ledger →
                 </button>
               </div>
             </form>

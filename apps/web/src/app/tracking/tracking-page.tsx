@@ -6,7 +6,7 @@ import { useFleetTracking } from '@/lib/socket';
 import RailTelemetryCard from '@/components/RailTelemetryCard';
 import AutomatedManifestModal from '@/components/AutomatedManifestModal';
 
-// ─── Nigeria Rail Corridor Coordinates (Western Corridor: Apapa ➔ Ewekoro ➔ Abeokuta ➔ Moniya) ───
+// ─── Nigeria Rail Corridor Coordinates (Western Corridor: Apapa → Ewekoro → Abeokuta → Moniya) ───
 const NIGERIA_CENTER: [number, number] = [6.9500, 3.3500];
 
 const WESTERN_CORRIDOR_WAYPOINTS: [number, number][] = [
@@ -90,10 +90,10 @@ function LocoCard({ loco, selected, onClick }: { loco: any; selected: boolean; o
       </div>
       <p className="text-[11px] text-slate-500 font-medium mt-1 truncate">{loco.model}</p>
       {loco.assignedDriver && (
-        <p className="text-[11px] text-slate-600 font-bold mt-1">🧑 Driver: {loco.assignedDriver.user?.fullName}</p>
+        <p className="text-[11px] text-slate-600 font-bold mt-1">Driver: {loco.assignedDriver.user?.fullName}</p>
       )}
       <div className="flex items-center justify-between mt-2 text-xs font-mono">
-        <span className="text-slate-600 font-bold">⛽ {loco.fuelLevelPercent}%</span>
+        <span className="text-slate-600 font-bold"> {loco.fuelLevelPercent}%</span>
         {loco.currentLat ? (
           <span className="text-[#62BC37] font-black flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-ping inline-block" />
@@ -188,7 +188,7 @@ function LeafletMap({ locos, selectedId }: { locos: any[]; selectedId?: string }
             border:2px solid ${isSelected ? '#ffffff' : '#62BC37'};
             display:flex; align-items:center; gap:4px;
           ">
-            <span>🚂</span> <span>${loco.serialNumber}</span>
+            <span></span> <span>${loco.serialNumber}</span>
           </div>`,
         iconAnchor: [45, 20],
       });
@@ -289,7 +289,7 @@ export default function TrackingPage() {
             onClick={() => setActiveManifestTrip(selectedLoco)}
             className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            <span>📄 Generate Official Freight Manifest</span>
+            <span> Generate Official Freight Manifest</span>
           </button>
         </div>
       </aside>

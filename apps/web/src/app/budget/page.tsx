@@ -515,7 +515,7 @@ export default function BudgetPage() {
                 disabled={actionLoading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-md"
               >
-                {actionLoading ? 'Saving...' : 'Save Benchmark ➔'}
+                {actionLoading ? 'Saving...' : 'Save Benchmark →'}
               </button>
             </div>
           </form>
@@ -558,7 +558,7 @@ export default function BudgetPage() {
                 disabled={actionLoading}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-xl shadow-md"
               >
-                {actionLoading ? 'Updating...' : 'Set Officer Target ➔'}
+                {actionLoading ? 'Updating...' : 'Set Officer Target →'}
               </button>
             </div>
           </form>

@@ -143,9 +143,9 @@ export default function RegisterPage() {
       {/* What you get */}
       <div className="mt-8 grid grid-cols-3 gap-4 max-w-md w-full">
         {[
-          { icon: '📦', text: 'Book wagon space online' },
-          { icon: '📍', text: 'Track cargo live on map' },
-          { icon: '💳', text: 'Pay securely via Paystack' },
+          { icon: '', text: 'Book wagon space online' },
+          { icon: '', text: 'Track cargo live on map' },
+          { icon: '', text: 'Pay securely via Paystack' },
         ].map(({ icon, text }) => (
           <div key={text} className="bg-white border border-gray-100 rounded-xl p-3 text-center">
             <div className="text-2xl mb-1">{icon}</div>

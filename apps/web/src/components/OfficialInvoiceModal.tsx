@@ -26,7 +26,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
       ['Consignee Email', invoice.clientEmail || 'N/A'],
       ['Trip Reference', invoice.tripId || 'N/A'],
       ['Deal Reference', invoice.dealId || 'N/A'],
-      ['Corridor Route', invoice.route || 'Ewekoro ➔ Moniya Siding'],
+      ['Corridor Route', invoice.route || 'Ewekoro → Moniya Siding'],
       ['Cargo Description', invoice.cargoType || 'Industrial Freight'],
       ['Total Volume', `${Number(invoice.totalBags || 0).toLocaleString()} Bags / ${Number(invoice.totalTonnes || 0).toLocaleString()} MT`],
       [],
@@ -78,7 +78,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
         <div className="bg-slate-900 text-white p-4 flex flex-wrap justify-between items-center gap-3 print:hidden">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-[#62BC37]/20 text-[#62BC37] flex items-center justify-center font-black text-lg">
-              🧾
+              
             </span>
             <div>
               <div className="flex items-center gap-2">
@@ -115,19 +115,19 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
               onClick={handleDownloadCsv}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition-all"
             >
-              Export CSV 📊
+              Export CSV 
             </button>
             <button
               onClick={handlePrint}
               className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all"
             >
-              Print Official PDF 🖨️
+              Print Official PDF 
             </button>
             <button
               onClick={onClose}
               className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-3 py-2 text-xs rounded-xl font-bold"
             >
-              ✕
+              ×
             </button>
           </div>
         </div>
@@ -197,7 +197,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                 FREIGHT CORRIDOR & DISPATCH DETAILS:
               </span>
               <p className="text-xs text-slate-800">
-                <strong>Rail Corridor:</strong> {invoice.route || 'Ewekoro ➔ Moniya Siding'}
+                <strong>Rail Corridor:</strong> {invoice.route || 'Ewekoro → Moniya Siding'}
               </p>
               <p className="text-xs text-slate-800 mt-0.5">
                 <strong>Consignment Cargo:</strong> {invoice.cargoType || 'Bagged Cement (50kg)'}
@@ -278,7 +278,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                 ) : (
                   <tr className="bg-emerald-50/50">
                     <td colSpan={4} className="py-2.5 px-3 text-emerald-800 font-sans text-xs font-bold flex items-center gap-2">
-                      <span>✓</span> Zero Transit Loss / Spillage Reported — 100% Intact Consignment Discharge Verified
+                      <span></span> Zero Transit Loss / Spillage Reported — 100% Intact Consignment Discharge Verified
                     </td>
                   </tr>
                 )}
@@ -302,7 +302,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                   Alternate Bank: <strong>Zenith Bank PLC</strong> (Acct: 1229044810)
                 </p>
                 <p className="text-amber-700 font-sans font-bold text-[11px] mt-1">
-                  ⚠️ Note: Quote <strong>{invoice.invoiceNumber || invoice.id}</strong> in wire transfer narration.
+                  Alert: Note: Quote <strong>{invoice.invoiceNumber || invoice.id}</strong> in wire transfer narration.
                 </p>
               </div>
             </div>

@@ -112,9 +112,9 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
       case 'OPTIMAL':
         return <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg">● OPTIMAL SENSOR STREAM</span>;
       case 'WARNING':
-        return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg">⚠️ ELEVATED TEMP / VIBRATION</span>;
+        return <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg">ALERT ELEVATED TEMP / VIBRATION</span>;
       case 'CRITICAL':
-        return <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg animate-pulse">🚨 CRITICAL SENSOR ALERT</span>;
+        return <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded-lg animate-pulse">CRITICAL CRITICAL SENSOR ALERT</span>;
       default:
         return null;
     }
@@ -126,7 +126,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
       <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-800 pb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-[#0E4B88] text-[#62BC37] flex items-center justify-center font-black text-xl border border-blue-500/30">
-            🚂
+            
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
         {/* Fuel Gauge */}
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-2">
           <div className="flex justify-between items-center text-[10px] font-mono text-slate-400 font-bold">
-            <span>⛽ FUEL RESERVOIR</span>
+            <span>FUEL RESERVOIR</span>
             <span className={data.fuelPercent < 25 ? 'text-rose-400' : 'text-emerald-400'}>{data.fuelPercent}%</span>
           </div>
           <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-800">
@@ -176,7 +176,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
 
         {/* Engine Coolant Temp */}
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">🌡️ COOLANT TEMP</span>
+          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">COOLANT TEMP</span>
           <div className="flex items-baseline gap-1.5">
             <span className={`text-xl font-black font-mono ${data.coolantTemp > 95 ? 'text-rose-400' : data.coolantTemp > 90 ? 'text-amber-400' : 'text-white'}`}>
               {data.coolantTemp}°C
@@ -188,7 +188,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
 
         {/* Hydraulic Brake Pressure */}
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">🛑 HYDRAULIC BRAKE</span>
+          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">HYDRAULIC BRAKE</span>
           <div className="flex items-baseline gap-1.5">
             <span className={`text-xl font-black font-mono ${data.brakePressure < 100 ? 'text-amber-400' : 'text-emerald-400'}`}>
               {data.brakePressure} PSI
@@ -200,7 +200,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
 
         {/* Axle Vibration Stress */}
         <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-1">
-          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">📳 AXLE VIBRATION</span>
+          <span className="text-[10px] font-mono text-slate-400 font-bold block uppercase">AXLE VIBRATION</span>
           <div className="flex items-baseline gap-1.5">
             <span className={`text-xl font-black font-mono ${data.vibrationGForce > 0.5 ? 'text-rose-400' : data.vibrationGForce > 0.3 ? 'text-amber-400' : 'text-emerald-400'}`}>
               {data.vibrationGForce} G
@@ -215,7 +215,7 @@ export default function RailTelemetryCard({ locomotiveId = 'L2205' }: { locomoti
       <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
-            ⚡
+            
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase block">CORRIDOR TRACK VELOCITY</span>

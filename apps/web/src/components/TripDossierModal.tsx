@@ -53,7 +53,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
         <div className="bg-slate-900 text-white p-5 px-6 flex justify-between items-center border-b border-slate-800 print:hidden shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#62BC37] flex items-center justify-center font-mono font-black text-lg">
-              📄
+              
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -73,13 +73,13 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
               onClick={() => window.print()}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm flex items-center gap-2 transition-all cursor-pointer"
             >
-              <span>🖨️ Print Report (PDF)</span>
+              <span>Print Report (PDF)</span>
             </button>
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all cursor-pointer"
             >
-              ✕
+              ×
             </button>
           </div>
         </div>
@@ -124,7 +124,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase block font-mono">Corridor Movement</span>
               <p className="font-extrabold text-slate-900">{sName(trip.origin)}</p>
-              <span className="text-emerald-700 font-black text-[11px]">➔ {sName(trip.destination)}</span>
+              <span className="text-emerald-700 font-black text-[11px]">→ {sName(trip.destination)}</span>
             </div>
 
             <div>
@@ -144,7 +144,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 font-mono flex items-center gap-2">
-                <span>📦 Wagon-by-Wagon Manifest & Offload Audit</span>
+                <span>Wagon-by-Wagon Manifest & Offload Audit</span>
                 <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
                   {totalWagons} Wagons Enrolled
                 </span>
@@ -205,7 +205,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
           {/* 3. FIELD FUND REQUISITIONS LOGGED FOR THIS TRIP */}
           <div className="space-y-2">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 font-mono flex items-center gap-2">
-              <span>💳 Siding Fund Requisitions for this Trip</span>
+              <span>Siding Fund Requisitions for this Trip</span>
               <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
                 {tripRequests.length} Linked Requests
               </span>

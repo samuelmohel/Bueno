@@ -1168,18 +1168,20 @@ class StateEngineService {
 
   canUserAccessTab(user: any, tabId: string): boolean {
     if (!user) return false;
-    const role = user.role || 'GUEST';
-
-    // Super-admins always have full access
-    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+    const role = typeof user === 'string' ? user : (user.role || 'GUEST');
 
     const matrix = this.getRolePermissions();
     const rolePerms = matrix[role];
 
-    if (!Array.isArray(rolePerms)) return false;
+    if (Array.isArray(rolePerms)) {
+      const capability = TAB_TO_CAPABILITY[tabId] || tabId;
+      return rolePerms.includes(capability);
+    }
 
-    const capability = TAB_TO_CAPABILITY[tabId] || tabId;
-    return rolePerms.includes(capability);
+    // Super-admins default to full access if unconfigured
+    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+
+    return false;
   }
 
   // ─── DOUBLE-ENTRY CHART OF ACCOUNTS & GENERAL JOURNAL API ─────────────────
@@ -1278,13 +1280,18 @@ class StateEngineService {
 
   hasGranularPermission(user: any, actionKey: string): boolean {
     if (!user) return false;
-    const role = user.role || 'GUEST';
-    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
-
+    const role = typeof user === 'string' ? user : (user.role || 'GUEST');
     const matrix = this.getGranularPermissions();
     const userPerms = matrix[role];
-    if (!Array.isArray(userPerms)) return false;
-    return userPerms.includes(actionKey);
+    if (Array.isArray(userPerms)) {
+      return userPerms.includes(actionKey);
+    }
+    const defaultPerms = DEFAULT_GRANULAR_ROLE_PERMISSIONS[role];
+    if (Array.isArray(defaultPerms)) {
+      return defaultPerms.includes(actionKey);
+    }
+    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+    return false;
   }
 }
 
@@ -1333,7 +1340,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   // 4 Current Operations on Standard Gauge (Lagos to Moniya, Ibadan)
   {
     id: 'SG_OP_1',
-    name: 'Cement: Papalanto ➔ Moniya (Ibadan)',
+    name: 'Cement: Papalanto -> Moniya (Ibadan)',
     gauge: 'STANDARD_GAUGE',
     origin: 'PAPA',
     destination: 'MONI',
@@ -1345,7 +1352,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   },
   {
     id: 'SG_OP_2',
-    name: 'Export Containers: Moniya ➔ APMT / ENL',
+    name: 'Export Containers: Moniya -> APMT / ENL',
     gauge: 'STANDARD_GAUGE',
     origin: 'MONI',
     destination: 'APT',
@@ -1357,7 +1364,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   },
   {
     id: 'SG_OP_3',
-    name: 'Import / Empty Containers: APMT / ENL ➔ Moniya',
+    name: 'Import / Empty Containers: APMT / ENL -> Moniya',
     gauge: 'STANDARD_GAUGE',
     origin: 'APT',
     destination: 'MONI',
@@ -1369,7 +1376,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   },
   {
     id: 'SG_OP_4',
-    name: 'Gypsum: ENL ➔ Papalanto',
+    name: 'Gypsum: ENL -> Papalanto',
     gauge: 'STANDARD_GAUGE',
     origin: 'ENL',
     destination: 'PAPA',
@@ -1382,7 +1389,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   // 2 Current Operations on Narrow Gauge
   {
     id: 'NG_OP_1',
-    name: 'Cement: Itori (Ewekoro) ➔ Ibadan (Dugbe), Oshogbo, Ilorin',
+    name: 'Cement: Itori (Ewekoro) -> Ibadan (Dugbe), Oshogbo, Ilorin',
     gauge: 'NARROW_GAUGE',
     origin: 'EWK',
     destination: 'DGB',
@@ -1392,7 +1399,7 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   },
   {
     id: 'NG_OP_2',
-    name: 'Import & Export Containers: Iddo ➔ APMT',
+    name: 'Import & Export Containers: Iddo -> APMT',
     gauge: 'NARROW_GAUGE',
     origin: 'IDD',
     destination: 'APT',
@@ -1487,8 +1494,8 @@ export interface GranularPermissionAction {
 export interface GranularPermissionModule {
   id: string;
   name: string;
-  title?: string;
-  icon?: string;
+  title: string;
+  icon: string;
   description: string;
   actions: GranularPermissionAction[];
 }
@@ -1498,7 +1505,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'commercial',
     name: 'Commercial & Deals Desk',
     title: 'Commercial & Deals Desk',
-    icon: '📈',
+    icon: 'commercial',
     description: 'Single-trip and monthly consignment contracts, spot rates, and customer agreements',
     actions: [
       { key: 'deals.view', label: 'View Deals', description: 'Inspect active commercial contracts and backlog' },
@@ -1513,7 +1520,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'negotiation',
     name: 'Negotiation & Live Chat',
     title: 'Negotiation & Live Chat',
-    icon: '💬',
+    icon: 'negotiation',
     description: 'Direct rate bargaining, counter-offers, and client logistics communication',
     actions: [
       { key: 'negotiation.view', label: 'View Discussions', description: 'Read negotiation threads with industrial consignees' },
@@ -1525,7 +1532,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'operations',
     name: 'Corridor Siding & Train Dispatches',
     title: 'Corridor Siding & Train Dispatches',
-    icon: '🚂',
+    icon: 'operations',
     description: 'Field loading at Ewekoro, locomotive consist dispatches, and Moniya destination yard',
     actions: [
       { key: 'ops.manifest_view', label: 'View Manifests', description: 'Access train consist sheets and waybills' },
@@ -1540,7 +1547,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'fleet',
     name: 'Rolling Stock & Siding Fleet',
     title: 'Rolling Stock & Siding Fleet',
-    icon: '🚆',
+    icon: 'fleet',
     description: '46 Dedicated PXG Covered Hopper Wagons and mainline diesel locomotives',
     actions: [
       { key: 'fleet.view', label: 'View 46 Hopper Fleet', description: 'Check wagon availability, payload, and station' },
@@ -1552,7 +1559,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'finance',
     name: 'Double-Entry Accounting & Financial Suite',
     title: 'Double-Entry Accounting & Financial Suite',
-    icon: '💰',
+    icon: 'finance',
     description: 'General Ledger, Chart of Accounts, Journal Entries, P&L, Balance Sheet, and Requisitions',
     actions: [
       { key: 'finance.coa_view', label: 'View Chart of Accounts', description: 'Inspect 5-tier Assets, Liabilities, Equity, Revenue, OpEx' },
@@ -1570,7 +1577,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'users',
     name: 'Identity & Access Administration',
     title: 'Identity & Access Administration',
-    icon: '👥',
+    icon: 'users',
     description: 'Corporate staff directory, client accounts, role assignment, and security credentials',
     actions: [
       { key: 'users.view', label: 'View Directory', description: 'Browse corporate staff and consignee directory' },
@@ -1584,7 +1591,7 @@ export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
     id: 'system',
     name: 'Security & System Governance',
     title: 'Security & System Governance',
-    icon: '⚙️',
+    icon: 'system',
     description: 'Permissions matrix, audit logs, and production clean resets',
     actions: [
       { key: 'system.permissions_edit', label: 'Edit Permissions Matrix', description: 'Customize granular permissions across all roles' },

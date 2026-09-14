@@ -19,11 +19,11 @@ function timeAgo(dateStr: string) {
 
 // ─── Type Icon ────────────────────────────────────────────────────────────────
 const TYPE_ICON: Record<string, string> = {
-  BOOKING:  '📦',
-  PAYMENT:  '💳',
-  FLEET:    '🚂',
-  TRACKING: '📍',
-  SYSTEM:   '🔔',
+  BOOKING:  '',
+  PAYMENT:  '',
+  FLEET:    '',
+  TRACKING: '',
+  SYSTEM:   '',
 };
 
 // ─── Notifications Bell ───────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export function NotificationBell() {
 
             {!loading && notifs.length === 0 && (
               <div className="py-10 text-center text-gray-400 text-sm">
-                <p className="text-2xl mb-2">🔔</p>
+                <p className="text-2xl mb-2"></p>
                 No notifications yet
               </div>
             )}
@@ -119,7 +119,7 @@ export function NotificationBell() {
                 onClick={() => { if (!n.read) markOne(n.id); }}
                 className={`flex gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}
               >
-                <div className="text-xl flex-shrink-0 mt-0.5">{TYPE_ICON[n.type] ?? '🔔'}</div>
+                <div className="text-xl flex-shrink-0 mt-0.5">{TYPE_ICON[n.type] ?? ''}</div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium text-gray-900 ${!n.read ? 'font-semibold' : ''}`}>{n.title}</p>
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>

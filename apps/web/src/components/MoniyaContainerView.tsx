@@ -233,7 +233,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             onClick={handleAutoStackFromTrips}
             className="bg-[#0E4B88] hover:bg-[#093562] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
           >
-            <span>🚂 Auto-Stack Arrived Train Wagons</span>
+            <span> Auto-Stack Arrived Train Wagons</span>
           </button>
           <button
             onClick={() => setRegisterModal(true)}
@@ -418,7 +418,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                         }
                         className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition-all"
                       >
-                        Issue Invoice 📄
+                        Issue Invoice 
                       </button>
                     </td>
                   </tr>
@@ -513,7 +513,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                 onClick={() => setRegisterModal(false)}
                 className="text-slate-400 hover:text-slate-700 font-bold text-base"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -637,7 +637,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                   type="submit"
                   className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
                 >
-                  Collect ₦2,000 & Issue Official Gate Pass ➔
+                  Collect ₦2,000 & Issue Official Gate Pass →
                 </button>
               </div>
             </form>
@@ -650,7 +650,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
         <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 space-y-4 font-sans text-center shadow-2xl border border-slate-200">
             <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
-              ✓
+              
             </div>
             <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Official Gate Pass & Fee Receipt
@@ -701,7 +701,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                 onClick={() => window.print()}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all"
               >
-                Print Gate Pass 🖨️
+                Print Gate Pass 
               </button>
               <button
                 onClick={() => setPrintedReceipt(null)}
@@ -731,7 +731,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                 onClick={() => setSelectedContainer(null)}
                 className="text-slate-400 font-bold hover:text-slate-700 text-base"
               >
-                ✕
+                ×
               </button>
             </div>
 

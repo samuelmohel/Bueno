@@ -117,7 +117,7 @@ export default function BuenoLogisticsHomePage() {
     phone: '',
     volume: '500 - 1,000 Metric Tonnes (T)',
     trackGauge: 'STANDARD_GAUGE',
-    route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)',
+    route: 'PAPA → MONI (Papalanto to Moniya - Standard Gauge)',
     notes: '',
   });
 
@@ -207,7 +207,7 @@ export default function BuenoLogisticsHomePage() {
               Request Freight Account
             </button>
             <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-sm">
-              Sign In to Freight OS ➔
+              Sign In to Freight OS →
             </Link>
           </div>
         </div>
@@ -238,7 +238,7 @@ export default function BuenoLogisticsHomePage() {
                 onClick={() => setRequestModal(true)}
                 className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all"
               >
-                Request Freight Account ➔
+                Request Freight Account →
               </button>
               <Link href="/auth/login" className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold px-7 py-3.5 rounded-2xl transition-all shadow-sm">
                 Access Freight Workspace
@@ -344,7 +344,7 @@ export default function BuenoLogisticsHomePage() {
                 <h3 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{r.title}</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">{r.desc}</p>
                 <Link href="/auth/login" className="inline-block text-xs font-bold text-slate-900 hover:text-blue-900 border-b border-slate-900 pb-0.5">
-                  Access Role Portal ➔
+                  Access Role Portal →
                 </Link>
               </div>
             ))}
@@ -377,10 +377,10 @@ export default function BuenoLogisticsHomePage() {
                 onClick={() => setRequestModal(true)}
                 className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-8 py-4 rounded-2xl shadow-xl transition-all hover:scale-105"
               >
-                Become a Freight Partner / Request Account ➔
+                Become a Freight Partner / Request Account →
               </button>
               <a href="tel:+2348030000002" className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold px-6 py-4 rounded-2xl border border-slate-700 transition-all">
-                📞 Call Operations Desk: +234 803 000 0002
+                Call Operations Desk: +234 803 000 0002
               </a>
             </div>
           </div>
@@ -467,7 +467,7 @@ export default function BuenoLogisticsHomePage() {
               onClick={() => setRequestModal(false)}
               className="absolute right-6 top-6 text-slate-400 hover:text-slate-900 font-bold text-xs"
             >
-              ✕ Close
+              × Close
             </button>
 
             <div>
@@ -487,7 +487,7 @@ export default function BuenoLogisticsHomePage() {
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-5 rounded-2xl space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center text-lg font-black shadow-sm">
-                      ✓
+                      
                     </div>
                     <div>
                       <span className="text-[10px] font-mono font-black text-emerald-800 uppercase">Docket: {provisionResult.reqId}</span>
@@ -524,7 +524,7 @@ export default function BuenoLogisticsHomePage() {
                     </div>
                   </div>
                   <div className="text-[10px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center gap-2">
-                    <span>📧</span>
+                    
                     <span>Transactional Email with PDF receipt dispatched to <b>{provisionResult.user.email}</b></span>
                   </div>
                 </div>
@@ -535,21 +535,21 @@ export default function BuenoLogisticsHomePage() {
                     onClick={handleLaunchWorkspace}
                     className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
                   >
-                    <span>🚀 Launch Industrial Client Workspace Now</span>
-                    <span>➔</span>
+                    <span>Launch Industrial Client Workspace Now</span>
+                    <span>→</span>
                   </button>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => window.print()}
                       className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all border border-slate-300"
                     >
-                      🖨️ Print PDF Receipt
+                       Print PDF Receipt
                     </button>
                     <button
                       onClick={() => {
                         setSubmitted(false);
                         setRequestModal(false);
-                        setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
+                        setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA → MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
                       }}
                       className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 rounded-xl transition-all"
                     >
@@ -661,14 +661,14 @@ export default function BuenoLogisticsHomePage() {
                       onChange={(e) => setForm({ ...form, route: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
                     >
-                      <option value="PAPA ➔ MONI (Papalanto to Moniya - Standard Gauge)">Papalanto ➔ Moniya (Standard Gauge)</option>
-                      <option value="MONI ➔ APMT (Moniya to APMT Exports - Standard Gauge)">Moniya ➔ APMT Exports (Standard Gauge)</option>
-                      <option value="APMT ➔ MONI (APMT to Moniya Imports - Standard Gauge)">APMT ➔ Moniya Imports (Standard Gauge)</option>
-                      <option value="ENL ➔ PAPA (Gypsum ENL to Papalanto - Standard Gauge)">ENL ➔ Papalanto Gypsum (Standard Gauge)</option>
-                      <option value="EWK ➔ DGB (Ewekoro to Dugbe Ibadan - Narrow Gauge)">Ewekoro ➔ Dugbe Ibadan (Narrow Gauge)</option>
-                      <option value="EWK ➔ OSB (Ewekoro to Oshogbo - Narrow Gauge)">Ewekoro ➔ Oshogbo (Narrow Gauge)</option>
-                      <option value="EWK ➔ ILR (Ewekoro to Ilorin - Narrow Gauge)">Ewekoro ➔ Ilorin (Narrow Gauge)</option>
-                      <option value="IDD ➔ APMT (Iddo to APMT Containers - Narrow Gauge)">Iddo ➔ APMT Containers (Narrow Gauge)</option>
+                      <option value="PAPA → MONI (Papalanto to Moniya - Standard Gauge)">Papalanto → Moniya (Standard Gauge)</option>
+                      <option value="MONI → APMT (Moniya to APMT Exports - Standard Gauge)">Moniya → APMT Exports (Standard Gauge)</option>
+                      <option value="APMT → MONI (APMT to Moniya Imports - Standard Gauge)">APMT → Moniya Imports (Standard Gauge)</option>
+                      <option value="ENL → PAPA (Gypsum ENL to Papalanto - Standard Gauge)">ENL → Papalanto Gypsum (Standard Gauge)</option>
+                      <option value="EWK → DGB (Ewekoro to Dugbe Ibadan - Narrow Gauge)">Ewekoro → Dugbe Ibadan (Narrow Gauge)</option>
+                      <option value="EWK → OSB (Ewekoro to Oshogbo - Narrow Gauge)">Ewekoro → Oshogbo (Narrow Gauge)</option>
+                      <option value="EWK → ILR (Ewekoro to Ilorin - Narrow Gauge)">Ewekoro → Ilorin (Narrow Gauge)</option>
+                      <option value="IDD → APMT (Iddo to APMT Containers - Narrow Gauge)">Iddo → APMT Containers (Narrow Gauge)</option>
                     </select>
                   </div>
                 </div>
@@ -690,7 +690,7 @@ export default function BuenoLogisticsHomePage() {
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1"
                 >
-                  Submit Freight Requisition ➔
+                  Submit Freight Requisition →
                 </button>
               </form>
             )}

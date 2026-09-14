@@ -90,7 +90,7 @@ export default function BookingDetailClient() {
                 <StatusBadge status={booking.bookingStatus || booking.status} />
               </div>
               <h1 className="text-2xl font-black text-slate-900 mt-0.5" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                {booking.route?.routeName || `${booking.origin || 'Ewekoro'} ➔ ${booking.destination || 'Moniya'}`}
+                {booking.route?.routeName || `${booking.origin || 'Ewekoro'} → ${booking.destination || 'Moniya'}`}
               </h1>
             </div>
           </div>

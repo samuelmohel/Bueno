@@ -7,7 +7,7 @@ export default function NotFound() {
       <h2 className="text-xl font-bold mb-2">Page Not Found</h2>
       <p className="text-slate-400 text-xs max-w-sm mb-6">The page or resource you are looking for does not exist on CargoTrace Platform.</p>
       <Link href="/dashboard" className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all">
-        Return to Dashboard ➔
+        Return to Dashboard →
       </Link>
     </div>
   );

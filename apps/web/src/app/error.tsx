@@ -9,7 +9,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
       <h2 className="text-xl font-bold mb-2">System Error</h2>
       <p className="text-slate-400 text-xs max-w-sm mb-6">An operational error occurred while rendering this view.</p>
       <button onClick={() => reset()} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all">
-        Try Again ➔
+        Try Again →
       </button>
     </div>
   );

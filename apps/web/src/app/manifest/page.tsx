@@ -186,7 +186,7 @@ export default function FieldManifestPage() {
               <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-bold tracking-wide uppercase">
                 Field Operations Console
               </span>
-              <span className="text-xs text-gray-500 font-mono">Ewekoro ➔ Moniya Rail Corridor</span>
+              <span className="text-xs text-gray-500 font-mono">Ewekoro → Moniya Rail Corridor</span>
             </div>
             <h1 className="text-2xl font-black text-gray-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Rail Freight Cargo & Quality Manifest
@@ -269,7 +269,7 @@ export default function FieldManifestPage() {
                       </div>
                       <p className="text-xs font-extrabold text-gray-800 mt-1">{b.cargoType?.name || 'Cement'}</p>
                       <div className="flex items-center justify-between text-[11px] text-gray-500 mt-2 font-mono">
-                        <span>{b.route?.originTerminal?.split(' ')[0]} ➔ {b.route?.destinationTerminal?.split(' ')[0]}</span>
+                        <span>{b.route?.originTerminal?.split(' ')[0]} → {b.route?.destinationTerminal?.split(' ')[0]}</span>
                         <span className="font-bold text-gray-700">{b.wagonsRequired} Wagons</span>
                       </div>
                     </div>
@@ -557,7 +557,7 @@ export default function FieldManifestPage() {
                 disabled={actionLoading}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow-md"
               >
-                {actionLoading ? 'Logging...' : 'Save Feeder Truck Entry ➔'}
+                {actionLoading ? 'Logging...' : 'Save Feeder Truck Entry →'}
               </button>
             </div>
           </form>
@@ -667,7 +667,7 @@ export default function FieldManifestPage() {
                 disabled={actionLoading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-md"
               >
-                {actionLoading ? 'Saving...' : 'Submit Audit & Tally ➔'}
+                {actionLoading ? 'Saving...' : 'Submit Audit & Tally →'}
               </button>
             </div>
           </form>
@@ -676,14 +676,14 @@ export default function FieldManifestPage() {
           <Modal open={!!customAlert} onClose={() => setCustomAlert(null)} title={customAlert.title || 'Notification'}>
             <div className="p-6 space-y-4 text-center font-sans">
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-[#62BC37] flex items-center justify-center font-black text-xl mx-auto border border-emerald-200">
-                ✓
+                
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{customAlert.title || 'Manifest Notification'}</h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{customAlert.message}</p>
               </div>
               <button onClick={() => setCustomAlert(null)} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md">
-                Acknowledge ➔
+                Acknowledge →
               </button>
             </div>
           </Modal>

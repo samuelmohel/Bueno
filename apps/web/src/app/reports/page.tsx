@@ -219,10 +219,10 @@ export default function PerformanceReportsPage() {
                 <span className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-wider pl-2">Filter By Operational Date:</span>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {[
-                    { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
-                    { id: 'YESTERDAY', label: `📅 ${StateEngine.getYesterdayLabel()}` },
-                    { id: 'THIS_WEEK', label: '📅 This Week' },
-                    { id: 'THIS_MONTH', label: `📅 ${StateEngine.getThisMonthLabel()}` },
+                    { id: 'TODAY', label: ` ${StateEngine.getTodayLabel()}` },
+                    { id: 'YESTERDAY', label: ` ${StateEngine.getYesterdayLabel()}` },
+                    { id: 'THIS_WEEK', label: ' This Week' },
+                    { id: 'THIS_MONTH', label: ` ${StateEngine.getThisMonthLabel()}` },
                     { id: 'ALL', label: 'All Dates' },
                   ].map((df) => (
                     <button
@@ -249,13 +249,13 @@ export default function PerformanceReportsPage() {
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Total Origin Cargo Loaded</span>
                 <p className="text-xl font-black text-gray-900 font-mono">{(data.operational?.totalLoadedBags || 0).toLocaleString()} Bags / MT</p>
-                <span className="text-[10px] text-emerald-700 font-bold block">✓ Audited for {archiveMonth}</span>
+                <span className="text-[10px] text-emerald-700 font-bold block"> Audited for {archiveMonth}</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
                 <span className="text-[10px] font-mono uppercase font-bold text-gray-400">Intact Unloaded at Destination</span>
                 <p className="text-xl font-black text-emerald-800 font-mono">{(data.operational?.totalIntactDeliveredBags || 0).toLocaleString()} Bags / MT</p>
-                <span className="text-[10px] text-emerald-700 font-bold block">✓ Clearance Passed</span>
+                <span className="text-[10px] text-emerald-700 font-bold block"> Clearance Passed</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm space-y-2">
@@ -336,7 +336,7 @@ export default function PerformanceReportsPage() {
                   </div>
                   <div>
                     <span className="text-[9px] uppercase font-bold text-gray-400 block">Corridor Route</span>
-                    <span className="font-bold text-gray-900">{selectedTrip.origin || 'EWK'} ➔ {selectedTrip.destination || 'MNY'}</span>
+                    <span className="font-bold text-gray-900">{selectedTrip.origin || 'EWK'} → {selectedTrip.destination || 'MNY'}</span>
                   </div>
                   <div>
                     <span className="text-[9px] uppercase font-bold text-gray-400 block">Cargo Commodity</span>
@@ -375,7 +375,7 @@ export default function PerformanceReportsPage() {
                           const primaryTruck = (w.feederTrucks && w.feederTrucks[0]) || {};
                           const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || 'TRK-KJA-981-XP';
                           const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || ''})` : 'Ibrahim Garba (08031112233)');
-                          const timeRange = w.startTime && w.endTime ? `${w.startTime} ➔ ${w.endTime}` : (w.startTime || '08:30 AM');
+                          const timeRange = w.startTime && w.endTime ? `${w.startTime} → ${w.endTime}` : (w.startTime || '08:30 AM');
                           const duration = w.durationStr || '25 mins';
                           const loadedQty = Number(w.qty) || (selectedUnit.includes('Tonnes') ? 60 : 1200);
                           const sealNo = w.sealNumber || `SEAL-BN-${9801 + idx}`;
@@ -388,7 +388,7 @@ export default function PerformanceReportsPage() {
                               <td className="p-3 text-gray-700">{timeRange} <span className="text-gray-400">({duration})</span></td>
                               <td className="p-3 font-bold text-gray-900">{sealNo}</td>
                               <td className="p-3 font-extrabold text-blue-900">{loadedQty.toLocaleString()} {selectedUnit}</td>
-                              <td className="p-3 text-right font-sans text-emerald-700 font-bold">✓ APPLIED & LOCKED</td>
+                              <td className="p-3 text-right font-sans text-emerald-700 font-bold"> APPLIED & LOCKED</td>
                             </tr>
                           );
                         }) : (
@@ -422,7 +422,7 @@ export default function PerformanceReportsPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-100 font-mono">
                         {(selectedTrip.wagonLogs || []).length > 0 ? selectedTrip.wagonLogs.map((w: any, idx: number) => {
-                          const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} ➔ ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
+                          const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} → ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
                           const duration = w.unloadDurationStr || '20 mins';
                           const loadedQty = Number(w.qty) || (selectedUnit.includes('Tonnes') ? 60 : 1200);
                           const burst = Number(w.burstBags || 0);
@@ -446,7 +446,7 @@ export default function PerformanceReportsPage() {
                                 )}
                               </td>
                               <td className="p-3 font-sans text-gray-700 text-[11px]">{remark}</td>
-                              <td className="p-3 text-right font-sans text-emerald-700 font-bold">✓ CLEARED</td>
+                              <td className="p-3 text-right font-sans text-emerald-700 font-bold"> CLEARED</td>
                             </tr>
                           );
                         }) : (

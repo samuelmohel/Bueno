@@ -18,8 +18,59 @@ import { TripDossierModal } from '@/components/TripDossierModal';
 import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 import { TerminalInformationView } from '@/components/TerminalInformationView';
+import {
+  Scale,
+  TrendingUp,
+  Building2,
+  BookOpen,
+  Printer,
+  RefreshCw,
+  DollarSign,
+  Trash2,
+  Save,
+  ShieldCheck,
+  LayoutGrid,
+  UserCheck,
+  Check,
+  X,
+  AlertTriangle,
+  Calendar,
+  ArrowRight,
+  Edit,
+  FileText,
+  Truck,
+  Train,
+  Clock,
+  Menu,
+  MessageSquare,
+  Package,
+  Users,
+  Settings,
+  Fuel,
+  ChevronRight,
+  Plus,
+  Shield,
+  Eye,
+  Lock,
+  RotateCcw,
+} from 'lucide-react';
+
 
 // ENTERPRISE COMMODITY & MEASUREMENT UNIT CONFIGURATION
+
+function getModuleIcon(iconName: string) {
+  switch (iconName) {
+    case 'commercial': return <TrendingUp className="w-4 h-4 text-blue-600" />;
+    case 'negotiation': return <MessageSquare className="w-4 h-4 text-indigo-600" />;
+    case 'operations': return <Train className="w-4 h-4 text-emerald-600" />;
+    case 'fleet': return <Truck className="w-4 h-4 text-amber-600" />;
+    case 'finance': return <DollarSign className="w-4 h-4 text-teal-600" />;
+    case 'users': return <Users className="w-4 h-4 text-purple-600" />;
+    case 'system': return <Settings className="w-4 h-4 text-slate-600" />;
+    default: return <Package className="w-4 h-4 text-slate-600" />;
+  }
+}
+
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
   'Bagged Cement (50kg)': { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' },
   'Bulk Gypsum': { unit: 'Metric Tonnes (MT)', wagonType: 'Open Top Gondola Wagon', auditMetric: 'Transit Shrinkage (MT)' },
@@ -83,7 +134,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
               trip.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
               trip.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
             }`}>
-              {trip.status === 'COMPLETED' ? '✓ FULLY COMPLETED & AUDITED' : trip.status}
+              {trip.status === 'COMPLETED' ? 'FULLY COMPLETED & AUDITED' : trip.status}
             </span>
             <p className="text-[11px] text-slate-600 font-bold">Trip Ref: <b className="text-slate-900">{trip.id || trip.tripId}</b></p>
             <p className="text-[10px] text-slate-400">Generated: {new Date().toLocaleDateString('en-GB')}</p>
@@ -98,7 +149,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Corridor Route</span>
-            <span className="font-extrabold text-emerald-700 text-sm">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
+            <span className="font-extrabold text-emerald-700 text-sm">{trip.origin || 'EWK'} → {trip.destination || 'MNY'}</span>
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Locomotive & Consist</span>
@@ -161,7 +212,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                   const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || `TRK-KJA-98${idx + 1}-XP`;
                   const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || 'N/A'})` : 'Ibrahim Garba (08031112233)');
                   const sidingStr = w.sourceEnv || `${trip.origin || 'EWK'} Silo Bay #${(idx % 3) + 1}`;
-                  const timeRange = w.startTime && w.endTime ? `${w.startTime} ➔ ${w.endTime}` : (w.startTime || '08:30 AM');
+                  const timeRange = w.startTime && w.endTime ? `${w.startTime} → ${w.endTime}` : (w.startTime || '08:30 AM');
                   const durationStr = w.durationStr || '25 mins';
                   const loadedQty = Number(w.qty) || defaultUnitCapacity;
                   const sealNo = w.sealNumber || `SEAL-${trip.origin || 'EWK'}-${9801 + idx}`;
@@ -177,7 +228,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                       <td className="p-2.5 text-slate-800 font-bold">{sealNo}</td>
                       <td className="p-2.5 text-right">
                         <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
-                          ✓ LOADED
+                          LOADED
                         </span>
                       </td>
                     </tr>
@@ -242,7 +293,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                 <tbody className="divide-y divide-slate-100">
                   {wagonLogs.map((w: any, idx: number) => {
                     const sidingBay = w.sidingBay || `${trip.destination || 'MNY'} Warehouse Bay #${(idx % 4) + 1}`;
-                    const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} ➔ ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
+                    const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} → ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
                     const durationStr = w.unloadDurationStr || '20 mins';
                     const loadedQty = Number(w.qty) || defaultUnitCapacity;
                     const burst = Number(w.burstBags || 0);
@@ -270,7 +321,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                           <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded uppercase ${
                             isUnloaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                           }`}>
-                            {isUnloaded ? '✓ DISCHARGED' : '⏳ PENDING'}
+                            {isUnloaded ? 'DISCHARGED' : 'PENDING'}
                           </span>
                         </td>
                       </tr>
@@ -331,7 +382,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
               onClick={() => window.print()}
               className="flex-1 sm:flex-initial bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
-              <span>🖨️ Print / Save Audit (PDF)</span>
+              <span className="flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /><span>Print / Save Audit (PDF)</span></span>
             </button>
             <button
               onClick={onClose}
@@ -647,7 +698,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         const reqMsg = {
           sender: req.contactName || 'Consignee Client',
           role: 'Industrial Consignee',
-          text: `Requisition Note Submitted: Requesting freight haulage for ${req.product || 'Cement'} [${req.volume || '2,000 Bags'}] via ${req.route || 'EWK ➔ MNY'}. Notes: ${req.notes || 'None'}`,
+          text: `Requisition Note Submitted: Requesting freight haulage for ${req.product || 'Cement'} [${req.volume || '2,000 Bags'}] via ${req.route || 'EWK → MNY'}. Notes: ${req.notes || 'None'}`,
           time: req.createdAt || 'Today',
         };
 
@@ -766,6 +817,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   const [currentUser, setCurrentUser] = useState<any>(user);
+  const can = (actionKey: string) => StateEngine.hasGranularPermission(currentUser || user, actionKey);
 
   useEffect(() => {
     const syncUser = () => {
@@ -979,7 +1031,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if ((isOriginNarrow && isDestStandard) || (isOriginStandard && isDestNarrow)) {
       setCustomAlert({
         title: 'Gauge Incompatibility Blocked (Page 1 Spec 04)',
-        message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto ➔ Moniya Standard Gauge, or Ewekoro ➔ Dugbe Narrow Gauge).`,
+        message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto → Moniya Standard Gauge, or Ewekoro → Dugbe Narrow Gauge).`,
       });
       return;
     }
@@ -1032,7 +1084,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         : 'Single-Trip Freight Deal Registered',
       message: isMonthly
         ? `Monthly Master Contract ${dealId} for ${newDealObj.company} created! Total: ${totalQty.toLocaleString()} ${conf.unit} spread across ${totalTrips} train trips (~${trancheTonnage.toLocaleString()} ${conf.unit}/trip). Tranche 1 is ready for siding dispatch!`
-        : `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} ➔ ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
+        : `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} → ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
     });
   };
 
@@ -1245,7 +1297,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           companyName: t.company || 'Consignee Client',
           clientEmail: (t.company || '').toLowerCase().includes('huaxin') || (t.company || '').toLowerCase().includes('hbm') ? 'logistics@hbm.ng' : (t.company || '').toLowerCase().includes('apmt') ? 'rail@apmt.com' : (t.company || '').toLowerCase().includes('maersk') ? 'cargo@maersk.com' : (t.company || '').toLowerCase().includes('dasco') ? 'logistics@dasco.ng' : (t.company || '').toLowerCase().includes('bat') ? 'supplychain@bat.ng' : 'client@freight.ng',
           cargoType: t.cargoType || 'Industrial Freight',
-          route: `${t.origin || 'EWK'} ➔ ${t.destination || 'MNY'}`,
+          route: `${t.origin || 'EWK'} → ${t.destination || 'MNY'}`,
           totalBags,
           totalTonnes,
           ratePerTonne,
@@ -1649,7 +1701,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         trips: item.trips,
         accuracy: acc,
         speed: '72 km/h',
-        rating: '5.0 ★',
+        rating: '5.0 ',
         tier: item.trips >= 5 ? 'EXEMPLARY' : 'ACTIVE DISPATCH',
       };
     });
@@ -1663,7 +1715,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-[#62BC37] text-white rounded-full flex items-center justify-center font-black text-base shadow-sm">
-                ✓
+                Approved
               </div>
               <h3 className="text-base font-black text-slate-900">{customAlert.title || 'Action Completed'}</h3>
             </div>
@@ -1696,7 +1748,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <h3 className="text-lg font-black text-slate-900">Edit Provisioned User Account</h3>
               </div>
               <button onClick={() => setEditingUser(null)} className="text-slate-400 font-bold hover:text-slate-900">
-                ✕
+                ×
               </button>
             </div>
 
@@ -1801,7 +1853,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
-                  ✓ Save Account Corrections ➔
+                  Save Account Corrections →
                 </button>
               </div>
             </form>
@@ -1819,7 +1871,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <h3 className="text-lg font-black text-slate-900">Create New Freight Deal</h3>
               </div>
               <button onClick={() => setCreateDealModal(false)} className="text-slate-400 font-bold hover:text-slate-900">
-                ✕
+                ×
               </button>
             </div>
 
@@ -1838,7 +1890,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-base">🚆</span>
+                      <span className="text-base"></span>
                       <span className="text-xs font-bold">Single-Trip Spot Run</span>
                     </div>
                     <p className="text-[10px] font-normal text-slate-500 mt-1">1 Dedicated Train Voyage (e.g. ad-hoc single shipment)</p>
@@ -1863,7 +1915,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-base">📅</span>
+                      <Calendar className="w-4 h-4 text-slate-500" />
                       <span className="text-xs font-bold">Monthly Master Contract</span>
                     </div>
                     <p className="text-[10px] font-normal text-slate-500 mt-1">Multi-trip consignment spread across the month (e.g. HBM 10 Trips)</p>
@@ -1936,7 +1988,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </select>
                   </div>
                   <p className="text-[10px] text-emerald-800 leading-snug">
-                    💡 <b>Operational Drawdown:</b> Total payload of <b>{Number(newDealForm.quantity || 0).toLocaleString()} {currentCargoConfig.unit}</b> will be drawn down across <b>{newDealForm.totalPlannedTrips} separate train trips</b> (~{Number(newDealForm.trancheTonnage || 0).toLocaleString()} {currentCargoConfig.unit}/trip).
+                    <b>Operational Drawdown:</b> Total payload of <b>{Number(newDealForm.quantity || 0).toLocaleString()} {currentCargoConfig.unit}</b> will be drawn down across <b>{newDealForm.totalPlannedTrips} separate train trips</b> (~{Number(newDealForm.trancheTonnage || 0).toLocaleString()} {currentCargoConfig.unit}/trip).
                   </p>
                 </div>
               )}
@@ -2123,7 +2175,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
-                  ✓ Create Deal ➔
+                  Create Deal →
                 </button>
               </div>
             </form>
@@ -2142,7 +2194,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <p className="text-xs text-slate-500 font-semibold">{costingModalDeal.company || costingModalDeal.companyName} • {costingModalDeal.dealNumber || costingModalDeal.id}</p>
               </div>
               <button onClick={() => setCostingModalDeal(null)} className="text-slate-400 font-bold hover:text-slate-900">
-                ✕
+                ×
               </button>
             </div>
 
@@ -2160,7 +2212,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
-                    📅 Monthly Master Contract<br/>
+                    Monthly Master Contract<br/>
                     <span className="text-[9px] font-normal text-slate-500">Multi-Trip Consignment Spreading</span>
                   </button>
 
@@ -2173,7 +2225,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
-                    🚂 Single Corridor Voyage<br/>
+                    Single Corridor Voyage<br/>
                     <span className="text-[9px] font-normal text-slate-500">1 Discrete Train Run</span>
                   </button>
                 </div>
@@ -2295,7 +2347,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
-                  ✓ Lock Commercial Tariff & Terms
+                  Lock Commercial Tariff & Terms
                 </button>
               </div>
             </form>
@@ -2334,7 +2386,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 onClick={() => setPaymentModalInvoice(null)}
                 className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -2411,7 +2463,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
-                  ✓ Commit Remittance ➔
+                  Commit Remittance →
                 </button>
               </div>
             </form>
@@ -2432,7 +2484,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 onClick={() => setNewCostModal(false)}
                 className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -2499,7 +2551,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   required
                   value={newCostForm.title}
                   onChange={(e) => setNewCostForm({ ...newCostForm, title: e.target.value })}
-                  placeholder="e.g. NRC Track Access Toll (Ewekoro ➔ Moniya)"
+                  placeholder="e.g. NRC Track Access Toll (Ewekoro → Moniya)"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                 />
               </div>
@@ -2552,7 +2604,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
-                  ✓ Book Voucher ➔
+                  Book Voucher →
                 </button>
               </div>
             </form>
@@ -2576,7 +2628,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 onClick={() => setEditingTripCost(null)}
                 className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -2671,7 +2723,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
-                  ✓ Save Voucher Changes ➔
+                  Save Voucher Changes →
                 </button>
               </div>
             </form>
@@ -2693,7 +2745,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 onClick={() => setNewAccountModal(false)}
                 className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -2789,7 +2841,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
                 >
-                  ✓ Register GL Account ➔
+                  Register GL Account →
                 </button>
               </div>
             </form>
@@ -2816,7 +2868,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 onClick={() => setNewJournalModal(false)}
                 className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
               >
-                ✕
+                ×
               </button>
             </div>
 
@@ -2969,7 +3021,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 }}
                                 className="text-rose-500 hover:text-rose-700 font-bold text-xs cursor-pointer"
                               >
-                                ✕
+                                ×
                               </button>
                             )}
                           </td>
@@ -2993,17 +3045,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <span className="text-slate-600">Total Debits: ₦{totalDebits.toLocaleString()}</span>
                       <span className="text-slate-600">Total Credits: ₦{totalCredits.toLocaleString()}</span>
                       <span className={isBalanced ? 'text-emerald-700' : 'text-rose-600'}>
-                        {isBalanced ? '✓ ZERO VARIANCE' : `Out of Balance: ₦${diff.toLocaleString()}`}
+                        {isBalanced ? 'ZERO VARIANCE' : `Out of Balance: ₦${diff.toLocaleString()}`}
                       </span>
                     </div>
                     <div className="text-[11px] font-sans text-slate-600">
                       {isBalanced ? (
                         <p className="text-emerald-800 font-bold">
-                          ✓ Double-entry rule satisfied. Both sides balance perfectly to ₦{totalDebits.toLocaleString()}. Ready to post.
+                          Double-entry rule satisfied. Both sides balance perfectly to ₦{totalDebits.toLocaleString()}. Ready to post.
                         </p>
                       ) : (
                         <p className="text-rose-700 font-medium">
-                          ⚠️ General ledger vouchers must strictly balance. Ensure Total Debits exactly equals Total Credits before posting.
+                          Warning: General ledger vouchers must strictly balance. Ensure Total Debits exactly equals Total Credits before posting.
                         </p>
                       )}
                     </div>
@@ -3023,7 +3075,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
-                  ✓ Post Journal Voucher ➔
+                  Post Journal Voucher →
                 </button>
               </div>
             </form>
@@ -3072,7 +3124,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
             >
-              <span>{sidebarOpen ? 'Hide Menu ☰' : 'Command Menu ☰'}</span>
+              <span className="flex items-center gap-1.5"><Menu className="w-4 h-4" /><span>{sidebarOpen ? 'Hide Menu' : 'Command Menu'}</span></span>
             </button>
 
             {/* OFFICIAL BUENO LOGO + BRAND TITLE */}
@@ -3142,7 +3194,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setSidebarOpen(false)}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-xl text-xs font-extrabold border border-slate-200"
                 >
-                  ✕ Close
+                  Close
                 </button>
               </div>
 
@@ -3256,10 +3308,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter By Operational Date:</span>
                 {[
-                  { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
-                  { id: 'YESTERDAY', label: `📅 ${StateEngine.getYesterdayLabel()}` },
-                  { id: 'THIS_WEEK', label: '📅 This Week' },
-                  { id: 'THIS_MONTH', label: `📅 ${StateEngine.getThisMonthLabel()}` },
+                  { id: 'TODAY', label: `${StateEngine.getTodayLabel()}` },
+                  { id: 'YESTERDAY', label: `${StateEngine.getYesterdayLabel()}` },
+                  { id: 'THIS_WEEK', label: 'This Week' },
+                  { id: 'THIS_MONTH', label: `${StateEngine.getThisMonthLabel()}` },
                   { id: 'ALL', label: `All Dates (${trips.length})` },
                 ].map((df) => (
                   <button
@@ -3285,7 +3337,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Gross Tariff Revenue ({selectedMonth})</span>
                 <p className="text-2xl font-black text-slate-900 font-mono">₦{totalReportRevenue.toLocaleString()}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">✓ Disbursed Freight Value</span>
+                <span className="text-[10px] text-emerald-700 font-bold">Disbursed Freight Value</span>
               </div>
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
@@ -3458,9 +3510,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 isInTransit ? 'bg-blue-100 text-blue-800' :
                                 isLoading ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800'
                               }`}>
-                                {isCompleted ? '✓ COMPLETED & AUDITED' :
-                                 isInTransit ? '📡 IN TRANSIT (LIVE GPS)' :
-                                 isLoading ? '⏳ LOADING AT STATION' : (t.status || 'ACTIVE')}
+                                {isCompleted ? 'COMPLETED & AUDITED' :
+                                 isInTransit ? 'IN TRANSIT (LIVE GPS)' :
+                                 isLoading ? 'LOADING AT STATION' : (t.status || 'ACTIVE')}
                               </span>
                             </td>
                             <td className="p-3 text-right">
@@ -3468,7 +3520,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 onClick={() => setSelectedAuditTrip(t)}
                                 className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto"
                               >
-                                <span>📋 View Audit & PDF</span>
+                                <span>View Audit & PDF</span>
                               </button>
                             </td>
                           </tr>
@@ -3497,7 +3549,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <p className="text-slate-500 text-[11px]">Managing Director & CEO, Bueno Logistics</p>
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
-                    <span className="text-emerald-700 font-extrabold">✓ DIGITAL SIGNATURE VERIFIED</span>
+                    <span className="text-emerald-700 font-extrabold">DIGITAL SIGNATURE VERIFIED</span>
                     <span className="text-slate-400">{new Date().toLocaleDateString('en-GB')}</span>
                   </div>
                 </div>
@@ -3509,7 +3561,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <p className="text-slate-500 text-[11px]">Head of Operations, NRC Freight Corridor</p>
                   </div>
                   <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
-                    <span className="text-emerald-700 font-extrabold">✓ AUDIT CERTIFIED & SEALED</span>
+                    <span className="text-emerald-700 font-extrabold">AUDIT CERTIFIED & SEALED</span>
                     <span className="text-slate-400">HASH: CERT-2026-NGR-BUENO-OK</span>
                   </div>
                 </div>
@@ -3526,13 +3578,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Deals Registered</span>
                 <p className="text-2xl font-black text-slate-900 font-mono">{deals.length}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">✓ Active B2B Contracts</span>
+                <span className="text-[10px] text-emerald-700 font-bold">Active B2B Contracts</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Trips Dispatched</span>
                 <p className="text-2xl font-black text-emerald-700 font-mono">{trips.length}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">✓ Wagon Fleet Assigned</span>
+                <span className="text-[10px] text-emerald-700 font-bold">Wagon Fleet Assigned</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
@@ -3574,10 +3626,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider pl-1 mr-1">Filter Contracts:</span>
                   {[
-                    { id: 'TODAY', label: `📅 ${StateEngine.getTodayLabel()}` },
-                    { id: 'THIS_WEEK', label: '📅 This Week' },
-                    { id: 'MONTHLY', label: '📅 Monthly Contracts' },
-                    { id: 'SINGLE', label: '🚂 Single Voyages' },
+                    { id: 'TODAY', label: `${StateEngine.getTodayLabel()}` },
+                    { id: 'THIS_WEEK', label: 'This Week' },
+                    { id: 'MONTHLY', label: 'Monthly Contracts' },
+                    { id: 'SINGLE', label: 'Single Voyages' },
                     { id: 'ALL', label: `All Deals (${deals.length})` },
                   ].map((f) => (
                     <button
@@ -3659,7 +3711,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
                               {isMonthly && (
                                 <span className="bg-emerald-700 text-white font-mono text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
-                                  📅 Monthly Master ({totalTrips} Trips)
+                                  Monthly Master ({totalTrips} Trips)
                                 </span>
                               )}
                             </div>
@@ -3682,7 +3734,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <div className="grid grid-cols-3 gap-2 text-center text-[11px] bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-400 block">Corridor</span>
-                            <span className="font-bold text-slate-900">{d.loadingStation || 'PAPA'} ➔ {d.destination || 'MNY'}</span>
+                            <span className="font-bold text-slate-900">{d.loadingStation || 'PAPA'} → {d.destination || 'MNY'}</span>
                           </div>
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-400 block">Commodity</span>
@@ -3710,7 +3762,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[8px] uppercase">Finance Status</span>
-                            <span className="font-extrabold text-teal-700">{d.financeStatus === 'FINANCE_APPROVED_COSTED' ? '✓ Cost Approved' : '⏳ Pending Rates'}</span>
+                            <span className="font-extrabold text-teal-700">{d.financeStatus === 'FINANCE_APPROVED_COSTED' ? 'Cost Approved' : 'Pending Rates'}</span>
                           </div>
                         </div>
 
@@ -3752,7 +3804,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                         : 'bg-slate-100 text-slate-400'
                                     }`}
                                   >
-                                    T{stepNum} {isDispatched ? '✓' : ''}
+                                    T{stepNum} {isDispatched ? 'Approved' : ''}
                                   </span>
                                 );
                               })}
@@ -3769,11 +3821,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   onClick={() => handleDispatchTranche(d)}
                                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
                                 >
-                                  <span>🚂 Dispatch Tranche #{dispatched + 1} of {totalTrips} ➔</span>
+                                  <span>Dispatch Tranche #{dispatched + 1} of {totalTrips} →</span>
                                 </button>
                               ) : (
                                 <div className="flex-1 bg-emerald-100 text-emerald-800 font-bold text-center py-2.5 rounded-xl text-xs">
-                                  ✓ All {totalTrips} Tranches Dispatched
+                                  All {totalTrips} Tranches Dispatched
                                 </div>
                               )}
                               <button
@@ -3781,7 +3833,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0"
                                 title="Head of Finance Commercial Tariff & Costing"
                               >
-                                <span>Commercial Costing 💰</span>
+                                <span>Commercial Costing</span>
                               </button>
                             </>
                           ) : (
@@ -3790,14 +3842,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 onClick={() => handleApproveDealAndAllocateWagons(d)}
                                 className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1"
                               >
-                                <span>Launch Corridor Trip ➔</span>
+                                <span>Launch Corridor Trip →</span>
                               </button>
                               <button
                                 onClick={() => openCostingModal(d)}
                                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0"
                                 title="Head of Finance Commercial Tariff & Costing"
                               >
-                                <span>Commercial Costing 💰</span>
+                                <span>Commercial Costing</span>
                               </button>
                             </>
                           )}
@@ -3861,11 +3913,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <span className="text-[10px] font-mono text-[#62BC37] font-bold">{thread.email || thread.id}</span>
                             {thread.hasUnread || thread.status === 'PENDING_REVIEW' ? (
                               <span className="bg-[#62BC37] text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full animate-pulse shadow-xs">
-                                🟢 New Request
+                                New Request
                               </span>
                             ) : thread.status === 'APPROVED_DISPATCHED' ? (
                               <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                                ✓ Dispatched
+                                Dispatched
                               </span>
                             ) : !hasMessages ? (
                               <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-slate-200">
@@ -3912,7 +3964,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => handleApproveDealAndAllocateWagons(activeThread)}
                       className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                     >
-                      <span>✓ Accept Deal & Allocate Wagons</span>
+                      <span>Accept Deal & Allocate Wagons</span>
                     </button>
                   </div>
 
@@ -3933,7 +3985,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             </div>
                             <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
                             <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
-                              {isAdmin ? '✓✓ Delivered' : '✓ Received'}
+                              {isAdmin ? 'ApprovedDelivered' : 'Received'}
                             </div>
                           </div>
                         </div>
@@ -3952,7 +4004,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       type="submit"
                       className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
                     >
-                      Send Reply ➔
+                      Send Reply →
                     </button>
                   </form>
                 </>
@@ -3984,7 +4036,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         onClick={() => setSelectedDossierTrip(trip)}
                         className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                       >
-                        <span>📄 View Dossier</span>
+                        <span>View Dossier</span>
                       </button>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-mono font-bold px-3 py-1 rounded-full uppercase">
                         {trip.status}
@@ -4017,7 +4069,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <div>
                     <span className="text-slate-400 font-bold text-[10px] uppercase">{t.id}</span>
                     <h4 className="font-sans font-black text-slate-900 text-sm">{t.company}</h4>
-                    <p className="text-slate-500 font-sans text-xs">{t.origin} ➔ {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
+                    <p className="text-slate-500 font-sans text-xs">{t.origin} → {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
                   </div>
                   <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
                     Print Manifest (PDF)
@@ -4094,7 +4146,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
                     title="Scan all train trips and update invoices with latest offload damage / burst bag counts"
                   >
-                    <span>🔄 Reconcile Trips & Damages</span>
+                    <span className="flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /><span>Reconcile Trips & Damages</span></span>
                   </button>
                   <button
                     onClick={() => setNewCostModal(true)}
@@ -4366,11 +4418,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                       -₦{Number(inv.damageDeduction || 0).toLocaleString()}
                                     </span>
                                     <span className="text-[9px] text-rose-500 font-bold bg-rose-50 px-1 rounded">
-                                      💥 {inv.damageUnits} Burst Bags
+                                      {inv.damageUnits} Burst Bags
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="text-emerald-600 font-bold text-[10px]">✓ Intact</span>
+                                  <span className="text-emerald-600 font-bold text-[10px]">Intact</span>
                                 )}
                               </td>
                               <td className="py-3.5 px-3 text-right font-black text-slate-900">
@@ -4404,7 +4456,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                     className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
                                     title="View & Print Official PDF Freight Invoice"
                                   >
-                                    📄 Invoice
+                                    Invoice
                                   </button>
                                   {!isSettled && (
                                     <button
@@ -4456,7 +4508,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => setNewAccountModal(true)}
+                        onClick={() => {
+    if (!can('finance.coa_manage')) {
+      setCustomAlert({
+        title: 'Permission Denied',
+        message: 'Your current role does not have authorization (finance.coa_manage) to configure General Ledger accounts.',
+      });
+      return;
+    }
+    setNewAccountModal(true);
+  }}
                         className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>+ Add GL Account</span>
@@ -4595,7 +4656,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                     }}
                                     className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-all cursor-pointer"
                                   >
-                                    View Ledger ➔
+                                    View Ledger →
                                   </button>
                                 </td>
                               </tr>
@@ -4629,7 +4690,16 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => setNewJournalModal(true)}
+                        onClick={() => {
+    if (!can('finance.journal_create')) {
+      setCustomAlert({
+        title: 'Permission Denied',
+        message: 'Your current role does not have authorization (finance.journal_create) to post General Journal vouchers. Please request permission from system admin.',
+      });
+      return;
+    }
+    setNewJournalModal(true);
+  }}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>+ Post Journal Voucher</span>
@@ -4678,7 +4748,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <div>
                               <span className="font-extrabold text-slate-900 text-xs block">{jrn.description}</span>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                                <span>📅 {jrn.date}</span>
+                                <span>{jrn.date}</span>
                                 <span>• Ref: {jrn.reference}</span>
                                 <span>• Posted by: {jrn.postedBy}</span>
                               </div>
@@ -4691,7 +4761,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               <span className="text-xs font-mono font-black text-slate-900">₦{jrn.totalAmount.toLocaleString()}</span>
                             </div>
                             <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-1 rounded-full font-mono uppercase">
-                              ✓ {jrn.status}
+                              {jrn.status}
                             </span>
                           </div>
                         </div>
@@ -4761,7 +4831,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        ⚖️ Trial Balance
+                        <span className="flex items-center gap-1.5"><Scale className="w-3.5 h-3.5" /><span>Trial Balance</span></span>
                       </button>
                       <button
                         onClick={() => setStatementTab('pnl')}
@@ -4771,7 +4841,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        📈 Profit & Loss Statement (P&L)
+                        <span className="flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5" /><span>Profit & Loss (P&L)</span></span>
                       </button>
                       <button
                         onClick={() => setStatementTab('balance_sheet')}
@@ -4781,7 +4851,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        🏛️ Balance Sheet (Financial Position)
+                        <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /><span>Balance Sheet</span></span>
                       </button>
                       <button
                         onClick={() => setStatementTab('ledger')}
@@ -4791,7 +4861,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        📖 General Ledger Drill-Down
+                        <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /><span>General Ledger</span></span>
                       </button>
                     </div>
 
@@ -4799,7 +4869,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => window.print()}
                       className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-1.5 cursor-pointer"
                     >
-                      <span>🖨️ Print Financial Statement</span>
+<span className="flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /><span>Print Statement</span></span>
                     </button>
                   </div>
 
@@ -4814,7 +4884,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <p className="text-xs text-slate-500 mt-0.5">As of {new Date().toLocaleDateString('en-GB')} • All Currency in NGN (₦)</p>
                           </div>
                           <div className="bg-emerald-100 text-emerald-800 font-mono font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-300">
-                            ✓ LEDGER IN AUDITED EQUILIBRIUM
+                            LEDGER IN AUDITED EQUILIBRIUM
                           </div>
                         </div>
                       </div>
@@ -5159,7 +5229,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 </span>
                               </div>
                               <div className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-mono font-black text-xs">
-                                ✓ VARIANCE: ₦{variance.toFixed(2)} (BALANCED)
+                                VARIANCE: ₦{variance.toFixed(2)} (BALANCED)
                               </div>
                             </div>
                           </div>
@@ -5323,7 +5393,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         }}
                         className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span>🔄 Reconcile All Accounts</span>
+  <span className="flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /><span>Reconcile All Accounts</span></span>
                       </button>
                     </div>
                   </div>
@@ -5370,7 +5440,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             onClick={() => handleReconcileBank(bank.id)}
                             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition-all cursor-pointer"
                           >
-                            ✓ Reconcile Now
+                            Reconcile Now
                           </button>
                         </div>
                       </div>
@@ -5399,7 +5469,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <option value="ALL">All Active Train Corridors</option>
                         {trips.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.id} — {t.company} ({t.origin} ➔ {t.destination})
+                            {t.id} — {t.company} ({t.origin} → {t.destination})
                           </option>
                         ))}
                       </select>
@@ -5431,7 +5501,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   </span>
                                 </div>
                                 <h4 className="font-black text-slate-900 text-base mt-0.5">{t.company}</h4>
-                                <p className="text-xs text-slate-500">{t.origin} ➔ {t.destination} • {t.cargoType || 'Bagged Cement'}</p>
+                                <p className="text-xs text-slate-500">{t.origin} → {t.destination} • {t.cargoType || 'Bagged Cement'}</p>
                               </div>
 
                               <div className="text-right">
@@ -5481,7 +5551,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                               <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
                                 <span className="flex items-center gap-1.5">
-                                  <span>🛤️</span> NRC Track Access Tolls
+                                  <span>NRC</span> NRC Track Access Tolls
                                 </span>
                                 <span className="font-bold">
                                   ₦{summary.directCosts.filter((c: any) => c.category === 'NRC_TRACK_ACCESS').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
@@ -5490,7 +5560,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                               <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
                                 <span className="flex items-center gap-1.5">
-                                  <span>⛽</span> Locomotive Diesel AGO Fuel
+                                  <span>Fuel</span> Locomotive Diesel AGO Fuel
                                 </span>
                                 <span className="font-bold">
                                   ₦{summary.directCosts.filter((c: any) => c.category === 'AGO_FUEL').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
@@ -5499,7 +5569,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                               <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
                                 <span className="flex items-center gap-1.5">
-                                  <span>👮</span> Train Driver & Police Escort Allowance
+                                  <span>Security</span> Train Driver & Police Escort Allowance
                                 </span>
                                 <span className="font-bold">
                                   ₦{summary.directCosts.filter((c: any) => c.category === 'CREW_ESCORT').reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0).toLocaleString()}
@@ -5508,7 +5578,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                               <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-xl text-slate-700">
                                 <span className="flex items-center gap-1.5">
-                                  <span>🏗️</span> Siding Field Requisitions (Approved)
+                                  <span>Siding</span> Siding Field Requisitions (Approved)
                                 </span>
                                 <span className="font-bold">
                                   ₦{summary.totalSidingRequests.toLocaleString()}
@@ -5578,14 +5648,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   className="text-blue-600 hover:text-blue-800 text-xs font-bold px-2 py-1 hover:bg-blue-50 rounded cursor-pointer mr-1"
                                   title="Edit Voucher Details & Amount"
                                 >
-                                  ✏️ Edit
+                                  Edit
                                 </button>
                                 <button
                                   onClick={() => handleDeleteTripCost(c.id)}
                                   className="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-1 hover:bg-rose-50 rounded cursor-pointer"
                                   title="Reverse Voucher"
                                 >
-                                  ✕
+                                  ×
                                 </button>
                               </td>
                             </tr>
@@ -5668,7 +5738,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                     onClick={() => setSelectedInvoiceForPrint(inv)}
                                     className="text-[10px] text-[#62BC37] hover:underline font-bold cursor-pointer"
                                   >
-                                    View Statement ➔
+                                    View Statement →
                                   </button>
                                 </div>
                               </div>
@@ -5747,11 +5817,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 <td className="p-3 font-bold text-amber-800">{d.dealNumber || d.id}</td>
                                 <td className="p-3 font-bold font-sans text-slate-900">{d.company || d.companyName}</td>
                                 <td className="p-3 font-sans text-slate-700">
-                                  {d.loadingStation} ➔ {d.destination} • {d.cargoType} ({qty.toLocaleString()} {unit})
+                                  {d.loadingStation} → {d.destination} • {d.cargoType} ({qty.toLocaleString()} {unit})
                                 </td>
                                 <td className="p-3 font-sans">
                                   <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${isMonthly ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
-                                    {isMonthly ? `📅 Monthly (${totalTrips} Trips)` : '🚂 Single Voyage'}
+                                    {isMonthly ? `Monthly (${totalTrips} Trips)` : 'Single Voyage'}
                                   </span>
                                 </td>
                                 <td className="p-3 font-bold text-slate-900">₦{rate.toLocaleString()}/MT</td>
@@ -5759,7 +5829,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 <td className="p-3 font-bold text-rose-700">₦{perTripOpEx.toLocaleString()}</td>
                                 <td className="p-3 font-sans">
                                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isCosted ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800'}`}>
-                                    {isCosted ? '✓ Cost Approved' : '⏳ Pending Rates'}
+                                    {isCosted ? 'Cost Approved' : 'Pending Rates'}
                                   </span>
                                 </td>
                                 <td className="p-3 text-right">
@@ -5767,7 +5837,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                     onClick={() => openCostingModal(d)}
                                     className="bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-[10px] px-3.5 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto cursor-pointer"
                                   >
-                                    <span>💰 Edit Tariff & Cost</span>
+                                    <span className="flex items-center gap-1.5"><DollarSign className="w-3.5 h-3.5" /><span>Edit Tariff & Cost</span></span>
                                   </button>
                                 </td>
                               </tr>
@@ -5885,7 +5955,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
                 >
-                  ✓ Provision & Activate Account
+                  Provision & Activate Account
                 </button>
               </form>
             </div>
@@ -5922,7 +5992,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             onClick={() => setEditingUser(u)}
                             className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all"
                           >
-                            ✏️ Edit
+                            Edit
                           </button>
                         </td>
                       </tr>
@@ -6033,7 +6103,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 onClick={() => handleApproveRequisition(req.id)}
                                 className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
                               >
-                                ✓ Approve
+                                Approve
                               </button>
                             )}
                             {isApproved && !isDisbursed && (
@@ -6041,11 +6111,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 onClick={() => handleDisburseRequisition(req.id)}
                                 className="bg-emerald-800 hover:bg-emerald-900 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
                               >
-                                💸 Disburse (GTBank)
+                                Disburse (GTBank)
                               </button>
                             )}
                             {isDisbursed && (
-                              <span className="text-[10px] text-emerald-700 font-extrabold">✓ Funds Cleared</span>
+                              <span className="text-[10px] text-emerald-700 font-extrabold">Funds Cleared</span>
                             )}
                           </td>
                         </tr>
@@ -6162,7 +6232,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ROLLING STOCK REGISTRATION</span>
                   <h3 className="text-base font-black text-slate-900">Provision New Fleet Wagon</h3>
                 </div>
-                <button onClick={() => setRegisterWagonModal(false)} className="text-slate-400 font-bold hover:text-slate-900">✕</button>
+                <button onClick={() => setRegisterWagonModal(false)} className="text-slate-400 font-bold hover:text-slate-900">×</button>
               </div>
 
               <form onSubmit={handleRegisterWagon} className="space-y-3.5 text-xs font-semibold">
@@ -6226,7 +6296,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     type="submit"
                     className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-2.5 rounded-xl shadow-md transition-all"
                   >
-                    ✓ Register Wagon ➔
+                    Register Wagon →
                   </button>
                 </div>
               </form>
@@ -6270,14 +6340,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   }}
                   className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-rose-200 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>🗑️ Clean Production Reset</span>
+<span className="flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /><span>Clean Production Reset</span></span>
                 </button>
                 <button
                   type="button"
                   onClick={handleResetPermissionsDefaults}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-slate-200"
                 >
-                  ↺ Reset Defaults
+                  <span className="flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5" /><span>Reset Defaults</span></span>
                 </button>
                 <button
                   type="button"
@@ -6292,11 +6362,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </>
                   ) : permissionsSaveSuccess ? (
                     <>
-                      <span>✓ Saved to Database!</span>
+                      <span>Saved to Database!</span>
                     </>
                   ) : (
                     <>
-                      <span>💾 Save Permissions to SQL Database</span>
+<span className="flex items-center gap-1.5"><Save className="w-3.5 h-3.5" /><span>Save Permissions to SQL Database</span></span>
                     </>
                   )}
                 </button>
@@ -6336,7 +6406,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                🔐 Spatie Granular Action Matrix
+<span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-[#62BC37]" /><span>Granular Action Matrix</span></span>
               </button>
               <button
                 onClick={() => setPermissionsSubTab('matrix')}
@@ -6346,7 +6416,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                📊 Portal Screen Access Grid
+<span className="flex items-center gap-1.5"><LayoutGrid className="w-3.5 h-3.5 text-blue-500" /><span>Portal Screen Access Grid</span></span>
               </button>
               <button
                 onClick={() => setPermissionsSubTab('inspector')}
@@ -6356,7 +6426,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                👤 Employee Capability Inspector
+<span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-indigo-500" /><span>Employee Capability Inspector</span></span>
               </button>
             </div>
 
@@ -6467,7 +6537,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <div key={mod.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{mod.icon || '📦'}</span>
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">{getModuleIcon(mod.icon)}</div>
                             <div>
                               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide font-mono">{mod.name}</h4>
                               <span className="text-[10px] text-slate-400 font-medium">{mod.description}</span>
@@ -6674,7 +6744,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 <span className="font-bold block">{act.label}</span>
                                 <code className="text-[9px] font-mono">{act.key}</code>
                               </div>
-                              <span className="font-bold text-sm">{hasPerm ? '✓' : '✕'}</span>
+                              <span className="font-mono font-bold text-xs">{hasPerm ? 'Active' : 'Disabled'}</span>
                             </div>
                           );
                         })}
@@ -6699,7 +6769,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 disabled={isSavingPermissions}
                 className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
               >
-                {isSavingPermissions ? 'Saving to Database...' : '💾 Save & Enforce Permissions Now'}
+                {isSavingPermissions ? 'Saving to Database...' : 'Save & Enforce Permissions'}
               </button>
             </div>
 
@@ -6708,7 +6778,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Ticking any box immediately applies live to the role across all devices & SQL database
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Super-Admin (always full access, cannot be restricted)
+                <span className="inline-block w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Role capabilities and screen access matrices dynamically enforced in real-time.
               </span>
             </div>
           </div>

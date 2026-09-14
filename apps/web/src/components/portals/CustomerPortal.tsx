@@ -298,7 +298,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {
           sender: opsLeadName || 'Head of Operations',
           role: 'Head of Operations',
-          text: `Consignment Note received for ${companyName}! Requisition #${newDealId} is logged at Operations Command. Rolling stock (${spec.code}) and corridor capacity on ${originInfo.name} ➔ ${destInfo.name} are being verified for immediate tariff quotation.`,
+          text: `Consignment Note received for ${companyName}! Requisition #${newDealId} is logged at Operations Command. Rolling stock (${spec.code}) and corridor capacity on ${originInfo.name} → ${destInfo.name} are being verified for immediate tariff quotation.`,
           time: 'System Auto-Response',
         },
       ],
@@ -309,7 +309,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     setConsignmentModal(false);
     setCustomAlert({
       title: 'Consignment Note Submitted',
-      message: `Consignment Note #${newDealId} submitted successfully!\n\nVolume: ${declaredTonnage} MT (${wagonsNeeded} ${spec.code} wagons, ${tripsNeeded} trips)\nCorridor: ${originInfo.name} ➔ ${destInfo.name}\n\nOur Commercial Operations Desk is reviewing and will issue your formal tariff quotation in this conversation thread.`,
+      message: `Consignment Note #${newDealId} submitted successfully!\n\nVolume: ${declaredTonnage} MT (${wagonsNeeded} ${spec.code} wagons, ${tripsNeeded} trips)\nCorridor: ${originInfo.name} → ${destInfo.name}\n\nOur Commercial Operations Desk is reviewing and will issue your formal tariff quotation in this conversation thread.`,
     });
   };
 
@@ -409,7 +409,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black px-3.5 py-2 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
             >
-              <span>{sidebarOpen ? 'Hide Menu ☰' : 'Command Menu ☰'}</span>
+              <span>{sidebarOpen ? 'Hide Menu' : 'Command Menu'}</span>
             </button>
 
             <img
@@ -472,7 +472,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   onClick={() => setSidebarOpen(false)}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-xl text-xs font-extrabold border border-slate-200"
                 >
-                  ✕ Close
+                  Close
                 </button>
               </div>
 
@@ -685,7 +685,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             </div>
                             <p className="leading-relaxed whitespace-pre-line font-medium text-xs mt-1">{msg.text}</p>
                             <div className="text-right text-[9px] font-mono opacity-80 pt-0.5">
-                              {isMe ? '✓✓ Sent' : '✓ Received'}
+                              {isMe ? 'Sent' : 'Received'}
                             </div>
                           </div>
                         </div>
@@ -705,7 +705,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       type="submit"
                       className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
                     >
-                      Send Message ➔
+                      Send Message →
                     </button>
                   </form>
                 </>
@@ -749,7 +749,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                           </div>
                           <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                             <span className="text-[9px] uppercase text-slate-400 font-bold block">Corridor</span>
-                            <span className="font-bold text-slate-200">{trip.origin || 'EWK'} ➔ {trip.destination || 'MNY'}</span>
+                            <span className="font-bold text-slate-200">{trip.origin || 'EWK'} → {trip.destination || 'MNY'}</span>
                           </div>
                           <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                             <span className="text-[9px] uppercase text-slate-400 font-bold block">Payload ({unit})</span>
@@ -768,7 +768,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
                               <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
                               <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
-                              <span className="font-extrabold text-emerald-700">✓ Intact ({w.bagsCount || '70'} {unit})</span>
+                              <span className="font-extrabold text-emerald-700">Intact ({w.bagsCount || '70'} {unit})</span>
                             </div>
                           ))}
                         </div>
@@ -778,7 +778,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             onClick={() => setSelectedDossierTrip(trip)}
                             className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
                           >
-                            <span>📄 View Official Trip Dossier & Report</span>
+                            <span>View Official Trip Dossier & Report</span>
                           </button>
                         </div>
                       </div>
@@ -819,7 +819,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     <div>
                       <span className="text-slate-400 font-bold text-[10px] uppercase">{t.id}</span>
                       <h4 className="font-sans font-black text-slate-900 text-sm">{t.company || companyName}</h4>
-                      <p className="text-slate-500 font-sans text-xs">{t.origin} ➔ {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
+                      <p className="text-slate-500 font-sans text-xs">{t.origin} → {t.destination} • {t.quantity} {t.unitOfMeasure || 'Bags'}</p>
                     </div>
                     <button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl">
                       Print Manifest (PDF)
@@ -971,11 +971,11 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                                     -₦{Number(inv.damageDeduction || 0).toLocaleString()}
                                   </span>
                                   <span className="text-[9px] text-rose-500 font-bold bg-rose-50 px-1 rounded">
-                                    💥 {inv.damageUnits} Burst Bags Deducted
+                                    {inv.damageUnits} Burst Bags Deducted
                                   </span>
                                 </div>
                               ) : (
-                                <span className="text-emerald-600 font-bold text-[10px]">✓ Zero Losses</span>
+                                <span className="text-emerald-600 font-bold text-[10px]">Zero Losses</span>
                               )}
                             </td>
                             <td className="py-3.5 px-3 text-right font-black text-slate-900">
@@ -1007,7 +1007,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                                 onClick={() => setSelectedInvoiceForPrint(inv)}
                                 className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
                               >
-                                View PDF 📄
+                                View PDF
                               </button>
                             </td>
                           </tr>
@@ -1021,7 +1021,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               {/* Wire Remittance Guidance Box */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 text-xs font-sans space-y-3">
                 <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                  <span className="text-base">🏦</span>
+                  <span className="text-base"></span>
                   <h4 className="font-black text-slate-900">Bank Wire Remittance Instructions</h4>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-slate-700">
@@ -1041,7 +1041,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   </div>
                 </div>
                 <p className="text-slate-500 text-[11px]">
-                  📌 <strong>Important Remittance Note:</strong> Please include your Invoice Number in the payment transfer narration to ensure immediate automated reconciliation by the Bueno Treasury desk.
+                  <strong>Important Remittance Note:</strong> Please include your Invoice Number in the payment transfer narration to ensure immediate automated reconciliation by the Bueno Treasury desk.
                 </p>
               </div>
             </div>
@@ -1124,7 +1124,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   onClick={() => setConsignmentModal(false)}
                   className="text-slate-400 hover:text-slate-700 font-bold text-lg"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
 
@@ -1254,7 +1254,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 {isGaugeIncompatible ? (
                   <div className="bg-rose-50 border border-rose-300 p-4 rounded-2xl space-y-1 text-rose-950">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">⚠️</span>
+                      <span className="text-base"></span>
                       <span className="text-[10px] font-mono font-black uppercase text-rose-700 tracking-wider">
                         CRITICAL GAUGE INCOMPATIBILITY (PAGE 1 SPEC 04)
                       </span>
@@ -1263,13 +1263,13 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       <b>Origin ({originInfo.name})</b> is on <b>{originInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'}</b>, but <b>Destination ({destInfo.name})</b> is on <b>{destInfo.gauge === 'STANDARD_GAUGE' ? 'Standard Gauge (1,435mm)' : 'Narrow Gauge (1,067mm)'}</b>.
                     </p>
                     <p className="text-[11px] text-rose-700">
-                      Standard Gauge and Narrow Gauge tracks are mutually exclusive and rolling stock cannot cross tracks. Please choose matching gauge stations (e.g. Papalanto ➔ Moniya Standard Gauge, or Ewekoro ➔ Dugbe Narrow Gauge).
+                      Standard Gauge and Narrow Gauge tracks are mutually exclusive and rolling stock cannot cross tracks. Please choose matching gauge stations (e.g. Papalanto → Moniya Standard Gauge, or Ewekoro → Dugbe Narrow Gauge).
                     </p>
                   </div>
                 ) : (
                   <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-emerald-700 font-bold">✓</span>
+                      <span className="text-emerald-700 font-bold">Audited</span>
                       <span className="text-xs font-bold text-emerald-900">Corridor Gauge Exclusivity Verified</span>
                     </div>
                     <span className="text-[10px] font-mono font-black bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded">
@@ -1341,7 +1341,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         : 'bg-[#62BC37] hover:bg-[#52A02D] text-white shadow-emerald-700/20'
                     }`}
                   >
-                    Submit Consignment Note & Request Official Tariff ➔
+                    Submit Consignment Note & Request Official Tariff →
                   </button>
                 </div>
               </form>

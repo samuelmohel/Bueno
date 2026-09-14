@@ -575,7 +575,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-[#62BC37] text-white rounded-full flex items-center justify-center font-black text-base shadow-sm">
-                ✓
+                Approved
               </div>
               <h3 className="text-base font-black text-slate-900">{customAlert.title || 'Action Completed'}</h3>
             </div>
@@ -600,7 +600,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 <h3 className="text-lg font-black text-slate-900">Assign On-Board Escort & Initialize Live Satellite GPS</h3>
               </div>
               <button onClick={() => setDispatchModalTrip(null)} className="text-slate-400 font-bold hover:text-slate-900">
-                ✕
+                ×
               </button>
             </div>
 
@@ -608,7 +608,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
                 <span className="text-[10px] font-mono uppercase font-bold text-slate-400">Train Dispatch Target</span>
                 <p className="text-xs font-black text-slate-900">
-                  {dispatchModalTrip.id} • {dispatchModalTrip.company} ({dispatchModalTrip.origin} ➔ {dispatchModalTrip.destination})
+                  {dispatchModalTrip.id} • {dispatchModalTrip.company} ({dispatchModalTrip.origin} → {dispatchModalTrip.destination})
                 </p>
               </div>
 
@@ -665,7 +665,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
               <div className="space-y-1 bg-blue-50/60 p-3 rounded-2xl border border-blue-200">
                 <label className="block text-[10px] font-bold text-slate-800 uppercase">
-                  📧 Client Departure Notification Email *
+                  Client Departure Notification Email *
                 </label>
                 <input
                   required
@@ -692,7 +692,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   type="submit"
                   className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
-                  ✓ Dispatch Train & Lock Live Satellite GPS ➔
+                  Dispatch Train & Lock Live Satellite GPS →
                 </button>
               </div>
             </form>
@@ -838,7 +838,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       <optgroup label={`── ${StateEngine.getTodayLabel()} ──`}>
                         {todayTrips.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} {t.trancheNumber ? `[Tranche ${t.trancheNumber}/${t.totalPlannedTrips || 10}]` : ''} ({t.origin} ➔ {t.destination})
+                            {t.id} • {t.company || 'Industrial Consignee'} {t.trancheNumber ? `[Tranche ${t.trancheNumber}/${t.totalPlannedTrips || 10}]` : ''} ({t.origin} → {t.destination})
                           </option>
                         ))}
                       </optgroup>
@@ -847,7 +847,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       <optgroup label={`── ${StateEngine.getYesterdayLabel()} ──`}>
                         {yesterdayTrips.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
+                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} → {t.destination})
                           </option>
                         ))}
                       </optgroup>
@@ -856,7 +856,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       <optgroup label="── Earlier Consignments ──">
                         {earlierTrips.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} ➔ {t.destination})
+                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} → {t.destination})
                           </option>
                         ))}
                       </optgroup>
@@ -1049,14 +1049,14 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                           <div className="text-[11px] text-slate-300 space-y-1 font-mono">
                             <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
                             <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{isMonthly ? `${deal.trancheTonnage || 920} MT / Trip (${deal.quantity || 9200} MT Total)` : `${deal.quantity} Units`}</span></p>
-                            <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} ➔ {deal.destination || 'MNY'}</span></p>
+                            <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} → {deal.destination || 'MNY'}</span></p>
                           </div>
 
                           <button
                             onClick={() => setCreateTripModalDeal(deal)}
                             className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
                           >
-                            {isMonthly ? `⚡ Dispatch Tranche #${nextTranche} (of ${totalTrips}) ➔` : '⚡ Create & Launch Freight Trip'}
+                            {isMonthly ? `Dispatch Tranche #${nextTranche} (of ${totalTrips}) →` : 'Create & Launch Freight Trip'}
                           </button>
                         </div>
                       );
@@ -1129,7 +1129,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
                 >
-                  ✓ Log Wagon Loaded & Lock Security Seal
+                  Log Wagon Loaded & Lock Security Seal
                 </button>
               </form>
             </div>
@@ -1153,7 +1153,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   }}
                   className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
-                  <span>Dispatch Train ➔</span>
+                  <span>Dispatch Train →</span>
                 </button>
               </div>
 
@@ -1302,7 +1302,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
                 >
-                  ✓ Clear Wagon Unloading & Lock Tally Audit
+                  Clear Wagon Unloading & Lock Tally Audit
                 </button>
               </form>
             </div>
@@ -1384,7 +1384,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               {(activeTrip?.damages?.damagedUnits > 0 || Number(unloadingForm.discrepancyCount) > 0) && (
                 <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl space-y-2 text-rose-950 mt-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">⚠️</span>
+                    <span className="text-base"></span>
                     <div>
                       <span className="text-[10px] font-mono font-black text-rose-700 uppercase tracking-wider block">
                         INCIDENT & DISCREPANCY ESCALATION (PAGE 1 SPEC 06)
@@ -1467,7 +1467,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   type="submit"
                   className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
                 >
-                  ✓ Register Wagon into Central Fleet Repository
+                  Register Wagon into Central Fleet Repository
                 </button>
               </form>
             </div>
@@ -1654,7 +1654,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200 text-xs font-mono">
                             <div>
                               <span className="text-[9px] uppercase text-slate-400 font-sans block">Corridor Path</span>
-                              <span className="font-bold text-slate-800">{t.origin} ➔ {t.destination}</span>
+                              <span className="font-bold text-slate-800">{t.origin} → {t.destination}</span>
                             </div>
                             <div>
                               <span className="text-[9px] uppercase text-slate-400 font-sans block">Cargo Consist</span>
@@ -1667,7 +1667,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             <div>
                               <span className="text-[9px] uppercase text-slate-400 font-sans block">Discrepancy Audit</span>
                               <span className={`font-bold ${t.damages?.damagedUnits > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                {t.damages?.damagedUnits > 0 ? `${t.damages.damagedUnits} Units Flagged` : '✓ 0 Discrepancies (100% Intact)'}
+                                {t.damages?.damagedUnits > 0 ? `${t.damages.damagedUnits} Units Flagged` : '0 Discrepancies (100% Intact)'}
                               </span>
                             </div>
                           </div>
@@ -1806,7 +1806,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             {isDisbursed ? (
                               <div>
                                 <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase block w-fit font-sans">
-                                  ✓ PAID & DISBURSED
+                                  PAID & DISBURSED
                                 </span>
                                 <span className="text-[9px] text-slate-500 font-mono block mt-0.5">
                                   Ref: {req.paymentDetails?.ref || 'TRF-GTB-998120'}
@@ -1827,7 +1827,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                               onClick={() => setSelectedReqForChat(req)}
                               className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all"
                             >
-                              💬 Notes ({req.conversation?.length || 0})
+                              Notes ({req.conversation?.length || 0})
                             </button>
                           </td>
                         </tr>
@@ -1853,14 +1853,14 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     Create & Launch Freight Trip — {createTripModalDeal.companyName || createTripModalDeal.company}
                   </h3>
                   <p className="text-xs text-slate-500 font-mono mt-0.5">
-                    Deal Ref: <span className="font-bold text-slate-900">{createTripModalDeal.dealNumber || createTripModalDeal.id}</span> • Corridor: <span className="font-bold text-amber-700">{createTripModalDeal.loadingStation || 'EWK'} ➔ {createTripModalDeal.destination || 'MNY'}</span>
+                    Deal Ref: <span className="font-bold text-slate-900">{createTripModalDeal.dealNumber || createTripModalDeal.id}</span> • Corridor: <span className="font-bold text-amber-700">{createTripModalDeal.loadingStation || 'EWK'} → {createTripModalDeal.destination || 'MNY'}</span>
                   </p>
                 </div>
                 <button
                   onClick={() => setCreateTripModalDeal(null)}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-black border border-slate-200"
                 >
-                  ✕ Close
+                  Close
                 </button>
               </div>
 
@@ -1967,7 +1967,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     type="submit"
                     className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-3 rounded-xl shadow-md transition-all"
                   >
-                    ⚡ Launch Freight Trip & Issue Waybill
+                    Launch Freight Trip & Issue Waybill
                   </button>
                 </div>
               </form>
@@ -1992,7 +1992,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   onClick={() => setShowFundModal(false)}
                   className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
 
@@ -2044,7 +2044,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
                     >
                       {trips.map((t) => (
-                        <option key={t.id} value={t.id}>{t.id} ({t.origin} ➔ {t.destination})</option>
+                        <option key={t.id} value={t.id}>{t.id} ({t.origin} → {t.destination})</option>
                       ))}
                     </select>
                   </div>
@@ -2089,7 +2089,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     type="submit"
                     className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                   >
-                    ✓ Submit Requisition to Head Office
+                    Submit Requisition to Head Office
                   </button>
                 </div>
               </form>
@@ -2112,7 +2112,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   onClick={() => setSelectedReqForChat(null)}
                   className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
                 >
-                  ✕
+                  ×
                 </button>
               </div>
 

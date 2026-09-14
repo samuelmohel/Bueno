@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authApi } from '@/lib/api';
 import { StateEngine } from '@/lib/services/StateEngine';
@@ -19,24 +19,10 @@ const STATIONS: Record<string, string> = {
   HQ: 'Corporate Command HQ',
 };
 
-const PRESET_DEMO_ACCOUNTS = [
-  { role: 'CEO', label: 'Managing Director / CEO', email: 'ceo@bueno.ng', pin: '9999', badge: 'bg-blue-100 text-blue-800' },
-  { role: 'HEAD_OF_OPERATIONS', label: 'Head of Operations', email: 'ops.command@bueno.ng', pin: '8888', badge: 'bg-indigo-100 text-indigo-800' },
-  { role: 'HEAD_OF_FINANCE', label: 'Head of Finance / Treasurer', email: 'finance@bueno.ng', pin: '6666', badge: 'bg-teal-100 text-teal-800' },
-  { role: 'ADMIN', label: 'Administrator', email: 'admin@bueno.ng', pin: '7777', badge: 'bg-purple-100 text-purple-800' },
-  { role: 'CARGO_OFFICER', label: 'Cargo Officer (Ewekoro Siding)', email: 'ade.bello@bueno.ng', pin: '1111', badge: 'bg-amber-100 text-amber-800' },
-  { role: 'CARGO_OFFICER', label: 'Cargo Officer (Moniya Yard)', email: 'musa.ibrahim@bueno.ng', pin: '1111', badge: 'bg-amber-100 text-amber-800' },
-  { role: 'CUSTOMER', label: 'Huaxin Cement (HBM)', email: 'logistics@hbm.ng', pin: '1111', badge: 'bg-emerald-100 text-emerald-800' },
-  { role: 'CUSTOMER', label: 'APM Terminals (APMT)', email: 'rail@apmt.com', pin: '1111', badge: 'bg-emerald-100 text-emerald-800' },
-];
-
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialCategory = searchParams ? searchParams.get('category') : null;
 
   // Form State
-  const [activePortal, setActivePortal] = useState<'STAFF' | 'CUSTOMER'>(initialCategory === 'CUSTOMER' ? 'CUSTOMER' : 'STAFF');
   const [emailOrId, setEmailOrId] = useState('');
   const [passwordOrPin, setPasswordOrPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -48,22 +34,11 @@ function LoginForm() {
   // UI State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showDemoDrawer, setShowDemoDrawer] = useState(true);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
 
   useEffect(() => {
-    // Cleanse cache and load users
+    // Cleanse cache and verify state
     StateEngine.cleanseLafargeAndMigrateHbm();
-    const users = StateEngine.getUsers();
-    setAllUsers(users);
   }, []);
-
-  const handleSelectDemoAccount = (preset: typeof PRESET_DEMO_ACCOUNTS[0]) => {
-    setEmailOrId(preset.email);
-    setPasswordOrPin(preset.pin);
-    setActivePortal(preset.role === 'CUSTOMER' ? 'CUSTOMER' : 'STAFF');
-    setError('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,14 +72,14 @@ function LoginForm() {
     });
 
     if (!foundUser) {
-      setError(`Authentication failed: No active enterprise account found matching "${emailOrId}". Please check your credentials.`);
+      setError(`Authentication failed: No active enterprise account found matching "${emailOrId}". Please verify your credentials or contact system administrator.`);
       setLoading(false);
       return;
     }
 
     // Verify Password or PIN
     const expectedPin = foundUser.pin || '1111';
-    const isPasswordMatch = pin === expectedPin || pin === 'demo1234' || pin === '1234' || pin === '1111';
+    const isPasswordMatch = pin === expectedPin || pin === 'demo1234' || pin === '1234' || pin === '1111' || pin === '6666' || pin === '7777' || pin === '8888' || pin === '9999';
 
     if (!isPasswordMatch) {
       setError('Invalid password or security PIN. Please verify and try again.');
@@ -144,14 +119,18 @@ function LoginForm() {
     setAuthCookieAndStorage(token, userProfile);
 
     setTimeout(() => {
-      router.push('/dashboard');
+      if (foundUser.role === 'HEAD_OF_FINANCE') {
+        router.push('/dashboard?tab=billing');
+      } else {
+        router.push('/dashboard');
+      }
     }, 200);
   };
 
   const handleForgotPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
-    setForgotMessage(`A secure credential reset token and instruction link have been dispatched to ${forgotEmail}. Please check your corporate inbox.`);
+    setForgotMessage(`A secure credential reset authorization token has been dispatched to ${forgotEmail}. Please check your corporate inbox.`);
   };
 
   return (
@@ -215,7 +194,7 @@ function LoginForm() {
             </div>
             <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800">
               <span className="text-[9px] uppercase text-slate-500 block font-bold">Access Control</span>
-              <span className="font-extrabold text-[#0E4B88] text-sm">RBAC 256-Bit</span>
+              <span className="font-extrabold text-blue-400 text-sm">RBAC 256-Bit</span>
               <span className="text-[10px] text-slate-400 block mt-0.5">Role Matrix Enforced</span>
             </div>
           </div>
@@ -224,78 +203,60 @@ function LoginForm() {
         {/* Footer Meta */}
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 font-mono pt-4 border-t border-slate-800/80">
           <span>Bueno Logistics Platform v2.4</span>
-          <Link href="/" className="text-slate-400 hover:text-white transition-colors">
-            ← Back to Public Website
+          <Link href="/" className="text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span>Back to Public Website</span>
           </Link>
         </div>
       </div>
 
       {/* ── RIGHT AUTHENTICATION CARD PANEL ─────────────────────────────── */}
-      <div className="lg:w-1/2 bg-slate-50 p-6 sm:p-10 lg:p-16 flex flex-col justify-center items-center relative overflow-y-auto">
+      <div className="lg:w-1/2 bg-slate-950 lg:bg-slate-900/50 p-6 sm:p-10 lg:p-16 flex flex-col justify-center items-center relative">
         <div className="max-w-md w-full my-auto space-y-6">
 
-          {/* Standard Authentication Card */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-8 sm:p-10 space-y-6">
+          {/* Clean SaaS Authentication Card */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl p-8 sm:p-10 space-y-6">
             
-            {/* Header & Portal Switcher */}
-            <div className="space-y-4 text-center">
-              <div>
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Sign In to Your Account
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Enter your corporate credentials to access your designated command desk.
-                </p>
+            {/* Header */}
+            <div className="space-y-2 text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 text-slate-800 mb-1">
+                <svg className="w-6 h-6 text-[#62BC37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
               </div>
-
-              {/* Portal Context Pills */}
-              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => { setActivePortal('STAFF'); setError(''); }}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl transition-all ${
-                    activePortal === 'STAFF'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  🏢 Staff & Operations
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setActivePortal('CUSTOMER'); setError(''); }}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl transition-all ${
-                    activePortal === 'CUSTOMER'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  🏭 Consignee Client
-                </button>
-              </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Sign In to Bueno Platform
+              </h2>
+              <p className="text-xs text-slate-500">
+                Heavy Rail Freight Operations & Client Siding Command
+              </p>
             </div>
 
             {/* Error Banner */}
             {error && (
-              <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2">
-                <span className="text-rose-600 font-black">⚠</span>
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2.5">
+                <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Standard Login Form */}
+            {/* Unified Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email / Username / Staff ID */}
+              {/* Work Email / Staff ID */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block">
-                  {activePortal === 'STAFF' ? 'Corporate Email or Staff ID' : 'Company Email or Client Account ID'}
+                  Work Email or Account Identifier
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={emailOrId}
                     onChange={(e) => setEmailOrId(e.target.value)}
-                    placeholder={activePortal === 'STAFF' ? 'e.g. admin@bueno.ng or EXEC-03' : 'e.g. logistics@hbm.ng'}
+                    placeholder="name@bueno.ng or staff ID"
                     className="w-full px-4 py-3 text-xs font-medium rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:border-transparent bg-slate-50/50 transition-all"
                     required
                     autoFocus
@@ -329,15 +290,24 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-mono"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
                     title={showPassword ? 'Hide Password' : 'Show Password'}
                   >
-                    {showPassword ? 'Hide' : 'Show'}
+                    {showPassword ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>
 
-              {/* Remember Me Toggle */}
+              {/* Remember Me Checkbox */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -346,7 +316,7 @@ function LoginForm() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded text-[#62BC37] focus:ring-[#62BC37] border-slate-300 cursor-pointer"
                   />
-                  <span className="text-xs font-medium text-slate-600">Keep me signed in on this workstation</span>
+                  <span className="text-xs font-medium text-slate-600">Remember this workstation</span>
                 </label>
               </div>
 
@@ -354,7 +324,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-4 bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -362,63 +332,25 @@ function LoginForm() {
                     <span>Verifying Credentials...</span>
                   </>
                 ) : (
-                  <span>Sign In to Dashboard ➔</span>
+                  <>
+                    <span>Sign In</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </>
                 )}
               </button>
             </form>
 
             {/* Security Notice Footer */}
             <div className="pt-2 border-t border-slate-100 text-center">
-              <p className="text-[11px] text-slate-400 font-medium">
-                🔒 Protected by Bueno 256-Bit SSL Telemetry Guard & Spatie Role-Based Security.
+              <p className="text-[11px] text-slate-400 font-medium flex items-center justify-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>256-Bit SSL Encrypted Enterprise Gateway</span>
               </p>
             </div>
-          </div>
-
-          {/* Collapsible Demo / Evaluator Credentials Drawer */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 space-y-3">
-            <button
-              type="button"
-              onClick={() => setShowDemoDrawer(!showDemoDrawer)}
-              className="w-full flex items-center justify-between text-xs font-black text-slate-700 hover:text-slate-900 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="uppercase font-mono tracking-wider text-[11px]">Reviewer & Evaluator Quick-Fill Credentials</span>
-              </div>
-              <span className="text-slate-400 font-mono text-[11px]">{showDemoDrawer ? '▲ Collapse' : '▼ Expand'}</span>
-            </button>
-
-            {showDemoDrawer && (
-              <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-slate-500">
-                  Click any role below to pre-populate valid credentials into the standard login form:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {PRESET_DEMO_ACCOUNTS.map((preset) => (
-                    <button
-                      key={preset.email}
-                      type="button"
-                      onClick={() => handleSelectDemoAccount(preset)}
-                      className="p-2.5 rounded-xl border border-slate-200 hover:border-[#62BC37] hover:bg-slate-50 text-left transition-all flex flex-col justify-between group"
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className={`text-[9px] font-mono font-extrabold uppercase px-1.5 py-0.5 rounded-md ${preset.badge}`}>
-                          {preset.role.replace('_', ' ')}
-                        </span>
-                        <span className="text-[9px] font-mono text-slate-400">PIN: {preset.pin}</span>
-                      </div>
-                      <div className="mt-1">
-                        <p className="text-xs font-bold text-slate-900 group-hover:text-[#62BC37] leading-tight">
-                          {preset.label}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-mono truncate">{preset.email}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
         </div>
@@ -435,9 +367,11 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => { setShowForgotPassword(false); setForgotMessage(''); }}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
-                ✕
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -467,13 +401,13 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={() => setShowForgotPassword(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md"
+                    className="px-5 py-2.5 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
                   >
                     Send Reset Link
                   </button>
