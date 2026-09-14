@@ -79,6 +79,201 @@ export const SEED_INVOICES: any[] = [];
 
 export const SEED_TRIP_COSTS: any[] = [];
 
+// ─── ENTERPRISE ACCOUNTING INTERFACES & SEED DATA ────────────────────────────
+export interface ChartAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+  subType: string;
+  balance: number;
+  description: string;
+  isEnabled: boolean;
+}
+
+export interface JournalEntryLine {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  journalNo: string;
+  date: string;
+  reference: string;
+  description: string;
+  lines: JournalEntryLine[];
+  totalAmount: number;
+  status: 'POSTED';
+  postedBy: string;
+  createdAt: string;
+}
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  accountType: string;
+  currency: string;
+  currentBalance: number;
+  ledgerBalance?: number;
+  statementBalance?: number;
+  glAccountCode?: string;
+  lastReconciled: string;
+  status: 'RECONCILED' | 'PENDING_REVIEW';
+}
+
+export const SEED_CHART_OF_ACCOUNTS: ChartAccount[] = [
+  { id: 'acc_1010', code: '1010', name: 'Zenith Bank Operating Account (#1014889201)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 48250000, description: 'Primary corporate revenue collection and clearing account', isEnabled: true },
+  { id: 'acc_1020', code: '1020', name: 'Access Bank Rail Escort & NRC Escrow (#0049921102)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 18400000, description: 'Track toll reserve and security escort operations escrow', isEnabled: true },
+  { id: 'acc_1030', code: '1030', name: 'Siding Petty Cash Vault (Ewekoro & Moniya)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 1250000, description: 'Station-level cash imprest for immediate siding contingencies', isEnabled: true },
+  { id: 'acc_1110', code: '1110', name: 'Trade Debtors (Consignee Receivables)', type: 'ASSET', subType: 'Accounts Receivable', balance: 73600000, description: 'Outstanding freight billings due from HBM, APMT, Maersk, and BAT', isEnabled: true },
+  { id: 'acc_1210', code: '1210', name: 'Bulk AGO Diesel Reserves (Ewekoro Depot)', type: 'ASSET', subType: 'Inventory', balance: 12800000, description: 'Locomotive fuel held in storage tanks at Ewekoro siding', isEnabled: true },
+  { id: 'acc_1510', code: '1510', name: 'Rolling Stock — 46 PXG Covered Hopper Wagons', type: 'ASSET', subType: 'Property, Plant & Equipment', balance: 1380000000, description: 'Dedicated fleet of 46 covered hopper standard-gauge wagons', isEnabled: true },
+  { id: 'acc_1520', code: '1520', name: 'Siding Heavy Machinery & Tractors', type: 'ASSET', subType: 'Property, Plant & Equipment', balance: 45000000, description: 'Cross-docking loaders, forklifts, and shunting tractors', isEnabled: true },
+  { id: 'acc_1590', code: '1590', name: 'Accumulated Depreciation — Rolling Stock', type: 'ASSET', subType: 'Contra-Asset', balance: -46000000, description: 'Cumulative asset depreciation charged to date', isEnabled: true },
+
+  { id: 'acc_2010', code: '2010', name: 'Trade Creditors (Diesel & Vendor Payables)', type: 'LIABILITY', subType: 'Current Liabilities', balance: 16200000, description: 'Invoices payable to fuel suppliers and maintenance contractors', isEnabled: true },
+  { id: 'acc_2020', code: '2020', name: 'NRC Track Access Surcharge Payable', type: 'LIABILITY', subType: 'Current Liabilities', balance: 22500000, description: 'Nigerian Railway Corporation statutory corridor track tolls', isEnabled: true },
+  { id: 'acc_2030', code: '2030', name: 'Accrued Operating Expenses & Crew Allowances', type: 'LIABILITY', subType: 'Current Liabilities', balance: 4800000, description: 'Unsettled shift allowances and stevedoring charges', isEnabled: true },
+  { id: 'acc_2040', code: '2040', name: 'Consignee Advance Deposits & Retainers', type: 'LIABILITY', subType: 'Current Liabilities', balance: 35000000, description: 'Prepaid freight funds held prior to dispatch release', isEnabled: true },
+  { id: 'acc_2120', code: '2120', name: 'Unidentified Receipts Suspense Account', type: 'LIABILITY', subType: 'Suspense', balance: 0, description: 'Unallocated bank wire receipts pending customer attribution', isEnabled: true },
+
+  { id: 'acc_3010', code: '3010', name: 'Ordinary Share Capital', type: 'EQUITY', subType: 'Contributed Capital', balance: 1200000000, description: 'Issued and fully paid corporate equity capital', isEnabled: true },
+  { id: 'acc_3020', code: '3020', name: 'Retained Earnings & Reserves', type: 'EQUITY', subType: 'Retained Earnings', balance: 206700000, description: 'Accumulated net surplus from railway operations', isEnabled: true },
+
+  { id: 'acc_4010', code: '4010', name: 'Bulk Freight Revenue — Cement (HBM Siding)', type: 'REVENUE', subType: 'Operating Revenue', balance: 82800000, description: 'Freight haulage tariffs for Huaxin Portland Cement (50kg)', isEnabled: true },
+  { id: 'acc_4020', code: '4020', name: 'Bulk Freight Revenue — Containerized Cargo (APMT)', type: 'REVENUE', subType: 'Operating Revenue', balance: 24000000, description: 'Intermodal import/export container movement on rail', isEnabled: true },
+  { id: 'acc_4030', code: '4030', name: 'Siding Loading & Cross-Docking Handling Income', type: 'REVENUE', subType: 'Operating Revenue', balance: 4600000, description: 'Terminal siding cargo handling and bag conveyance fees', isEnabled: true },
+  { id: 'acc_4040', code: '4040', name: 'Demurrage & Wagon Detention Penalties', type: 'REVENUE', subType: 'Other Operating Income', balance: 2200000, description: 'Hourly demurrage billed for unloading delays exceeding free time', isEnabled: true },
+
+  { id: 'acc_5010', code: '5010', name: 'NRC Track Access & Corridor Tolls', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 28400000, description: 'Direct mileage and axle-load access tariffs paid to NRC', isEnabled: true },
+  { id: 'acc_5020', code: '5020', name: 'Locomotive Diesel Fuel (AGO) Consumption', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 19600000, description: 'AGO diesel fuel burned per voyage run between EWK and MNY', isEnabled: true },
+  { id: 'acc_5030', code: '5030', name: 'Mainline Locomotive Power Unit Hire', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 11500000, description: 'Locomotive charter and wet-lease per train trip', isEnabled: true },
+  { id: 'acc_5040', code: '5040', name: 'Siding Loading & Stevedoring Wages', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 3800000, description: 'Labor rates paid for loading 1,200 bags per covered hopper', isEnabled: true },
+  { id: 'acc_5050', code: '5050', name: 'Armed Security Rail Escort Operations', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 2900000, description: 'Corridor armed patrol and onboard escort officer allowances', isEnabled: true },
+
+  { id: 'acc_6010', code: '6010', name: 'Terminal Management & Staff Salaries', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 6800000, description: 'Salaries for station officers, dispatchers, and finance staff', isEnabled: true },
+  { id: 'acc_6020', code: '6020', name: 'Corridor Telemetry, GPS & Cloud Infrastructure', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 1400000, description: 'Satellite GPS telemetry tracking and software hosting', isEnabled: true },
+  { id: 'acc_6030', code: '6030', name: 'Yard Utilities, Siding Maintenance & Safety', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 2100000, description: 'Lighting, security fencing, track clearance, and depot safety', isEnabled: true },
+  { id: 'acc_6040', code: '6040', name: 'Corporate Legal, Audit & Regulatory Compliance', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 1850000, description: 'Statutory filing, external financial audit, and insurance', isEnabled: true },
+];
+
+export const SEED_JOURNAL_ENTRIES: JournalEntry[] = [
+  {
+    id: 'jrn_001',
+    journalNo: 'JRN-2026-001',
+    date: '01/09/2026',
+    reference: 'EQUITY-CAP-01',
+    description: 'Initial equity capitalization and purchase of 46 PXG Hopper Wagons fleet',
+    totalAmount: 1380000000,
+    status: 'POSTED',
+    postedBy: 'Folake Adeyemi (Finance Controller)',
+    createdAt: '01 Sep 2026',
+    lines: [
+      { accountId: 'acc_1510', accountCode: '1510', accountName: 'Rolling Stock — 46 PXG Covered Hopper Wagons', description: 'Acquisition of 46 standard-gauge hoppers', debit: 1380000000, credit: 0 },
+      { accountId: 'acc_3010', accountCode: '3010', accountName: 'Ordinary Share Capital', description: 'Equity allotment', debit: 0, credit: 1200000000 },
+      { accountId: 'acc_3020', accountCode: '3020', accountName: 'Retained Earnings & Reserves', description: 'Capital reserve contribution', debit: 0, credit: 180000000 },
+    ]
+  },
+  {
+    id: 'jrn_002',
+    journalNo: 'JRN-2026-002',
+    date: '06/09/2026',
+    reference: 'HBM-INV-001',
+    description: 'Accrual of freight tariff revenue on HBM Monthly Consignment Tranche 1 (920 MT)',
+    totalAmount: 9200000,
+    status: 'POSTED',
+    postedBy: 'Chinenye Nnamdi (Head of Finance)',
+    createdAt: '06 Sep 2026',
+    lines: [
+      { accountId: 'acc_1110', accountCode: '1110', accountName: 'Trade Debtors (Consignee Receivables)', description: 'Invoice HBM-INV-001 billed to Huaxin Cement', debit: 9200000, credit: 0 },
+      { accountId: 'acc_4010', accountCode: '4010', accountName: 'Bulk Freight Revenue — Cement (HBM Siding)', description: '10,000 NGN/MT contract tariff recognized', debit: 0, credit: 9200000 },
+    ]
+  },
+  {
+    id: 'jrn_003',
+    journalNo: 'JRN-2026-003',
+    date: '08/09/2026',
+    reference: 'VOYAGE-EXP-884',
+    description: 'Settlement of NRC track access toll and bulk AGO locomotive fuel via Zenith Bank',
+    totalAmount: 5300000,
+    status: 'POSTED',
+    postedBy: 'Chinenye Nnamdi (Head of Finance)',
+    createdAt: '08 Sep 2026',
+    lines: [
+      { accountId: 'acc_5010', accountCode: '5010', accountName: 'NRC Track Access & Corridor Tolls', description: 'Statutory track access fees paid to NRC', debit: 3100000, credit: 0 },
+      { accountId: 'acc_5020', accountCode: '5020', accountName: 'Locomotive Diesel Fuel (AGO) Consumption', description: 'AGO diesel bunkering for trip', debit: 2200000, credit: 0 },
+      { accountId: 'acc_1010', accountCode: '1010', accountName: 'Zenith Bank Operating Account (#1014889201)', description: 'Bank electronic disbursement', debit: 0, credit: 5300000 },
+    ]
+  },
+  {
+    id: 'jrn_004',
+    journalNo: 'JRN-2026-004',
+    date: '11/09/2026',
+    reference: 'WIRE-RCV-HBM-94',
+    description: 'Wire settlement received from Huaxin Building Materials Nig Plc for Tranches 1 & 2',
+    totalAmount: 25000000,
+    status: 'POSTED',
+    postedBy: 'Chinenye Nnamdi (Head of Finance)',
+    createdAt: '11 Sep 2026',
+    lines: [
+      { accountId: 'acc_1010', accountCode: '1010', accountName: 'Zenith Bank Operating Account (#1014889201)', description: 'Direct NIBSS wire settlement credited', debit: 25000000, credit: 0 },
+      { accountId: 'acc_1110', accountCode: '1110', accountName: 'Trade Debtors (Consignee Receivables)', description: 'Clearance of outstanding consignee invoice', debit: 0, credit: 25000000 },
+    ]
+  },
+];
+
+export const SEED_BANK_ACCOUNTS: BankAccount[] = [
+  {
+    id: 'bnk_01',
+    bankName: 'Zenith Bank Plc',
+    accountName: 'Bueno Logistics Limited — Freight Operations',
+    accountNumber: '1014889201',
+    accountType: 'Corporate Current',
+    currency: 'NGN (₦)',
+    currentBalance: 48250000,
+    ledgerBalance: 48250000,
+    statementBalance: 48250000,
+    glAccountCode: '1010',
+    lastReconciled: '12 Sep 2026',
+    status: 'RECONCILED',
+  },
+  {
+    id: 'bnk_02',
+    bankName: 'Access Bank Plc',
+    accountName: 'Bueno Logistics Limited — NRC & Escort Escrow',
+    accountNumber: '0049921102',
+    accountType: 'Treasury Escrow',
+    currency: 'NGN (₦)',
+    currentBalance: 18400000,
+    ledgerBalance: 18400000,
+    statementBalance: 18400000,
+    glAccountCode: '1020',
+    lastReconciled: '12 Sep 2026',
+    status: 'RECONCILED',
+  },
+  {
+    id: 'bnk_03',
+    bankName: 'Stanbic IBTC Bank',
+    accountName: 'Bueno Logistics Limited — Rolling Stock Capital Fund',
+    accountNumber: '9023817740',
+    accountType: 'Yield Reserve',
+    currency: 'NGN (₦)',
+    currentBalance: 32000000,
+    ledgerBalance: 32000000,
+    statementBalance: 32000000,
+    glAccountCode: '1025',
+    lastReconciled: '10 Sep 2026',
+    status: 'RECONCILED',
+  },
+];
+
 // ─── STATE ENGINE SERVICE ───────────────────────────────────────────────────
 class StateEngineService {
   private notifyListeners() {
@@ -986,6 +1181,111 @@ class StateEngineService {
     const capability = TAB_TO_CAPABILITY[tabId] || tabId;
     return rolePerms.includes(capability);
   }
+
+  // ─── DOUBLE-ENTRY CHART OF ACCOUNTS & GENERAL JOURNAL API ─────────────────
+
+  getChartOfAccounts(): ChartAccount[] {
+    return this.readStorage<ChartAccount[]>('bueno_chart_of_accounts', SEED_CHART_OF_ACCOUNTS);
+  }
+
+  saveChartOfAccounts(accounts: ChartAccount[]): void {
+    this.writeStorage('bueno_chart_of_accounts', accounts);
+  }
+
+  addChartOfAccount(acc: Omit<ChartAccount, 'id'>): ChartAccount {
+    const existing = this.getChartOfAccounts();
+    const newAccount: ChartAccount = {
+      ...acc,
+      id: `acc_${acc.code || Date.now()}`,
+    };
+    this.saveChartOfAccounts([...existing, newAccount]);
+    return newAccount;
+  }
+
+  getJournalEntries(): JournalEntry[] {
+    return this.readStorage<JournalEntry[]>('bueno_journal_entries', SEED_JOURNAL_ENTRIES);
+  }
+
+  addJournalEntry(entry: Omit<JournalEntry, 'id' | 'createdAt'>): JournalEntry {
+    const existing = this.getJournalEntries();
+    const newEntry: JournalEntry = {
+      ...entry,
+      id: `jrn_${Date.now()}`,
+      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+
+    // Update account balances according to debit and credit effects
+    const accounts = this.getChartOfAccounts();
+    newEntry.lines.forEach((line) => {
+      const targetAcc = accounts.find((a) => a.id === line.accountId || a.code === line.accountCode);
+      if (targetAcc) {
+        if (targetAcc.type === 'ASSET' || targetAcc.type === 'EXPENSE') {
+          targetAcc.balance += (Number(line.debit) || 0) - (Number(line.credit) || 0);
+        } else {
+          targetAcc.balance += (Number(line.credit) || 0) - (Number(line.debit) || 0);
+        }
+      }
+    });
+    this.saveChartOfAccounts(accounts);
+    this.writeStorage('bueno_journal_entries', [newEntry, ...existing]);
+    return newEntry;
+  }
+
+  getBankAccounts(): BankAccount[] {
+    return this.readStorage<BankAccount[]>('bueno_bank_accounts', SEED_BANK_ACCOUNTS);
+  }
+
+  saveBankAccounts(banks: BankAccount[]): void {
+    this.writeStorage('bueno_bank_accounts', banks);
+  }
+
+  reconcileBankAccount(bankId: string): void {
+    const banks = this.getBankAccounts();
+    const updated = banks.map((b) =>
+      b.id === bankId
+        ? { ...b, lastReconciled: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), status: 'RECONCILED' as const }
+        : b
+    );
+    this.saveBankAccounts(updated);
+  }
+
+  // ─── GRANULAR PERMISSIONS MATRIX API ──────────────────────────────────────
+
+  getGranularPermissions(): Record<string, string[]> {
+    const stored = this.readStorage<Record<string, string[]> | null>('bueno_granular_permissions', null);
+    if (!stored || typeof stored !== 'object') {
+      return JSON.parse(JSON.stringify(DEFAULT_GRANULAR_ROLE_PERMISSIONS));
+    }
+    const merged: Record<string, string[]> = {};
+    Object.keys(DEFAULT_GRANULAR_ROLE_PERMISSIONS).forEach((roleKey) => {
+      merged[roleKey] = Array.isArray(stored[roleKey]) ? stored[roleKey] : [...DEFAULT_GRANULAR_ROLE_PERMISSIONS[roleKey]];
+    });
+    return merged;
+  }
+
+  saveGranularPermissions(matrix: Record<string, string[]>): void {
+    this.writeStorage('bueno_granular_permissions', matrix);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_permissions_updated'));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+      fetch('/api/permissions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ granularMatrix: matrix }),
+      }).catch(() => {});
+    }
+  }
+
+  hasGranularPermission(user: any, actionKey: string): boolean {
+    if (!user) return false;
+    const role = user.role || 'GUEST';
+    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
+
+    const matrix = this.getGranularPermissions();
+    const userPerms = matrix[role];
+    if (!Array.isArray(userPerms)) return false;
+    return userPerms.includes(actionKey);
+  }
 }
 
 export const PERMISSIONS_SCHEMA_VERSION = 'v5';
@@ -1174,6 +1474,190 @@ export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
   ],
   CONSIGNEE: [
     'negotiations', 'telemetry', 'manifest', 'billing',
+  ],
+};
+
+// ─── GRANULAR ROLE-BASED ACCESS CONTROL (RBAC) SCHEMA ───────────────────────
+export interface GranularPermissionAction {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface GranularPermissionModule {
+  id: string;
+  name: string;
+  title?: string;
+  icon?: string;
+  description: string;
+  actions: GranularPermissionAction[];
+}
+
+export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
+  {
+    id: 'commercial',
+    name: 'Commercial & Deals Desk',
+    title: 'Commercial & Deals Desk',
+    icon: '📈',
+    description: 'Single-trip and monthly consignment contracts, spot rates, and customer agreements',
+    actions: [
+      { key: 'deals.view', label: 'View Deals', description: 'Inspect active commercial contracts and backlog' },
+      { key: 'deals.create', label: 'Create Deals', description: 'Create spot-run or master multi-trip contracts' },
+      { key: 'deals.edit', label: 'Edit Deals', description: 'Modify contract volumes, pricing, or consignee notes' },
+      { key: 'deals.approve', label: 'Approve Deals', description: 'Authorize deals for corridor terminal loading' },
+      { key: 'deals.delete', label: 'Purge Deals', description: 'Archive or permanently delete deals' },
+      { key: 'deals.export', label: 'Export Data', description: 'Export commercial agreements to CSV / briefing' },
+    ]
+  },
+  {
+    id: 'negotiation',
+    name: 'Negotiation & Live Chat',
+    title: 'Negotiation & Live Chat',
+    icon: '💬',
+    description: 'Direct rate bargaining, counter-offers, and client logistics communication',
+    actions: [
+      { key: 'negotiation.view', label: 'View Discussions', description: 'Read negotiation threads with industrial consignees' },
+      { key: 'negotiation.message', label: 'Send Counter-Offers', description: 'Post freight rates and tariff proposals' },
+      { key: 'negotiation.lock', label: 'Lock Negotiation', description: 'Freeze agreed rate and conclude negotiations' },
+    ]
+  },
+  {
+    id: 'operations',
+    name: 'Corridor Siding & Train Dispatches',
+    title: 'Corridor Siding & Train Dispatches',
+    icon: '🚂',
+    description: 'Field loading at Ewekoro, locomotive consist dispatches, and Moniya destination yard',
+    actions: [
+      { key: 'ops.manifest_view', label: 'View Manifests', description: 'Access train consist sheets and waybills' },
+      { key: 'ops.dispatch', label: 'Dispatch Locomotives', description: 'Clear train departure onto NRC mainline' },
+      { key: 'ops.loading_update', label: 'Update Loading', description: 'Log wagon bag counts and seal verification' },
+      { key: 'ops.unloading_confirm', label: 'Confirm Yard Arrival', description: 'Sign off train arrival at Moniya yard' },
+      { key: 'ops.damage_audit', label: 'Audit Damages', description: 'Record burst bags and calculate consignee deduction' },
+      { key: 'ops.gps_telemetry', label: 'Live GPS Telemetry', description: 'Track speed, geofence, and corridor progress' },
+    ]
+  },
+  {
+    id: 'fleet',
+    name: 'Rolling Stock & Siding Fleet',
+    title: 'Rolling Stock & Siding Fleet',
+    icon: '🚆',
+    description: '46 Dedicated PXG Covered Hopper Wagons and mainline diesel locomotives',
+    actions: [
+      { key: 'fleet.view', label: 'View 46 Hopper Fleet', description: 'Check wagon availability, payload, and station' },
+      { key: 'fleet.assign', label: 'Assign Wagons', description: 'Allocate specific wagons to a train consist' },
+      { key: 'fleet.maintenance', label: 'Log Maintenance', description: 'Report wheel, bogie, or brake inspection flags' },
+    ]
+  },
+  {
+    id: 'finance',
+    name: 'Double-Entry Accounting & Financial Suite',
+    title: 'Double-Entry Accounting & Financial Suite',
+    icon: '💰',
+    description: 'General Ledger, Chart of Accounts, Journal Entries, P&L, Balance Sheet, and Requisitions',
+    actions: [
+      { key: 'finance.coa_view', label: 'View Chart of Accounts', description: 'Inspect 5-tier Assets, Liabilities, Equity, Revenue, OpEx' },
+      { key: 'finance.coa_manage', label: 'Manage Accounts', description: 'Add new ledger accounts or modify codes' },
+      { key: 'finance.journal_create', label: 'Post Journal Entries', description: 'Create balanced double-entry debits and credits' },
+      { key: 'finance.deal_costing', label: 'Write Deal Tariffs', description: 'Set freight tariffs (₦/MT) and OpEx budgets' },
+      { key: 'finance.invoices_issue', label: 'Issue Invoices & Debit Notes', description: 'Generate official freight invoices' },
+      { key: 'finance.payments_record', label: 'Record Payments', description: 'Log bank receipts against invoices' },
+      { key: 'finance.requisitions_approve', label: 'Approve Requisitions', description: 'Sign off operational fund expense requests' },
+      { key: 'finance.statements_view', label: 'Financial Statements', description: 'Generate Trial Balance, P&L, and Balance Sheet' },
+      { key: 'finance.bank_reconciliation', label: 'Bank Reconciliation', description: 'Reconcile bank accounts with general ledger' },
+    ]
+  },
+  {
+    id: 'users',
+    name: 'Identity & Access Administration',
+    title: 'Identity & Access Administration',
+    icon: '👥',
+    description: 'Corporate staff directory, client accounts, role assignment, and security credentials',
+    actions: [
+      { key: 'users.view', label: 'View Directory', description: 'Browse corporate staff and consignee directory' },
+      { key: 'users.create', label: 'Provision Users', description: 'Onboard new cargo officers, executives, and clients' },
+      { key: 'users.edit', label: 'Edit Profiles', description: 'Update contact details, station, or phone' },
+      { key: 'users.reset_pin', label: 'Reset Credentials', description: 'Regenerate security PIN or password' },
+      { key: 'users.deactivate', label: 'Deactivate Account', description: 'Revoke access permissions for a user' },
+    ]
+  },
+  {
+    id: 'system',
+    name: 'Security & System Governance',
+    title: 'Security & System Governance',
+    icon: '⚙️',
+    description: 'Permissions matrix, audit logs, and production clean resets',
+    actions: [
+      { key: 'system.permissions_edit', label: 'Edit Permissions Matrix', description: 'Customize granular permissions across all roles' },
+      { key: 'system.purge_data', label: 'Production Reset / Purge', description: 'Wipe mock test data for live operation' },
+    ]
+  }
+];
+
+export const DEFAULT_GRANULAR_ROLE_PERMISSIONS: Record<string, string[]> = {
+  ADMIN: [
+    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.delete', 'deals.export',
+    'negotiation.view', 'negotiation.message', 'negotiation.lock',
+    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
+    'fleet.view', 'fleet.assign', 'fleet.maintenance',
+    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
+    'users.view', 'users.create', 'users.edit', 'users.reset_pin', 'users.deactivate',
+    'system.permissions_edit', 'system.purge_data',
+  ],
+  CEO: [
+    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.export',
+    'negotiation.view', 'negotiation.message', 'negotiation.lock',
+    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
+    'fleet.view', 'fleet.assign', 'fleet.maintenance',
+    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
+    'users.view', 'users.create', 'users.edit',
+    'system.permissions_edit',
+  ],
+  MD: [
+    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.export',
+    'negotiation.view', 'negotiation.message', 'negotiation.lock',
+    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
+    'fleet.view', 'fleet.assign', 'fleet.maintenance',
+    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
+    'users.view', 'users.create', 'users.edit',
+    'system.permissions_edit',
+  ],
+  HEAD_OF_OPERATIONS: [
+    'deals.view', 'deals.edit', 'deals.approve', 'deals.export',
+    'negotiation.view', 'negotiation.message', 'negotiation.lock',
+    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
+    'fleet.view', 'fleet.assign', 'fleet.maintenance',
+    'finance.requisitions_approve', 'finance.invoices_issue',
+    'users.view',
+  ],
+  HEAD_OF_FINANCE: [
+    'deals.view', 'deals.export',
+    'negotiation.view',
+    'ops.manifest_view', 'ops.damage_audit',
+    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
+    'users.view',
+  ],
+  ACCOUNTANT: [
+    'deals.view', 'deals.export',
+    'ops.manifest_view', 'ops.damage_audit',
+    'finance.coa_view', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
+    'users.view',
+  ],
+  CARGO_OFFICER: [
+    'deals.view',
+    'ops.manifest_view', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
+    'fleet.view', 'fleet.assign',
+  ],
+  CUSTOMER: [
+    'deals.view',
+    'negotiation.view', 'negotiation.message',
+    'ops.manifest_view', 'ops.gps_telemetry',
+    'finance.invoices_issue',
+  ],
+  CONSIGNEE: [
+    'deals.view',
+    'negotiation.view', 'negotiation.message',
+    'ops.manifest_view', 'ops.gps_telemetry',
+    'finance.invoices_issue',
   ],
 };
 

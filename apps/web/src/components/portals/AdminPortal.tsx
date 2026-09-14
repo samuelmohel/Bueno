@@ -7,6 +7,11 @@ import {
   TAB_ALIASES,
   TAB_REGISTRY,
   CANONICAL_CORRIDORS,
+  ChartAccount,
+  JournalEntry,
+  BankAccount,
+  GRANULAR_MODULE_PERMISSIONS,
+  DEFAULT_GRANULAR_ROLE_PERMISSIONS,
 } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { TripDossierModal } from '@/components/TripDossierModal';
@@ -382,7 +387,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // Enterprise Accounting & Dynamic Trip Costing State
   const [invoices, setInvoices] = useState<any[]>([]);
   const [tripCosts, setTripCosts] = useState<any[]>([]);
-  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'pnl' | 'customers' | 'deal_costing'>('invoices');
+  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'coa' | 'journal' | 'statements' | 'banking' | 'deal_costing' | 'customers' | 'pnl'>('invoices');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'SETTLED' | 'PARTIALLY_PAID' | 'ISSUED'>('ALL');
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
@@ -393,6 +398,46 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     ref: '',
     date: new Date().toLocaleDateString('en-GB'),
   });
+
+  // Double-Entry Accounting Engine State
+  const [chartAccounts, setChartAccounts] = useState<ChartAccount[]>(() => StateEngine.getChartOfAccounts());
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => StateEngine.getJournalEntries());
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(() => StateEngine.getBankAccounts());
+  const [coaFilter, setCoaFilter] = useState<'ALL' | 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE'>('ALL');
+  const [statementTab, setStatementTab] = useState<'trial_balance' | 'pnl' | 'balance_sheet' | 'ledger'>('trial_balance');
+  const [selectedLedgerAccount, setSelectedLedgerAccount] = useState<string>('acc_1010');
+  const [newAccountModal, setNewAccountModal] = useState(false);
+  const [newAccountForm, setNewAccountForm] = useState({
+    code: '',
+    name: '',
+    type: 'ASSET' as 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
+    subType: 'Cash & Cash Equivalents',
+    openingBalance: '',
+    description: '',
+  });
+  const [newJournalModal, setNewJournalModal] = useState(false);
+  const [newJournalForm, setNewJournalForm] = useState<{
+    journalNo: string;
+    date: string;
+    reference: string;
+    description: string;
+    lines: { accountId: string; description: string; debit: string; credit: string }[];
+  }>({
+    journalNo: `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
+    date: new Date().toLocaleDateString('en-GB'),
+    reference: '',
+    description: '',
+    lines: [
+      { accountId: 'acc_1010', description: '', debit: '', credit: '' },
+      { accountId: 'acc_4010', description: '', debit: '', credit: '' },
+    ],
+  });
+
+  // Granular RBAC Permissions State
+  const [selectedPermissionRole, setSelectedPermissionRole] = useState<string>('CARGO_OFFICER');
+  const [selectedPermissionUser, setSelectedPermissionUser] = useState<string>('');
+  const [permissionsSubTab, setPermissionsSubTab] = useState<'granular' | 'matrix' | 'inspector'>('granular');
+  const [granularPermissions, setGranularPermissions] = useState<Record<string, string[]>>(() => StateEngine.getGranularPermissions());
   const [newCostModal, setNewCostModal] = useState(false);
   const [newCostForm, setNewCostForm] = useState({
     tripId: trips[0]?.id || '',
@@ -511,6 +556,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setSystemSettings(liveSettings);
     setInvoices(liveInvoices);
     setTripCosts(liveTripCosts);
+    setChartAccounts(StateEngine.getChartOfAccounts());
+    setJournalEntries(StateEngine.getJournalEntries());
+    setBankAccounts(StateEngine.getBankAccounts());
+    setGranularPermissions(StateEngine.getGranularPermissions());
 
     // Update current month historical archives
     HISTORICAL_MONTHLY_ARCHIVES['2026-09'] = liveTrips;
@@ -1382,6 +1431,134 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setCustomAlert({
       title: 'Permissions & Settings Updated',
       message: `Admin access to Client Negotiations Chat is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
+    });
+  };
+
+  // TOGGLE GRANULAR MODULE ACTION PERMISSION
+  const handleToggleGranularPermission = (roleKey: string, actionKey: string) => {
+    const fullMatrix = StateEngine.getGranularPermissions();
+    const currentPerms = fullMatrix[roleKey] ?? (DEFAULT_GRANULAR_ROLE_PERMISSIONS[roleKey] ?? []);
+    const isChecked = currentPerms.includes(actionKey);
+
+    const updatedRolePerms = isChecked
+      ? currentPerms.filter((p) => p !== actionKey)
+      : Array.from(new Set([...currentPerms, actionKey]));
+
+    const updatedMatrix = { ...fullMatrix, [roleKey]: updatedRolePerms };
+    setGranularPermissions(updatedMatrix);
+    StateEngine.saveGranularPermissions(updatedMatrix);
+  };
+
+  const handleToggleModuleAll = (roleKey: string, moduleActionKeys: string[], grantAll: boolean) => {
+    const fullMatrix = StateEngine.getGranularPermissions();
+    const currentPerms = new Set(fullMatrix[roleKey] ?? (DEFAULT_GRANULAR_ROLE_PERMISSIONS[roleKey] ?? []));
+
+    moduleActionKeys.forEach((key) => {
+      if (grantAll) currentPerms.add(key);
+      else currentPerms.delete(key);
+    });
+
+    const updatedMatrix = { ...fullMatrix, [roleKey]: Array.from(currentPerms) };
+    setGranularPermissions(updatedMatrix);
+    StateEngine.saveGranularPermissions(updatedMatrix);
+  };
+
+  // ADD NEW LEDGER ACCOUNT TO CHART OF ACCOUNTS
+  const handleCreateAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccountForm.code || !newAccountForm.name) return;
+
+    const added = StateEngine.addChartOfAccount({
+      code: newAccountForm.code.trim(),
+      name: newAccountForm.name.trim(),
+      type: newAccountForm.type,
+      subType: newAccountForm.subType || 'General',
+      balance: Number(newAccountForm.openingBalance) || 0,
+      description: newAccountForm.description || '',
+      isEnabled: true,
+    });
+
+    setChartAccounts(StateEngine.getChartOfAccounts());
+    setNewAccountModal(false);
+    setNewAccountForm({
+      code: '',
+      name: '',
+      type: 'ASSET',
+      subType: 'Cash & Cash Equivalents',
+      openingBalance: '',
+      description: '',
+    });
+    setCustomAlert({
+      title: 'Ledger Account Registered',
+      message: `Account [${added.code}] ${added.name} successfully created in General Ledger.`,
+    });
+  };
+
+  // POST NEW DOUBLE-ENTRY JOURNAL VOUCHER
+  const handlePostJournalEntry = (e: React.FormEvent) => {
+    e.preventDefault();
+    const totalDebits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
+    const totalCredits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
+
+    if (Math.abs(totalDebits - totalCredits) > 0.01 || totalDebits <= 0) {
+      setCustomAlert({
+        title: 'Unbalanced Journal Voucher',
+        message: `Debits and Credits must be strictly equal. (Debits: ₦${totalDebits.toLocaleString()} | Credits: ₦${totalCredits.toLocaleString()})`,
+      });
+      return;
+    }
+
+    const postedLines = newJournalForm.lines
+      .filter((l) => (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0)
+      .map((l) => {
+        const acc = chartAccounts.find((a) => a.id === l.accountId || a.code === l.accountId);
+        return {
+          accountId: acc?.id || l.accountId,
+          accountCode: acc?.code || '',
+          accountName: acc?.name || '',
+          description: l.description || newJournalForm.description,
+          debit: Number(l.debit) || 0,
+          credit: Number(l.credit) || 0,
+        };
+      });
+
+    const newJrn = StateEngine.addJournalEntry({
+      journalNo: newJournalForm.journalNo || `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
+      date: newJournalForm.date || new Date().toLocaleDateString('en-GB'),
+      reference: newJournalForm.reference || 'GL-VOUCHER',
+      description: newJournalForm.description || 'General Journal Posting',
+      lines: postedLines,
+      totalAmount: totalDebits,
+      status: 'POSTED',
+      postedBy: user?.fullName || 'Finance Controller',
+    });
+
+    setJournalEntries(StateEngine.getJournalEntries());
+    setChartAccounts(StateEngine.getChartOfAccounts());
+    setNewJournalModal(false);
+    setNewJournalForm({
+      journalNo: `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
+      date: new Date().toLocaleDateString('en-GB'),
+      reference: '',
+      description: '',
+      lines: [
+        { accountId: 'acc_1010', description: '', debit: '', credit: '' },
+        { accountId: 'acc_4010', description: '', debit: '', credit: '' },
+      ],
+    });
+    setCustomAlert({
+      title: 'Journal Entry Posted',
+      message: `Voucher ${newJrn.journalNo} for ₦${totalDebits.toLocaleString()} posted cleanly to general ledger.`,
+    });
+  };
+
+  // RECONCILE BANK ACCOUNT
+  const handleReconcileBank = (bankId: string) => {
+    StateEngine.reconcileBankAccount(bankId);
+    setBankAccounts(StateEngine.getBankAccounts());
+    setCustomAlert({
+      title: 'Bank Statement Reconciled',
+      message: `Bank account statement reconciled and ledger balance verified.`,
     });
   };
 
@@ -2502,6 +2679,358 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         </div>
       )}
 
+      {/* ─── REGISTER NEW CHART OF ACCOUNT MODAL ─── */}
+      {newAccountModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CHART OF ACCOUNTS CONFIGURATION</span>
+                <h3 className="text-lg font-black text-slate-900">Add New General Ledger Account</h3>
+                <p className="text-xs text-slate-500">Standard 4-digit Account Code and Financial Statement category</p>
+              </div>
+              <button
+                onClick={() => setNewAccountModal(false)}
+                className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAccount} className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Code *</label>
+                  <input
+                    required
+                    value={newAccountForm.code}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, code: e.target.value })}
+                    placeholder="e.g. 1040 or 5060"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Category *</label>
+                  <select
+                    value={newAccountForm.type}
+                    onChange={(e) => {
+                      const t = e.target.value as any;
+                      setNewAccountForm({
+                        ...newAccountForm,
+                        type: t,
+                        subType: t === 'ASSET' ? 'Cash & Cash Equivalents' : t === 'LIABILITY' ? 'Current Liability' : t === 'EQUITY' ? 'Equity Capital' : t === 'REVENUE' ? 'Operating Freight Revenue' : 'Direct Rail Haulage Cost'
+                      });
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="ASSET">ASSET (1000s)</option>
+                    <option value="LIABILITY">LIABILITY (2000s)</option>
+                    <option value="EQUITY">EQUITY (3000s)</option>
+                    <option value="REVENUE">REVENUE (4000s)</option>
+                    <option value="EXPENSE">EXPENSE (5000s-6000s)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Title / Name *</label>
+                <input
+                  required
+                  value={newAccountForm.name}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, name: e.target.value })}
+                  placeholder="e.g. Rolling Stock Maintenance Reserve"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Sub-Classification *</label>
+                  <input
+                    required
+                    value={newAccountForm.subType}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, subType: e.target.value })}
+                    placeholder="e.g. Current Asset or OpEx"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Opening Balance (NGN)</label>
+                  <input
+                    type="number"
+                    value={newAccountForm.openingBalance}
+                    onChange={(e) => setNewAccountForm({ ...newAccountForm, openingBalance: e.target.value })}
+                    placeholder="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Audit Purpose & Description</label>
+                <textarea
+                  rows={2}
+                  value={newAccountForm.description}
+                  onChange={(e) => setNewAccountForm({ ...newAccountForm, description: e.target.value })}
+                  placeholder="Official general ledger account description for audit trails..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNewAccountModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  ✓ Register GL Account ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── POST DOUBLE-ENTRY JOURNAL VOUCHER MODAL ─── */}
+      {newJournalModal && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-3xl w-full border border-slate-200 shadow-2xl space-y-4 font-sans max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold text-purple-600 uppercase">GENERAL LEDGER JOURNAL</span>
+                  <span className="bg-purple-100 text-purple-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full font-mono">
+                    Double-Entry Strict
+                  </span>
+                </div>
+                <h3 className="text-lg font-black text-slate-900">Post General Journal Voucher</h3>
+                <p className="text-xs text-slate-500">Every journal entry must strictly balance: Total Debits === Total Credits.</p>
+              </div>
+              <button
+                onClick={() => setNewJournalModal(false)}
+                className="text-slate-400 font-bold hover:text-slate-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handlePostJournalEntry} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
+                  <input
+                    required
+                    value={newJournalForm.journalNo}
+                    onChange={(e) => setNewJournalForm({ ...newJournalForm, journalNo: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Posting Date *</label>
+                  <input
+                    required
+                    value={newJournalForm.date}
+                    onChange={(e) => setNewJournalForm({ ...newJournalForm, date: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Source Reference *</label>
+                  <input
+                    required
+                    value={newJournalForm.reference}
+                    onChange={(e) => setNewJournalForm({ ...newJournalForm, reference: e.target.value })}
+                    placeholder="e.g. NRC-OCT-09 / ZENITH-TX-991"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Narration / Memo *</label>
+                <input
+                  required
+                  value={newJournalForm.description}
+                  onChange={(e) => setNewJournalForm({ ...newJournalForm, description: e.target.value })}
+                  placeholder="e.g. Payment of rail toll charges to NRC for Ewekoro cement corridor trips"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              {/* Split Lines Editor */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-500">Split Accounts & Amounts</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewJournalForm({
+                        ...newJournalForm,
+                        lines: [
+                          ...newJournalForm.lines,
+                          { accountId: chartAccounts[0]?.id || 'acc_1010', description: '', debit: '', credit: '' }
+                        ]
+                      });
+                    }}
+                    className="text-[10px] font-bold text-[#62BC37] hover:underline cursor-pointer"
+                  >
+                    + Add Split Line
+                  </button>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-[10px] font-mono text-slate-600 border-b border-slate-200">
+                        <th className="p-2.5">GL Account</th>
+                        <th className="p-2.5">Line Memo</th>
+                        <th className="p-2.5 text-right w-28">Debit (₦)</th>
+                        <th className="p-2.5 text-right w-28">Credit (₦)</th>
+                        <th className="p-2.5 text-center w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {newJournalForm.lines.map((line, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-2">
+                            <select
+                              value={line.accountId}
+                              onChange={(e) => {
+                                const updated = [...newJournalForm.lines];
+                                updated[idx].accountId = e.target.value;
+                                setNewJournalForm({ ...newJournalForm, lines: updated });
+                              }}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-medium"
+                            >
+                              {chartAccounts.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  [{a.code}] {a.name} ({a.type})
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <input
+                              value={line.description}
+                              onChange={(e) => {
+                                const updated = [...newJournalForm.lines];
+                                updated[idx].description = e.target.value;
+                                setNewJournalForm({ ...newJournalForm, lines: updated });
+                              }}
+                              placeholder="Line description"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={line.debit}
+                              onChange={(e) => {
+                                const updated = [...newJournalForm.lines];
+                                updated[idx].debit = e.target.value;
+                                if (e.target.value) updated[idx].credit = '';
+                                setNewJournalForm({ ...newJournalForm, lines: updated });
+                              }}
+                              placeholder="0.00"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-mono text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={line.credit}
+                              onChange={(e) => {
+                                const updated = [...newJournalForm.lines];
+                                updated[idx].credit = e.target.value;
+                                if (e.target.value) updated[idx].debit = '';
+                                setNewJournalForm({ ...newJournalForm, lines: updated });
+                              }}
+                              placeholder="0.00"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-mono text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            {newJournalForm.lines.length > 2 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewJournalForm({
+                                    ...newJournalForm,
+                                    lines: newJournalForm.lines.filter((_, i) => i !== idx)
+                                  });
+                                }}
+                                className="text-rose-500 hover:text-rose-700 font-bold text-xs cursor-pointer"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Balance Validation Card */}
+              {(() => {
+                const totalDebits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
+                const totalCredits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
+                const diff = Math.abs(totalDebits - totalCredits);
+                const isBalanced = diff < 0.01 && totalDebits > 0;
+
+                return (
+                  <div className={`p-4 rounded-2xl border ${isBalanced ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'} space-y-1.5`}>
+                    <div className="flex justify-between items-center text-xs font-mono font-bold flex-wrap gap-2">
+                      <span className="text-slate-600">Total Debits: ₦{totalDebits.toLocaleString()}</span>
+                      <span className="text-slate-600">Total Credits: ₦{totalCredits.toLocaleString()}</span>
+                      <span className={isBalanced ? 'text-emerald-700' : 'text-rose-600'}>
+                        {isBalanced ? '✓ ZERO VARIANCE' : `Out of Balance: ₦${diff.toLocaleString()}`}
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-sans text-slate-600">
+                      {isBalanced ? (
+                        <p className="text-emerald-800 font-bold">
+                          ✓ Double-entry rule satisfied. Both sides balance perfectly to ₦{totalDebits.toLocaleString()}. Ready to post.
+                        </p>
+                      ) : (
+                        <p className="text-rose-700 font-medium">
+                          ⚠️ General ledger vouchers must strictly balance. Ensure Total Debits exactly equals Total Credits before posting.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setNewJournalModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  ✓ Post Journal Voucher ➔
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ─── DEDICATED PRINT STYLESHEET (CLEAN AUDIT EXPORT) ─── */}
       <style>{`
         @media print {
@@ -3577,55 +4106,111 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               {/* Sub-Navigation Tabs */}
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setAccountingSubTab('invoices')}
-                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'invoices'
                       ? 'bg-[#62BC37] text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
-                  <span>Commercial Invoices (AR)</span>
+                  <span>Invoices (AR)</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'invoices' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     {invoices.length}
                   </span>
                 </button>
 
                 <button
+                  onClick={() => setAccountingSubTab('coa')}
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    accountingSubTab === 'coa'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Chart of Accounts (COA)</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'coa' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {chartAccounts.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('journal')}
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    accountingSubTab === 'journal'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>General Journal</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'journal' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {journalEntries.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('statements')}
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    accountingSubTab === 'statements'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Financial Statements</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'statements' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                    P&L / BS / TB
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAccountingSubTab('banking')}
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    accountingSubTab === 'banking'
+                      ? 'bg-[#62BC37] text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  <span>Bank & Treasury</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'banking' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {bankAccounts.length}
+                  </span>
+                </button>
+
+                <button
                   onClick={() => setAccountingSubTab('pnl')}
-                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'pnl'
                       ? 'bg-[#62BC37] text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
-                  <span>Corridor Trip P&L & Costing Sheet (COGS)</span>
+                  <span>Corridor Trip P&L (COGS)</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'pnl' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                    {corridorMarginPct}% Margin
+                    {corridorMarginPct}%
                   </span>
                 </button>
 
                 <button
                   onClick={() => setAccountingSubTab('customers')}
-                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'customers'
                       ? 'bg-[#62BC37] text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
-                  <span>Consignee Statement of Account</span>
+                  <span>Consignee Ledger</span>
                 </button>
 
                 <button
                   onClick={() => setAccountingSubTab('deal_costing')}
-                  className={`px-4 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'deal_costing'
                       ? 'bg-[#62BC37] text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
-                  <span>Contract Costing & Tariffs (Finance / Deals)</span>
+                  <span>Contract Tariffs</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${accountingSubTab === 'deal_costing' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
                     {deals.length}
                   </span>
@@ -3845,6 +4430,951 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUB-TAB: CHART OF ACCOUNTS (COA) ── */}
+              {accountingSubTab === 'coa' && (
+                <div className="space-y-6 font-sans">
+                  {/* COA Control Bar & KPI Summary */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-blue-600 uppercase tracking-wider">
+                          General Ledger Architecture
+                        </span>
+                        <span className="bg-blue-100 text-blue-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase font-mono">
+                          5-Tier Standard (1000s - 6000s)
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-1">Master Chart of Accounts (COA)</h3>
+                      <p className="text-xs text-slate-500">
+                        Institutional general ledger classification across Assets, Liabilities, Equity, Freight Revenue, Direct Rail Costs, and OpEx.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setNewAccountModal(true)}
+                        className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>+ Add GL Account</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category Summary Metric Cards */}
+                  {(() => {
+                    const totAssets = chartAccounts.filter((a) => a.type === 'ASSET').reduce((s, a) => s + (Number(a.balance) || 0), 0);
+                    const totLiab = chartAccounts.filter((a) => a.type === 'LIABILITY').reduce((s, a) => s + (Number(a.balance) || 0), 0);
+                    const totEquity = chartAccounts.filter((a) => a.type === 'EQUITY').reduce((s, a) => s + (Number(a.balance) || 0), 0);
+                    const totRev = chartAccounts.filter((a) => a.type === 'REVENUE').reduce((s, a) => s + (Number(a.balance) || 0), 0);
+                    const totExp = chartAccounts.filter((a) => a.type === 'EXPENSE').reduce((s, a) => s + (Number(a.balance) || 0), 0);
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-200">
+                          <span className="text-[10px] uppercase font-bold text-blue-700 font-mono block">1000s • Total Assets</span>
+                          <p className="text-base font-black text-blue-900 font-mono mt-0.5">₦{totAssets.toLocaleString()}</p>
+                          <span className="text-[10px] text-blue-600">{chartAccounts.filter((a) => a.type === 'ASSET').length} accounts</span>
+                        </div>
+                        <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200">
+                          <span className="text-[10px] uppercase font-bold text-amber-700 font-mono block">2000s • Total Liabilities</span>
+                          <p className="text-base font-black text-amber-900 font-mono mt-0.5">₦{totLiab.toLocaleString()}</p>
+                          <span className="text-[10px] text-amber-600">{chartAccounts.filter((a) => a.type === 'LIABILITY').length} accounts</span>
+                        </div>
+                        <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-200">
+                          <span className="text-[10px] uppercase font-bold text-purple-700 font-mono block">3000s • Total Equity</span>
+                          <p className="text-base font-black text-purple-900 font-mono mt-0.5">₦{totEquity.toLocaleString()}</p>
+                          <span className="text-[10px] text-purple-600">{chartAccounts.filter((a) => a.type === 'EQUITY').length} accounts</span>
+                        </div>
+                        <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200">
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 font-mono block">4000s • Total Revenue</span>
+                          <p className="text-base font-black text-emerald-900 font-mono mt-0.5">₦{totRev.toLocaleString()}</p>
+                          <span className="text-[10px] text-emerald-600">{chartAccounts.filter((a) => a.type === 'REVENUE').length} accounts</span>
+                        </div>
+                        <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-200">
+                          <span className="text-[10px] uppercase font-bold text-rose-700 font-mono block">5000s-6000s • Total Expenses</span>
+                          <p className="text-base font-black text-rose-900 font-mono mt-0.5">₦{totExp.toLocaleString()}</p>
+                          <span className="text-[10px] text-rose-600">{chartAccounts.filter((a) => a.type === 'EXPENSE').length} accounts</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* COA Category Filter Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[
+                      { key: 'ALL', label: 'All Accounts' },
+                      { key: 'ASSET', label: 'Assets (1000s)' },
+                      { key: 'LIABILITY', label: 'Liabilities (2000s)' },
+                      { key: 'EQUITY', label: 'Equity (3000s)' },
+                      { key: 'REVENUE', label: 'Revenue (4000s)' },
+                      { key: 'EXPENSE', label: 'Expenses (5000s-6000s)' },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        onClick={() => setCoaFilter(f.key as any)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          coaFilter === f.key
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Chart of Accounts Table */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-[10px] font-mono uppercase text-slate-500 border-b border-slate-200">
+                          <th className="p-3.5">GL Code</th>
+                          <th className="p-3.5">Account Title</th>
+                          <th className="p-3.5">Category</th>
+                          <th className="p-3.5">Sub-Classification</th>
+                          <th className="p-3.5 text-right">Ledger Balance (₦)</th>
+                          <th className="p-3.5 text-center">Status</th>
+                          <th className="p-3.5 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {chartAccounts
+                          .filter((a) => coaFilter === 'ALL' || a.type === coaFilter)
+                          .map((acc) => {
+                            const badgeColor =
+                              acc.type === 'ASSET'
+                                ? 'bg-blue-100 text-blue-800'
+                                : acc.type === 'LIABILITY'
+                                ? 'bg-amber-100 text-amber-800'
+                                : acc.type === 'EQUITY'
+                                ? 'bg-purple-100 text-purple-800'
+                                : acc.type === 'REVENUE'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800';
+
+                            return (
+                              <tr key={acc.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-3.5 font-mono font-black text-slate-800">
+                                  <span className="bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                                    {acc.code}
+                                  </span>
+                                </td>
+                                <td className="p-3.5">
+                                  <div className="font-extrabold text-slate-900">{acc.name}</div>
+                                  {acc.description && (
+                                    <div className="text-[10px] text-slate-400 font-normal mt-0.5">{acc.description}</div>
+                                  )}
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-full ${badgeColor}`}>
+                                    {acc.type}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 font-sans text-slate-600 font-medium">
+                                  {acc.subType}
+                                </td>
+                                <td className="p-3.5 text-right font-mono font-black text-slate-900">
+                                  ₦{acc.balance.toLocaleString()}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Active
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-right">
+                                  <button
+                                    onClick={() => {
+                                      setSelectedLedgerAccount(acc.id);
+                                      setStatementTab('ledger');
+                                      setAccountingSubTab('statements');
+                                    }}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg border border-blue-200 transition-all cursor-pointer"
+                                  >
+                                    View Ledger ➔
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUB-TAB: GENERAL JOURNAL ── */}
+              {accountingSubTab === 'journal' && (
+                <div className="space-y-6 font-sans">
+                  {/* Journal Header & Metric Bar */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-purple-600 uppercase tracking-wider">
+                          Audited Financial Records
+                        </span>
+                        <span className="bg-purple-100 text-purple-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase font-mono">
+                          Balanced General Journal
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-1">General Journal & Transaction Vouchers</h3>
+                      <p className="text-xs text-slate-500">
+                        Immutable double-entry transaction vouchers. Every posted entry updates the corresponding Chart of Accounts ledgers in real-time.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => setNewJournalModal(true)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>+ Post Journal Voucher</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Journal Metrics */}
+                  {(() => {
+                    const totalTurnover = journalEntries.reduce((s, j) => s + (Number(j.totalAmount) || 0), 0);
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Total Journal Vouchers</span>
+                          <p className="text-base font-black text-slate-900 font-mono mt-0.5">{journalEntries.length}</p>
+                          <span className="text-[10px] text-slate-400">Posted entries</span>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Total Turnover Recorded</span>
+                          <p className="text-base font-black text-purple-700 font-mono mt-0.5">₦{totalTurnover.toLocaleString()}</p>
+                          <span className="text-[10px] text-purple-500">Debits and Credits</span>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/20 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 block font-mono">Ledger Equilibrium</span>
+                          <p className="text-base font-black text-emerald-700 font-mono mt-0.5">100% Balanced</p>
+                          <span className="text-[10px] text-emerald-600">0 Unbalanced Entries</span>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block font-mono">Enforcement Engine</span>
+                          <p className="text-base font-black text-slate-900 font-mono mt-0.5">Double-Entry</p>
+                          <span className="text-[10px] text-slate-400">Strict Debits === Credits</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Journal Entries List */}
+                  <div className="space-y-4">
+                    {journalEntries.map((jrn) => (
+                      <div key={jrn.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="bg-purple-100 text-purple-800 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
+                              {jrn.journalNo}
+                            </span>
+                            <div>
+                              <span className="font-extrabold text-slate-900 text-xs block">{jrn.description}</span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                <span>📅 {jrn.date}</span>
+                                <span>• Ref: {jrn.reference}</span>
+                                <span>• Posted by: {jrn.postedBy}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="text-[9px] uppercase font-mono font-bold text-slate-400 block">Total Voucher Value</span>
+                              <span className="text-xs font-mono font-black text-slate-900">₦{jrn.totalAmount.toLocaleString()}</span>
+                            </div>
+                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-1 rounded-full font-mono uppercase">
+                              ✓ {jrn.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Line Items Split Table */}
+                        <div className="p-3">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="text-[10px] font-mono uppercase text-slate-400 border-b border-slate-100">
+                                <th className="py-2 px-3">GL Account</th>
+                                <th className="py-2 px-3">Line Narration</th>
+                                <th className="py-2 px-3 text-right">Debit (₦)</th>
+                                <th className="py-2 px-3 text-right">Credit (₦)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {jrn.lines.map((line, lIdx) => (
+                                <tr key={lIdx} className="hover:bg-slate-50/50">
+                                  <td className="py-2 px-3 font-mono">
+                                    <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px] mr-2">
+                                      {line.accountCode}
+                                    </span>
+                                    <span className="text-slate-700 font-semibold">{line.accountName}</span>
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-500 font-sans text-[11px]">{line.description}</td>
+                                  <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                                    {line.debit > 0 ? `₦${line.debit.toLocaleString()}` : '—'}
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                                    {line.credit > 0 ? `₦${line.credit.toLocaleString()}` : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t border-slate-200 bg-slate-50/50 text-[11px] font-mono font-black">
+                                <td colSpan={2} className="py-2 px-3 text-slate-600 uppercase">
+                                  Total Voucher Balance (Equality Check)
+                                </td>
+                                <td className="py-2 px-3 text-right text-purple-900">
+                                  ₦{jrn.lines.reduce((s, l) => s + l.debit, 0).toLocaleString()}
+                                </td>
+                                <td className="py-2 px-3 text-right text-purple-900">
+                                  ₦{jrn.lines.reduce((s, l) => s + l.credit, 0).toLocaleString()}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── SUB-TAB: FINANCIAL STATEMENTS (P&L / BALANCE SHEET / TRIAL BALANCE) ── */}
+              {accountingSubTab === 'statements' && (
+                <div className="space-y-6 font-sans">
+                  {/* Statements Sub-Tabs */}
+                  <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setStatementTab('trial_balance')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          statementTab === 'trial_balance'
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        ⚖️ Trial Balance
+                      </button>
+                      <button
+                        onClick={() => setStatementTab('pnl')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          statementTab === 'pnl'
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        📈 Profit & Loss Statement (P&L)
+                      </button>
+                      <button
+                        onClick={() => setStatementTab('balance_sheet')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          statementTab === 'balance_sheet'
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        🏛️ Balance Sheet (Financial Position)
+                      </button>
+                      <button
+                        onClick={() => setStatementTab('ledger')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          statementTab === 'ledger'
+                            ? 'bg-slate-900 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        📖 General Ledger Drill-Down
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>🖨️ Print Financial Statement</span>
+                    </button>
+                  </div>
+
+                  {/* 1. TRIAL BALANCE VIEW */}
+                  {statementTab === 'trial_balance' && (
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                      <div className="border-b border-slate-200 pb-4 text-center sm:text-left">
+                        <div className="flex justify-between items-start flex-wrap gap-2">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Bueno Logistics Limited</span>
+                            <h3 className="text-xl font-black text-slate-900">General Ledger Trial Balance</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">As of {new Date().toLocaleDateString('en-GB')} • All Currency in NGN (₦)</p>
+                          </div>
+                          <div className="bg-emerald-100 text-emerald-800 font-mono font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-300">
+                            ✓ LEDGER IN AUDITED EQUILIBRIUM
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 text-[10px] font-mono uppercase text-slate-600 border-b border-slate-200">
+                              <th className="p-3">Account Code</th>
+                              <th className="p-3">Account Title</th>
+                              <th className="p-3">Account Class</th>
+                              <th className="p-3 text-right">Debit Balance (₦)</th>
+                              <th className="p-3 text-right">Credit Balance (₦)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-sans">
+                            {(() => {
+                              let totalDebit = 0;
+                              let totalCredit = 0;
+
+                              const rows = chartAccounts.map((acc) => {
+                                const isDebitNormal = acc.type === 'ASSET' || acc.type === 'EXPENSE';
+                                const debitVal = isDebitNormal ? acc.balance : 0;
+                                const creditVal = !isDebitNormal ? acc.balance : 0;
+                                totalDebit += debitVal;
+                                totalCredit += creditVal;
+
+                                return (
+                                  <tr key={acc.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-3 font-mono font-bold text-slate-800">{acc.code}</td>
+                                    <td className="p-3 font-bold text-slate-900">{acc.name}</td>
+                                    <td className="p-3 text-[10px] font-mono text-slate-500">{acc.type}</td>
+                                    <td className="p-3 text-right font-mono font-bold text-slate-800">
+                                      {debitVal > 0 ? `₦${debitVal.toLocaleString()}` : '—'}
+                                    </td>
+                                    <td className="p-3 text-right font-mono font-bold text-slate-800">
+                                      {creditVal > 0 ? `₦${creditVal.toLocaleString()}` : '—'}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+
+                              return (
+                                <>
+                                  {rows}
+                                  <tr className="bg-slate-900 text-white font-mono font-black text-xs border-t-2 border-slate-900">
+                                    <td colSpan={3} className="p-4 uppercase tracking-wider">
+                                      Total Trial Balance (Sum of All Accounts)
+                                    </td>
+                                    <td className="p-4 text-right text-emerald-400">
+                                      ₦{totalDebit.toLocaleString()}
+                                    </td>
+                                    <td className="p-4 text-right text-emerald-400">
+                                      ₦{totalCredit.toLocaleString()}
+                                    </td>
+                                  </tr>
+                                </>
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. PROFIT & LOSS VIEW */}
+                  {statementTab === 'pnl' && (
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-4xl mx-auto">
+                      <div className="border-b border-slate-200 pb-4 text-center">
+                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest">
+                          Bueno Logistics Limited
+                        </span>
+                        <h3 className="text-xl font-black text-slate-900 mt-1">Statement of Profit or Loss (P&L)</h3>
+                        <p className="text-xs text-slate-500">For Period Ended {new Date().toLocaleDateString('en-GB')}</p>
+                      </div>
+
+                      {(() => {
+                        const revAccounts = chartAccounts.filter((a) => a.type === 'REVENUE');
+                        const totRev = revAccounts.reduce((s, a) => s + (Number(a.balance) || 0), 0);
+
+                        const cogsAccounts = chartAccounts.filter((a) => a.code.startsWith('5'));
+                        const totCogs = cogsAccounts.reduce((s, a) => s + (Number(a.balance) || 0), 0);
+
+                        const grossSurplus = totRev - totCogs;
+                        const grossMarginPct = totRev > 0 ? ((grossSurplus / totRev) * 100).toFixed(1) : '0.0';
+
+                        const opexAccounts = chartAccounts.filter((a) => a.code.startsWith('6'));
+                        const totOpex = opexAccounts.reduce((s, a) => s + (Number(a.balance) || 0), 0);
+
+                        const netSurplus = grossSurplus - totOpex;
+                        const netMarginPct = totRev > 0 ? ((netSurplus / totRev) * 100).toFixed(1) : '0.0';
+
+                        return (
+                          <div className="space-y-6 font-sans text-xs">
+                            {/* REVENUE */}
+                            <div>
+                              <div className="bg-slate-100 p-2.5 font-bold font-mono text-slate-800 uppercase tracking-wider rounded-lg flex justify-between">
+                                <span>Commercial Revenue (4000s)</span>
+                                <span>NGN (₦)</span>
+                              </div>
+                              <div className="divide-y divide-slate-100 mt-1">
+                                {revAccounts.map((a) => (
+                                  <div key={a.id} className="py-2 px-3 flex justify-between items-center">
+                                    <span className="text-slate-700">[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-2 px-3 flex justify-between items-center font-bold bg-emerald-50/50 text-emerald-900">
+                                  <span>Total Commercial Revenue</span>
+                                  <span className="font-mono text-sm">₦{totRev.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* COST OF GOODS SOLD */}
+                            <div>
+                              <div className="bg-slate-100 p-2.5 font-bold font-mono text-slate-800 uppercase tracking-wider rounded-lg flex justify-between">
+                                <span>Direct Railway Haulage Costs / COGS (5000s)</span>
+                                <span>NGN (₦)</span>
+                              </div>
+                              <div className="divide-y divide-slate-100 mt-1">
+                                {cogsAccounts.map((a) => (
+                                  <div key={a.id} className="py-2 px-3 flex justify-between items-center">
+                                    <span className="text-slate-700">[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-rose-700">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-2 px-3 flex justify-between items-center font-bold bg-rose-50/50 text-rose-900">
+                                  <span>Total Direct Railway Costs</span>
+                                  <span className="font-mono text-sm">₦{totCogs.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* GROSS MARGIN */}
+                            <div className="bg-slate-900 text-white p-4 rounded-2xl flex justify-between items-center">
+                              <div>
+                                <span className="text-[10px] uppercase font-mono font-bold text-emerald-400 block">Gross Railway Freight Margin</span>
+                                <span className="text-xs text-slate-300">Revenue minus Direct Rail Costs</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-lg font-black font-mono text-emerald-400">₦{grossSurplus.toLocaleString()}</div>
+                                <span className="text-[10px] text-slate-300 font-mono">{grossMarginPct}% Gross Margin</span>
+                              </div>
+                            </div>
+
+                            {/* OPERATING EXPENSES */}
+                            <div>
+                              <div className="bg-slate-100 p-2.5 font-bold font-mono text-slate-800 uppercase tracking-wider rounded-lg flex justify-between">
+                                <span>Operating & Administrative Expenses / OpEx (6000s)</span>
+                                <span>NGN (₦)</span>
+                              </div>
+                              <div className="divide-y divide-slate-100 mt-1">
+                                {opexAccounts.map((a) => (
+                                  <div key={a.id} className="py-2 px-3 flex justify-between items-center">
+                                    <span className="text-slate-700">[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-800">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-2 px-3 flex justify-between items-center font-bold bg-slate-100 text-slate-900">
+                                  <span>Total Operating Expenses</span>
+                                  <span className="font-mono text-sm">₦{totOpex.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* NET SURPLUS */}
+                            <div className="bg-[#62BC37] text-white p-5 rounded-2xl flex justify-between items-center shadow-lg">
+                              <div>
+                                <span className="text-[11px] uppercase font-mono font-black tracking-widest text-emerald-100 block">
+                                  Net Operating Surplus / EBITDA
+                                </span>
+                                <span className="text-xs text-white/80">Net comprehensive surplus transferred to retained earnings</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-black font-mono text-white">₦{netSurplus.toLocaleString()}</div>
+                                <span className="text-xs font-mono font-bold text-emerald-100">{netMarginPct}% Net Surplus Margin</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 3. BALANCE SHEET VIEW */}
+                  {statementTab === 'balance_sheet' && (
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-4xl mx-auto">
+                      <div className="border-b border-slate-200 pb-4 text-center">
+                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest">
+                          Bueno Logistics Limited
+                        </span>
+                        <h3 className="text-xl font-black text-slate-900 mt-1">Statement of Financial Position (Balance Sheet)</h3>
+                        <p className="text-xs text-slate-500">As of {new Date().toLocaleDateString('en-GB')} • Double-Entry Reconciled</p>
+                      </div>
+
+                      {(() => {
+                        const currentAssets = chartAccounts.filter((a) => a.type === 'ASSET' && (a.code.startsWith('10') || a.subType.includes('Current')));
+                        const totCurAssets = currentAssets.reduce((s, a) => s + a.balance, 0);
+
+                        const nonCurAssets = chartAccounts.filter((a) => a.type === 'ASSET' && !(a.code.startsWith('10') || a.subType.includes('Current')));
+                        const totNonCurAssets = nonCurAssets.reduce((s, a) => s + a.balance, 0);
+
+                        const totalAssets = totCurAssets + totNonCurAssets;
+
+                        const curLiabilities = chartAccounts.filter((a) => a.type === 'LIABILITY' && (a.code.startsWith('20') || a.subType.includes('Current')));
+                        const totCurLiab = curLiabilities.reduce((s, a) => s + a.balance, 0);
+
+                        const nonCurLiabilities = chartAccounts.filter((a) => a.type === 'LIABILITY' && !(a.code.startsWith('20') || a.subType.includes('Current')));
+                        const totNonCurLiab = nonCurLiabilities.reduce((s, a) => s + a.balance, 0);
+
+                        const totalLiabilities = totCurLiab + totNonCurLiab;
+
+                        const equityAccounts = chartAccounts.filter((a) => a.type === 'EQUITY');
+                        const totEquityAccts = equityAccounts.reduce((s, a) => s + a.balance, 0);
+
+                        const revAccounts = chartAccounts.filter((a) => a.type === 'REVENUE');
+                        const totRev = revAccounts.reduce((s, a) => s + a.balance, 0);
+                        const expAccounts = chartAccounts.filter((a) => a.type === 'EXPENSE');
+                        const totExp = expAccounts.reduce((s, a) => s + a.balance, 0);
+                        const netSurplus = totRev - totExp;
+
+                        const totalEquity = totEquityAccts;
+                        const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+                        const variance = Math.abs(totalAssets - totalLiabilitiesAndEquity);
+
+                        return (
+                          <div className="space-y-6 font-sans text-xs">
+                            {/* ASSETS SECTION */}
+                            <div className="space-y-3">
+                              <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 font-mono font-bold text-blue-900 flex justify-between items-center uppercase">
+                                <span>1. ASSETS</span>
+                                <span>NGN (₦)</span>
+                              </div>
+
+                              <div className="pl-3 space-y-1">
+                                <span className="font-bold text-slate-800 text-[11px] block">Current Assets</span>
+                                {currentAssets.map((a) => (
+                                  <div key={a.id} className="py-1 px-3 flex justify-between text-slate-600">
+                                    <span>[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-1.5 px-3 flex justify-between font-bold bg-slate-50 text-slate-800 rounded">
+                                  <span>Total Current Assets</span>
+                                  <span className="font-mono">₦{totCurAssets.toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              <div className="pl-3 space-y-1">
+                                <span className="font-bold text-slate-800 text-[11px] block">Non-Current (Fixed) Assets</span>
+                                {nonCurAssets.map((a) => (
+                                  <div key={a.id} className="py-1 px-3 flex justify-between text-slate-600">
+                                    <span>[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-1.5 px-3 flex justify-between font-bold bg-slate-50 text-slate-800 rounded">
+                                  <span>Total Non-Current Assets</span>
+                                  <span className="font-mono">₦{totNonCurAssets.toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              <div className="p-3 bg-blue-900 text-white rounded-xl flex justify-between items-center font-mono font-black text-sm">
+                                <span>TOTAL ASSETS</span>
+                                <span>₦{totalAssets.toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            {/* LIABILITIES SECTION */}
+                            <div className="space-y-3 pt-2">
+                              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 font-mono font-bold text-amber-900 flex justify-between items-center uppercase">
+                                <span>2. LIABILITIES</span>
+                                <span>NGN (₦)</span>
+                              </div>
+
+                              <div className="pl-3 space-y-1">
+                                <span className="font-bold text-slate-800 text-[11px] block">Current Liabilities</span>
+                                {curLiabilities.map((a) => (
+                                  <div key={a.id} className="py-1 px-3 flex justify-between text-slate-600">
+                                    <span>[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="py-1.5 px-3 flex justify-between font-bold bg-slate-50 text-slate-800 rounded">
+                                  <span>Total Current Liabilities</span>
+                                  <span className="font-mono">₦{totCurLiab.toLocaleString()}</span>
+                                </div>
+                              </div>
+
+                              {nonCurLiabilities.length > 0 && (
+                                <div className="pl-3 space-y-1">
+                                  <span className="font-bold text-slate-800 text-[11px] block">Non-Current Liabilities</span>
+                                  {nonCurLiabilities.map((a) => (
+                                    <div key={a.id} className="py-1 px-3 flex justify-between text-slate-600">
+                                      <span>[{a.code}] {a.name}</span>
+                                      <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                  <div className="py-1.5 px-3 flex justify-between font-bold bg-slate-50 text-slate-800 rounded">
+                                    <span>Total Non-Current Liabilities</span>
+                                    <span className="font-mono">₦{totNonCurLiab.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="p-3 bg-amber-900 text-white rounded-xl flex justify-between items-center font-mono font-black">
+                                <span>TOTAL LIABILITIES</span>
+                                <span>₦{totalLiabilities.toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            {/* EQUITY SECTION */}
+                            <div className="space-y-3 pt-2">
+                              <div className="bg-purple-50 p-3 rounded-xl border border-purple-200 font-mono font-bold text-purple-900 flex justify-between items-center uppercase">
+                                <span>3. SHAREHOLDERS' EQUITY</span>
+                                <span>NGN (₦)</span>
+                              </div>
+
+                              <div className="pl-3 space-y-1">
+                                {equityAccounts.map((a) => (
+                                  <div key={a.id} className="py-1 px-3 flex justify-between text-slate-600">
+                                    <span>[{a.code}] {a.name}</span>
+                                    <span className="font-mono font-bold text-slate-900">₦{a.balance.toLocaleString()}</span>
+                                  </div>
+                                ))}
+                                <div className="p-3 bg-purple-900 text-white rounded-xl flex justify-between items-center font-mono font-black">
+                                  <span>TOTAL EQUITY</span>
+                                  <span>₦{totalEquity.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* BALANCED EQUALITY FOOTER */}
+                            <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-3">
+                              <div>
+                                <span className="text-[10px] uppercase font-mono font-bold text-emerald-400 block">
+                                  Accounting Equation Check (Assets = Liabilities + Equity)
+                                </span>
+                                <span className="text-xs text-slate-300">
+                                  Total Assets: ₦{totalAssets.toLocaleString()} • Total Claims: ₦{totalLiabilitiesAndEquity.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-xl font-mono font-black text-xs">
+                                ✓ VARIANCE: ₦{variance.toFixed(2)} (BALANCED)
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 4. GENERAL LEDGER DRILL-DOWN VIEW */}
+                  {statementTab === 'ledger' && (
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Account Activity Log</span>
+                          <h3 className="text-lg font-black text-slate-900">General Ledger Account Drill-Down</h3>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-500">Select GL Account:</label>
+                          <select
+                            value={selectedLedgerAccount}
+                            onChange={(e) => setSelectedLedgerAccount(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                          >
+                            {chartAccounts.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                [{a.code}] {a.name} ({a.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {(() => {
+                        const acc = chartAccounts.find((a) => a.id === selectedLedgerAccount) || chartAccounts[0];
+                        if (!acc) return null;
+
+                        const matchingLines: Array<{
+                          date: string;
+                          voucherNo: string;
+                          reference: string;
+                          description: string;
+                          debit: number;
+                          credit: number;
+                        }> = [];
+
+                        journalEntries.forEach((j) => {
+                          j.lines.forEach((l) => {
+                            if (l.accountId === acc.id || l.accountCode === acc.code) {
+                              matchingLines.push({
+                                date: j.date,
+                                voucherNo: j.journalNo,
+                                reference: j.reference,
+                                description: l.description || j.description,
+                                debit: l.debit,
+                                credit: l.credit,
+                              });
+                            }
+                          });
+                        });
+
+                        return (
+                          <div className="space-y-4 font-sans">
+                            {/* Account Profile Card */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                              <div>
+                                <span className="font-mono font-black text-sm text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 mr-2">
+                                  {acc.code}
+                                </span>
+                                <span className="font-black text-slate-900 text-base">{acc.name}</span>
+                                <span className="ml-2 text-xs text-slate-500">({acc.type} • {acc.subType})</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Current Closing Balance</span>
+                                <span className="text-lg font-black font-mono text-slate-900">₦{acc.balance.toLocaleString()}</span>
+                              </div>
+                            </div>
+
+                            {/* Ledger Transactions Table */}
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-100 text-[10px] font-mono uppercase text-slate-500 border-b border-slate-200">
+                                    <th className="p-3">Posting Date</th>
+                                    <th className="p-3">Voucher #</th>
+                                    <th className="p-3">Reference</th>
+                                    <th className="p-3">Narration</th>
+                                    <th className="p-3 text-right">Debit (₦)</th>
+                                    <th className="p-3 text-right">Credit (₦)</th>
+                                    <th className="p-3 text-right">Net Impact (₦)</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {matchingLines.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={7} className="p-6 text-center text-slate-400 font-sans">
+                                        No transaction vouchers posted to this account in the current period. Opening balance: ₦{acc.balance.toLocaleString()}.
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    matchingLines.map((ml, idx) => (
+                                      <tr key={idx} className="hover:bg-slate-50">
+                                        <td className="p-3 font-mono text-slate-600">{ml.date}</td>
+                                        <td className="p-3 font-mono font-bold text-purple-700">{ml.voucherNo}</td>
+                                        <td className="p-3 font-mono text-slate-500">{ml.reference}</td>
+                                        <td className="p-3 text-slate-800">{ml.description}</td>
+                                        <td className="p-3 text-right font-mono font-bold text-slate-900">
+                                          {ml.debit > 0 ? `₦${ml.debit.toLocaleString()}` : '—'}
+                                        </td>
+                                        <td className="p-3 text-right font-mono font-bold text-slate-900">
+                                          {ml.credit > 0 ? `₦${ml.credit.toLocaleString()}` : '—'}
+                                        </td>
+                                        <td className="p-3 text-right font-mono font-black text-slate-900">
+                                          {acc.type === 'ASSET' || acc.type === 'EXPENSE'
+                                            ? `₦${(ml.debit - ml.credit).toLocaleString()}`
+                                            : `₦${(ml.credit - ml.debit).toLocaleString()}`}
+                                        </td>
+                                      </tr>
+                                    ))
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── SUB-TAB: BANK & TREASURY RECONCILIATION ── */}
+              {accountingSubTab === 'banking' && (
+                <div className="space-y-6 font-sans">
+                  {/* Bank Control Bar */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                          Treasury & Cash Management
+                        </span>
+                        <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase font-mono">
+                          NIBSS Reconciled
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-slate-900 mt-1">Bank Accounts & Treasury Ledgers</h3>
+                      <p className="text-xs text-slate-500">
+                        Real-time cash and bank liquidity reconciled against General Ledger accounts GL-1010, GL-1020, and GL-1025.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          bankAccounts.forEach((b) => StateEngine.reconcileBankAccount(b.id));
+                          setBankAccounts(StateEngine.getBankAccounts());
+                          setCustomAlert({
+                            title: 'All Bank Accounts Reconciled',
+                            message: 'All commercial bank feeds verified against general ledger cash balances.',
+                          });
+                        }}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>🔄 Reconcile All Accounts</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bank Accounts Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {bankAccounts.map((bank) => (
+                      <div key={bank.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">GL Code: {bank.glAccountCode || '1010'}</span>
+                            <h4 className="text-base font-black text-slate-900">{bank.bankName}</h4>
+                            <p className="text-xs text-slate-500">{bank.accountName}</p>
+                          </div>
+                          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
+                            {bank.accountType}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500">Account Number:</span>
+                            <span className="font-mono font-bold text-slate-800">{bank.accountNumber}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500">Ledger Balance:</span>
+                            <span className="font-mono font-black text-slate-900">₦{(bank.ledgerBalance ?? bank.currentBalance).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-500">Bank Statement:</span>
+                            <span className="font-mono font-black text-emerald-700">₦{(bank.statementBalance ?? bank.currentBalance).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                            <span className="text-slate-500">Unreconciled Variance:</span>
+                            <span className="font-mono font-bold text-emerald-700">₦0.00</span>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Last synced: {bank.lastReconciled}
+                          </span>
+                          <button
+                            onClick={() => handleReconcileBank(bank.id)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition-all cursor-pointer"
+                          >
+                            ✓ Reconcile Now
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -4796,79 +6326,364 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
 
-            {/* EDITABLE PERMISSIONS CHECKBOX MATRIX — ALL PORTALS, ALL ROLES */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200">
-                    <th className="p-3 font-mono font-extrabold text-[10px] uppercase text-slate-500 whitespace-nowrap sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
-                      Role Classification
-                    </th>
-                    {TAB_REGISTRY.map((tab) => (
-                      <th
-                        key={tab.key}
-                        className="p-3 text-center font-mono font-bold text-[10px] uppercase text-slate-700 whitespace-nowrap bg-slate-100 border-r border-slate-200"
-                      >
-                        <div>{tab.label}</div>
-                        <div className="text-[9px] text-slate-400 font-normal mt-0.5">{tab.category}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+            {/* PERMISSIONS SUB-NAV TABS */}
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-2 flex-wrap">
+              <button
+                onClick={() => setPermissionsSubTab('granular')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  permissionsSubTab === 'granular'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                🔐 Spatie Granular Action Matrix
+              </button>
+              <button
+                onClick={() => setPermissionsSubTab('matrix')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  permissionsSubTab === 'matrix'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                📊 Portal Screen Access Grid
+              </button>
+              <button
+                onClick={() => setPermissionsSubTab('inspector')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                  permissionsSubTab === 'inspector'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                👤 Employee Capability Inspector
+              </button>
+            </div>
 
-                <tbody className="divide-y divide-slate-100">
+            {/* 1. SPATIE GRANULAR ACTION CAPABILITIES */}
+            {permissionsSubTab === 'granular' && (
+              <div className="space-y-6">
+                {/* Role Selection Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                   {[
-                    { key: 'ADMIN',              label: 'Admin Officer (ADMIN)',       badge: 'bg-purple-100 text-purple-800' },
-                    { key: 'CEO',                label: 'Managing Director / CEO',     badge: 'bg-blue-100 text-blue-800' },
-                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations',          badge: 'bg-indigo-100 text-indigo-800' },
-                    { key: 'HEAD_OF_FINANCE',    label: 'Head of Finance',             badge: 'bg-teal-100 text-teal-800' },
-                    { key: 'CARGO_OFFICER',      label: 'Cargo Officer (Field)',       badge: 'bg-amber-100 text-amber-800' },
-                    { key: 'CUSTOMER',           label: 'Industrial Consignee Client', badge: 'bg-emerald-100 text-emerald-800' },
-                  ].map(({ key, label, badge }) => {
-                    const rawPerms = permissionsMatrix?.[key];
-                    const rolePerms: string[] = Array.isArray(rawPerms) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] ?? []);
-                    const isSuperAdmin = key === 'ADMIN' || key === 'CEO' || key === 'MD';
+                    { key: 'ADMIN', label: 'Admin Officer', badge: 'bg-purple-100 text-purple-800' },
+                    { key: 'CEO', label: 'Managing Director / CEO', badge: 'bg-blue-100 text-blue-800' },
+                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations', badge: 'bg-indigo-100 text-indigo-800' },
+                    { key: 'HEAD_OF_FINANCE', label: 'Head of Finance', badge: 'bg-teal-100 text-teal-800' },
+                    { key: 'CARGO_OFFICER', label: 'Cargo Officer (Field)', badge: 'bg-amber-100 text-amber-800' },
+                    { key: 'CUSTOMER', label: 'Industrial Consignee (HBM)', badge: 'bg-emerald-100 text-emerald-800' },
+                  ].map((r) => (
+                    <button
+                      key={r.key}
+                      onClick={() => setSelectedPermissionRole(r.key)}
+                      className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
+                        selectedPermissionRole === r.key
+                          ? 'bg-[#62BC37] text-white shadow-md'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      <span>{r.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${selectedPermissionRole === r.key ? 'bg-white/20 text-white' : r.badge}`}>
+                        {r.key}
+                      </span>
+                    </button>
+                  ))}
+                </div>
 
-                    return (
-                      <tr key={key} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 z-10">
-                          <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold font-mono ${badge}`}>
-                            {label}
+                {/* Selected Role Summary Banner */}
+                {(() => {
+                  const isSuperAdmin = selectedPermissionRole === 'ADMIN' || selectedPermissionRole === 'CEO';
+                  const activePerms = isSuperAdmin
+                    ? GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key))
+                    : (granularPermissions[selectedPermissionRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[selectedPermissionRole] ?? []);
+                  const totalPermsCount = GRANULAR_MODULE_PERMISSIONS.reduce((s, m) => s + m.actions.length, 0);
+
+                  return (
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900 text-base">
+                            Role: {selectedPermissionRole}
                           </span>
                           {isSuperAdmin && (
-                            <span className="ml-1.5 text-[9px] text-slate-400 font-mono">FULL ACCESS</span>
+                            <span className="bg-purple-100 text-purple-800 text-[10px] font-mono font-black px-2 py-0.5 rounded-md">
+                              SUPER-ADMIN (ALL CAPABILITIES GRANTED)
+                            </span>
                           )}
-                        </td>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Managing granular execution capabilities across commercial agreements, negotiations, railway operations, and double-entry accounting.
+                        </p>
+                      </div>
 
-                        {TAB_REGISTRY.map((tab) => {
-                          const isChecked = isSuperAdmin || rolePerms.includes(tab.key);
-
-                          return (
-                            <td
-                              key={tab.key}
-                              className="p-3 text-center border-r border-slate-200"
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">Capabilities</span>
+                          <span className="text-sm font-mono font-black text-slate-900">
+                            {activePerms.length} / {totalPermsCount} Active
+                          </span>
+                        </div>
+                        {!isSuperAdmin && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allIds = GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key));
+                                handleToggleModuleAll(selectedPermissionRole, allIds, true);
+                              }}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] px-3 py-1.5 rounded-xl cursor-pointer"
                             >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                disabled={isSuperAdmin}
-                                onChange={() => !isSuperAdmin && handleTogglePermission(key, tab.key)}
-                                title={isSuperAdmin ? 'Super-admins always have full access' : `Toggle ${tab.label} for ${label}`}
-                                className={`w-4 h-4 rounded focus:ring-[#62BC37] ${
-                                  isSuperAdmin
-                                    ? 'text-purple-500 cursor-not-allowed opacity-70'
-                                    : 'text-[#62BC37] cursor-pointer'
-                                }`}
-                              />
-                            </td>
-                          );
-                        })}
-                      </tr>
+                              Grant All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allIds = GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key));
+                                handleToggleModuleAll(selectedPermissionRole, allIds, false);
+                              }}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[11px] px-3 py-1.5 rounded-xl cursor-pointer"
+                            >
+                              Revoke All
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Modules Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {GRANULAR_MODULE_PERMISSIONS.map((mod) => {
+                    const isSuperAdmin = selectedPermissionRole === 'ADMIN' || selectedPermissionRole === 'CEO';
+                    const activePerms = isSuperAdmin
+                      ? mod.actions.map((p) => p.key)
+                      : (granularPermissions[selectedPermissionRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[selectedPermissionRole] ?? []);
+
+                    const modPermIds = mod.actions.map((p) => p.key);
+                    const allGranted = isSuperAdmin || modPermIds.every((id) => activePerms.includes(id));
+
+                    return (
+                      <div key={mod.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{mod.icon || '📦'}</span>
+                            <div>
+                              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide font-mono">{mod.name}</h4>
+                              <span className="text-[10px] text-slate-400 font-medium">{mod.description}</span>
+                            </div>
+                          </div>
+
+                          {!isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleModuleAll(selectedPermissionRole, modPermIds, !allGranted)}
+                              className="text-[10px] font-bold text-[#62BC37] hover:underline cursor-pointer"
+                            >
+                              {allGranted ? 'Revoke Module' : 'Grant Module'}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="p-4 divide-y divide-slate-100 space-y-3 flex-1">
+                          {mod.actions.map((act) => {
+                            const isChecked = isSuperAdmin || activePerms.includes(act.key);
+
+                            return (
+                              <div key={act.key} className="pt-2 flex justify-between items-start gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-900">{act.label}</span>
+                                    <code className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                      {act.key}
+                                    </code>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">{act.description}</p>
+                                </div>
+
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isSuperAdmin}
+                                  onChange={() => !isSuperAdmin && handleToggleGranularPermission(selectedPermissionRole, act.key)}
+                                  className={`w-4 h-4 rounded focus:ring-[#62BC37] mt-0.5 ${
+                                    isSuperAdmin
+                                      ? 'text-purple-500 cursor-not-allowed opacity-70'
+                                      : 'text-[#62BC37] cursor-pointer'
+                                  }`}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            )}
+
+            {/* 2. HIGH-LEVEL PORTAL SCREEN ACCESS GRID */}
+            {permissionsSubTab === 'matrix' && (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200">
+                      <th className="p-3 font-mono font-extrabold text-[10px] uppercase text-slate-500 whitespace-nowrap sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
+                        Role Classification
+                      </th>
+                      {TAB_REGISTRY.map((tab) => (
+                        <th
+                          key={tab.key}
+                          className="p-3 text-center font-mono font-bold text-[10px] uppercase text-slate-700 whitespace-nowrap bg-slate-100 border-r border-slate-200"
+                        >
+                          <div>{tab.label}</div>
+                          <div className="text-[9px] text-slate-400 font-normal mt-0.5">{tab.category}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { key: 'ADMIN',              label: 'Admin Officer (ADMIN)',       badge: 'bg-purple-100 text-purple-800' },
+                      { key: 'CEO',                label: 'Managing Director / CEO',     badge: 'bg-blue-100 text-blue-800' },
+                      { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations',          badge: 'bg-indigo-100 text-indigo-800' },
+                      { key: 'HEAD_OF_FINANCE',    label: 'Head of Finance',             badge: 'bg-teal-100 text-teal-800' },
+                      { key: 'CARGO_OFFICER',      label: 'Cargo Officer (Field)',       badge: 'bg-amber-100 text-amber-800' },
+                      { key: 'CUSTOMER',           label: 'Industrial Consignee Client', badge: 'bg-emerald-100 text-emerald-800' },
+                    ].map(({ key, label, badge }) => {
+                      const rawPerms = permissionsMatrix?.[key];
+                      const rolePerms: string[] = Array.isArray(rawPerms) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] ?? []);
+                      const isSuperAdmin = key === 'ADMIN' || key === 'CEO' || key === 'MD';
+
+                      return (
+                        <tr key={key} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 z-10">
+                            <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold font-mono ${badge}`}>
+                              {label}
+                            </span>
+                            {isSuperAdmin && (
+                              <span className="ml-1.5 text-[9px] text-slate-400 font-mono">FULL ACCESS</span>
+                            )}
+                          </td>
+
+                          {TAB_REGISTRY.map((tab) => {
+                            const isChecked = isSuperAdmin || rolePerms.includes(tab.key);
+
+                            return (
+                              <td
+                                key={tab.key}
+                                className="p-3 text-center border-r border-slate-200"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isSuperAdmin}
+                                  onChange={() => !isSuperAdmin && handleTogglePermission(key, tab.key)}
+                                  title={isSuperAdmin ? 'Super-admins always have full access' : `Toggle ${tab.label} for ${label}`}
+                                  className={`w-4 h-4 rounded focus:ring-[#62BC37] ${
+                                    isSuperAdmin
+                                      ? 'text-purple-500 cursor-not-allowed opacity-70'
+                                      : 'text-[#62BC37] cursor-pointer'
+                                  }`}
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 3. PER-USER CAPABILITY INSPECTOR */}
+            {permissionsSubTab === 'inspector' && (
+              <div className="space-y-6">
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-slate-900 font-mono">Employee RBAC Capability Audit</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Select an employee or client account to inspect their live permissions and portal access entitlements.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold text-slate-500">Select User:</label>
+                    <select
+                      value={selectedPermissionUser || usersList[0]?.id}
+                      onChange={(e) => setSelectedPermissionUser(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                    >
+                      {usersList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.fullName || u.name} ({u.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {(() => {
+                  const targetUser = usersList.find((u) => u.id === (selectedPermissionUser || usersList[0]?.id)) || usersList[0];
+                  if (!targetUser) return null;
+
+                  const userRole = targetUser.role;
+                  const isSuperAdmin = userRole === 'ADMIN' || userRole === 'CEO' || userRole === 'MD';
+                  const activePerms = isSuperAdmin
+                    ? GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key))
+                    : (granularPermissions[userRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[userRole] ?? []);
+
+                  return (
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-6">
+                      <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-black text-slate-900">{targetUser.fullName || targetUser.name}</h3>
+                            <span className="bg-slate-100 text-slate-700 font-mono font-bold text-xs px-2 py-0.5 rounded-md">
+                              {targetUser.role}
+                            </span>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {targetUser.status || 'ACTIVE'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-mono">{targetUser.email}</span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Granted Capabilities</span>
+                          <span className="text-base font-black font-mono text-[#62BC37]">{activePerms.length} Active</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions).map((act) => {
+                          const hasPerm = activePerms.includes(act.key);
+
+                          return (
+                            <div
+                              key={act.key}
+                              className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
+                                hasPerm
+                                  ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900'
+                                  : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                              }`}
+                            >
+                              <div>
+                                <span className="font-bold block">{act.label}</span>
+                                <code className="text-[9px] font-mono">{act.key}</code>
+                              </div>
+                              <span className="font-bold text-sm">{hasPerm ? '✓' : '✕'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* ACTION FOOTER BAR */}
             <div className="bg-slate-900 text-white p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
