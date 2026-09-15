@@ -18,7 +18,7 @@ export function MoniyaPortal({ user, onSignOut }: { user: any; onSignOut: () => 
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-black text-[#62BC37] uppercase tracking-widest">Inland Dry Port Governance</span>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Inland Dry Port Governance</span>
           <h2 className="text-2xl font-black text-slate-900">3D Container Yard Stacking & Demurrage Counter</h2>
           <p className="text-xs text-slate-600">Inspect 3D container stacking bays, collect gate entry truck tariffs (₦2,000 fee), and monitor 14-day demurrage allowances.</p>
         </div>

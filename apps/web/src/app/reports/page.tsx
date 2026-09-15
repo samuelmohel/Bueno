@@ -182,7 +182,7 @@ export default function PerformanceReportsPage() {
               <select
                 value={archiveMonth}
                 onChange={(e) => setArchiveMonth(e.target.value)}
-                className="bg-slate-800 text-white font-bold rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#62BC37]"
+                className="bg-slate-800 text-white font-bold rounded-xl px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-900"
               >
                 <option value="2026-09">September 2026 (Current)</option>
                 <option value="2026-08">August 2026 (1 Month Ago)</option>
@@ -462,7 +462,7 @@ export default function PerformanceReportsPage() {
                 {/* EXECUTIVE RECONCILIATION SUMMARY */}
                 <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 text-xs">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Reconciled Historical Audit Summary</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-600 uppercase">Reconciled Historical Audit Summary</span>
                     <span className="text-[10px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800">ARCHIVED & VERIFIED</span>
                   </div>
 

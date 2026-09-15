@@ -675,14 +675,14 @@ export default function FieldManifestPage() {
         {customAlert && (
           <Modal open={!!customAlert} onClose={() => setCustomAlert(null)} title={customAlert.title || 'Notification'}>
             <div className="p-6 space-y-4 text-center font-sans">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-[#62BC37] flex items-center justify-center font-black text-xl mx-auto border border-emerald-200">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-slate-600 flex items-center justify-center font-black text-xl mx-auto border border-emerald-200">
                 
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>{customAlert.title || 'Manifest Notification'}</h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{customAlert.message}</p>
               </div>
-              <button onClick={() => setCustomAlert(null)} className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md">
+              <button onClick={() => setCustomAlert(null)} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md">
                 Acknowledge →
               </button>
             </div>

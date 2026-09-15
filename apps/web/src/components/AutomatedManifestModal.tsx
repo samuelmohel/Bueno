@@ -79,9 +79,9 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
         {/* Printable Action Bar */}
         <div className="bg-slate-900 text-white p-4 flex flex-wrap justify-between items-center gap-3 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-xl bg-[#62BC37]/20 text-[#62BC37] flex items-center justify-center font-black"></span>
+            <span className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-black"></span>
             <div>
-              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">AUTOMATED MANIFEST GENERATOR</span>
+              <span className="text-[10px] font-mono font-extrabold text-slate-600 uppercase tracking-widest block">AUTOMATED MANIFEST GENERATOR</span>
               <h3 className="text-sm font-black text-white">NRC & Bueno Railway Consignment Manifest #{manifestNo}</h3>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             <button onClick={handleDownloadCsv} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-xl transition-all">
               Export CSV 
             </button>
-            <button onClick={handlePrint} className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2 rounded-xl shadow-md transition-all">
+            <button onClick={handlePrint} className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2 rounded-xl shadow-md transition-all">
               Print Official PDF 
             </button>
             <button onClick={onClose} className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-3 py-2 text-xs rounded-xl font-bold">
@@ -109,7 +109,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                 </div>
                 <div>
                   <h2 className="text-2xl font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-                    BUENO <span className="text-[#62BC37]">LOGISTICS LIMITED</span>
+                    BUENO <span className="text-slate-600">LOGISTICS LIMITED</span>
                   </h2>
                   <p className="text-[10px] font-mono font-black text-slate-500 uppercase tracking-widest">
                     IN PARTNERSHIP WITH NIGERIAN RAILWAY CORPORATION (NRC) • HEAVY FREIGHT DIVISION
@@ -213,7 +213,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             </div>
             <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800">
               <span className="block text-[9px] uppercase text-slate-400 font-bold">Total Bags Loaded</span>
-              <span className="text-base font-black text-[#62BC37]">{actualLoadedBags.toLocaleString()} Bags</span>
+              <span className="text-base font-black text-slate-600">{actualLoadedBags.toLocaleString()} Bags</span>
             </div>
             <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800">
               <span className="block text-[9px] uppercase text-slate-400 font-bold">Net Freight Tonnage</span>

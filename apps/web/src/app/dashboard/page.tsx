@@ -44,7 +44,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center text-slate-900 space-y-3">
-          <div className="w-10 h-10 border-3 border-[#62BC37] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="w-10 h-10 border-3 border-slate-300 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-bold text-slate-500">Loading your workspace...</p>
         </div>
       </div>

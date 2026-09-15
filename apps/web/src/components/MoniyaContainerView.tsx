@@ -215,8 +215,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
       <div className="flex flex-wrap justify-between items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#62BC37] animate-pulse" />
-            <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest">
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-900 animate-pulse" />
+            <span className="text-[10px] font-mono font-extrabold text-slate-600 uppercase tracking-widest">
               MONIYA INLAND CONTAINER TERMINAL (MICT) · STANDARD GAUGE SIDING
             </span>
           </div>
@@ -237,7 +237,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
           </button>
           <button
             onClick={() => setRegisterModal(true)}
-            className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
           >
             <span>+ Gate Truck Entry (₦2,000 Fee)</span>
           </button>
@@ -249,7 +249,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
         {[
           ['Yard Stacked Containers', `${totalContainers} TEUs`, 'text-slate-900'],
           ['Import Cargo (Bay A)', `${importsCount} TEUs`, 'text-[#0E4B88]'],
-          ['Export Cargo (Bay B)', `${exportsCount} TEUs`, 'text-[#62BC37]'],
+          ['Export Cargo (Bay B)', `${exportsCount} TEUs`, 'text-slate-600'],
           ['Empty Containers (Bay C)', `${emptiesCount} TEUs`, 'text-amber-700'],
           ['Total Gate Revenue Collected', `₦${totalGateRevenue.toLocaleString()}`, 'text-emerald-700'],
         ].map(([l, v, c]) => (
@@ -279,7 +279,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
               <span className="w-3 h-3 rounded bg-[#0E4B88]" /> Bay A (Import)
             </span>
             <span className="flex items-center gap-1.5 text-slate-700">
-              <span className="w-3 h-3 rounded bg-[#62BC37]" /> Bay B (Export)
+              <span className="w-3 h-3 rounded bg-slate-900" /> Bay B (Export)
             </span>
             <span className="flex items-center gap-1.5 text-slate-700">
               <span className="w-3 h-3 rounded bg-amber-500" /> Bay C (Empty)
@@ -290,7 +290,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
         <div className="grid md:grid-cols-3 gap-6">
           {[
             { title: 'Bay A — Import Yard', code: 'Bay A', bg: 'bg-blue-50/50 border-blue-200', badge: 'bg-[#0E4B88] text-white', desc: 'Inbound maritime containers from Lagos Ports' },
-            { title: 'Bay B — Export Yard', code: 'Bay B', bg: 'bg-emerald-50/50 border-emerald-200', badge: 'bg-[#62BC37] text-white', desc: 'Outbound agricultural & manufactured freight' },
+            { title: 'Bay B — Export Yard', code: 'Bay B', bg: 'bg-emerald-50/50 border-emerald-200', badge: 'bg-slate-900 text-white', desc: 'Outbound agricultural & manufactured freight' },
             { title: 'Bay C — Empty Yard', code: 'Bay C', bg: 'bg-amber-50/50 border-amber-200', badge: 'bg-amber-600 text-white', desc: 'Empty containers awaiting return or repositioning' },
           ].map((bay) => {
             const bayContainers = containers.filter((c) => c.bay === bay.code);
@@ -325,7 +325,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                       c.type === 'CONTAINERS-IMPORT'
                         ? 'bg-[#0E4B88] text-white hover:bg-[#093562]'
                         : c.type === 'CONTAINERS-EXPORT'
-                        ? 'bg-[#62BC37] text-white hover:bg-[#52A02D]'
+                        ? 'bg-slate-900 text-white hover:bg-slate-800'
                         : 'bg-amber-500 text-slate-900 hover:bg-amber-600';
 
                     return (
@@ -433,7 +433,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
       <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-100 pb-4">
           <div>
-            <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase tracking-wider block">
+            <span className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-wider block">
               ACCESS CONTROL & REVENUE
             </span>
             <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -445,7 +445,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
           </div>
           <button
             onClick={() => setRegisterModal(true)}
-            className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm transition-all"
+            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-sm transition-all"
           >
             + Register Haulage Truck Entry
           </button>
@@ -502,7 +502,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
           <div className="bg-white rounded-3xl w-full max-w-xl p-6 space-y-4 font-sans shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase tracking-widest block">
+                <span className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-widest block">
                   TERMINAL ACCESS CONTROL
                 </span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -635,7 +635,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
                 >
                   Collect ₦2,000 & Issue Official Gate Pass →
                 </button>
@@ -705,7 +705,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
               </button>
               <button
                 onClick={() => setPrintedReceipt(null)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all"
               >
                 Close
               </button>
@@ -775,7 +775,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setSelectedContainer(null)}
-                className="bg-[#62BC37] text-white font-bold text-xs px-6 py-2.5 rounded-xl hover:bg-[#52A02D] transition-all"
+                className="bg-slate-900 text-white font-bold text-xs px-6 py-2.5 rounded-xl hover:bg-slate-800 transition-all"
               >
                 Close Passport
               </button>
@@ -797,7 +797,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             <div className="flex justify-center pt-2">
               <button
                 onClick={() => setCustomAlert(null)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
               >
                 Acknowledge
               </button>

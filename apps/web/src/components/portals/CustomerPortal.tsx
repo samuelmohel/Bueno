@@ -421,7 +421,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               }}
             />
             <div>
-              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+              <span className="text-[10px] font-mono font-extrabold text-slate-700 uppercase tracking-widest block">
                 INDUSTRIAL CONSIGNEE DESK — {companyName}
               </span>
               <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -432,8 +432,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
           <div className="flex items-center gap-4">
             <div className="hidden lg:flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
-              <span className="text-[10px] font-mono font-extrabold uppercase text-[#48A81B] tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-slate-900 animate-pulse" />
+              <span className="text-[10px] font-mono font-extrabold uppercase text-slate-700 tracking-wider">
                 CORRIDOR LIVE
               </span>
             </div>
@@ -442,7 +442,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
             <div className="hidden sm:block text-right font-sans">
               <span className="text-xs font-extrabold text-slate-900 block">{user?.fullName || companyName}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{clientEmail || 'Consignee Client Desk'}</span>
+              <span className="text-[10px] font-mono text-slate-700 font-bold block">{clientEmail || 'Consignee Client Desk'}</span>
             </div>
 
             {onSignOut && (
@@ -466,7 +466,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
-                  <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">CLIENT DESK</span>
+                  <span className="text-xs font-mono font-extrabold text-slate-700 uppercase tracking-wider">CLIENT DESK</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
@@ -488,9 +488,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     key={t.id}
                     onClick={() => setActiveTab(t.id as any)}
                     className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
-                      activeTab === t.id
-                        ? 'bg-[#62BC37] text-white shadow-md'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      activeTab === t.id ? 'bg-slate-900 text-white shadow-xs font-bold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-semibold'
                     }`}
                   >
                     {t.label}
@@ -537,14 +535,14 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setConsignmentModal(true)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all flex items-center gap-2"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all flex items-center gap-2"
               >
                 <span>+ Fill Consignment Note</span>
               </button>
               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
                 <span className="relative flex h-3 w-3 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[#62BC37]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-slate-900"></span>
                 </span>
                 <div className="text-xs">
                   <span className="text-slate-400 block text-[10px] font-bold uppercase">Assigned Operations Lead</span>
@@ -569,7 +567,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               onClick={() => setActiveTab(tab.id as any)}
               className={`px-4 py-2.5 rounded-xl font-extrabold text-xs whitespace-nowrap transition-all flex items-center gap-2 ${
                 activeTab === tab.id
-                  ? 'bg-[#62BC37] text-white shadow-md'
+                  ? 'bg-slate-900 text-white shadow-md'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
@@ -594,12 +592,12 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <div>
                 <div className="p-4 bg-white border-b border-slate-200 space-y-3">
                   <div>
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider block">YOUR FREIGHT REQUISITIONS</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider block">YOUR FREIGHT REQUISITIONS</span>
                     <h3 className="text-sm font-black text-slate-900 font-sans">Active Corridor Conversations</h3>
                   </div>
                   <button
                     onClick={() => setConsignmentModal(true)}
-                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2 px-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
                   >
                     <span>+ Fill Consignment Note (Request Tariff)</span>
                   </button>
@@ -615,15 +613,15 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         key={deal.id}
                         onClick={() => setActiveDealId(deal.id)}
                         className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
-                          isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
+                          isSelected ? 'bg-emerald-50/80 border-l-4 border-slate-400' : 'hover:bg-slate-100/80 bg-white'
                         }`}
                       >
-                        <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                        <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
                           B
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-baseline">
-                            <span className="text-[10px] font-mono font-bold text-[#62BC37]">{deal.id}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-700">{deal.id}</span>
                             <span className="text-[9px] font-mono text-slate-400">{lastMsg?.time || 'Today'}</span>
                           </div>
                           <h4 className="text-xs font-black text-slate-900 mt-0.5 truncate">{deal.cargoType}</h4>
@@ -645,7 +643,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   {/* HEADER */}
                   <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-sm shadow-sm">
                         B
                       </div>
                       <div>
@@ -654,8 +652,8 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         </h3>
                         <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1.5 font-mono">
                           <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#62BC37]"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-900"></span>
                           </span>
                           Online • Direct Corridor Communication Channel
                         </span>
@@ -676,7 +674,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 shadow-sm ${
                             isMe
-                              ? 'bg-[#62BC37] text-white rounded-br-none'
+                              ? 'bg-slate-900 text-white rounded-br-none'
                               : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
                           }`}>
                             <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1">
@@ -699,11 +697,11 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       placeholder={`Type a message to Operations Command (${opsLeadName})...`}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                     />
                     <button
                       type="submit"
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
                     >
                       Send Message →
                     </button>
@@ -734,7 +732,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       <div className="bg-slate-900 text-white p-5 space-y-3">
                         <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                           <div>
-                            <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase block">{trip.id}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-700 uppercase block">{trip.id}</span>
                             <h3 className="text-base font-black text-slate-100">{trip.company || companyName}</h3>
                           </div>
                           <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase font-mono">
@@ -753,7 +751,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                           </div>
                           <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                             <span className="text-[9px] uppercase text-slate-400 font-bold block">Payload ({unit})</span>
-                            <span className="font-mono font-bold text-[#62BC37]">{trip.quantity || 1610} {unit}</span>
+                            <span className="font-mono font-bold text-slate-700">{trip.quantity || 1610} {unit}</span>
                           </div>
                         </div>
                       </div>
@@ -788,7 +786,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               </div>
             ) : (
               <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-4 font-sans">
-                <div className="w-12 h-12 bg-emerald-50 text-[#62BC37] rounded-2xl flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
+                <div className="w-12 h-12 bg-emerald-50 text-slate-700 rounded-2xl flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
                   GPS
                 </div>
                 <div>
@@ -807,7 +805,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Official Consignment Manifests</span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Cargo Loading & Unloading Audits</h3>
               </div>
             </div>
@@ -850,7 +848,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">
                       Commercial Client Billing Desk
                     </span>
                     <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
@@ -913,7 +911,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               {/* Invoices List Table */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden font-sans space-y-4 p-6">
                 <div className="border-b border-slate-100 pb-3">
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Audited Tax Invoices</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Audited Tax Invoices</span>
                   <h4 className="text-base font-black text-slate-900">Heavy Rail Freight Commercial Invoices</h4>
                 </div>
 
@@ -949,7 +947,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                             <td className="py-3.5 px-3">
                               <span className="font-bold text-slate-900 block">{inv.invoiceNumber || inv.id}</span>
                               <span className="text-[10px] text-slate-400 block">{inv.issueDate}</span>
-                              <span className="text-[9px] text-[#62BC37] font-bold">Trip: {inv.tripId}</span>
+                              <span className="text-[9px] text-slate-700 font-bold">Trip: {inv.tripId}</span>
                             </td>
                             <td className="py-3.5 px-3">
                               <span className="font-sans font-bold text-slate-900 block">{inv.route}</span>
@@ -1052,7 +1050,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         {activeTab === 'account' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm max-w-2xl mx-auto space-y-5 font-sans">
             <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Corporate Desk Settings</span>
+              <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Corporate Desk Settings</span>
               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Account Credentials</h3>
             </div>
 
@@ -1109,7 +1107,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest">
+                    <span className="text-[10px] font-mono font-extrabold text-slate-700 uppercase tracking-widest">
                       NIGERIAN RAIL FREIGHT OPERATIONS · FORM 01 & 02
                     </span>
                   </div>
@@ -1154,7 +1152,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                         });
                       }
                     }}
-                    className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-emerald-950 focus:ring-2 focus:ring-slate-900"
                   >
                     <option value="">-- Choose from 6 Operational Corridors --</option>
                     <optgroup label="Standard Gauge Corridors (Lagos - Moniya, Ibadan)">
@@ -1183,7 +1181,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     <select
                       value={consignmentForm.product}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, product: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
                     >
                       <option value="CEMENT">CEMENT (50kg Bagged / Bulk)</option>
                       <option value="GYPSUM">GYPSUM (Bulk Mineral)</option>
@@ -1207,7 +1205,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       value={consignmentForm.tonnage}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, tonnage: e.target.value })}
                       placeholder="e.g. 920 MT"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-slate-900"
                     />
                     <span className="text-[10px] text-slate-400 font-mono mt-1 block">Volume must be stated in Metric Tonnes (Tonnage)</span>
                   </div>
@@ -1222,7 +1220,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     <select
                       value={consignmentForm.originStation}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, originStation: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
                     >
                       {Object.entries(STATION_GAUGE_MAP).map(([code, st]) => (
                         <option key={code} value={code}>
@@ -1239,7 +1237,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     <select
                       value={consignmentForm.destinationStation}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, destinationStation: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
                     >
                       {Object.entries(STATION_GAUGE_MAP).map(([code, st]) => (
                         <option key={code} value={code}>
@@ -1281,7 +1279,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 {/* AUTO-CALCULATED ROLLING STOCK & TRIPS BREAKDOWN (SPEC 02) */}
                 <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase">
+                    <span className="text-[10px] font-mono font-black text-slate-700 uppercase">
                       AUTOMATIC WAGON ALLOCATION & FLEET CALCULATION (SPEC 02)
                     </span>
                     <span className="text-[10px] font-mono text-slate-400">Formula: ⌈Tonnage ÷ Capacity⌉</span>
@@ -1300,7 +1298,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     </div>
                     <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                       <span className="text-[9px] uppercase text-slate-400 block">Wagons Needed</span>
-                      <span className="font-black text-[#62BC37] text-sm block">{wagonsNeeded} Wagons</span>
+                      <span className="font-black text-slate-700 text-sm block">{wagonsNeeded} Wagons</span>
                       <span className="text-[8px] text-slate-400 block">⌈{declaredTonnage} ÷ {spec.capacityMt}⌉</span>
                     </div>
                     <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
@@ -1320,7 +1318,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     value={consignmentForm.specialInstructions}
                     onChange={(e) => setConsignmentForm({ ...consignmentForm, specialInstructions: e.target.value })}
                     placeholder="e.g. Urgent haulage requested, discharge directly to consignee fleet..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-medium focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
 
@@ -1338,7 +1336,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     className={`font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all ${
                       isGaugeIncompatible || declaredTonnage <= 0
                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : 'bg-[#62BC37] hover:bg-[#52A02D] text-white shadow-emerald-700/20'
+                        : 'bg-slate-900 hover:bg-slate-800 text-white shadow-emerald-700/20'
                     }`}
                   >
                     Submit Consignment Note & Request Official Tariff →
@@ -1363,7 +1361,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
             <div className="flex justify-center pt-2">
               <button
                 onClick={() => setCustomAlert(null)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
               >
                 Acknowledge
               </button>

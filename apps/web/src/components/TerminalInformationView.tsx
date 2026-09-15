@@ -204,7 +204,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
         <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest">
+              <span className="text-[10px] font-mono font-extrabold text-slate-600 uppercase tracking-widest">
                 OFFICIAL SIDING AUDIT TEMPLATE · BUENO LOGISTICS & NRC
               </span>
               {currentStationInfo.isBuenoTerminal && (
@@ -236,7 +236,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
             >
               <span>+ Log Wagon At Siding</span>
             </button>
@@ -252,7 +252,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             <select
               value={selectedStation}
               onChange={(e) => setSelectedStation(e.target.value)}
-              className="bg-white border border-slate-300 rounded-xl px-4 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37] shadow-xs"
+              className="bg-white border border-slate-300 rounded-xl px-4 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-slate-900 shadow-xs"
             >
               {Object.entries(STATION_OPTIONS).map(([code, opt]) => (
                 <option key={code} value={code}>
@@ -398,7 +398,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
           <div className="bg-white rounded-3xl w-full max-w-lg p-6 space-y-4 font-sans shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase tracking-widest block">
+                <span className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-widest block">
                   TERMINAL SIDING AUDIT ENTRY
                 </span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -555,7 +555,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
                 >
                   Save Entry to Ledger →
                 </button>

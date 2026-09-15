@@ -77,12 +77,12 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
         {/* Printable Action Bar */}
         <div className="bg-slate-900 text-white p-4 flex flex-wrap justify-between items-center gap-3 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-[#62BC37]/20 text-[#62BC37] flex items-center justify-center font-black text-lg">
+            <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-black text-lg">
               
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                <span className="text-[10px] font-mono font-extrabold text-slate-600 uppercase tracking-widest block">
                   COMMERCIAL FREIGHT INVOICE & DEBIT NOTE
                 </span>
                 <span
@@ -119,7 +119,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
             </button>
             <button
               onClick={handlePrint}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all"
             >
               Print Official PDF 
             </button>
@@ -151,7 +151,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                 <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-none">
                   BUENO LOGISTICS LIMITED
                 </h1>
-                <p className="text-xs font-bold text-[#62BC37] uppercase tracking-wider mt-1">
+                <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mt-1">
                   Commercial Heavy Rail & Multimodal Freight Operations
                 </p>
                 <p className="text-[11px] text-slate-500 leading-snug mt-1">
@@ -387,7 +387,7 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
                 </svg>
               </div>
               <div className="text-[10px] font-mono text-slate-500">
-                <span className="font-bold text-[#62BC37] block">BUENO VERIFIED ERP AUDIT</span>
+                <span className="font-bold text-slate-600 block">BUENO VERIFIED ERP AUDIT</span>
                 <span>SHA-256: 8a91f..0e4</span>
                 <span className="block text-slate-400">Official Electronic Record</span>
               </div>

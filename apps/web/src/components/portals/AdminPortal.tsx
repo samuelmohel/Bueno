@@ -380,7 +380,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               onClick={() => window.print()}
-              className="flex-1 sm:flex-initial bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-initial bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
               <span className="flex items-center gap-1.5"><Printer className="w-3.5 h-3.5" /><span>Print / Save Audit (PDF)</span></span>
             </button>
@@ -1714,7 +1714,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-[#62BC37] text-white rounded-full flex items-center justify-center font-black text-base shadow-sm">
+              <div className="w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-base shadow-sm">
                 Approved
               </div>
               <h3 className="text-base font-black text-slate-900">{customAlert.title || 'Action Completed'}</h3>
@@ -1722,7 +1722,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <p className="text-xs text-slate-600 leading-relaxed font-medium">{customAlert.message}</p>
             <button
               onClick={() => setCustomAlert(null)}
-              className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md"
             >
               Acknowledge & Close
             </button>
@@ -1744,7 +1744,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">USER ACCOUNT MANAGEMENT</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">USER ACCOUNT MANAGEMENT</span>
                 <h3 className="text-lg font-black text-slate-900">Edit Provisioned User Account</h3>
               </div>
               <button onClick={() => setEditingUser(null)} className="text-slate-400 font-bold hover:text-slate-900">
@@ -1851,7 +1851,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
                   Save Account Corrections →
                 </button>
@@ -1867,7 +1867,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">COMMERCIAL CONTRACT REGISTRATION</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">COMMERCIAL CONTRACT REGISTRATION</span>
                 <h3 className="text-lg font-black text-slate-900">Create New Freight Deal</h3>
               </div>
               <button onClick={() => setCreateDealModal(false)} className="text-slate-400 font-bold hover:text-slate-900">
@@ -2067,7 +2067,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       });
                     }
                   }}
-                  className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-xs text-emerald-950 font-bold focus:ring-2 focus:ring-[#62BC37]"
+                  className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 text-xs text-emerald-950 font-bold focus:ring-2 focus:ring-slate-900"
                 >
                   <option value="">-- Quick Select Operational Corridor --</option>
                   <optgroup label="Standard Gauge Corridors (Lagos - Moniya)">
@@ -2209,7 +2209,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
                 >
                   Create Deal →
                 </button>
@@ -2415,7 +2415,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ACCOUNTS RECEIVABLE SETTLEMENT</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">ACCOUNTS RECEIVABLE SETTLEMENT</span>
                 <h3 className="text-lg font-black text-slate-900">Record Payment Remittance</h3>
               </div>
               <button
@@ -2497,7 +2497,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   Commit Remittance →
                 </button>
@@ -2513,7 +2513,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR EXPENDITURE BOOKING</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">CORRIDOR EXPENDITURE BOOKING</span>
                 <h3 className="text-lg font-black text-slate-900">Book Direct Corridor Expense</h3>
               </div>
               <button
@@ -2638,7 +2638,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   Book Voucher →
                 </button>
@@ -2657,7 +2657,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <span className="text-[10px] font-mono font-bold text-blue-600 uppercase">EDIT DIRECT OPERATING COST</span>
                 <h3 className="text-lg font-black text-slate-900">Edit Voucher #{editingTripCost.voucherNo || editingTripCost.id}</h3>
                 <p className="text-xs text-slate-500">
-                  Assigned to Trip <span className="font-mono font-bold text-[#62BC37]">{editingTripCost.tripId}</span>
+                  Assigned to Trip <span className="font-mono font-bold text-slate-700">{editingTripCost.tripId}</span>
                 </p>
               </div>
               <button
@@ -2773,7 +2773,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CHART OF ACCOUNTS CONFIGURATION</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">CHART OF ACCOUNTS CONFIGURATION</span>
                 <h3 className="text-lg font-black text-slate-900">Add New General Ledger Account</h3>
                 <p className="text-xs text-slate-500">Standard 4-digit Account Code and Financial Statement category</p>
               </div>
@@ -2875,7 +2875,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
                 >
                   Register GL Account →
                 </button>
@@ -2966,7 +2966,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         ]
                       });
                     }}
-                    className="text-[10px] font-bold text-[#62BC37] hover:underline cursor-pointer"
+                    className="text-[10px] font-bold text-slate-700 hover:underline cursor-pointer"
                   >
                     + Add Split Line
                   </button>
@@ -3174,7 +3174,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 }}
               />
               <div>
-                <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+                <span className="text-[10px] font-mono font-extrabold text-slate-700 uppercase tracking-widest block">
                   {user?.role === 'HEAD_OF_OPERATIONS' ? 'OPERATIONS COMMAND HQ' : (user?.role === 'HEAD_OF_FINANCE' || user?.role === 'ACCOUNTANT') ? 'FINANCE HQ DESK' : user?.role === 'CEO' || user?.role === 'MD' ? 'CEO & MD COMMAND HQ' : 'EXECUTIVE COMMAND HQ'}
                 </span>
                 <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -3185,17 +3185,30 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
 
           {/* SYNCED LOGGED IN USER DETAILS + CREATE DEAL ACTION */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => {
+                if (confirm('Permanently purge all test deals, trips, and invoices from the database for a clean production launch?')) {
+                  StateEngine.cleanProductionPurge();
+                  window.location.reload();
+                }
+              }}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow-2xs"
+              title="Purge All Test Trips & Deals from Live Database"
+            >
+              <span>Reset Database</span>
+            </button>
+
             <button
               onClick={() => setCreateDealModal(true)}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5"
             >
               <span>+ Create Freight Deal</span>
             </button>
 
             <div className="hidden sm:block text-right">
               <span className="text-xs font-extrabold text-slate-900 block">{currentUser?.fullName || user?.fullName || 'Alhaji Bashir Umar'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{currentUser?.roleLabel || currentUser?.role || user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
+              <span className="text-[10px] font-mono text-slate-500 font-bold block">{currentUser?.roleLabel || currentUser?.role || user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
             </div>
 
             <button
@@ -3224,7 +3237,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
-                  <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">COMMAND NAVIGATION</span>
+                  <span className="text-xs font-mono font-extrabold text-slate-700 uppercase tracking-wider">COMMAND NAVIGATION</span>
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
@@ -3253,9 +3266,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     key={t.id}
                     onClick={() => setActiveTab(t.id as any)}
                     className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
-                      activeTab === t.id
-                        ? 'bg-[#62BC37] text-white shadow-md'
-                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      activeTab === t.id ? 'bg-slate-900 text-white shadow-xs font-bold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-semibold'
                     }`}
                   >
                     {t.label}
@@ -3293,7 +3304,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             {/* HISTORICAL DATE BACK ARCHIVE FILTER BAR (HIDDEN DURING PRINT) */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">HISTORICAL CORRIDOR AUDIT ARCHIVE</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">HISTORICAL CORRIDOR AUDIT ARCHIVE</span>
                 <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                   Executive Reports & Date Back History
                 </h2>
@@ -3306,7 +3317,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
                   >
                     <option value="2026-09">September 2026 (Current)</option>
                     <option value="2026-08">August 2026 (1 Month Ago)</option>
@@ -3322,7 +3333,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       key={p}
                       onClick={() => setSelectedPeriod(p)}
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold capitalize transition-all ${
-                        selectedPeriod === p ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                        selectedPeriod === p ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       {p}
@@ -3332,7 +3343,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <button
                   onClick={() => window.print()}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
                   <span>Export Audit Report (PDF)</span>
                 </button>
@@ -3355,7 +3366,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     onClick={() => setReportDateFilter(df.id as any)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       reportDateFilter === df.id
-                        ? 'bg-[#62BC37] text-white shadow-xs'
+                        ? 'bg-slate-900 text-white shadow-xs'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                     }`}
                   >
@@ -3364,7 +3375,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 ))}
               </div>
               <span className="text-xs font-mono font-bold text-slate-500 pr-2">
-                Audited: <b className="text-[#62BC37]">{activeReportTrips.length} Corridor Trip(s)</b>
+                Audited: <b className="text-slate-700">{activeReportTrips.length} Corridor Trip(s)</b>
               </span>
             </div>
 
@@ -3378,7 +3389,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bagged Cement Volume</span>
-                <p className="text-2xl font-black text-[#62BC37] font-mono">{totalReportBags.toLocaleString()} Bags</p>
+                <p className="text-2xl font-black text-slate-700 font-mono">{totalReportBags.toLocaleString()} Bags</p>
                 <span className="text-[10px] text-emerald-700 font-bold">Covered Hopper Wagons</span>
               </div>
 
@@ -3399,7 +3410,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR TERMINAL BENCHMARKS</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">CORRIDOR TERMINAL BENCHMARKS</span>
                   <h3 className="text-base font-black text-slate-900">
                     LIVE MONTHLY TERMINAL TRAIN BENCHMARKS: Station Operational Target vs Live Actual Completion
                   </h3>
@@ -3420,7 +3431,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <div key={idx} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-black text-slate-900">{b.station}</span>
-                        <span className="text-xs font-black text-[#62BC37] font-mono">{b.efficiency} Target</span>
+                        <span className="text-xs font-black text-slate-700 font-mono">{b.efficiency} Target</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                         <div>
@@ -3442,7 +3453,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">FIELD OFFICER SCORECARD</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">FIELD OFFICER SCORECARD</span>
                   <h3 className="text-base font-black text-slate-900">
                     LIVE OFFICER KPI EVALUATION ENGINE: Cargo Officer Monthly Performance Ratings & Speed Efficiency
                   </h3>
@@ -3495,7 +3506,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR AUDIT TRAIL</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">CORRIDOR AUDIT TRAIL</span>
                   <h3 className="text-base font-black text-slate-900">
                     DATABASE TRIP AUDIT LOG: Archived Consignments & Discrepancies for {selectedMonth}
                   </h3>
@@ -3554,7 +3565,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <td className="p-3 text-right">
                               <button
                                 onClick={() => setSelectedAuditTrip(t)}
-                                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-[10px] px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1 ml-auto"
+                                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1 ml-auto"
                               >
                                 <span>View Audit & PDF</span>
                               </button>
@@ -3571,7 +3582,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             {/* SECTION 4: OFFICIAL DAILY OPERATIONS EXECUTIVE SIGN-OFF */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">EXECUTIVE CERTIFICATION & APPROVAL</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">EXECUTIVE CERTIFICATION & APPROVAL</span>
                 <h3 className="text-base font-black text-slate-900">
                   OFFICIAL DAILY OPERATIONS EXECUTIVE SIGN-OFF
                 </h3>
@@ -3631,7 +3642,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Client Requisitions</span>
-                <p className="text-2xl font-black text-[#62BC37] font-mono">{negotiations.length}</p>
+                <p className="text-2xl font-black text-slate-700 font-mono">{negotiations.length}</p>
                 <span className="text-[10px] text-emerald-700 font-bold">Client Negotiations Inbox</span>
               </div>
             </div>
@@ -3640,7 +3651,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Commercial Logistics Management</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Commercial Logistics Management</span>
                   <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                     Commercial Freight Deals Directory
                   </h3>
@@ -3650,7 +3661,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCreateDealModal(true)}
-                    className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                   >
                     <span>+ Create New Commercial Deal</span>
                   </button>
@@ -3673,7 +3684,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => setDealsDateFilter(f.id as any)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                         dealsDateFilter === f.id
-                          ? 'bg-[#62BC37] text-white shadow-xs'
+                          ? 'bg-slate-900 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
                       }`}
                     >
@@ -3744,7 +3755,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <div className="flex justify-between items-start border-b border-slate-200 pb-2.5">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-[#62BC37] text-[10px] uppercase block">{d.dealNumber || d.id}</span>
+                              <span className="font-mono font-bold text-slate-700 text-[10px] uppercase block">{d.dealNumber || d.id}</span>
                               {isMonthly && (
                                 <span className="bg-emerald-700 text-white font-mono text-[9px] font-extrabold px-2 py-0.5 rounded uppercase">
                                   Monthly Master ({totalTrips} Trips)
@@ -3817,7 +3828,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             {/* Progress bar */}
                             <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                               <div
-                                className="bg-[#62BC37] h-full transition-all duration-500 rounded-full"
+                                className="bg-slate-900 h-full transition-all duration-500 rounded-full"
                                 style={{ width: `${Math.min(100, Math.round((dispatched / totalTrips) * 100))}%` }}
                               />
                             </div>
@@ -3855,7 +3866,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               {dispatched < totalTrips ? (
                                 <button
                                   onClick={() => handleDispatchTranche(d)}
-                                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-3 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
                                 >
                                   <span>Dispatch Tranche #{dispatched + 1} of {totalTrips} →</span>
                                 </button>
@@ -3876,7 +3887,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <>
                               <button
                                 onClick={() => handleApproveDealAndAllocateWagons(d)}
-                                className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1"
+                                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1"
                               >
                                 <span>Launch Corridor Trip →</span>
                               </button>
@@ -3907,7 +3918,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div>
                 <div className="p-4 bg-white border-b border-slate-200 space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">CLIENT NEGOTIATIONS MESSAGING DESK</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">CLIENT NEGOTIATIONS MESSAGING DESK</span>
                     <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
                       {negotiations.length} Active
                     </span>
@@ -3918,7 +3929,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search client, company or deal ID..."
-                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
 
@@ -3933,10 +3944,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         key={thread.id}
                         onClick={() => handleSelectThread(thread)}
                         className={`w-full text-left p-4 transition-all flex items-start gap-3 relative ${
-                          isSelected ? 'bg-emerald-50/80 border-l-4 border-[#62BC37]' : 'hover:bg-slate-100/80 bg-white'
+                          isSelected ? 'bg-emerald-50/80 border-l-4 border-slate-400' : 'hover:bg-slate-100/80 bg-white'
                         }`}
                       >
-                        <div className="w-10 h-10 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm font-mono">
+                        <div className="w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm font-mono">
                           {(thread.companyName || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -3946,9 +3957,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           </div>
 
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] font-mono text-[#62BC37] font-bold">{thread.email || thread.id}</span>
+                            <span className="text-[10px] font-mono text-slate-700 font-bold">{thread.email || thread.id}</span>
                             {thread.hasUnread || thread.status === 'PENDING_REVIEW' ? (
-                              <span className="bg-[#62BC37] text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full animate-pulse shadow-xs">
+                              <span className="bg-slate-900 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full animate-pulse shadow-xs">
                                 New Request
                               </span>
                             ) : thread.status === 'APPROVED_DISPATCHED' ? (
@@ -3979,7 +3990,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <>
                   <div className="p-4 bg-white border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-sm font-mono">
+                      <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-sm shadow-sm font-mono">
                         {(activeThread.companyName || 'C').charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -3988,8 +3999,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         </h3>
                         <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1.5 font-mono">
                           <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#62BC37] opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#62BC37]"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-900"></span>
                           </span>
                           Online • B2B Logistics Desk ({activeThread.cargoType || 'Bagged Cement'})
                         </span>
@@ -3998,7 +4009,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                     <button
                       onClick={() => handleApproveDealAndAllocateWagons(activeThread)}
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                     >
                       <span>Accept Deal & Allocate Wagons</span>
                     </button>
@@ -4012,7 +4023,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         <div key={idx} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-md p-4 rounded-2xl text-xs space-y-1 shadow-sm ${
                             isAdmin
-                              ? 'bg-[#62BC37] text-white rounded-br-none'
+                              ? 'bg-slate-900 text-white rounded-br-none'
                               : 'bg-white text-slate-900 border border-slate-200 rounded-bl-none'
                           }`}>
                             <div className="flex justify-between items-center gap-4 text-[9px] opacity-90 border-b border-black/10 pb-1 font-mono">
@@ -4034,11 +4045,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       value={replyInput}
                       onChange={(e) => setReplyInput(e.target.value)}
                       placeholder={`Type a response to ${activeThread.companyName}...`}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
                     />
                     <button
                       type="submit"
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
                     >
                       Send Reply →
                     </button>
@@ -4064,7 +4075,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div key={trip.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <div>
-                      <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{trip.id}</span>
+                      <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">{trip.id}</span>
                       <h3 className="text-base font-black text-slate-900">{trip.company || 'Industrial Consignee'}</h3>
                     </div>
                     <div className="flex items-center gap-2">
@@ -4082,7 +4093,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                   <div className="grid grid-cols-3 gap-3 text-xs text-center">
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-[#62BC37]">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Ade Bello'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-slate-700">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Ade Bello'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
                   </div>
                 </div>
@@ -4095,7 +4106,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         {activeTab === 'manifest' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
             <div className="border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Official Consignment Manifests</span>
+              <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Official Consignment Manifests</span>
               <h3 className="text-base font-black text-slate-900">Cargo Loading & Unloading Tally Audits</h3>
             </div>
 
@@ -4161,7 +4172,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">
                       Commercial Finance & Treasury
                     </span>
                     <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase">
@@ -4199,7 +4210,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('invoices')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'invoices'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4213,7 +4224,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('coa')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'coa'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4227,7 +4238,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('journal')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'journal'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4241,7 +4252,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('statements')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'statements'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4255,7 +4266,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('banking')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'banking'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4269,7 +4280,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('pnl')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'pnl'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4283,7 +4294,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('customers')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'customers'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4294,7 +4305,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onClick={() => setAccountingSubTab('deal_costing')}
                   className={`px-3.5 py-2.5 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                     accountingSubTab === 'deal_costing'
-                      ? 'bg-[#62BC37] text-white shadow-md'
+                      ? 'bg-slate-900 text-white shadow-md'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4345,7 +4356,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <p className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5">
                     ₦{totalCollected.toLocaleString()}
                   </p>
-                  <span className="text-[10px] text-[#62BC37] font-bold">
+                  <span className="text-[10px] text-slate-700 font-bold">
                     {totalNetBilled > 0 ? Math.round((totalCollected / totalNetBilled) * 100) : 0}% Collected
                   </span>
                 </div>
@@ -4385,7 +4396,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         placeholder="Search Invoice #, Client, Route..."
                         value={invoiceSearch}
                         onChange={(e) => setInvoiceSearch(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-slate-900"
                       />
                     </div>
 
@@ -4432,7 +4443,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               <td className="py-3.5 px-3">
                                 <span className="font-bold text-slate-900 block">{inv.invoiceNumber || inv.id}</span>
                                 <span className="text-[10px] text-slate-400 block">{inv.issueDate}</span>
-                                <span className="text-[9px] text-[#62BC37] font-bold">Trip: {inv.tripId}</span>
+                                <span className="text-[9px] text-slate-700 font-bold">Trip: {inv.tripId}</span>
                               </td>
                               <td className="py-3.5 px-3">
                                 <span className="font-sans font-bold text-slate-900 block">{inv.companyName}</span>
@@ -4554,7 +4565,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     }
     setNewAccountModal(true);
   }}
-                        className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                       >
                         <span>+ Add GL Account</span>
                       </button>
@@ -4915,7 +4926,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <div className="border-b border-slate-200 pb-4 text-center sm:text-left">
                         <div className="flex justify-between items-start flex-wrap gap-2">
                           <div>
-                            <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Bueno Logistics Limited</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Bueno Logistics Limited</span>
                             <h3 className="text-xl font-black text-slate-900">General Ledger Trial Balance</h3>
                             <p className="text-xs text-slate-500 mt-0.5">As of {new Date().toLocaleDateString('en-GB')} • All Currency in NGN (₦)</p>
                           </div>
@@ -4990,7 +5001,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   {statementTab === 'pnl' && (
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-4xl mx-auto">
                       <div className="border-b border-slate-200 pb-4 text-center">
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest">
+                        <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-widest">
                           Bueno Logistics Limited
                         </span>
                         <h3 className="text-xl font-black text-slate-900 mt-1">Statement of Profit or Loss (P&L)</h3>
@@ -5088,7 +5099,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             </div>
 
                             {/* NET SURPLUS */}
-                            <div className="bg-[#62BC37] text-white p-5 rounded-2xl flex justify-between items-center shadow-lg">
+                            <div className="bg-slate-900 text-white p-5 rounded-2xl flex justify-between items-center shadow-lg">
                               <div>
                                 <span className="text-[11px] uppercase font-mono font-black tracking-widest text-emerald-100 block">
                                   Net Operating Surplus / EBITDA
@@ -5110,7 +5121,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   {statementTab === 'balance_sheet' && (
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-4xl mx-auto">
                       <div className="border-b border-slate-200 pb-4 text-center">
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest">
+                        <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-widest">
                           Bueno Logistics Limited
                         </span>
                         <h3 className="text-xl font-black text-slate-900 mt-1">Statement of Financial Position (Balance Sheet)</h3>
@@ -5279,7 +5290,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                         <div>
-                          <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Account Activity Log</span>
+                          <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Account Activity Log</span>
                           <h3 className="text-lg font-black text-slate-900">General Ledger Account Drill-Down</h3>
                         </div>
 
@@ -5404,7 +5415,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
+                        <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">
                           Treasury & Cash Management
                         </span>
                         <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[9px] px-2 py-0.5 rounded-full uppercase font-mono">
@@ -5512,7 +5523,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                       <button
                         onClick={() => setNewCostModal(true)}
-                        className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all shadow-sm cursor-pointer"
                       >
                         + Book Voucher
                       </button>
@@ -5635,7 +5646,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 font-sans">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                       <div>
-                        <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Voucher Ledger</span>
+                        <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Voucher Ledger</span>
                         <h3 className="text-base font-black text-slate-900">Direct Corridor Expense Vouchers</h3>
                       </div>
                       <button
@@ -5664,7 +5675,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           {tripCosts.map((c: any) => (
                             <tr key={c.id} className="hover:bg-slate-50/60 transition-all">
                               <td className="py-3 px-3 font-bold text-slate-900">{c.voucherNo || c.id}</td>
-                              <td className="py-3 px-3 text-[#62BC37] font-bold">{c.tripId}</td>
+                              <td className="py-3 px-3 text-slate-700 font-bold">{c.tripId}</td>
                               <td className="py-3 px-3">
                                 <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase">
                                   {c.category?.replace(/_/g, ' ')}
@@ -5707,7 +5718,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               {accountingSubTab === 'customers' && (
                 <div className="space-y-6">
                   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-sans">
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Industrial Client Ledger</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Industrial Client Ledger</span>
                     <h3 className="text-base font-black text-slate-900">Consignee Statements of Account & Aging Receivables</h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                       Aggregated freight balances, transit damage indemnity deductions, and net accounts receivable per client.
@@ -5772,7 +5783,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   <span className="font-mono font-black text-slate-900 block">₦{Number(inv.totalAmount || 0).toLocaleString()}</span>
                                   <button
                                     onClick={() => setSelectedInvoiceForPrint(inv)}
-                                    className="text-[10px] text-[#62BC37] hover:underline font-bold cursor-pointer"
+                                    className="text-[10px] text-slate-700 hover:underline font-bold cursor-pointer"
                                   >
                                     View Statement →
                                   </button>
@@ -5895,7 +5906,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             {/* PROVISION USER FORM */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Staff & Account Provisioning</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Staff & Account Provisioning</span>
                 <h3 className="text-base font-black text-slate-900">Provision New Account</h3>
               </div>
 
@@ -5989,7 +6000,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <button
                   type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
                 >
                   Provision & Activate Account
                 </button>
@@ -6000,7 +6011,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Editable User Directory</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Editable User Directory</span>
                   <h3 className="text-base font-black text-slate-900">Provisioned Accounts ({usersList.length})</h3>
                 </div>
               </div>
@@ -6021,7 +6032,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-3 font-bold font-sans text-slate-900">{u.fullName}</td>
                         <td className="p-3 text-slate-600">{u.email}</td>
-                        <td className="p-3 font-bold text-[#62BC37]">{u.role}</td>
+                        <td className="p-3 font-bold text-slate-700">{u.role}</td>
                         <td className="p-3 text-slate-600">{u.assignedStation || 'EWK'}</td>
                         <td className="p-3 text-right">
                           <button
@@ -6055,7 +6066,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Approved & Disbursed Funds</span>
-                <p className="text-2xl font-black text-[#62BC37] font-mono">
+                <p className="text-2xl font-black text-slate-700 font-mono">
                   ₦{requests.filter(r => r.status === 'APPROVED' || r.status === 'DISBURSED').reduce((acc, r) => acc + (Number(r.amount) || 0), 0).toLocaleString()}
                 </p>
                 <span className="text-[10px] text-emerald-700 font-bold">Disbursed via GTBank API</span>
@@ -6074,7 +6085,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">OPERATIONAL EXPENSE LEDGER</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">OPERATIONAL EXPENSE LEDGER</span>
                   <h3 className="text-base font-black text-slate-900">
                     Field Requisition Requests & GTBank Disbursal Terminal
                   </h3>
@@ -6137,7 +6148,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             {!isApproved && !isDisbursed && (
                               <button
                                 onClick={() => handleApproveRequisition(req.id)}
-                                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
+                                className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs"
                               >
                                 Approve
                               </button>
@@ -6177,7 +6188,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Available for Loading</span>
-                <p className="text-2xl font-black text-[#62BC37] font-mono">
+                <p className="text-2xl font-black text-slate-700 font-mono">
                   {wagons.filter(w => w.status === 'AVAILABLE').length} Wagons
                 </p>
                 <span className="text-[10px] text-emerald-700 font-bold">Ready at Sidings</span>
@@ -6204,14 +6215,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ROLLING STOCK ASSET MANAGEMENT</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">ROLLING STOCK ASSET MANAGEMENT</span>
                   <h3 className="text-base font-black text-slate-900">
                     Active Wagon Inventory & Terminal Allocation
                   </h3>
                 </div>
                 <button
                   onClick={() => setRegisterWagonModal(true)}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
                 >
                   <span>+ Register New Wagon</span>
                 </button>
@@ -6265,7 +6276,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">ROLLING STOCK REGISTRATION</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">ROLLING STOCK REGISTRATION</span>
                   <h3 className="text-base font-black text-slate-900">Provision New Fleet Wagon</h3>
                 </div>
                 <button onClick={() => setRegisterWagonModal(false)} className="text-slate-400 font-bold hover:text-slate-900">×</button>
@@ -6330,7 +6341,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-2.5 rounded-xl shadow-md transition-all"
+                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-2.5 rounded-xl shadow-md transition-all"
                   >
                     Register Wagon →
                   </button>
@@ -6359,7 +6370,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
             <div className="border-b border-slate-100 pb-4 flex justify-between items-center flex-wrap gap-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Spatie Role-Based Access Control</span>
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Spatie Role-Based Access Control</span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                   Interactive & Editable Permissions Matrix
                 </h3>
@@ -6389,7 +6400,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   type="button"
                   onClick={handleSavePermissionsMatrix}
                   disabled={isSavingPermissions}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
                   {isSavingPermissions ? (
                     <>
@@ -6426,7 +6437,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     type="checkbox"
                     checked={systemSettings.allowAdminClientNegotiations}
                     onChange={(e) => handleToggleAdminNegotiations(e.target.checked)}
-                    className="w-5 h-5 text-[#62BC37] rounded focus:ring-[#62BC37] cursor-pointer"
+                    className="w-5 h-5 text-slate-700 rounded focus:ring-slate-900 cursor-pointer"
                   />
                 </div>
               </div>
@@ -6442,7 +6453,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-<span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-[#62BC37]" /><span>Granular Action Matrix</span></span>
+<span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-slate-700" /><span>Granular Action Matrix</span></span>
               </button>
               <button
                 onClick={() => setPermissionsSubTab('matrix')}
@@ -6484,7 +6495,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => setSelectedPermissionRole(r.key)}
                       className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
                         selectedPermissionRole === r.key
-                          ? 'bg-[#62BC37] text-white shadow-md'
+                          ? 'bg-slate-900 text-white shadow-md'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                       }`}
                     >
@@ -6584,7 +6595,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             <button
                               type="button"
                               onClick={() => handleToggleModuleAll(selectedPermissionRole, modPermIds, !allGranted)}
-                              className="text-[10px] font-bold text-[#62BC37] hover:underline cursor-pointer"
+                              className="text-[10px] font-bold text-slate-700 hover:underline cursor-pointer"
                             >
                               {allGranted ? 'Revoke Module' : 'Grant Module'}
                             </button>
@@ -6612,10 +6623,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   checked={isChecked}
                                   disabled={isSuperAdmin}
                                   onChange={() => !isSuperAdmin && handleToggleGranularPermission(selectedPermissionRole, act.key)}
-                                  className={`w-4 h-4 rounded focus:ring-[#62BC37] mt-0.5 ${
+                                  className={`w-4 h-4 rounded focus:ring-slate-900 mt-0.5 ${
                                     isSuperAdmin
                                       ? 'text-purple-500 cursor-not-allowed opacity-70'
-                                      : 'text-[#62BC37] cursor-pointer'
+                                      : 'text-slate-700 cursor-pointer'
                                   }`}
                                 />
                               </div>
@@ -6688,10 +6699,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                   disabled={isSuperAdmin}
                                   onChange={() => !isSuperAdmin && handleTogglePermission(key, tab.key)}
                                   title={isSuperAdmin ? 'Super-admins always have full access' : `Toggle ${tab.label} for ${label}`}
-                                  className={`w-4 h-4 rounded focus:ring-[#62BC37] ${
+                                  className={`w-4 h-4 rounded focus:ring-slate-900 ${
                                     isSuperAdmin
                                       ? 'text-purple-500 cursor-not-allowed opacity-70'
-                                      : 'text-[#62BC37] cursor-pointer'
+                                      : 'text-slate-700 cursor-pointer'
                                   }`}
                                 />
                               </td>
@@ -6759,7 +6770,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                         <div className="text-right">
                           <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Granted Capabilities</span>
-                          <span className="text-base font-black font-mono text-[#62BC37]">{activePerms.length} Active</span>
+                          <span className="text-base font-black font-mono text-slate-700">{activePerms.length} Active</span>
                         </div>
                       </div>
 
@@ -6803,7 +6814,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 type="button"
                 onClick={handleSavePermissionsMatrix}
                 disabled={isSavingPermissions}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
               >
                 {isSavingPermissions ? 'Saving to Database...' : 'Save & Enforce Permissions'}
               </button>

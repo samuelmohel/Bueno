@@ -518,6 +518,12 @@ class StateEngineService {
   seedInitialProductionState(): void {
     if (typeof window === 'undefined') return;
     try {
+      const PROD_RELEASE_KEY = 'bueno_prod_v35_clean_slate_live';
+      if (localStorage.getItem('bueno_cache_version') !== PROD_RELEASE_KEY) {
+        localStorage.setItem('bueno_cache_version', PROD_RELEASE_KEY);
+        this.cleanProductionPurge();
+      }
+
       // Always cleanse any stray legacy mock entries in browser storage
       this.cleanseLafargeAndMigrateHbm();
 
