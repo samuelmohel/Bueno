@@ -336,12 +336,12 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
   const occupiedWagonIds = getOccupiedWagonIds(trips);
   const availableWagons = wagons.filter((w) => !occupiedWagonIds.has(w.id));
 
-  // Station filtering
-  const myDeals = deals.filter((d) => !d.origin || d.origin === station || d.status === 'APPROVED');
-  const myTrips = trips.filter((t) => t.status === 'LOADING' || t.origin === station);
+  // Inclusive deal and trip views — ensures NO deal created from Admin is ever hidden
+  const myDeals = deals.filter((d) => d.status !== 'COMPLETED' && d.status !== 'CANCELLED');
+  const myTrips = trips.filter((t) => t.status === 'LOADING' || t.status === 'PENDING_DISPATCH');
   const myInTransit = trips.filter((t) => t.status === 'IN_TRANSIT');
   const myIncomingUnload = trips.filter(
-    (t) => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.destination === station
+    (t) => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'ARRIVED' || t.destination === station
   );
 
   const saveTrips = (updated: any[]) => {
@@ -397,7 +397,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       monitoringOfficer: tripForm.monitoringOfficer || user?.fullName || 'Ade Bello',
       cargoOfficerName: user?.fullName || 'Ade Bello',
       company: createDeal.company,
-      origin: station,
+      origin: createDeal.loadingStation || createDeal.origin || station,
       destination: createDeal.destination || 'MNY',
       cargoType: createDeal.cargoType || 'Bagged Cement (50kg)',
       quantity: totalBags,
@@ -627,7 +627,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 subtitle={`Approved freight deals allocated to ${sName(station)} — click 'Create Trip' to configure consist & start timed wagon loading`}
               >
                 <TableWrap
-                  headers={['Deal ID', 'Client / Consignor', 'Destination', 'Cargo Spec & Bags', 'Action']}
+                  headers={['Deal ID', 'Client / Consignor', 'Route Corridor', 'Cargo Spec & Bags', 'Action']}
                   mobileCard={(d: any) => (
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
@@ -680,7 +680,13 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                           <p className="font-bold text-slate-900">{d.company}</p>
                           <p className="text-[10px] text-slate-400">Approved Commercial Contract</p>
                         </td>
-                        <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
+                        <td className="p-4 text-slate-700 font-semibold">
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="font-bold text-slate-800">{sName(d.loadingStation || d.origin || station)}</span>
+      <span className="text-slate-400">➔</span>
+      <span className="font-bold text-[#0E4B88]">{sName(d.destination || 'MNY')}</span>
+    </div>
+  </td>
                         <td className="p-4 text-slate-700">
                           <div className="font-medium">{d.cargoType}</div>
                           <div className="font-mono font-bold text-emerald-700">
