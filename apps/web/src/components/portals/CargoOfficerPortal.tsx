@@ -1,116 +1,310 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { StateEngine, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
+import React, { useState, useEffect } from 'react';
+import { StateEngine, SEED_WAGONS, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 import { TerminalInformationView } from '@/components/TerminalInformationView';
-import { Inbox, Train, RefreshCw, AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
+import {
+  Train,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Truck,
+  FileText,
+  ShieldCheck,
+  Play,
+  Square,
+  Plus,
+  ArrowRight,
+  ArrowLeft,
+  ChevronRight,
+  MapPin,
+  Building2,
+  Package,
+  Search,
+  DollarSign,
+  MessageSquare,
+  X,
+  Radio,
+  Compass,
+  Layers,
+  LogOut,
+  Menu,
+  Check,
+  Send,
+  UserCheck,
+  Calendar
+} from 'lucide-react';
 
-// COMMODITY CONFIG MATRIX FOR CARGO OFFICERS
-const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
-  'Bagged Cement (50kg)': { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' },
-  'Bulk Gypsum': { unit: 'Metric Tonnes (MT)', wagonType: 'Open Top Gondola Wagon', auditMetric: 'Transit Shrinkage (MT)' },
-  'Limestone Raw Ore': { unit: 'Metric Tonnes (MT)', wagonType: 'Bottom Dumper Wagon', auditMetric: 'Spillage Loss (MT)' },
-  'Clinker Bulk': { unit: 'Metric Tonnes (MT)', wagonType: 'Gondola Wagon', auditMetric: 'Weight Deviation (MT)' },
-  'Shipping Containers (20ft/40ft)': { unit: 'Containers (TEU)', wagonType: 'Flatbed Container Wagon', auditMetric: 'Seal Integrity' },
-  'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon', auditMetric: 'Ullage Loss (L)' },
+/* ─────────────────────────────────────────────────────────
+   STATIONS & NOMENCLATURE
+───────────────────────────────────────────────────────── */
+const STATIONS: Record<string, string> = {
+  EWK: 'Ewekoro Terminal',
+  ITO: 'Itori Junction',
+  MNY: 'Moniya Yard (Ibadan)',
+  MONI: 'Moniya Yard (Ibadan)',
+  ILR: 'Ilorin Freight Hub',
+  APT: 'Apapa Maritime Port',
+  APQ: 'Apapa Port',
+  KAD: 'Kaduna Inland Dry Port',
+  KAN: 'Kano Dala Port',
+  PAPA: 'Papalanto Terminal',
 };
 
+const sName = (c: string) => STATIONS[c] || c || 'Station';
+
+const WAGON_TYPES = [
+  { code: 'PXG', name: 'PXG Covered Hopper (Cement / Bags)' },
+  { code: 'GND', name: 'Open Top Gondola Wagon (Gypsum / Minerals)' },
+  { code: 'BTM', name: 'Bottom Dumper Wagon (Limestone / Raw Ore)' },
+  { code: 'FLT', name: 'Flatbed Container Wagon (20ft / 40ft TEU)' },
+  { code: 'TNK', name: 'Tanker Wagon (Diesel / Liquid Fuel)' },
+];
+
+function getOccupiedWagonIds(trips: any[]): Set<string> {
+  const occupied = new Set<string>();
+  (trips || []).forEach((t: any) => {
+    if (t.status === 'LOADING' || t.status === 'IN_TRANSIT' || t.status === 'UNLOADING') {
+      (t.wagonLogs || []).forEach((w: any) => {
+        if (w.wagonId && w.unloadStatus !== 'UNLOADED') {
+          occupied.add(w.wagonId);
+        }
+      });
+      if (t.wagonId1) occupied.add(t.wagonId1);
+      if (t.wagonId2) occupied.add(t.wagonId2);
+    }
+  });
+  return occupied;
+}
+
+const ic = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]';
+const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1';
+
+function Badge({ text, color }: { text: string; color?: string }) {
+  const c = color || 'amber';
+  const cls: Record<string, string> = {
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    blue: 'bg-sky-50 text-sky-700 border-sky-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    rose: 'bg-rose-50 text-rose-700 border-rose-200',
+    red: 'bg-rose-50 text-rose-700 border-rose-200',
+    slate: 'bg-slate-100 text-slate-700 border-slate-200',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${cls[c] || cls.amber}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+      {text}
+    </span>
+  );
+}
+
+function stageColor(s: string) {
+  if (s === 'Paid' || s === 'Approved' || s === 'DISBURSED') return 'green';
+  if (s === 'Accountant' || s === 'Finance') return 'purple';
+  if (s === 'CEO') return 'blue';
+  if (s === 'Operations' || s === 'Admin') return 'amber';
+  return 'slate';
+}
+
+function Modal({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CustomAlertModal({
+  isOpen,
+  title,
+  message,
+  onClose,
+}: {
+  isOpen: boolean;
+  title?: string;
+  message: string | null;
+  onClose: () => void;
+}) {
+  if (!isOpen || !message) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 font-sans text-center">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
+          <CheckCircle2 className="w-6 h-6" />
+        </div>
+        <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+          {title || 'System Notification'}
+        </h3>
+        <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{message}</p>
+        <button
+          onClick={onClose}
+          className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+        >
+          Acknowledge & Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+        <div>
+          <h2 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+            {title}
+          </h2>
+          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TableWrap({
+  headers,
+  children,
+  mobileCard,
+  data = [],
+}: {
+  headers: string[];
+  children: React.ReactNode;
+  mobileCard?: (item: any, i: number) => React.ReactNode;
+  data?: any[];
+}) {
+  return (
+    <div className="space-y-3">
+      {/* Desktop View */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-900 text-white">
+              <tr>
+                {headers.map((h) => (
+                  <th key={h} className="text-left p-4 text-[10px] font-extrabold uppercase tracking-widest whitespace-nowrap">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">{children}</tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile View */}
+      {mobileCard && data.length > 0 && (
+        <div className="md:hidden space-y-3">
+          {data.map((item, i) => (
+            <div key={item.id || i} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              {mobileCard(item, i)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   LIVE STOPWATCH TIMER COMPONENT (ticks seconds in real-time)
+───────────────────────────────────────────────────────── */
+export function LiveTimer({ ts }: { ts: number }) {
+  const [sec, setSec] = useState(0);
+
+  useEffect(() => {
+    const tick = () => setSec(Math.max(0, Math.floor((Date.now() - ts) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [ts]);
+
+  const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+  const ss = String(sec % 60).padStart(2, '0');
+
+  return (
+    <span className="font-mono font-black text-emerald-600 text-base sm:text-lg tracking-wider flex items-center gap-1.5">
+      <Clock className="w-4 h-4 animate-spin text-[#62BC37]" />
+      {hh}:{mm}:{ss}
+    </span>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   MAIN CARGO OFFICER PORTAL COMPONENT
+───────────────────────────────────────────────────────── */
 export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: () => void }) {
-  const [activeTab, setActiveTab] = useState<'loading' | 'dispatch' | 'unloading' | 'requisitions' | 'wagons' | 'history' | 'moniya' | 'terminal_info'>('loading');
-  const [trips, setTrips] = useState<any[]>([]);
-  const [wagons, setWagons] = useState<any[]>([]);
-  const [deals, setDeals] = useState<any[]>([]);
-  const [selectedTripId, setSelectedTripId] = useState<string>('');
+  const [view, setView] = useState<
+    'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds' | 'terminal_info'
+  >('deals');
+
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
+  const [selectedReq, setSelectedReq] = useState<any | null>(null);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
-  // DATE FILTERING STATES FOR DE-CONGESTION
-  const [dealsQueueFilter, setDealsQueueFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY'>('ALL');
-  const [historyDateFilter, setHistoryDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('ALL');
-  const [unloadingDateFilter, setUnloadingDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY'>('ALL');
+  const [deals, setDeals] = useState<any[]>([]);
+  const [trips, setTrips] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [wagons, setWagons] = useState<any[]>([]);
 
-  // TRIP CREATION FROM DEALS STATE
-  const [createTripModalDeal, setCreateTripModalDeal] = useState<any | null>(null);
+  const [createDeal, setCreateDeal] = useState<any | null>(null);
+  const [addWagonModal, setAddWagonModal] = useState(false);
+  const [fundsModal, setFundsModal] = useState(false);
+
+  const [newWagonId, setNewWagonId] = useState('');
   const [tripForm, setTripForm] = useState({
     locomotiveId: 'L2205',
-    wagonId1: 'PXG 2322',
-    wagonId2: 'PXG 2323',
-    weighbridgeGrossMt: '80.5',
-    seal1: 'SEAL-BN-9801',
-    seal2: 'SEAL-BN-9802',
-    escortName: 'Inspector Segun Alabi',
-    badgeId: 'NRC-ESC-2026-08',
+    selectedWagon: '',
+    loadingDate: '',
+    qty: '27600',
+    startTime: '',
+    driverName: 'Engr. Kabiru Usman (NRC-DRV-102)',
+    crewMembers: 'Sani Bello, Timothy Danjuma',
+    monitoringOfficer: user?.fullName || 'Ade Bello',
   });
 
-  // DISPATCH ESCORT MODAL STATE
-  const [dispatchModalTrip, setDispatchModalTrip] = useState<any | null>(null);
-  const [escortForm, setEscortForm] = useState({
-    officerName: 'Inspector Segun Alabi',
-    officerPhone: '+234 803 777 9900',
-    badgeId: 'NRC-ESC-2026-08',
-    sendSmsPing: true,
-    clientEmail: '',
-  });
-
-  // ORIGIN SIDING LOADING FORM
-  const [loadingForm, setLoadingForm] = useState({
-    wagonId: 'PXG 2322',
-    cargoType: 'Bagged Cement (50kg)',
-    quantity: '70',
-    sealNumber: 'SEAL-BN-9801',
-    feederTruckNo: 'TRK-KJA-981-XP',
-    weighbridgeGrossMt: '80.5',
-    notes: '',
-  });
-
-  // DESTINATION YARD UNLOADING FORM
-  const [unloadingForm, setUnloadingForm] = useState({
-    wagonId: 'PXG 2322',
-    sealVerified: true,
-    intactQuantity: '70',
-    discrepancyCount: '0',
-    sidingBay: 'Warehouse Siding Bay #4',
-    feederTruckNo: 'TRK-KJA-981-XP',
-    remarks: 'Cargo unloaded intact with 0 defects',
-  });
-
-  // NEW WAGON REGISTRATION FORM
-  const [newWagonForm, setNewWagonForm] = useState({
-    wagonId: 'GND 4405',
-    wagonType: 'Open Top Gondola Wagon',
-    payloadCapacity: '70 MT',
-    currentStation: user?.assignedStation || 'EWK',
-    gauge: 'STANDARD_GAUGE',
-    status: 'AVAILABLE',
-  });
-
-  // FIELD FUND REQUISITION STATES
-  const [requests, setRequests] = useState<any[]>(() => StateEngine.getRequests());
-  const [showFundModal, setShowFundModal] = useState(false);
   const [fundForm, setFundForm] = useState({
     title: '',
-    category: 'Tarpaulin Covering & Lashing (₦350,000)',
     amount: '350000',
-    tripNo: '',
+    category: 'Tarpaulin Covering & Lashing (₦350,000)',
+    tripNo: 'TRIP-001',
     vesselNo: 'VSL-APMT-992',
     description: '',
   });
-  const [selectedReqForChat, setSelectedReqForChat] = useState<any | null>(null);
-  const [chatInput, setChatInput] = useState('');
 
   const station = user?.assignedStation || 'EWK';
-  const isDestinationYard = station === 'MNY';
 
+  // Sync state from StateEngine & remote cPanel backend
   const syncData = () => {
+    const liveDeals = StateEngine.getDeals();
     const liveTrips = StateEngine.getTrips();
+    const liveWagons = StateEngine.getWagons();
+    const liveRequests = StateEngine.getRequests();
+
+    setDeals(liveDeals);
     setTrips(liveTrips);
-    setWagons(StateEngine.getWagons());
-    setDeals(StateEngine.getDeals());
-    setRequests(StateEngine.getRequests());
-    if (liveTrips.length > 0 && !selectedTripId) {
-      setSelectedTripId(liveTrips[0].id);
-    }
+    setWagons(liveWagons.length > 0 ? liveWagons : SEED_WAGONS);
+    setRequests(liveRequests);
   };
 
   useEffect(() => {
@@ -124,285 +318,1251 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const handleUpdate = () => syncData();
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('bueno_state_updated', handleUpdate);
-    window.addEventListener('bueno_permissions_updated', handleUpdate);
+
+    const now = new Date();
+    setTripForm((f) => ({
+      ...f,
+      loadingDate: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      startTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }));
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('bueno_state_updated', handleUpdate);
-      window.removeEventListener('bueno_permissions_updated', handleUpdate);
     };
   }, []);
 
-  useEffect(() => {
-    if (isDestinationYard) {
-      setActiveTab('unloading');
-    } else {
-      setActiveTab('loading');
-    }
-  }, [isDestinationYard]);
+  const occupiedWagonIds = getOccupiedWagonIds(trips);
+  const availableWagons = wagons.filter((w) => !occupiedWagonIds.has(w.id));
 
-  // Tab Access Fallback if permission revoked
-  useEffect(() => {
-    const availableTabs = [
-      { id: 'loading' },
-      { id: 'dispatch' },
-      { id: 'unloading' },
-      { id: 'requisitions' },
-      { id: 'wagons' },
-      { id: 'terminal_info' },
-      { id: 'history' },
-      { id: 'moniya' },
-    ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => t.id);
+  // Station filtering
+  const myDeals = deals.filter((d) => !d.origin || d.origin === station || d.status === 'APPROVED');
+  const myTrips = trips.filter((t) => t.status === 'LOADING' || t.origin === station);
+  const myInTransit = trips.filter((t) => t.status === 'IN_TRANSIT');
+  const myIncomingUnload = trips.filter(
+    (t) => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.destination === station
+  );
 
-    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
-      setActiveTab(availableTabs[0] as any);
-    }
-  }, [user, activeTab]);
-
-  const activeTrip = trips.find((t) => t.id === selectedTripId || t.tripId === selectedTripId) || trips[0];
-  const cargoConf = COMMODITY_CONFIG[loadingForm.cargoType] || { unit: 'Bags', wagonType: 'Covered Hopper Wagon', auditMetric: 'Burst Bags' };
-
-  // 1. LOG WAGON LOADING & APPLY SECURITY SEAL
-  const handleLogWagonLoading = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeTrip) return;
-
-    const quantityNum = Number(loadingForm.quantity) || 70;
-    const unitLabel = cargoConf.unit;
-
-    const newWagonLog = {
-      wagonId: loadingForm.wagonId,
-      status: 'LOADED',
-      loadedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      bagsCount: `${quantityNum} ${unitLabel}`,
-      quantityNum: quantityNum,
-      qty: quantityNum,
-      unitOfMeasure: unitLabel,
-      sealNumber: loadingForm.sealNumber,
-      feederTruckNo: loadingForm.feederTruckNo,
-      weighbridgeGrossMt: loadingForm.weighbridgeGrossMt,
-      cargoOfficerName: user?.fullName || 'Ade Bello',
-    };
-
-    const currentWagonLogs = activeTrip.wagonLogs || [];
-    const updatedWagonLogs = [newWagonLog, ...currentWagonLogs.filter((w: any) => w.wagonId !== loadingForm.wagonId)];
-
-    StateEngine.updateTrip(activeTrip.id, {
-      wagonLogs: updatedWagonLogs,
-      status: 'LOADING',
-      cargoOfficerName: user?.fullName || 'Ade Bello',
-    });
-
-    const updatedTrips = trips.map((t: any) =>
-      t.id === activeTrip.id ? { ...t, wagonLogs: updatedWagonLogs, status: 'LOADING' } : t
-    );
-    setTrips(updatedTrips);
-
-    setCustomAlert({
-      title: 'Wagon Loading & Seal Recorded',
-      message: `Wagon ${loadingForm.wagonId} loaded with ${quantityNum} ${unitLabel} for ${activeTrip.company}! Security Seal ${loadingForm.sealNumber} applied & locked.`,
-    });
-
-    setLoadingForm({
-      ...loadingForm,
-      wagonId: `PXG ${Math.floor(2300 + Math.random() * 99)}`,
-      sealNumber: `SEAL-BN-${Math.floor(9000 + Math.random() * 999)}`,
-    });
+  const saveTrips = (updated: any[]) => {
+    setTrips(updated);
+    StateEngine.saveTrips(updated);
   };
 
-  // 1B. CREATE TRIP FROM APPROVED COMMERCIAL DEAL
-  const handleCreateTripFromDeal = (e: React.FormEvent) => {
+  const saveDeals = (updated: any[]) => {
+    setDeals(updated);
+    StateEngine.saveDeals(updated);
+  };
+
+  const saveWagons = (updated: any[]) => {
+    setWagons(updated);
+    StateEngine.saveWagons(updated);
+  };
+
+  const saveRequests = (updated: any[]) => {
+    setRequests(updated);
+    StateEngine.saveRequests(updated);
+  };
+
+  // 1. Create Trip from Deal
+  const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createTripModalDeal) return;
+    if (!createDeal) return;
 
-    const deal = createTripModalDeal;
-    const isMonthly = deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
-    const totalPlannedTrips = deal.totalPlannedTrips || 10;
-    const nextTrancheNum = (deal.dispatchedTripsCount || 0) + 1;
-    const trancheVolume = isMonthly
-      ? (deal.trancheTonnage || Math.round((Number(deal.quantity) || 9200) / totalPlannedTrips))
-      : (Number(deal.quantity) || 1600);
+    const seqNum = String(trips.length + 1).padStart(3, '0');
+    const formattedTripId = `TRIP-${seqNum}`;
+    const now = new Date();
+    const formattedCreated = `${now.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
-    const dealCargoType = deal?.cargoType || 'Bagged Cement (50kg)';
-    const unitLabel = COMMODITY_CONFIG[dealCargoType]?.unit || 'Bags';
-    const wagonTypeLabel = COMMODITY_CONFIG[dealCargoType]?.wagonType || 'Covered Hopper Wagon';
-    const newTripId = 'TRP-' + Math.floor(1000 + Math.random() * 8999);
+    const isMonthly = createDeal.dealType === 'MONTHLY_CONTRACT' || createDeal.isMonthlyContract;
+    const totalPlannedTrips = createDeal.totalPlannedTrips || 10;
+    const totalBags = isMonthly
+      ? createDeal.trancheTonnage || Math.round((Number(createDeal.quantity) || 27600) / totalPlannedTrips)
+      : Number(createDeal.quantity) || 27600;
 
-    // Calculate wagon consist allocations based on railway physical constraints
-    const isCementOrBags = (dealCargoType || '').toLowerCase().includes('cement') || unitLabel.toLowerCase().includes('bag');
-    const trancheBags = isCementOrBags ? (unitLabel === 'Bags' ? trancheVolume : Math.round(trancheVolume * 20)) : trancheVolume;
-    const requiredWagons = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
-    const bagsPerWagon = Math.min(1200, Math.round(trancheBags / requiredWagons));
+    const targetWagonsCount = Math.min(23, Math.max(1, Math.ceil(totalBags / 1200)));
 
-    const initialWagonLogs: any[] = [];
-    if (tripForm.wagonId1) {
-      initialWagonLogs.push({
-        wagonId: tripForm.wagonId1,
-        loadedAt: 'Just Now',
-        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
-        sealNumber: tripForm.seal1 || `SEAL-BN-${Math.floor(1000 + Math.random() * 8999)}`,
-        condition: 'LOADED_INTACT',
-        burstBags: 0,
-        damageQty: 0,
-      });
-    }
-    if (tripForm.wagonId2 && tripForm.wagonId2 !== tripForm.wagonId1) {
-      initialWagonLogs.push({
-        wagonId: tripForm.wagonId2,
-        loadedAt: 'Just Now',
-        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
-        sealNumber: tripForm.seal2 || `SEAL-BN-${Math.floor(1000 + Math.random() * 8999)}`,
-        condition: 'LOADED_INTACT',
-        burstBags: 0,
-        damageQty: 0,
-      });
-    }
-    // Pre-populate consist to match the required wagons from official fleet
-    if (initialWagonLogs.length < requiredWagons) {
-      const existingIds = new Set(initialWagonLogs.map((w) => w.wagonId));
-      for (let i = 0; i < 46 && initialWagonLogs.length < requiredWagons; i++) {
-        const candidateId = OFFICIAL_PXG_CODES[i];
-        if (!existingIds.has(candidateId)) {
-          existingIds.add(candidateId);
-          initialWagonLogs.push({
-            wagonId: candidateId,
-            loadedAt: 'Ready for Loading',
-            bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
-            sealNumber: `SEAL-BN-${9100 + (nextTrancheNum * 23) + initialWagonLogs.length}`,
-            condition: 'LOADED_INTACT',
-            burstBags: 0,
-            damageQty: 0,
-          });
-        }
-      }
-    }
-
-    const newTrip: any = {
-      id: newTripId,
-      tripId: newTripId,
+    const newTrip = {
+      id: formattedTripId,
+      tripId: formattedTripId,
+      tripSequenceNumber: trips.length + 1,
+      dealId: createDeal.id,
       locomotiveId: tripForm.locomotiveId || 'L2205',
-      origin: deal.loadingStation || station || 'EWK',
-      destination: deal.destination || 'MNY',
-      company: deal.companyName || deal.company || 'Consignee Client',
-      dealNumber: deal.dealNumber || deal.id,
-      dealType: isMonthly ? 'MONTHLY_CONTRACT' : 'SINGLE_SPOT',
-      trancheNumber: isMonthly ? nextTrancheNum : undefined,
-      totalPlannedTrips: isMonthly ? totalPlannedTrips : undefined,
-      trancheLabel: isMonthly ? `Tranche ${nextTrancheNum} of ${totalPlannedTrips} (${deal.companyName || deal.company})` : undefined,
-      cargoType: dealCargoType,
-      unitOfMeasure: unitLabel,
-      wagonType: wagonTypeLabel,
-      quantity: trancheVolume,
-      tonnage: `${trancheVolume} MT`,
+      driverName: tripForm.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
+      crewMembers: tripForm.crewMembers || 'Sani Bello, Timothy Danjuma',
+      monitoringOfficer: tripForm.monitoringOfficer || user?.fullName || 'Ade Bello',
       cargoOfficerName: user?.fullName || 'Ade Bello',
-      unloadingOfficerName: 'Musa Ibrahim',
-      escortOfficerName: tripForm.escortName || 'Inspector Segun Alabi',
-      escortBadgeId: tripForm.badgeId || 'NRC-ESC-2026-08',
+      company: createDeal.company,
+      origin: station,
+      destination: createDeal.destination || 'MNY',
+      cargoType: createDeal.cargoType || 'Bagged Cement (50kg)',
+      quantity: totalBags,
+      targetWagonsCount,
       status: 'LOADING',
-      speed: 68,
-      progressPercent: 5,
-      dispatchTime: new Date().toLocaleString('en-GB'),
-      createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      wagonLogs: initialWagonLogs,
-      damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
+      createdAt: formattedCreated,
+      wagonLogs: [],
     };
 
-    StateEngine.saveTrips([newTrip, ...trips]);
-    setTrips([newTrip, ...trips]);
+    // Save trip
+    const updatedTrips = [newTrip, ...trips];
+    saveTrips(updatedTrips);
 
-    // Update Deal: If monthly, increment dispatched count and keep in queue until all tranches launched
-    const currentDeals = StateEngine.getDeals();
-    const updatedDeals = currentDeals.map((d: any) => {
-      if (d.id === deal.id || d.dealNumber === deal.id || d.id === deal.dealNumber) {
-        if (isMonthly) {
-          const newCount = (d.dispatchedTripsCount || 0) + 1;
-          const allFinished = newCount >= totalPlannedTrips;
-          return {
-            ...d,
-            dispatchedTripsCount: newCount,
-            status: allFinished ? 'TRIP_CREATED' : 'APPROVED',
-            tripId: newTrip.id,
-            lastDispatchedTripId: newTrip.id,
-          };
-        }
-        return { ...d, status: 'TRIP_CREATED', tripId: newTrip.id };
+    // Update deal dispatched status
+    const updatedDeals = deals.map((d) => {
+      if (d.id === createDeal.id) {
+        const nextDispatched = (d.dispatchedTripsCount || 0) + 1;
+        const isComplete = nextDispatched >= (d.totalPlannedTrips || 1);
+        return {
+          ...d,
+          dispatchedTripsCount: nextDispatched,
+          status: isComplete ? 'COMPLETED' : 'PARTIALLY_DISPATCHED',
+        };
       }
       return d;
     });
-    StateEngine.saveDeals(updatedDeals);
-    setDeals(updatedDeals);
+    saveDeals(updatedDeals);
 
-    setCreateTripModalDeal(null);
+    // Send notifications
+    try {
+      const notifPayload = {
+        id: `ntf_${Date.now()}`,
+        title: `Trip Initiated: ${newTrip.tripId}`,
+        message: `Locomotive ${newTrip.locomotiveId} assigned for ${newTrip.company}. Wagon loading initiated at ${sName(station)}.`,
+        targetId: newTrip.id,
+        targetTab: 'trips',
+        read: false,
+        createdAt: formattedCreated,
+      };
+      const existing = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+      localStorage.setItem('bueno_notifications', JSON.stringify([notifPayload, ...existing]));
+      fetch('/api/notifications.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifPayload),
+      }).catch(() => {});
+    } catch {}
+
+    setCreateDeal(null);
+    // Immediately open the Trip Wagon Loading Dashboard!
     setSelectedTripId(newTrip.id);
-    setActiveTab('loading');
+  };
 
+  // 2. Register New Wagon to Fleet
+  const handleRegisterWagon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const wId = newWagonId.trim().toUpperCase() || `PXG ${Math.floor(9000 + Math.random() * 999)}`;
+    if (wagons.some((w) => w.id === wId)) {
+      setCustomAlert({
+        title: 'Wagon Already Registered',
+        message: `Wagon ${wId} is already registered in the station fleet inventory!`,
+      });
+      return;
+    }
+    const newW = {
+      id: wId,
+      wagonType: 'PXG Covered Hopper Wagon',
+      capacity: 1200,
+      payloadCapacity: '60 MT (1,200 Bags)',
+      status: 'AVAILABLE',
+      currentStation: station,
+      gauge: 'STANDARD_GAUGE',
+      addedBy: user?.fullName || 'Ade Bello',
+      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    saveWagons([...wagons, newW]);
+    setNewWagonId('');
+    setAddWagonModal(false);
     setCustomAlert({
-      title: isMonthly
-        ? `Monthly Contract Tranche ${nextTrancheNum}/${totalPlannedTrips} Created`
-        : 'Freight Trip Created & Waybill Issued',
-      message: `Trip #${newTrip.id} created for ${newTrip.company} at ${newTrip.origin} Siding!${
-        isMonthly ? ` Tranche ${nextTrancheNum} of ${totalPlannedTrips} (${trancheVolume} MT) queued for loading.` : ''
-      }`,
+      title: 'Wagon Registered',
+      message: `Wagon ${wId} registered successfully at ${sName(station)} Terminal!`,
     });
   };
 
-  // 2. DISPATCH TRAIN WITH ON-BOARD ESCORT OFFICER & LIVE GPS TELEMETRY
-  const handleConfirmDispatchWithEscort = async (e: React.FormEvent) => {
+  // 3. Fund Request Submission
+  const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dispatchModalTrip) return;
-
-    const departureTimeStr = new Date().toLocaleString('en-GB');
-    const clientEmailToUse = (escortForm.clientEmail || dispatchModalTrip.clientEmail || '').trim();
-
-    StateEngine.updateTrip(dispatchModalTrip.id, {
-      status: 'IN_TRANSIT',
-      monitoringOfficerName: escortForm.officerName,
-      monitoringOfficerPhone: escortForm.officerPhone,
-      escortPhone: escortForm.officerPhone,
-      escortBadgeId: escortForm.badgeId,
-      clientEmail: clientEmailToUse,
-      dispatchTime: departureTimeStr,
-      departedAt: departureTimeStr,
-      speed: 68,
-      progressPercent: 5,
+    const req = {
+      id: `REQ-${Date.now()}`,
+      officerName: user?.fullName || 'Ade Bello',
+      station,
+      title: fundForm.title,
+      category: fundForm.category,
+      amount: parseFloat(fundForm.amount) || 0,
+      tripNo: fundForm.tripNo || 'TRIP-001',
+      vesselNo: fundForm.vesselNo || 'VSL-APMT-992',
+      description: fundForm.description,
+      stage: 'Admin',
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      conversation: [
+        {
+          sender: user?.fullName || 'Ade Bello',
+          role: 'Cargo Officer',
+          msg: fundForm.description,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ],
+      paymentDetails: null,
+    };
+    saveRequests([req, ...requests]);
+    setFundsModal(false);
+    setFundForm({
+      title: '',
+      amount: '350000',
+      category: 'Tarpaulin Covering & Lashing (₦350,000)',
+      tripNo: 'TRIP-001',
+      vesselNo: 'VSL-APMT-992',
+      description: '',
     });
+    setView('funds');
+  };
 
-    // 1. Dispatch Live Departure Email to Client via PHP backend
-    if (clientEmailToUse) {
-      try {
-        await fetch('/api/send_mail.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'TRIP_DISPATCH',
-            to: clientEmailToUse,
-            companyName: dispatchModalTrip.company,
-            tripId: dispatchModalTrip.tripId || dispatchModalTrip.id,
-            locomotiveId: dispatchModalTrip.locomotiveId || 'L2205',
-            origin: dispatchModalTrip.origin,
-            destination: dispatchModalTrip.destination,
-            cargoType: dispatchModalTrip.cargoType || 'Heavy Freight Consignment',
-            quantity: `${dispatchModalTrip.quantity || 1600} ${dispatchModalTrip.unitOfMeasure || 'Bags'}`,
-            wagonsCount: String(dispatchModalTrip.wagonLogs?.length || 14),
-            escortWagonId: dispatchModalTrip.escortWagonId || 'BV 01 (Crew Escort Caboose)',
-            escortOfficerName: escortForm.officerName,
-            escortPhone: escortForm.officerPhone,
-            trackingUrl: `https://360.specklessinnovations.com/tracking?tripId=${dispatchModalTrip.id}`,
-          }),
-        });
-      } catch {}
+  const navItems = [
+    { key: 'deals', label: 'Latest Deals (Loading)', icon: FileText },
+    { key: 'trips', label: 'Trips Created (Loading)', icon: Train },
+    { key: 'in_transit', label: 'Trips on the Move', icon: Radio },
+    { key: 'incoming_unload', label: 'Incoming Consignments (Unload)', icon: Truck },
+    { key: 'moniya', label: 'Moniya Container Terminal', icon: Building2 },
+    { key: 'wagons', label: `Wagon Fleet (${wagons.length})`, icon: Layers },
+    { key: 'funds', label: 'Request Funds', icon: DollarSign },
+    { key: 'terminal_info', label: 'Terminal Info Ledger', icon: Compass },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+      {/* Top Navigation Bar */}
+      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#62BC37] to-emerald-400 flex items-center justify-center text-slate-950 font-black shadow-md">
+              <Train className="w-5 h-5 text-slate-950" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm sm:text-base tracking-tight text-white font-mono">BUENO FREIGHT OS</span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#62BC37]/20 text-[#62BC37] border border-[#62BC37]/30">
+                  CARGO COMMAND
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <MapPin className="w-3 h-3 text-[#62BC37]" />
+                Station: <strong className="text-white">{sName(station)}</strong> ({station})
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col text-right">
+              <span className="text-xs font-black text-white">{user?.fullName || 'Cargo Officer'}</span>
+              <span className="text-[10px] font-semibold text-emerald-400 font-mono">ID: {user?.staffId || 'EWK-01'}</span>
+            </div>
+            <button
+              onClick={onSignOut}
+              className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Horizontal Navigation Tabs */}
+        <div className="bg-slate-950/80 border-t border-slate-800/80 backdrop-blur-xs overflow-x-auto">
+          <div className="max-w-7xl mx-auto px-4 flex items-center gap-1 py-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.key && !selectedTripId && !selectedUnloadTripId;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    setView(item.key as any);
+                    setSelectedTripId(null);
+                    setSelectedUnloadTripId(null);
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'bg-[#62BC37] text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      {/* Main Workspace Body */}
+      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1">
+        {selectedTripId ? (
+          /* ACTIVE PER-WAGON LOADING DASHBOARD (TIMED WAGONS & AUDIT) */
+          <TripWagonView
+            tripId={selectedTripId}
+            trips={trips}
+            wagons={wagons}
+            onBack={() => setSelectedTripId(null)}
+            onSaveTrips={saveTrips}
+          />
+        ) : selectedUnloadTripId ? (
+          /* DESTINATION UNLOADING DASHBOARD (TIMED UNLOAD & DISCREPANCY AUDIT) */
+          <TripUnloadWagonView
+            tripId={selectedUnloadTripId}
+            trips={trips}
+            user={user}
+            onBack={() => setSelectedUnloadTripId(null)}
+            onSaveTrips={saveTrips}
+          />
+        ) : (
+          <>
+            {/* VIEW 1: LATEST DEALS (LOADING) — DEFAULT ENTRY POINT */}
+            {view === 'deals' && (
+              <Section
+                title="Latest Deals (Origin Loading Station)"
+                subtitle={`Approved freight deals allocated to ${sName(station)} — click 'Create Trip' to configure consist & start timed wagon loading`}
+              >
+                <TableWrap
+                  headers={['Deal ID', 'Client / Consignor', 'Destination', 'Cargo Spec & Bags', 'Action']}
+                  mobileCard={(d: any) => (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</span>
+                        <span className="text-xs font-bold text-slate-700">{sName(d.destination)}</span>
+                      </div>
+                      <p className="font-bold text-slate-900">{d.company}</p>
+                      <p className="text-xs text-slate-600">
+                        {d.cargoType} ({Number(d.quantity).toLocaleString()} Bags)
+                      </p>
+                      <button
+                        onClick={() => {
+                          setCreateDeal(d);
+                          setTripForm((f) => ({
+                            ...f,
+                            selectedWagon: availableWagons[0]?.id || '',
+                            qty: String(d.quantity || 27600),
+                          }));
+                        }}
+                        className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs py-2.5 rounded-xl mt-2 shadow-sm flex items-center justify-center gap-2 transition-all"
+                      >
+                        <span>Create Trip & Start Loading</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  data={myDeals}
+                >
+                  {myDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-12 text-center bg-gradient-to-b from-slate-50 to-emerald-50/20">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
+                            <ShieldCheck className="w-6 h-6" />
+                          </div>
+                          <h4 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                            {sName(station)} Siding Ready & Operational
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            No pending freight deals allocated to this station right now. Deals registered in the Admin Portal will appear here immediately for trip creation.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    myDeals.map((d) => (
+                      <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</td>
+                        <td className="p-4">
+                          <p className="font-bold text-slate-900">{d.company}</p>
+                          <p className="text-[10px] text-slate-400">Approved Commercial Contract</p>
+                        </td>
+                        <td className="p-4 text-slate-700 font-semibold">{sName(d.destination)}</td>
+                        <td className="p-4 text-slate-700">
+                          <div className="font-medium">{d.cargoType}</div>
+                          <div className="font-mono font-bold text-emerald-700">
+                            {Number(d.quantity).toLocaleString()} Bags ({((Number(d.quantity) || 0) * 0.05).toFixed(0)} MT)
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <button
+                            onClick={() => {
+                              setCreateDeal(d);
+                              setTripForm((f) => ({
+                                ...f,
+                                selectedWagon: availableWagons[0]?.id || '',
+                                qty: String(d.quantity || 27600),
+                              }));
+                            }}
+                            className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+                          >
+                            <span>Create Trip</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </TableWrap>
+              </Section>
+            )}
+
+            {/* VIEW 2: TRIPS CREATED (LOADING) */}
+            {view === 'trips' && (
+              <Section
+                title="Trips Created (Wagon Loading)"
+                subtitle="Trips active at this terminal — click any trip row to enter the timed wagon loading dashboard"
+              >
+                <TableWrap
+                  headers={['Trip ID', 'Cargo Officer', 'Company / Cargo', 'Route Corridor', 'Wagons Loaded', 'Action']}
+                  mobileCard={(t: any) => {
+                    const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
+                    return (
+                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                          <span className="font-mono font-bold text-[#62BC37] text-xs">
+                            {loaded} / {t.targetWagonsCount || 23} Loaded
+                          </span>
+                        </div>
+                        <p className="font-bold text-slate-900">{t.company}</p>
+                        <p className="text-xs text-slate-600">
+                          {sName(t.origin)} ➔ {sName(t.destination)}
+                        </p>
+                        <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                          <span>Open Wagon Loading Console</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </p>
+                      </div>
+                    );
+                  }}
+                  data={myTrips}
+                >
+                  {myTrips.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                        No active loading trips. Navigate to 'Latest Deals' to create a new trip.
+                      </td>
+                    </tr>
+                  ) : (
+                    myTrips.map((t) => {
+                      const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
+                      return (
+                        <tr
+                          key={t.id}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedTripId(t.id)}
+                        >
+                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                          <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900">{t.company}</p>
+                            <p className="text-[10px] text-slate-500">{t.cargoType}</p>
+                          </td>
+                          <td className="p-4 text-slate-600 font-medium">
+                            {sName(t.origin)} ➔ {sName(t.destination)}
+                          </td>
+                          <td className="p-4 font-mono font-bold text-[#62BC37]">
+                            {loaded} / {t.targetWagonsCount || 23} Wagons
+                          </td>
+                          <td className="p-4">
+                            <span className="text-xs font-bold text-[#0E4B88] hover:underline flex items-center gap-1">
+                              <span>Open Loading</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </TableWrap>
+              </Section>
+            )}
+
+            {/* VIEW 3: TRIPS ON THE MOVE (IN TRANSIT) */}
+            {view === 'in_transit' && (
+              <div className="space-y-4">
+                <Section
+                  title="Trips on the Move (Live Corridor Transit)"
+                  subtitle="Active train consists departed from your station currently running along the Lagos-Ibadan corridor"
+                >
+                  <TableWrap
+                    headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status', 'Action']}
+                    mobileCard={(t: any) => (
+                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                          <Badge text={t.status} color="green" />
+                        </div>
+                        <p className="font-bold text-slate-900">{t.company}</p>
+                        <p className="text-xs font-mono text-slate-700">Loco: {t.locomotiveId}</p>
+                        <p className="text-xs text-slate-600">
+                          {sName(t.origin)} ➔ {sName(t.destination)}
+                        </p>
+                        <p className="text-xs font-bold text-[#62BC37] pt-1 flex items-center gap-1">
+                          <span>Inspect Consist & Telemetry</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </p>
+                      </div>
+                    )}
+                    data={myInTransit}
+                  >
+                    {myInTransit.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                          No trains currently in corridor transit.
+                        </td>
+                      </tr>
+                    ) : (
+                      myInTransit.map((t) => (
+                        <tr
+                          key={t.id}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedTripId(t.id)}
+                        >
+                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                          <td className="p-4 font-bold text-slate-900">{t.company}</td>
+                          <td className="p-4 font-mono text-slate-800 font-bold">{t.locomotiveId}</td>
+                          <td className="p-4 text-slate-600 font-medium">
+                            {sName(t.origin)} ➔ {sName(t.destination)}
+                          </td>
+                          <td className="p-4">
+                            <Badge text={t.status} color="green" />
+                          </td>
+                          <td className="p-4 font-bold text-[#62BC37] hover:underline">Inspect Consist & GPS ➔</td>
+                        </tr>
+                      ))
+                    )}
+                  </TableWrap>
+                </Section>
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+                  <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                    Live GPS Telemetry & Waypoint Corridor
+                  </h3>
+                  <LiveGpsMap trips={myInTransit} />
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 4: INCOMING CONSIGNMENTS (UNLOAD) */}
+            {view === 'incoming_unload' && (
+              <Section
+                title="Incoming Consignments (Destination Unloading Yard)"
+                subtitle={`Consignments scheduled or arrived at ${sName(station)} — click 'Unload Consignment' to audit and discharge wagons`}
+              >
+                <TableWrap
+                  headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Wagon Progress', 'Status', 'Action']}
+                  mobileCard={(t: any) => {
+                    const totalWagons = (t.wagonLogs || []).length;
+                    const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                          <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
+                        </div>
+                        <p className="font-bold text-slate-900">
+                          {t.company} — {t.cargoType}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          Origin: {sName(t.origin)} | Discharged: {unloadedCount} / {totalWagons || 23} Wagons
+                        </p>
+                        <button
+                          onClick={() => setSelectedUnloadTripId(t.id)}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2 rounded-xl mt-1 shadow-xs flex items-center justify-center gap-1"
+                        >
+                          <span>Unload Consignment</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  }}
+                  data={myIncomingUnload}
+                >
+                  {myIncomingUnload.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                        No incoming freight scheduled for {sName(station)}.
+                      </td>
+                    </tr>
+                  ) : (
+                    myIncomingUnload.map((t) => {
+                      const totalWagons = (t.wagonLogs || []).length;
+                      const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                      return (
+                        <tr key={t.id} className="hover:bg-purple-50/40 transition-colors">
+                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                          <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
+                          <td className="p-4 text-slate-700 font-medium">
+                            {t.company} — {t.cargoType}
+                          </td>
+                          <td className="p-4 font-mono font-bold text-slate-900">
+                            {unloadedCount} / {totalWagons || 23} Discharged
+                          </td>
+                          <td className="p-4">
+                            <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
+                          </td>
+                          <td className="p-4">
+                            <button
+                              onClick={() => setSelectedUnloadTripId(t.id)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1 transition-all"
+                            >
+                              <span>Unload Consignment</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </TableWrap>
+              </Section>
+            )}
+
+            {/* VIEW 5: MONIYA CONTAINER TERMINAL */}
+            {view === 'moniya' && <MoniyaContainerView user={user} />}
+
+            {/* VIEW 6: WAGON FLEET INVENTORY */}
+            {view === 'wagons' && (
+              <Section
+                title="Wagon Fleet Inventory (46+ Registered Wagons)"
+                subtitle="Enterprise rolling stock registry — occupied wagons are locked system-wide across loading, corridor transit, and discharge"
+                action={
+                  <button
+                    onClick={() => setAddWagonModal(true)}
+                    className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Register New Wagon</span>
+                  </button>
+                }
+              >
+                <TableWrap
+                  headers={['Wagon ID', 'Carriage Spec', 'Capacity (Bags / MT)', 'Live Status', 'Current Station', 'Added By']}
+                  mobileCard={(w: any) => {
+                    const isOccupied = occupiedWagonIds.has(w.id);
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
+                          <Badge text={isOccupied ? 'LOCKED (IN USE)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                        </div>
+                        <p className="text-xs text-slate-600">
+                          Capacity: {w.capacity || 1200} Bags (60 MT) | Station: {sName(w.currentStation || station)}
+                        </p>
+                      </div>
+                    );
+                  }}
+                  data={wagons}
+                >
+                  {wagons.map((w) => {
+                    const isOccupied = occupiedWagonIds.has(w.id);
+                    return (
+                      <tr key={w.id} className="hover:bg-slate-50 text-xs">
+                        <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
+                        <td className="p-4 text-slate-700 font-semibold">{w.wagonType || 'Covered Hopper'}</td>
+                        <td className="p-4 font-mono font-bold text-slate-700">
+                          {Number(w.capacity || 1200).toLocaleString()} Bags (60 MT)
+                        </td>
+                        <td className="p-4">
+                          <Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                        </td>
+                        <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
+                        <td className="p-4 text-slate-500">{w.addedBy || 'System Registry'}</td>
+                      </tr>
+                    );
+                  })}
+                </TableWrap>
+              </Section>
+            )}
+
+            {/* VIEW 7: REQUEST FUNDS */}
+            {view === 'funds' && (
+              <Section
+                title="Station Expense Requisitions"
+                subtitle="Field operating expense requisitions — submit tarpaulin covering, crane handling, or fuel expense requests"
+                action={
+                  <button
+                    onClick={() => setFundsModal(true)}
+                    className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Request Funds</span>
+                  </button>
+                }
+              >
+                <TableWrap
+                  headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
+                  mobileCard={(r: any) => (
+                    <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                        <Badge text={r.stage} color={stageColor(r.stage)} />
+                      </div>
+                      <p className="font-bold text-slate-900">{r.title}</p>
+                      <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                      <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                        <span>Inspect Conversation & Details</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </p>
+                    </div>
+                  )}
+                  data={requests.filter((r) => r.station === station)}
+                >
+                  {requests.filter((r) => r.station === station).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
+                        No fund requisitions submitted yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    requests
+                      .filter((r) => r.station === station)
+                      .map((r) => (
+                        <tr
+                          key={r.id}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedReq(r)}
+                        >
+                          <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900">{r.title}</p>
+                            <p className="text-[10px] text-slate-500">{r.category}</p>
+                          </td>
+                          <td className="p-4 font-mono font-black text-slate-900">
+                            ₦{Number(r.amount).toLocaleString()}
+                          </td>
+                          <td className="p-4">
+                            <Badge text={r.stage} color={stageColor(r.stage)} />
+                          </td>
+                          <td className="p-4 font-bold text-[#0E4B88] hover:underline">Inspect Details & Chat ➔</td>
+                        </tr>
+                      ))
+                  )}
+                </TableWrap>
+              </Section>
+            )}
+
+            {/* VIEW 8: TERMINAL INFO LEDGER */}
+            {view === 'terminal_info' && <TerminalInformationView user={user} />}
+          </>
+        )}
+      </main>
+
+      {/* CREATE TRIP MODAL (FROM APPROVED DEAL) */}
+      {createDeal && (
+        <Modal onClose={() => setCreateDeal(null)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Configure Consist & Initiate Trip
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Commercial Deal: <strong className="text-slate-800">{createDeal.company}</strong> ({createDeal.dealNumber || createDeal.id})
+                </p>
+              </div>
+              <button onClick={() => setCreateDeal(null)} className="text-slate-400 hover:text-slate-700 font-bold p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTrip} className="space-y-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Route Corridor:</span>
+                  <span className="font-bold text-slate-900">{sName(station)} ➔ {sName(createDeal.destination)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Consignment Cargo:</span>
+                  <span className="font-bold text-slate-900">{createDeal.cargoType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Total Volume:</span>
+                  <span className="font-bold text-emerald-700 font-mono">{Number(createDeal.quantity).toLocaleString()} Bags</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
+                  <span className="text-slate-500">Target Wagon Consist:</span>
+                  <span className="font-mono font-black text-[#0E4B88]">
+                    {Math.min(23, Math.max(1, Math.ceil((Number(createDeal.quantity) || 27600) / 1200)))} Covered Wagons (Max 23)
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className={lc}>Assigned Locomotive ID *</label>
+                <input
+                  required
+                  value={tripForm.locomotiveId}
+                  onChange={(e) => setTripForm({ ...tripForm, locomotiveId: e.target.value })}
+                  placeholder="e.g. L2205"
+                  className={`${ic} font-mono font-black uppercase`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Loading Date *</label>
+                  <input
+                    required
+                    value={tripForm.loadingDate}
+                    onChange={(e) => setTripForm({ ...tripForm, loadingDate: e.target.value })}
+                    className={`${ic} font-mono`}
+                  />
+                </div>
+                <div>
+                  <label className={lc}>Start Time *</label>
+                  <input
+                    required
+                    value={tripForm.startTime}
+                    onChange={(e) => setTripForm({ ...tripForm, startTime: e.target.value })}
+                    className={`${ic} font-mono`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={lc}>Locomotive Train Driver *</label>
+                <input
+                  required
+                  value={tripForm.driverName}
+                  onChange={(e) => setTripForm({ ...tripForm, driverName: e.target.value })}
+                  placeholder="e.g. Engr. Kabiru Usman (NRC-DRV-102)"
+                  className={ic}
+                />
+              </div>
+
+              <div>
+                <label className={lc}>Train Crew Members *</label>
+                <input
+                  required
+                  value={tripForm.crewMembers}
+                  onChange={(e) => setTripForm({ ...tripForm, crewMembers: e.target.value })}
+                  placeholder="e.g. Sani Bello, Timothy Danjuma"
+                  className={ic}
+                />
+              </div>
+
+              <div>
+                <label className={lc}>Monitoring Cargo Officer *</label>
+                <input
+                  required
+                  value={tripForm.monitoringOfficer}
+                  onChange={(e) => setTripForm({ ...tripForm, monitoringOfficer: e.target.value })}
+                  className={ic}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCreateDeal(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all"
+                >
+                  <span>Initiate Trip & Open Wagon Loading</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* REGISTER NEW WAGON MODAL */}
+      {addWagonModal && (
+        <Modal onClose={() => setAddWagonModal(false)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Register Freight Wagon to Fleet
+              </h3>
+              <button onClick={() => setAddWagonModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleRegisterWagon} className="space-y-4">
+              <div>
+                <label className={lc}>Wagon Identification Code *</label>
+                <input
+                  required
+                  placeholder="e.g. PXG 09070"
+                  value={newWagonId}
+                  onChange={(e) => setNewWagonId(e.target.value)}
+                  className={`${ic} font-mono uppercase font-bold`}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-generate standard PXG registration.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Carriage Type</label>
+                  <input readOnly value="PXG Covered Hopper Wagon" className={`${ic} bg-slate-100 text-slate-600`} />
+                </div>
+                <div>
+                  <label className={lc}>Standard Capacity</label>
+                  <input readOnly value="1,200 Bags (60 MT)" className={`${ic} bg-slate-100 text-slate-600 font-mono`} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAddWagonModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-md"
+                >
+                  Register to Fleet Inventory
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* REQUEST FUNDS MODAL */}
+      {fundsModal && (
+        <Modal onClose={() => setFundsModal(false)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Submit Field Expense Requisition
+              </h3>
+              <button onClick={() => setFundsModal(false)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleFundRequest} className="space-y-3">
+              <div>
+                <label className={lc}>Requisition Title *</label>
+                <input
+                  required
+                  placeholder="e.g. Tarpaulin Covering & Lashing Consignment"
+                  value={fundForm.title}
+                  onChange={(e) => setFundForm({ ...fundForm, title: e.target.value })}
+                  className={ic}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Category *</label>
+                  <select
+                    value={fundForm.category}
+                    onChange={(e) => setFundForm({ ...fundForm, category: e.target.value })}
+                    className={ic}
+                  >
+                    <option value="Tarpaulin Covering & Lashing (₦350,000)">Tarpaulin Covering & Lashing</option>
+                    <option value="Equipment & Maintenance">Equipment & Maintenance</option>
+                    <option value="Shunting & Siding Handling">Shunting & Siding Handling</option>
+                    <option value="Locomotive Fueling">Locomotive Fueling</option>
+                    <option value="Terminal Security & Escort">Terminal Security & Escort</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={lc}>Amount Requested (₦) *</label>
+                  <input
+                    required
+                    type="number"
+                    value={fundForm.amount}
+                    onChange={(e) => setFundForm({ ...fundForm, amount: e.target.value })}
+                    className={`${ic} font-mono font-bold`}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={lc}>Associated Trip Number</label>
+                <input
+                  value={fundForm.tripNo}
+                  onChange={(e) => setFundForm({ ...fundForm, tripNo: e.target.value })}
+                  placeholder="e.g. TRIP-001"
+                  className={`${ic} font-mono`}
+                />
+              </div>
+              <div>
+                <label className={lc}>Justification & Operational Details *</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={fundForm.description}
+                  onChange={(e) => setFundForm({ ...fundForm, description: e.target.value })}
+                  placeholder="Describe operational necessity for field clearance..."
+                  className={`${ic} resize-none`}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setFundsModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-md"
+                >
+                  Submit Requisition
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* FUND REQUEST DETAIL & CONVERSATION MODAL */}
+      {selectedReq && (
+        <FundRequestDetailModal
+          req={selectedReq}
+          user={user}
+          onClose={() => setSelectedReq(null)}
+          onSaveRequests={saveRequests}
+          allRequests={requests}
+        />
+      )}
+
+      {/* SYSTEM ALERTS MODAL */}
+      <CustomAlertModal
+        isOpen={!!customAlert}
+        message={customAlert?.message || null}
+        title={customAlert?.title}
+        onClose={() => setCustomAlert(null)}
+      />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   TRIP WAGON LOADING DASHBOARD (Origin Loading Station)
+───────────────────────────────────────────────────────── */
+function TripWagonView({
+  tripId,
+  trips,
+  wagons,
+  onBack,
+  onSaveTrips,
+}: {
+  tripId: string;
+  trips: any[];
+  wagons: any[];
+  onBack: () => void;
+  onSaveTrips: (updated: any[]) => void;
+}) {
+  const trip = trips.find((t: any) => t.id === tripId || t.tripId === tripId);
+  const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
+  const [adding, setAdding] = useState(false);
+  const [selWagon, setSelWagon] = useState('');
+  const [stoppingWagon, setStoppingWagon] = useState<any | null>(null);
+  const [bagsLoadedInput, setBagsLoadedInput] = useState('1200');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+
+  const [loadingLogForm, setLoadingLogForm] = useState({
+    sourceEnv: 'Silo Bay 1 - Loading Siding',
+    truckRegNo: 'KJA-482-XY',
+    driverDetails: 'Ibrahim Garba (08031112233)',
+    transporter: 'HBM Logistics Fleet',
+    startTimeEdit: '',
+    endTimeEdit: '',
+  });
+
+  if (!trip) {
+    return (
+      <div className="p-8 text-center text-xs text-slate-400">
+        Trip not found.{' '}
+        <button onClick={onBack} className="underline text-[#62BC37] font-bold">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const totalBags = Number(trip.quantity) || 27600;
+  const targetCount = trip.targetWagonsCount || Math.min(23, Math.max(1, Math.ceil(totalBags / 1200)));
+
+  const loadedLogs = logs.filter((w: any) => w.status === 'LOADED');
+  const loadedCount = loadedLogs.length;
+  const active = logs.find((w: any) => w.status === 'LOADING');
+  const totalBagsLoadedSoFar = loadedLogs.reduce((acc: number, w: any) => acc + (Number(w.qty) || 0), 0);
+  const allDone = loadedCount >= targetCount;
+  const pct = Math.min(100, Math.round((loadedCount / targetCount) * 100));
+
+  const occupiedWagonIds = getOccupiedWagonIds(trips);
+  const usedInThisTrip = new Set(logs.map((w: any) => w.wagonId));
+  const available = (wagons || SEED_WAGONS).filter(
+    (w: any) => !occupiedWagonIds.has(w.id) && !usedInThisTrip.has(w.id)
+  );
+
+  const isTripInTransit =
+    trip.status === 'IN_TRANSIT' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'ARRIVED';
+
+  const commitLogs = (updated: any[], tripStatusOverride?: string) => {
+    setLogs(updated);
+    const updatedTrips = trips.map((t: any) =>
+      t.id === trip.id ? { ...t, wagonLogs: updated, status: tripStatusOverride || t.status } : t
+    );
+    onSaveTrips(updatedTrips);
+  };
+
+  // Start Loading Stopwatch for Wagon
+  const startLoadingWagon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isTripInTransit) {
+      setCustomAlert({
+        title: 'Loading Locked',
+        message: 'Trip is already in transit or completed! Wagon loading is locked.',
+      });
+      return;
+    }
+    const wId = selWagon || available[0]?.id || 'PXG 09029';
+    if (!wId) {
+      setCustomAlert({
+        title: 'No Wagon Selected',
+        message: 'No available wagon selected for loading!',
+      });
+      return;
     }
 
-    // 2. Post Enterprise Departure Notification across all user portals
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const newLog = {
+      id: `wl_${Date.now()}`,
+      wagonId: wId,
+      startTimestamp: Date.now(),
+      startDate: formattedDate,
+      startTime: formattedTime,
+      endDate: null,
+      endTime: null,
+      durationStr: null,
+      qty: null,
+      sourceEnv: loadingLogForm.sourceEnv || 'Silo Bay 1 - Loading Siding',
+      truckRegNo: loadingLogForm.truckRegNo || 'KJA-482-XY',
+      driverDetails: loadingLogForm.driverDetails || 'Ibrahim Garba (08031112233)',
+      transporter: loadingLogForm.transporter || 'HBM Logistics Fleet',
+      status: 'LOADING',
+      unloadStatus: 'PENDING_UNLOAD',
+    };
+
+    commitLogs([...logs, newLog], 'LOADING');
+    setAdding(false);
+    setSelWagon('');
+  };
+
+  // Open Stop Loading Audit Modal
+  const handleOpenStopModal = (w: any) => {
+    const remainingBags = Math.max(0, totalBags - totalBagsLoadedSoFar);
+    const defaultQty = remainingBags > 0 && remainingBags < 1200 ? remainingBags : 1200;
+    setBagsLoadedInput(String(defaultQty));
+    setLoadingLogForm({
+      sourceEnv: w.sourceEnv || 'Silo Bay 1 - Loading Siding',
+      truckRegNo: w.truckRegNo || 'KJA-482-XY',
+      driverDetails: w.driverDetails || 'Ibrahim Garba (08031112233)',
+      transporter: w.transporter || 'HBM Logistics Fleet',
+      startTimeEdit: w.startTime || '08:30 AM',
+      endTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    setStoppingWagon(w);
+  };
+
+  // Confirm Stop Loading and Record Audit
+  const confirmStopLoading = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stoppingWagon) return;
+
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTime = loadingLogForm.endTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const mins = Math.max(1, Math.round((Date.now() - stoppingWagon.startTimestamp) / 60000));
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
+
+    const bagsQty = Number(bagsLoadedInput) || 1200;
+
+    const updated = logs.map((w: any) => {
+      if (w.id !== stoppingWagon.id) return w;
+      return {
+        ...w,
+        startTime: loadingLogForm.startTimeEdit || w.startTime,
+        endDate: formattedDate,
+        endTime: formattedTime,
+        durationStr,
+        qty: bagsQty,
+        sourceEnv: loadingLogForm.sourceEnv,
+        truckRegNo: loadingLogForm.truckRegNo,
+        driverDetails: loadingLogForm.driverDetails,
+        transporter: loadingLogForm.transporter,
+        status: 'LOADED',
+        unloadStatus: 'PENDING_UNLOAD',
+      };
+    });
+
+    commitLogs(updated);
+    setStoppingWagon(null);
+  };
+
+  // Depart Train & Activate Live GPS Tracker
+  const dispatchAndActivateGps = async () => {
+    if (active) {
+      setCustomAlert({
+        title: 'Wagon Still Loading',
+        message: `Wagon ${active.wagonId} is currently being loaded! Please stop loading before dispatching the train.`,
+      });
+      return;
+    }
+    if (loadedCount < 1) {
+      setCustomAlert({
+        title: 'No Wagons Loaded',
+        message: 'Please load at least 1 wagon before dispatching the train!',
+      });
+      return;
+    }
+
+    const now = new Date();
+    const departureTimeStr = `${now.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const startLat = 6.8974;
+    const startLng = 3.2141;
+
+    try {
+      await fetch(`/api/tracking/gps/${encodeURIComponent(trip.locomotiveId || 'L2205')}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: startLat,
+          lng: startLng,
+          speed: 74,
+          heading: 45,
+          signalQuality: 'GPS_SATELLITE_LIVE',
+        }),
+      });
+    } catch {}
+
     const notifPayload = {
-      id: `notif_${Date.now()}`,
-      title: `Corridor Departure: Train #${dispatchModalTrip.id} En Route`,
-      body: `Trip #${dispatchModalTrip.id} (${dispatchModalTrip.company}) departed ${dispatchModalTrip.origin} heading directly to ${dispatchModalTrip.destination}. Escort: ${escortForm.officerName} (${escortForm.officerPhone}). Live phone satellite GPS tracking activated.`,
-      time: departureTimeStr,
-      type: 'TRIP_DISPATCH',
-      targetId: dispatchModalTrip.id,
-      targetTab: 'telemetry',
+      id: `ntf_${Date.now()}`,
+      title: 'Train Departed Origin Station',
+      message: `Locomotive ${trip.locomotiveId} with ${loadedCount} wagons (${totalBagsLoadedSoFar.toLocaleString()} bags) departed ${sName(
+        trip.origin
+      )} heading to ${sName(trip.destination)}.`,
+      targetId: trip.id,
+      targetTab: 'in_transit',
       read: false,
+      createdAt: departureTimeStr,
     };
 
     try {
@@ -415,1839 +1575,1095 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       }).catch(() => {});
     } catch {}
 
-    setSelectedTripId(dispatchModalTrip.id);
-    try {
-      localStorage.setItem('bueno_active_gps_trip_id', dispatchModalTrip.id);
-    } catch {}
-    setDispatchModalTrip(null);
-    setActiveTab('dispatch');
-
-    setCustomAlert({
-      title: 'Train Dispatched & Live GPS Activated',
-      message: `Train #${dispatchModalTrip.id} is now en route! Escort ${escortForm.officerName} assigned. Departure notification sent to ${clientEmailToUse || 'client email'} and broadcasted across all user dashboards!`,
-    });
-  };
-
-  // 3. LOG WAGON UNLOADING & SEAL CUT AUDIT AT DESTINATION
-  const handleLogWagonUnloading = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeTrip) return;
-
-    const intactNum = Number(unloadingForm.intactQuantity) || 70;
-    const discrepancyNum = Number(unloadingForm.discrepancyCount) || 0;
-    const unitLabel = activeTrip.unitOfMeasure || 'Bags';
-
-    const currentWagonLogs = activeTrip.wagonLogs || [];
-    const updatedWagonLogs = currentWagonLogs.map((w: any) => {
-      if (w.wagonId === unloadingForm.wagonId) {
-        return {
-          ...w,
-          status: 'UNLOADED',
-          unloadStatus: 'UNLOADED',
-          unsealedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unloadingOfficerName: user?.fullName || 'Musa Ibrahim',
-          unloadedIntact: `${intactNum} ${unitLabel}`,
-          correctQty: intactNum,
-          unloadedQty: intactNum,
-          burstBags: discrepancyNum,
-          damageQty: discrepancyNum,
-          discrepancy: discrepancyNum,
-          sidingBay: unloadingForm.sidingBay,
-          sealVerified: unloadingForm.sealVerified,
-          complaintNotes: unloadingForm.remarks || null,
-        };
-      }
-      return w;
-    });
-
-    const updatedDamages = {
-      damagedUnits: (activeTrip.damages?.damagedUnits || 0) + discrepancyNum,
-      burstBags: (activeTrip.damages?.burstBags || 0) + discrepancyNum,
-      complaintNotes: unloadingForm.remarks
-        ? [...(Array.isArray(activeTrip.damages?.complaintNotes) ? activeTrip.damages.complaintNotes : [activeTrip.damages?.complaintNotes]).filter(Boolean), unloadingForm.remarks]
-        : activeTrip.damages?.complaintNotes || [],
-    };
-
-    const allUnloaded = updatedWagonLogs.every((w: any) => w.status === 'UNLOADED' || w.unloadStatus === 'UNLOADED');
-    const now = new Date();
-    const completedTimestamp = `${now.toLocaleDateString('en-GB')}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-
-    StateEngine.updateTrip(activeTrip.id, {
-      wagonLogs: updatedWagonLogs,
-      damages: updatedDamages,
-      unloadingOfficerName: user?.fullName || 'Musa Ibrahim',
-      status: allUnloaded ? 'COMPLETED' : 'IN_TRANSIT',
-      completedAt: allUnloaded ? completedTimestamp : (activeTrip.completedAt || ''),
-    });
-
     const updatedTrips = trips.map((t: any) =>
-      t.id === activeTrip.id ? {
-        ...t,
-        wagonLogs: updatedWagonLogs,
-        damages: updatedDamages,
-        status: allUnloaded ? 'COMPLETED' : 'IN_TRANSIT',
-        completedAt: allUnloaded ? completedTimestamp : t.completedAt
-      } : t
-    );
-    setTrips(updatedTrips);
-
-    if (allUnloaded) {
-      try {
-        const storedWagons = StateEngine.getWagons();
-        const loadedWagonIds = new Set(updatedWagonLogs.map((w: any) => w.wagonId));
-        const updatedWagons = storedWagons.map((w: any) => {
-          if (loadedWagonIds.has(w.id)) {
-            return { ...w, status: 'AVAILABLE', currentStation: activeTrip.destination || 'MNY' };
+      t.id === trip.id
+        ? {
+            ...t,
+            status: 'IN_TRANSIT',
+            gpsActive: true,
+            departedAt: departureTimeStr,
+            gpsStartedAt: now.toISOString(),
+            lastGpsPing: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            currentSpeed: 74,
+            currentCoords: { lat: startLat, lng: startLng },
+            signalStatus: 'GPS Satellite Live',
+            wagonLogs: logs,
           }
-          return w;
-        });
-        StateEngine.saveWagons(updatedWagons);
-        setWagons(updatedWagons);
-      } catch {}
-    }
-
-    setCustomAlert({
-      title: 'Destination Unloading Audited',
-      message: `Wagon ${unloadingForm.wagonId} unsealed & discharged at ${unloadingForm.sidingBay}! Intact: ${intactNum} ${unitLabel}, Discrepancies: ${discrepancyNum}.${allUnloaded ? ' Consignment 100% complete — train status updated to COMPLETED!' : ''}`,
-    });
-  };
-
-  // 3B. FIELD FUND REQUISITION SUBMISSION HANDLER
-  const handleCreateFundRequest = (e: React.FormEvent) => {
-    e.preventDefault();
-    const reqAmount = parseFloat(fundForm.amount) || 0;
-    const reqNo = `REQ-${Math.floor(1000 + Math.random() * 8999)}`;
-    const newReq = {
-      id: reqNo,
-      requisitionNo: reqNo,
-      title: fundForm.title || `${fundForm.category.split('(')[0].trim()} for ${station} Siding`,
-      category: fundForm.category.split('(')[0].trim(),
-      amount: reqAmount,
-      requestedBy: `${user?.fullName || 'Ade Bello'} (Cargo Officer)`,
-      officerName: user?.fullName || 'Ade Bello',
-      officerId: user?.id || 'usr_1',
-      station: station,
-      tripNo: fundForm.tripNo || activeTrip?.id || 'TRIP-001',
-      tripId: fundForm.tripNo || activeTrip?.id || 'TRIP-001',
-      vesselNo: fundForm.vesselNo || 'VSL-APMT-992',
-      stage: 'Admin',
-      status: 'PENDING',
-      description: fundForm.description || fundForm.title,
-      date: new Date().toLocaleDateString('en-GB'),
-      createdAt: new Date().toLocaleString('en-GB'),
-      conversation: [{ sender: user?.fullName || 'Cargo Officer', role: 'Cargo Officer', msg: fundForm.description || 'Field siding requisition submitted for operations clearance.', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }],
-      paymentDetails: null,
-    };
-
-    StateEngine.createRequest(newReq);
-    setRequests([newReq, ...requests]);
-    setShowFundModal(false);
-    setFundForm({ title: '', category: 'Tarpaulin Covering & Lashing (₦350,000)', amount: '350000', tripNo: '', vesselNo: 'VSL-APMT-992', description: '' });
-
-    // Send real-time notification alert to Admin & Executive desks
-    const notif = {
-      id: `notif_${Date.now()}`,
-      title: `Field Siding Requisition: ${newReq.requisitionNo}`,
-      body: `${user?.fullName || 'Cargo Officer'} requested ₦${reqAmount.toLocaleString()} for ${newReq.title} at ${station} Terminal.`,
-      time: 'Just now',
-      type: 'EXPENSE_REQUEST',
-      targetId: newReq.id,
-      targetTab: 'fund_requisitions',
-      read: false,
-    };
-    try {
-      const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
-      localStorage.setItem('bueno_notifications', JSON.stringify([notif, ...existingNotifs]));
-      fetch('/api/notifications.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notif),
-      }).catch(() => {});
-    } catch {}
-
-    setCustomAlert({
-      title: 'Field Requisition Submitted',
-      message: `Requisition ${newReq.requisitionNo} for ₦${reqAmount.toLocaleString()} submitted! Forwarded through executive approval pipeline.`,
-    });
-  };
-
-  const handleSendReqChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !selectedReqForChat) return;
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = { sender: user?.fullName || 'Cargo Officer', role: 'Cargo Officer', msg: chatInput.trim(), time: now };
-    const updated = requests.map((r: any) =>
-      r.id === selectedReqForChat.id ? { ...r, conversation: [...(r.conversation || []), newMsg] } : r
+        : t
     );
-    StateEngine.saveRequests(updated);
-    setRequests(updated);
-    setSelectedReqForChat({ ...selectedReqForChat, conversation: [...(selectedReqForChat.conversation || []), newMsg] });
-    setChatInput('');
-  };
 
-  // 4. REGISTER NEW ROLLING STOCK WAGON
-  const handleRegisterNewWagon = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newWagonObj = {
-      id: newWagonForm.wagonId,
-      wagonType: newWagonForm.wagonType,
-      payloadCapacity: newWagonForm.payloadCapacity,
-      currentStation: newWagonForm.currentStation,
-      gauge: newWagonForm.gauge,
-      status: newWagonForm.status,
-      registeredBy: user?.fullName || 'Cargo Officer',
-      createdAt: new Date().toLocaleDateString('en-GB'),
-    };
-
-    StateEngine.registerWagon(newWagonObj);
-    setWagons([newWagonObj, ...wagons]);
-
-    setCustomAlert({
-      title: 'New Wagon Registered to Fleet Repository',
-      message: 'Wagon ' + newWagonObj.id + ' registered at Station ' + newWagonObj.currentStation + '!',
-    });
-
-    setNewWagonForm({
-      wagonId: `WGN-${Math.floor(5000 + Math.random() * 999)}`,
-      wagonType: 'Open Top Gondola Wagon',
-      payloadCapacity: '70 MT',
-      currentStation: station,
-      gauge: 'STANDARD_GAUGE',
-      status: 'AVAILABLE',
-    });
+    onSaveTrips(updatedTrips);
+    onBack();
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 relative">
-      {/* ─── FLOATING ALERT MODAL ─── */}
-      {customAlert && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-[#62BC37] text-white rounded-full flex items-center justify-center font-black text-base shadow-sm">
-                Approved
-              </div>
-              <h3 className="text-base font-black text-slate-900">{customAlert.title || 'Action Completed'}</h3>
+    <div className="space-y-5">
+      {/* Top Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Trips</span>
+        </button>
+        <div className="flex items-center gap-2">
+          {isTripInTransit && (
+            <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+              LOADING LOCKED (IN TRANSIT)
+            </span>
+          )}
+          <span className="text-xs font-bold text-[#62BC37] bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl font-mono">
+            {loadedCount} / {targetCount} Wagons Loaded ({totalBagsLoadedSoFar.toLocaleString()} / {totalBags.toLocaleString()} Bags)
+          </span>
+        </div>
+      </div>
+
+      {/* Origin Loading Details Card */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37] flex items-center gap-1.5">
+            <Train className="w-3.5 h-3.5" />
+            <span>TRIP {trip.tripId} — ORIGIN LOADING SIDING CONSOLE</span>
+          </p>
+          <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'green' : 'amber'} />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          {[
+            ['Locomotive ID', trip.locomotiveId],
+            ['Cargo Officer', trip.cargoOfficerName],
+            ['Loading Station', trip.origin ? sName(trip.origin) : 'Ewekoro'],
+            ['Destination', trip.destination ? sName(trip.destination) : 'Moniya'],
+            ['Consignor Company', trip.company],
+            ['Cargo Type', trip.cargoType],
+            ['Quantity Requisitioned', `${Number(trip.quantity).toLocaleString()} Bags`],
+            ['Trip Created', trip.createdAt || '—'],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
+              <span className="font-bold text-slate-900">{value}</span>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed font-medium">{customAlert.message}</p>
+          ))}
+        </div>
+      </div>
+
+      {/* Live GPS Tracker & Corridor Dispatch Banner */}
+      {!isTripInTransit && (
+        <div className="bg-[#62BC37] text-slate-950 rounded-2xl p-5 shadow-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-slate-950 animate-pulse" />
+                <p className="text-xs font-black uppercase tracking-wider font-mono text-slate-950">
+                  LIVE GPS TRACKER & CORRIDOR DISPATCH
+                </p>
+              </div>
+              <p className="text-base font-black text-slate-950 mt-1">
+                Locomotive Consist: <span className="font-mono text-slate-900">{trip.locomotiveId}</span>
+              </p>
+              <p className="text-xs text-slate-900/80 mt-0.5 max-w-2xl">
+                Clicking 'Depart Train &amp; Activate Live GPS' locks the loading phase, notifies destination officer at {sName(trip.destination)}, and initiates real-time GPS telemetry tracking.
+              </p>
+            </div>
             <button
-              onClick={() => setCustomAlert(null)}
-              className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md"
+              onClick={dispatchAndActivateGps}
+              disabled={loadedCount < 1 || !!active}
+              className="w-full sm:w-auto bg-slate-950 hover:bg-slate-900 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
-              Acknowledge & Close
+              <span>Depart Train & Activate Live GPS Tracker</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* ─── DISPATCH & ESCORT OFFICER REGISTRATION MODAL ─── */}
-      {dispatchModalTrip && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5 font-sans">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+      {/* Wagon Loading Progress Metrics */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+          Consist Loading Progress
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          {[
+            ['Max Target Wagons', `${targetCount} Wagons`, 'text-slate-900'],
+            ['Loaded Wagons', String(loadedCount), 'text-[#62BC37]'],
+            ['Bags Loaded', totalBagsLoadedSoFar.toLocaleString(), 'text-emerald-700'],
+            ['Progress', `${pct}%`, 'text-[#0E4B88]'],
+          ].map(([label, val, col]) => (
+            <div key={label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
+              <span className={`text-xl font-black font-mono ${col}`}>{val}</span>
+            </div>
+          ))}
+        </div>
+        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-[#0E4B88] to-[#62BC37] h-full rounded-full transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Wagon Loading Logs & Active Timer Section */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+              Wagon Loading Logs & Stopwatch Timer
+            </h3>
+            <p className="text-xs text-slate-500">
+              Each covered hopper carries up to 1,200 bags (60 MT). Cargo Officer starts and stops loading timer per wagon.
+            </p>
+          </div>
+          {!isTripInTransit && !active && !allDone && !adding && (
+            <button
+              onClick={() => setAdding(true)}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Select Wagon to Load</span>
+            </button>
+          )}
+        </div>
+
+        {/* Wagon Selector Form */}
+        {!isTripInTransit && adding && (
+          <form onSubmit={startLoadingWagon} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div>
+              <label className={lc}>
+                Select Available Wagon from Fleet ({available.length} Available at {sName(trip.origin)})
+              </label>
+              <select
+                value={selWagon}
+                onChange={(e) => setSelWagon(e.target.value)}
+                className={ic}
+              >
+                {available.length === 0 ? (
+                  <option value="">No available wagons right now at {sName(trip.origin)}</option>
+                ) : (
+                  available.map((w: any) => (
+                    <option key={w.id} value={w.id}>
+                      {w.id} (Capacity: {w.capacity || 1200} Bags / 60 MT)
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAdding(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={available.length === 0}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2 rounded-xl disabled:opacity-50 shadow-xs flex items-center gap-1.5"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Start Loading Wagon</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Live Active Wagon Stopwatch Card */}
+        {active && (
+          <div className="bg-emerald-50 border-2 border-[#62BC37] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+            <div>
+              <p className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-ping" />
+                <span>LOADING IN PROGRESS (TIMING)</span>
+              </p>
+              <p className="text-xl font-mono font-black text-slate-900 mt-1">{active.wagonId}</p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Started: <strong className="text-slate-800">{active.startDate} at {active.startTime}</strong>
+              </p>
+            </div>
+            <div className="flex items-center gap-6">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">CORRIDOR DISPATCH GATEWAY</span>
-                <h3 className="text-lg font-black text-slate-900">Assign On-Board Escort & Initialize Live Satellite GPS</h3>
+                <span className={lc}>Live Stopwatch</span>
+                <LiveTimer ts={active.startTimestamp} />
               </div>
-              <button onClick={() => setDispatchModalTrip(null)} className="text-slate-400 font-bold hover:text-slate-900">
-                ×
+              {!isTripInTransit && (
+                <button
+                  onClick={() => handleOpenStopModal(active)}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span>Stop Loading</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Wagon Logs Feed */}
+        <div className="space-y-3">
+          {logs.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+              No wagons loaded yet. Click '+ Select Wagon to Load' to start the live loading stopwatch.
+            </div>
+          ) : (
+            logs.map((w: any, i: number) => (
+              <div
+                key={w.id || i}
+                className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-2 text-xs"
+              >
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 mr-2">Wagon #{i + 1}</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
+                  {w.status === 'LOADED' && (
+                    <span className="ml-3 font-bold text-emerald-700 font-mono">
+                      ({Number(w.qty || 1200).toLocaleString()} Bags Loaded)
+                    </span>
+                  )}
+                </div>
+                <div className="font-mono text-slate-600">
+                  <span>
+                    Started: <strong>{w.startDate} {w.startTime}</strong>
+                  </span>
+                  {w.endDate && (
+                    <span className="ml-3">
+                      Ended: <strong>{w.endDate} {w.endTime}</strong>
+                    </span>
+                  )}
+                  <span className="ml-3 font-bold text-slate-900">Duration: {w.durationStr || 'Running...'}</span>
+                </div>
+                <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'blue'} />
+
+                {w.status === 'LOADED' && (
+                  <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Source Environment</span>
+                      <span className="font-bold text-slate-800">{w.sourceEnv || 'Plant Siding'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Truck Reg No.</span>
+                      <span className="font-mono font-black text-[#0E4B88]">{w.truckRegNo || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Driver Details</span>
+                      <span className="font-bold text-slate-800">{w.driverDetails || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Transporter Company</span>
+                      <span className="font-bold text-slate-800">{w.transporter || 'HBM Logistics Fleet'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Stop Loading Audit Modal */}
+      {stoppingWagon && (
+        <Modal onClose={() => setStoppingWagon(null)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Wagon Loading Source Logistics & Time Audit
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Complete loading log for Wagon <strong>{stoppingWagon.wagonId}</strong>. Verify start/concluding times, feeder truck, and bag count.
+                </p>
+              </div>
+              <button onClick={() => setStoppingWagon(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmDispatchWithEscort} className="space-y-4 text-xs font-semibold">
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
-                <span className="text-[10px] font-mono uppercase font-bold text-slate-400">Train Dispatch Target</span>
-                <p className="text-xs font-black text-slate-900">
-                  {dispatchModalTrip.id} • {dispatchModalTrip.company} ({dispatchModalTrip.origin} → {dispatchModalTrip.destination})
-                </p>
+            <form onSubmit={confirmStopLoading} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lc}>Loading Start Time</label>
+                  <input
+                    type="text"
+                    value={loadingLogForm.startTimeEdit}
+                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, startTimeEdit: e.target.value })}
+                    className={`${ic} font-mono`}
+                    placeholder="08:30 AM"
+                  />
+                </div>
+                <div>
+                  <label className={lc}>Concluding Time</label>
+                  <input
+                    type="text"
+                    value={loadingLogForm.endTimeEdit}
+                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, endTimeEdit: e.target.value })}
+                    className={`${ic} font-mono`}
+                    placeholder="10:15 AM"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
-                  On-Board Monitoring / Escort Officer Name *
-                </label>
+                <label className={lc}>Source for Loading Wagon *</label>
                 <input
                   required
-                  value={escortForm.officerName}
-                  onChange={(e) => setEscortForm({ ...escortForm, officerName: e.target.value })}
-                  placeholder="e.g. Inspector Segun Alabi"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900"
+                  value={loadingLogForm.sourceEnv}
+                  onChange={(e) => setLoadingLogForm({ ...loadingLogForm, sourceEnv: e.target.value })}
+                  placeholder="e.g. Silo Bay 1 - Loading Siding"
+                  className={ic}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
-                    Escort Mobile Phone Number *
-                  </label>
+                  <label className={lc}>Feeder Truck Registration Number *</label>
                   <input
                     required
-                    value={escortForm.officerPhone}
-                    onChange={(e) => setEscortForm({ ...escortForm, officerPhone: e.target.value })}
-                    placeholder="+234 803 777 9900"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-bold text-[#62BC37]"
+                    value={loadingLogForm.truckRegNo}
+                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, truckRegNo: e.target.value })}
+                    placeholder="e.g. KJA-482-XY"
+                    className={`${ic} font-mono uppercase font-bold`}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security Badge ID *</label>
+                  <label className={lc}>Transporter / Haulage Company *</label>
                   <input
                     required
-                    value={escortForm.badgeId}
-                    onChange={(e) => setEscortForm({ ...escortForm, badgeId: e.target.value })}
-                    placeholder="NRC-ESC-2026-08"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-bold text-slate-900"
+                    value={loadingLogForm.transporter}
+                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, transporter: e.target.value })}
+                    placeholder="e.g. HBM Logistics Fleet"
+                    className={ic}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
-                <input
-                  type="checkbox"
-                  id="smsPing"
-                  checked={escortForm.sendSmsPing}
-                  onChange={(e) => setEscortForm({ ...escortForm, sendSmsPing: e.target.checked })}
-                  className="w-4 h-4 text-[#62BC37] rounded"
-                />
-                <label htmlFor="smsPing" className="text-xs font-bold text-emerald-900">
-                  Send Live Satellite Telemetry Ping SMS Link to Officer&apos;s Mobile Phone
-                </label>
-              </div>
-
-              <div className="space-y-1 bg-blue-50/60 p-3 rounded-2xl border border-blue-200">
-                <label className="block text-[10px] font-bold text-slate-800 uppercase">
-                  Client Departure Notification Email *
-                </label>
+              <div>
+                <label className={lc}>Driver Name & Phone Number *</label>
                 <input
                   required
-                  type="email"
-                  value={escortForm.clientEmail}
-                  onChange={(e) => setEscortForm({ ...escortForm, clientEmail: e.target.value })}
-                  placeholder="e.g. logistics@client.com"
-                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900"
+                  value={loadingLogForm.driverDetails}
+                  onChange={(e) => setLoadingLogForm({ ...loadingLogForm, driverDetails: e.target.value })}
+                  placeholder="e.g. Ibrahim Garba (08031112233)"
+                  className={ic}
                 />
-                <p className="text-[10px] text-slate-500">
-                  An official departure dispatch email with train consist details & real-time tracking link will be sent to the client immediately upon corridor departure.
-                </p>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div>
+                <label className={lc}>Actual Quantity Loaded (Bags, max 1,200) *</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="1200"
+                  value={bagsLoadedInput}
+                  onChange={(e) => setBagsLoadedInput(e.target.value)}
+                  className={`${ic} font-mono text-base font-bold text-emerald-800`}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setDispatchModalTrip(null)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
+                  onClick={() => setStoppingWagon(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-6 py-2.5 rounded-xl shadow-md"
                 >
-                  Dispatch Train & Lock Live Satellite GPS →
+                  Save & Complete Wagon Load
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ─── DEDICATED PRINT STYLESHEET (STAGE 4 UNIVERSAL PDF EXPORT) ─── */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body {
-            background: #ffffff !important;
-            color: #000000 !important;
+      <CustomAlertModal
+        isOpen={!!customAlert}
+        message={customAlert?.message || null}
+        title={customAlert?.title}
+        onClose={() => setCustomAlert(null)}
+      />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   TRIP WAGON UNLOADING DASHBOARD (Destination Unload Station)
+───────────────────────────────────────────────────────── */
+function TripUnloadWagonView({
+  tripId,
+  trips,
+  user,
+  onBack,
+  onSaveTrips,
+}: {
+  tripId: string;
+  trips: any[];
+  user: any;
+  onBack: () => void;
+  onSaveTrips: (updated: any[]) => void;
+}) {
+  const trip = trips.find((t: any) => t.id === tripId || t.tripId === tripId);
+  const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
+  const [stoppingUnloadWagon, setStoppingUnloadWagon] = useState<any | null>(null);
+  const [bagsUnloadedInput, setBagsUnloadedInput] = useState('1200');
+  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+  const [unloadForm, setUnloadForm] = useState({
+    correctQty: '1192',
+    damageQty: '0',
+    burstBags: '0',
+    hasComplaint: false,
+    complaintNotes: '',
+    unloadStartTimeEdit: '',
+    unloadEndTimeEdit: '',
+  });
+
+  if (!trip) {
+    return (
+      <div className="p-8 text-center text-xs text-slate-400">
+        Trip not found.{' '}
+        <button onClick={onBack} className="underline text-[#62BC37]">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const total = logs.length;
+  const unloaded = logs.filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+  const allUnloaded = unloaded >= total && total > 0;
+  const activeUnload = logs.find((w: any) => w.unloadStatus === 'UNLOADING');
+  const pct = total > 0 ? Math.min(100, Math.round((unloaded / total) * 100)) : 0;
+
+  const commitLogs = (updated: any[], statusOverride?: string) => {
+    setLogs(updated);
+    onSaveTrips(
+      trips.map((t: any) =>
+        t.id === trip.id
+          ? {
+              ...t,
+              status: statusOverride || (allUnloaded ? 'ARRIVED' : 'UNLOADING'),
+              wagonLogs: updated,
+            }
+          : t
+      )
+    );
+  };
+
+  const startUnloading = (wagonId: string) => {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    const updated = logs.map((w: any) => {
+      if (w.wagonId !== wagonId) return w;
+      return {
+        ...w,
+        unloadStartTimestamp: Date.now(),
+        unloadStartDate: formattedDate,
+        unloadStartTime: formattedTime,
+        unloadStatus: 'UNLOADING',
+        unloadingOfficer: user?.fullName || 'Destination Officer',
+      };
+    });
+    commitLogs(updated, 'UNLOADING');
+  };
+
+  const handleOpenStopUnloadModal = (w: any) => {
+    const defaultLoadedQty = Number(w.qty || 1200);
+    setBagsUnloadedInput(String(defaultLoadedQty));
+    setUnloadForm({
+      correctQty: String(defaultLoadedQty),
+      damageQty: '0',
+      burstBags: '0',
+      hasComplaint: false,
+      complaintNotes: '',
+      unloadStartTimeEdit: w.unloadStartTime || '02:15 PM',
+      unloadEndTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    setStoppingUnloadWagon(w);
+  };
+
+  const confirmStopUnloading = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stoppingUnloadWagon) return;
+
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTime =
+      unloadForm.unloadEndTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const mins = Math.max(
+      1,
+      Math.round((Date.now() - (stoppingUnloadWagon.unloadStartTimestamp || Date.now())) / 60000)
+    );
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
+    const bagsUnloaded = Number(bagsUnloadedInput) || stoppingUnloadWagon.qty || 1200;
+
+    const updated = logs.map((w: any) => {
+      if (w.wagonId !== stoppingUnloadWagon.wagonId) return w;
+      return {
+        ...w,
+        unloadStartTime: unloadForm.unloadStartTimeEdit || w.unloadStartTime,
+        unloadEndDate: formattedDate,
+        unloadEndTime: formattedTime,
+        unloadDurationStr: durationStr,
+        unloadedQty: bagsUnloaded,
+        correctQty: Number(unloadForm.correctQty) || bagsUnloaded,
+        damageQty: Number(unloadForm.damageQty) || 0,
+        burstBags: Number(unloadForm.burstBags) || 0,
+        hasComplaint: unloadForm.hasComplaint,
+        complaintNotes: unloadForm.hasComplaint ? unloadForm.complaintNotes : null,
+        unloadStatus: 'UNLOADED',
+      };
+    });
+
+    if (unloadForm.hasComplaint) {
+      const insuranceNotif = {
+        id: `ntf_ins_${Date.now()}`,
+        title: `Wagon Discrepancy Alert — ${stoppingUnloadWagon.wagonId}`,
+        message: `Discrepancy logged for Wagon ${stoppingUnloadWagon.wagonId} on Trip ${trip.tripId}: ${unloadForm.damageQty} damaged, ${unloadForm.burstBags} burst bags. Notes: "${unloadForm.complaintNotes}"`,
+        targetId: trip.id,
+        targetTab: 'trips',
+        read: false,
+        createdAt: `${formattedDate}, ${formattedTime}`,
+      };
+      try {
+        const existingNotifs = JSON.parse(localStorage.getItem('bueno_notifications') || '[]');
+        localStorage.setItem('bueno_notifications', JSON.stringify([insuranceNotif, ...existingNotifs]));
+        fetch('/api/notifications.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(insuranceNotif),
+        }).catch(() => {});
+      } catch {}
+    }
+
+    commitLogs(updated);
+    setStoppingUnloadWagon(null);
+  };
+
+  const completeTrip = () => {
+    const now = new Date();
+    const completedTimestamp = `${now.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    const updatedTrips = trips.map((t: any) =>
+      t.id === trip.id
+        ? {
+            ...t,
+            status: 'COMPLETED',
+            completedAt: completedTimestamp,
+            unloadingOfficerName: user?.fullName || 'Destination Officer',
+            wagonLogs: logs,
           }
-          header, aside, button, nav, input, select, .no-print {
-            display: none !important;
-          }
-          main {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-          }
-          .bg-white, .bg-slate-50 {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: none !important;
-            border-radius: 8px !important;
-          }
-          table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-          }
-          th, td {
-            border: 1px solid #cbd5e1 !important;
-            padding: 6px 10px !important;
-            color: #0f172a !important;
-          }
+        : t
+    );
+    onSaveTrips(updatedTrips);
+
+    // Release wagons back to destination station fleet
+    try {
+      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
+      const loadedWagonIds = new Set(logs.map((w: any) => w.wagonId));
+      const updatedWagons = storedWagons.map((w: any) => {
+        if (loadedWagonIds.has(w.id)) {
+          return { ...w, status: 'AVAILABLE', currentStation: trip.destination };
         }
-      ` }} />
+        return w;
+      });
+      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
 
-      {/* ─── HEADER (PURE WHITE & BRAND GREEN STICKY HEADER) ─── */}
-      <header className="bg-white border-b border-slate-200 text-slate-900 sticky top-0 z-40 shadow-xs">
-        <div className="w-full px-4 sm:px-8 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <img
-              src="/bueno_logo.png"
-              alt="Bueno Logistics"
-              className="h-10 w-auto object-contain"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            <div>
-              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
-                FIELD OPERATIONS TERMINAL
-              </span>
-              <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                CARGO OFFICER DESK ({user?.assignedStation || user?.stationName || 'EWK'})
-              </h1>
+    setCustomAlert({
+      title: 'Consignment Unloading Completed',
+      message: `Trip ${trip.tripId} successfully COMPLETED!\n\nAll ${logs.length} wagons marked UNLOADED and returned to ${sName(
+        trip.destination
+      )} fleet inventory.`,
+    });
+    setTimeout(() => onBack(), 1800);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Incoming Consignments</span>
+        </button>
+        <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl font-mono">
+          {unloaded} / {total} Wagons Discharged
+        </span>
+      </div>
+
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+        <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700">
+          TRIP {trip.tripId} — DESTINATION DISCHARGE &amp; AUDIT CONSOLE
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          {[
+            ['Locomotive ID', trip.locomotiveId],
+            ['Origin Loading Station', trip.origin ? sName(trip.origin) : 'Ewekoro'],
+            ['Destination Yard', trip.destination ? sName(trip.destination) : 'Moniya'],
+            ['Unloading Officer', user?.fullName || 'Destination Officer'],
+            ['Consignor Company', trip.company],
+            ['Cargo Type', trip.cargoType],
+            ['Quantity Requisitioned', `${Number(trip.quantity).toLocaleString()} Bags`],
+            ['Status', trip.status],
+          ].map(([l, v]) => (
+            <div key={l}>
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
+              <span className="font-bold text-slate-900">{v}</span>
             </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+          Wagon Discharge Progress
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          {[
+            ['Total Consist Wagons', String(total), 'text-slate-900'],
+            ['Discharged', String(unloaded), 'text-[#62BC37]'],
+            ['Pending Discharge', String(total - unloaded), 'text-amber-600'],
+            ['Discharge Ratio', `${pct}%`, 'text-purple-600'],
+          ].map(([l, v, c]) => (
+            <div key={l} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
+              <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-purple-500 to-[#62BC37] h-full rounded-full transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {activeUnload && (
+        <div className="bg-purple-50 border-2 border-purple-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+          <div>
+            <p className="text-[10px] font-extrabold text-purple-800 uppercase flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
+              <span>CURRENTLY DISCHARGING WAGON</span>
+            </p>
+            <p className="text-xl font-mono font-black text-slate-900 mt-1">{activeUnload.wagonId}</p>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Started: <strong className="text-slate-800">{activeUnload.unloadStartDate} at {activeUnload.unloadStartTime}</strong>
+            </p>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:block text-right font-sans">
-              <span className="text-xs font-black text-slate-900 block">{user?.fullName || 'Ade Bello'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">{user?.assignedStation || 'Ewekoro'} Station Officer</span>
+          <div className="flex items-center gap-5">
+            <div>
+              <span className={lc}>Unloading Timer</span>
+              <LiveTimer ts={activeUnload.unloadStartTimestamp} />
             </div>
-
             <button
-              onClick={onSignOut}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-200"
+              onClick={() => handleOpenStopUnloadModal(activeUnload)}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5"
             >
-              Sign Out
+              <Square className="w-3.5 h-3.5 fill-current" />
+              <span>Stop Unloading</span>
             </button>
           </div>
         </div>
-      </header>
-
-      {/* ─── DYNAMIC LAYOUT WITH PINNED LEFT SIDEBAR (STAGE 2 STANDARDIZATION) ─── */}
-      <div className="flex w-full min-h-[calc(100vh-65px)]">
-        {/* PURE WHITE PINNED LEFT SIDEBAR */}
-        <aside className="w-72 bg-white text-slate-900 p-5 space-y-6 flex flex-col justify-between border-r border-slate-200 shrink-0 shadow-sm font-sans sticky top-[65px] h-[calc(100vh-65px)] overflow-y-auto">
-          <div className="space-y-5">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <img src="/bueno_logo.png" alt="Bueno" className="h-6 w-auto object-contain" />
-                <span className="text-xs font-mono font-extrabold text-[#62BC37] uppercase tracking-wider">CARGO OFFICER</span>
-              </div>
-            </div>
-
-            <nav className="space-y-1.5 font-sans">
-              {[
-                { id: 'loading', label: 'Cargo Loading & Waybill Terminal' },
-                { id: 'dispatch', label: 'Escort Officer Dispatch' },
-                { id: 'unloading', label: 'Destination Yard Unloading Audit' },
-                { id: 'terminal_info', label: 'Terminal Information Ledger (13-Col)' },
-                { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
-                { id: 'wagons', label: 'Wagon Fleet Inventory' },
-                { id: 'requisitions', label: 'Field Fund Requisitions' },
-                { id: 'history', label: 'Historical Inspection Audit' },
-              ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
-                    activeTab === t.id
-                      ? 'bg-[#62BC37] text-white shadow-md'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
-        {/* MAIN CANVAS */}
-        <main className="flex-1 p-6 space-y-6 min-w-0">
-        {/* ACTIVE TRIP SELECTOR BANNER */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Active Corridor Transport Path</span>
-            <h2 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-              Select Active Train Path to Inspect & Tally
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 font-mono">Trip:</span>
-            <select
-              value={selectedTripId}
-              onChange={(e) => setSelectedTripId(e.target.value)}
-              className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
-            >
-              {(() => {
-                const todayTrips = trips.filter((t) => StateEngine.getDateCategory(t.createdAt || t.dispatchTime) === 'TODAY');
-                const yesterdayTrips = trips.filter((t) => StateEngine.getDateCategory(t.createdAt || t.dispatchTime) === 'YESTERDAY');
-                const earlierTrips = trips.filter((t) => !['TODAY', 'YESTERDAY'].includes(StateEngine.getDateCategory(t.createdAt || t.dispatchTime)));
-                return (
-                  <>
-                    {todayTrips.length > 0 && (
-                      <optgroup label={`── ${StateEngine.getTodayLabel()} ──`}>
-                        {todayTrips.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} {t.trancheNumber ? `[Tranche ${t.trancheNumber}/${t.totalPlannedTrips || 10}]` : ''} ({t.origin} → {t.destination})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {yesterdayTrips.length > 0 && (
-                      <optgroup label={`── ${StateEngine.getYesterdayLabel()} ──`}>
-                        {yesterdayTrips.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} → {t.destination})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {earlierTrips.length > 0 && (
-                      <optgroup label="── Earlier Consignments ──">
-                        {earlierTrips.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.id} • {t.company || 'Industrial Consignee'} ({t.origin} → {t.destination})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </>
-                );
-              })()}
-            </select>
-          </div>
-        </div>
-
-        {/* TAB BUTTONS */}
-        <div className="flex overflow-x-auto gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm font-sans">
-          <button
-            onClick={() => setActiveTab('loading')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'loading' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Origin Siding Loading & Sealing
-          </button>
-
-          <button
-            onClick={() => setActiveTab('dispatch')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'dispatch' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Train Dispatch & Live Satellite GPS
-          </button>
-
-          <button
-            onClick={() => setActiveTab('unloading')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'unloading' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Destination Yard Unloading Audit
-          </button>
-
-          <button
-            onClick={() => setActiveTab('terminal_info')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'terminal_info' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Terminal Information (STATION: ###)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('moniya')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'moniya' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Moniya Container Stacking (MICT)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('requisitions')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all relative flex items-center gap-2 ${
-              activeTab === 'requisitions' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <span>Field Fund Requisitions</span>
-            {requests.filter((r: any) => r.status === 'PENDING').length > 0 && (
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('wagons')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'wagons' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Rolling Stock Wagon Registry ({wagons.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all ${
-              activeTab === 'history' ? 'bg-[#62BC37] text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Shift Loading Ledger & Reports
-          </button>
-        </div>
-
-        {/* ─── TAB 1: ORIGIN SIDING LOADING ─── */}
-        {activeTab === 'loading' && (
-          <div className="space-y-6 font-sans">
-            {/* ─── APPROVED DEALS QUEUE FOR TRIP CREATION ─── */}
-            <div className="bg-[#1E293B] text-white p-6 rounded-3xl shadow-lg border border-slate-700 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-700 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[#62BC37]">
-                    <Train className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
-                      COMMERCIAL DISPATCH DESK QUEUE
-                    </span>
-                    <h3 className="text-base font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                      Approved Commercial Deals Awaiting Freight Trip
-                    </h3>
-                  </div>
-                </div>
-                {/* DATE & CONTRACT TYPE FILTER PILLS */}
-                <div className="flex flex-wrap items-center gap-1.5 bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
-                  {[
-                    { id: 'ALL', label: 'All Deals' },
-                    { id: 'MONTHLY', label: 'Monthly Contracts' },
-                    { id: 'TODAY', label: StateEngine.getTodayLabel() },
-                    { id: 'THIS_WEEK', label: 'This Week' },
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setDealsQueueFilter(f.id as any)}
-                      className={`text-[10px] font-bold px-3 py-1 rounded-xl transition-all ${
-                        dealsQueueFilter === f.id
-                          ? 'bg-[#62BC37] text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      StateEngine.syncRemote();
-                      syncData();
-                    }}
-                    title="Refresh server deals"
-                    className="p-1.5 text-slate-400 hover:text-white bg-slate-700/60 hover:bg-slate-700 rounded-xl transition-all"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {(() => {
-                const filteredDeals = deals.filter((deal) => {
-                  if (deal.status === 'TRIP_CREATED' && deal.dealType !== 'MONTHLY_CONTRACT') return false;
-                  if (deal.dealType === 'MONTHLY_CONTRACT' && (deal.dispatchedTripsCount || 0) >= (deal.totalPlannedTrips || 10)) return false;
-                  if (dealsQueueFilter === 'MONTHLY') return deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
-                  if (dealsQueueFilter === 'TODAY') return StateEngine.getDateCategory(deal.createdAt) === 'TODAY';
-                  if (dealsQueueFilter === 'THIS_WEEK') {
-                    const cat = StateEngine.getDateCategory(deal.createdAt);
-                    return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
-                  }
-                  return true;
-                });
-
-                if (filteredDeals.length === 0) {
-                  return (
-                    <div className="text-center py-10 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
-                      <Inbox className="w-8 h-8 text-slate-500 mx-auto" />
-                      <p className="text-xs font-bold text-slate-300">No Commercial Consignments in Queue</p>
-                      <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                        Deals approved by Commercial Operations will appear here automatically across all corridor sidings (Ewekoro, Papalanto, Moniya).
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDeals.map((deal, idx) => {
-                      const isMonthly = deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
-                      const nextTranche = (deal.dispatchedTripsCount || 0) + 1;
-                      const totalTrips = deal.totalPlannedTrips || 10;
-                      const isCementOrBags = (deal.cargoType || '').toLowerCase().includes('cement') || (deal.unitOfMeasure || '').toLowerCase().includes('bag');
-                      const trancheVol = deal.trancheTonnage || Math.round((Number(deal.quantity) || 20000) / totalTrips);
-                      const trancheBags = isCementOrBags ? (deal.unitOfMeasure === 'Bags' ? trancheVol : Math.round(trancheVol * 20)) : trancheVol;
-                      const wagonsNeeded = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
-
-                      return (
-                        <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all flex flex-col justify-between">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
-                                <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
-                              </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {isMonthly ? (
-                                  <span className="text-[9px] font-mono font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/40">
-                                    MONTHLY CONTRACT
-                                  </span>
-                                ) : (
-                                  <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
-                                    APPROVED
-                                  </span>
-                                )}
-                                {isMonthly && (
-                                  <span className="text-[9px] font-mono font-bold bg-[#62BC37]/20 text-[#62BC37] px-2 py-0.5 rounded">
-                                    Tranche {nextTranche} of {totalTrips}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {isMonthly && (
-                              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                                <div className="flex justify-between text-[10px] font-mono">
-                                  <span className="text-slate-400">Tranche Progress</span>
-                                  <span className="text-emerald-400 font-bold">
-                                    {deal.dispatchedTripsCount || 0}/{totalTrips} Trips ({((deal.dispatchedTripsCount || 0) * (deal.trancheTonnage || 920)).toLocaleString()}/{Number(deal.quantity || 9200).toLocaleString()} MT)
-                                  </span>
-                                </div>
-                                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                  <div
-                                    className="bg-[#62BC37] h-1.5 rounded-full transition-all"
-                                    style={{ width: `${Math.min(100, Math.round(((deal.dispatchedTripsCount || 0) / totalTrips) * 100))}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="text-[11px] text-slate-300 space-y-1 font-mono">
-                              <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
-                              <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{isMonthly ? `${Number(deal.trancheTonnage || 2000).toLocaleString()} ${deal.unitOfMeasure || 'MT'} / Trip (${Number(deal.quantity || 20000).toLocaleString()} Total)` : `${Number(deal.quantity).toLocaleString()} Units`}</span></p>
-                              <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} → {deal.destination || 'MNY'}</span></p>
-                              <p><span className="text-slate-400 font-sans">Consist:</span> <span className="text-emerald-300 font-bold">{wagonsNeeded} Wagons (max 23 / 1,200 bags each)</span></p>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => setCreateTripModalDeal(deal)}
-                            className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-                          >
-                            <Train className="w-3.5 h-3.5" />
-                            {isMonthly ? `Dispatch Tranche #${nextTranche} (of ${totalTrips})` : 'Create & Launch Freight Trip'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LOADING FORM */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Siding Loading Form</span>
-                <h3 className="text-base font-black text-slate-900">Record Wagon Loading & Seal</h3>
-              </div>
-
-              <form onSubmit={handleLogWagonLoading} className="space-y-3 text-xs font-semibold">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Wagon ID *</label>
-                  <input
-                    required
-                    value={loadingForm.wagonId}
-                    onChange={(e) => setLoadingForm({ ...loadingForm, wagonId: e.target.value })}
-                    placeholder="e.g. PXG 2322"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
-                  <select
-                    value={loadingForm.cargoType}
-                    onChange={(e) => setLoadingForm({ ...loadingForm, cargoType: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  >
-                    <option value="Bagged Cement (50kg)">Bagged Cement (50kg) — [Unit: Bags]</option>
-                    <option value="Bulk Gypsum">Bulk Gypsum — [Unit: Metric Tonnes MT]</option>
-                    <option value="Limestone Raw Ore">Limestone Raw Ore — [Unit: Metric Tonnes MT]</option>
-                    <option value="Clinker Bulk">Clinker Bulk — [Unit: Metric Tonnes MT]</option>
-                    <option value="Shipping Containers (20ft/40ft)">Shipping Containers — [Unit: TEU Containers]</option>
-                    <option value="AGO Diesel / Liquid Bulk">AGO Diesel / Liquid — [Unit: Liters]</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      Loaded Volume ({cargoConf.unit}) *
-                    </label>
-                    <input
-                      required
-                      type="number"
-                      value={loadingForm.quantity}
-                      onChange={(e) => setLoadingForm({ ...loadingForm, quantity: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Applied Security Seal # *</label>
-                    <input
-                      required
-                      value={loadingForm.sealNumber}
-                      onChange={(e) => setLoadingForm({ ...loadingForm, sealNumber: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
-                >
-                  Log Wagon Loaded & Lock Security Seal
-                </button>
-              </form>
-            </div>
-
-            {/* LIVE WAGON LOADING TALLY TABLE */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Siding Tally Sheet</span>
-                  <h3 className="text-base font-black text-slate-900">
-                    Wagons Loaded for {activeTrip?.id} ({activeTrip?.company || 'Industrial Consignee'})
-                  </h3>
-                </div>
-                <button
-                  onClick={() => {
-                    setDispatchModalTrip(activeTrip);
-                    setEscortForm((prev) => ({
-                      ...prev,
-                      clientEmail: activeTrip?.clientEmail || '',
-                    }));
-                  }}
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
-                >
-                  <span>Dispatch Train →</span>
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
-                    <tr>
-                      <th className="p-3">Wagon ID</th>
-                      <th className="p-3">Loaded Time</th>
-                      <th className="p-3">Applied Seal #</th>
-                      <th className="p-3">Volume Loaded</th>
-                      <th className="p-3">Supervisor</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {(activeTrip?.wagonLogs || []).map((w: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
-                        <td className="p-3 text-slate-600">{w.loadedAt}</td>
-                        <td className="p-3 font-bold text-slate-900">{w.sealNumber}</td>
-                        <td className="p-3 font-extrabold text-emerald-700">{w.bagsCount}</td>
-                        <td className="p-3 font-sans font-bold text-slate-900">{w.cargoOfficerName || user?.fullName}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
-        {/* ─── TAB 2: LIVE TRAIN DISPATCH & LIVE GPS SATELLITE MAP ─── */}
-        {activeTab === 'dispatch' && (
-          <div className="space-y-6">
-            <LiveGpsMap trip={activeTrip} />
-          </div>
-        )}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div>
+          <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+            Consignment Wagons (Loaded at {sName(trip.origin)})
+          </h3>
+          <p className="text-xs text-slate-500">
+            Unload each wagon arriving from {sName(trip.origin)} and record discharged bag count and any discrepancy notes.
+          </p>
+        </div>
 
-        {/* ─── TAB 3: DESTINATION YARD UNLOADING ─── */}
-        {activeTab === 'unloading' && (
-          <div className="space-y-6 font-sans">
-            {/* DATE FILTER PILLS FOR UNLOADING YARD */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Destination Inbound Corridor:</span>
-                <span className="text-xs font-black text-slate-900">
-                  {unloadingDateFilter === 'ALL'
-                    ? 'All Inbound Consignments'
-                    : unloadingDateFilter === 'TODAY'
-                    ? `Today's Inbound Trains (${StateEngine.getTodayLabel()})`
-                    : `Yesterday's Discharged Trains (${StateEngine.getYesterdayLabel()})`}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-                {[
-                  { id: 'ALL', label: 'All Dates' },
-                  { id: 'TODAY', label: "Today's Arrivals" },
-                  { id: 'YESTERDAY', label: 'Yesterday' },
-                ].map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setUnloadingDateFilter(f.id as any)}
-                    className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
-                      unloadingDateFilter === f.id
-                        ? 'bg-[#62BC37] text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Destination Discharge Audit</span>
-                <h3 className="text-base font-black text-slate-900">Unseal Wagon & Audit Tally</h3>
-              </div>
-
-              <form onSubmit={handleLogWagonUnloading} className="space-y-3 text-xs font-semibold">
+        <div className="space-y-3">
+          {logs.map((w: any, i: number) => {
+            const isUnloading = w.unloadStatus === 'UNLOADING';
+            const isUnloaded = w.unloadStatus === 'UNLOADED';
+            return (
+              <div
+                key={w.id || i}
+                className={`border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-all ${
+                  isUnloaded
+                    ? 'bg-emerald-50/40 border-emerald-200'
+                    : isUnloading
+                    ? 'bg-purple-50 border-purple-300'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Arrived Wagon ID *</label>
-                  <select
-                    value={unloadingForm.wagonId}
-                    onChange={(e) => setUnloadingForm({ ...unloadingForm, wagonId: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                  >
-                    {(activeTrip?.wagonLogs || [{ wagonId: 'PXG 2322' }, { wagonId: 'PXG 2323' }]).map((w: any, idx: number) => (
-                      <option key={idx} value={w.wagonId}>
-                        {w.wagonId} — (Seal: {w.sealNumber || 'SEAL-BN-9801'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      Intact Unloaded ({activeTrip?.unitOfMeasure || 'Bags'}) *
-                    </label>
-                    <input
-                      required
-                      type="number"
-                      value={unloadingForm.intactQuantity}
-                      onChange={(e) => setUnloadingForm({ ...unloadingForm, intactQuantity: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Discrepancy / Defects *</label>
-                    <input
-                      required
-                      type="number"
-                      value={unloadingForm.discrepancyCount}
-                      onChange={(e) => setUnloadingForm({ ...unloadingForm, discrepancyCount: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-rose-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Discharge Siding Bay</label>
-                  <input
-                    type="text"
-                    value={unloadingForm.sidingBay}
-                    onChange={(e) => setUnloadingForm({ ...unloadingForm, sidingBay: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Audit Notes / Defect Remarks</label>
-                  <textarea
-                    rows={2}
-                    placeholder="e.g. 1 burst bag noted during hopper discharge at Moniya Bay 2..."
-                    value={unloadingForm.remarks}
-                    onChange={(e) => setUnloadingForm({ ...unloadingForm, remarks: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
-                >
-                  Clear Wagon Unloading & Lock Tally Audit
-                </button>
-              </form>
-            </div>
-
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Destination Discharge Audit Ledger</span>
-                  <h3 className="text-base font-black text-slate-900">Unloaded Wagons for {activeTrip?.id}</h3>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
-                    <tr>
-                      <th className="p-3">Wagon ID</th>
-                      <th className="p-3">Unseal Time</th>
-                      <th className="p-3">Verified Seal #</th>
-                      <th className="p-3">Intact Delivered</th>
-                      <th className="p-3">Burst / Defects</th>
-                      <th className="p-3">Siding Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {(activeTrip?.wagonLogs || []).map((w: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-amber-800">{w.wagonId}</td>
-                        <td className="p-3 text-slate-600">{w.unsealedAt || 'Awaiting Arrival'}</td>
-                        <td className="p-3 font-bold text-slate-900">{w.sealNumber}</td>
-                        <td className="p-3 font-extrabold text-emerald-700">{w.unloadedIntact || `${w.correctQty || w.qty || 70} ${w.unitOfMeasure || 'Bags'}`}</td>
-                        <td className="p-3 font-extrabold text-rose-600">{w.burstBags || w.damageQty || w.discrepancy || 0}</td>
-                        <td className="p-3 text-slate-500 font-sans max-w-xs truncate">{w.complaintNotes || w.sidingBay || 'Intact'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* TRAIN PERFORMANCE & DELAY ANALYSIS (SPEC 05) */}
-              <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-3 mt-4">
-                <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider">
-                      JOURNEY PERFORMANCE & DELAY AUDIT (PAGE 1 SPEC 05)
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono font-black px-2.5 py-0.5 bg-emerald-950 text-emerald-300 rounded border border-emerald-800">
-                    STATUS: ON TIME (SCHEDULE ADHERENCE 98.4%)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-xs">
-                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[9px] uppercase text-slate-400 block">Lead Train Driver</span>
-                    <span className="font-bold text-slate-200 truncate block">{activeTrip?.driverName || 'Engr. Babatunde Adeleke'}</span>
-                  </div>
-                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[9px] uppercase text-slate-400 block">Scheduled Transit</span>
-                    <span className="font-bold text-slate-200">3 hrs 45 mins</span>
-                  </div>
-                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[9px] uppercase text-slate-400 block">Actual Transit</span>
-                    <span className="font-bold text-emerald-400">3 hrs 52 mins</span>
-                  </div>
-                  <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-[9px] uppercase text-slate-400 block">Delay Variance</span>
-                    <span className="font-bold text-amber-400">+7 mins (Signal at Itori)</span>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-slate-400">
-                  Corridor Speed Average: <b>42 km/h</b> | Driver Score: <b>98.4%</b> | Arrival Alert Note automatically dispatched to Origin Siding, Operations Command, and Consignee.
-                </p>
-              </div>
-
-              {/* DISCREPANCY & UNDERWRITER INVESTIGATION NOTICE (SPEC 06) */}
-              {(activeTrip?.damages?.damagedUnits > 0 || Number(unloadingForm.discrepancyCount) > 0) && (
-                <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl space-y-2 text-rose-950 mt-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base"></span>
-                    <div>
-                      <span className="text-[10px] font-mono font-black text-rose-700 uppercase tracking-wider block">
-                        INCIDENT & DISCREPANCY ESCALATION (PAGE 1 SPEC 06)
-                      </span>
-                      <h4 className="text-xs font-black text-rose-900">
-                        Arrival Quantity Discrepancy Flagged for Underwriter & Stakeholder Investigation
-                      </h4>
-                    </div>
-                  </div>
-                  <p className="text-xs text-rose-800 leading-relaxed">
-                    Discrepancy registered: <b>{(activeTrip?.damages?.damagedUnits || 0) + Number(unloadingForm.discrepancyCount)} {activeTrip?.unitOfMeasure || 'units'} damaged/burst</b>.
-                    Formal incident report has been logged and sent for investigation involving:
+                  <span className="text-[10px] font-mono text-slate-400 mr-2">Wagon #{i + 1}</span>
+                  <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Loaded Bags: <strong className="text-slate-800">{Number(w.qty || 1200).toLocaleString()}</strong> | Origin Load Time: <strong className="text-slate-800">{w.durationStr || '—'}</strong>
                   </p>
-                  <ul className="text-xs text-rose-900 font-bold list-disc list-inside space-y-0.5">
-                    <li>Origin Loading Siding Supervisor ({activeTrip?.origin || 'EWK'})</li>
-                    <li>Industrial Consignee Client Desk ({activeTrip?.company || 'HBM'})</li>
-                    <li>Operations Command HQ (Bueno Logistics)</li>
-                    <li>Lead Marine & Rail Freight Insurance Underwriter</li>
-                  </ul>
                 </div>
-              )}
-            </div>
-          </div>
-          </div>
-        )}
-
-        {/* ─── TAB: MONIYA CONTAINER TERMINAL MANAGEMENT (PAGE 1 SPEC 08) ─── */}
-        {activeTab === 'moniya' && (
-          <div className="space-y-6">
-            <MoniyaContainerView user={user} />
-          </div>
-        )}
-
-        {/* ─── TAB 4: WAGON REGISTRY ─── */}
-        {activeTab === 'wagons' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Fleet Expansion Desk</span>
-                <h3 className="text-base font-black text-slate-900">Register New Rolling Stock Wagon</h3>
-              </div>
-
-              <form onSubmit={handleRegisterNewWagon} className="space-y-3 text-xs font-semibold">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Registration Code / ID *</label>
-                  <input
-                    required
-                    value={newWagonForm.wagonId}
-                    onChange={(e) => setNewWagonForm({ ...newWagonForm, wagonId: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Specification Type *</label>
-                  <select
-                    value={newWagonForm.wagonType}
-                    onChange={(e) => setNewWagonForm({ ...newWagonForm, wagonType: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  >
-                    <option value="Covered Hopper Wagon">Covered Hopper Wagon (Bagged Cargo / Grains)</option>
-                    <option value="Open Top Gondola Wagon">Open Top Gondola Wagon (Bulk Gypsum / Coal)</option>
-                    <option value="Bottom Dumper Wagon">Bottom Dumper Wagon (Limestone / Raw Ore)</option>
-                    <option value="Flatbed Container Wagon">Flatbed Container Wagon (20ft/40ft TEUs)</option>
-                    <option value="Tanker Wagon">Tanker Wagon (AGO Diesel / Liquid Bulk)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payload Capacity *</label>
-                  <input
-                    required
-                    value={newWagonForm.payloadCapacity}
-                    onChange={(e) => setNewWagonForm({ ...newWagonForm, payloadCapacity: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all mt-2"
-                >
-                  Register Wagon into Central Fleet Repository
-                </button>
-              </form>
-            </div>
-
-            <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Central Fleet Directory</span>
-                  <h3 className="text-base font-black text-slate-900">Active Rolling Stock Fleet ({wagons.length} Wagons)</h3>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b">
-                    <tr>
-                      <th className="p-3">Wagon ID</th>
-                      <th className="p-3">Specification Type</th>
-                      <th className="p-3">Payload Capacity</th>
-                      <th className="p-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {wagons.map((w, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-amber-800">{w.id}</td>
-                        <td className="p-3 font-sans font-bold text-slate-900">{w.wagonType || 'Covered Hopper'}</td>
-                        <td className="p-3 font-bold text-emerald-700">{w.payloadCapacity || `${w.capacity || 60} MT`}</td>
-                        <td className="p-3">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded font-mono ${
-                            w.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {w.status || 'AVAILABLE'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── TAB: TERMINAL INFORMATION (13-COLUMN EXCEL LEDGER) ─── */}
-        {activeTab === 'terminal_info' && (
-          <TerminalInformationView user={user} initialStation={user?.assignedStation || 'PAPA'} />
-        )}
-
-        {/* ─── TAB 5: SHIFT REPORT ─── */}
-        {activeTab === 'history' && (() => {
-          const filteredTrips = trips.filter((t) => {
-            if (historyDateFilter === 'ALL') return true;
-            const cat = StateEngine.getDateCategory(t.createdAt || t.dispatchTime);
-            if (historyDateFilter === 'TODAY') return cat === 'TODAY';
-            if (historyDateFilter === 'YESTERDAY') return cat === 'YESTERDAY';
-            if (historyDateFilter === 'THIS_WEEK') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
-            if (historyDateFilter === 'THIS_MONTH') return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK' || cat === 'THIS_MONTH';
-            return true;
-          });
-
-          const totalHistoricalTonnage = filteredTrips.reduce((acc, t) => acc + (Number(t.quantity) || 0), 0);
-          const completedCount = filteredTrips.filter((t) => t.status === 'COMPLETED' || t.status === 'ARRIVED').length;
-          const inTransitCount = filteredTrips.filter((t) => t.status === 'IN_TRANSIT').length;
-
-          return (
-            <div className="space-y-6 font-sans">
-              {/* SUMMARY STATS HEADER */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 font-mono">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Consignments Logged</span>
-                  <span className="text-2xl font-black text-slate-900">{filteredTrips.length}</span>
-                  <span className="text-[10px] text-slate-500 block font-sans">Filtered View</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[10px] text-emerald-500 font-bold uppercase block">Net Volume Moved</span>
-                  <span className="text-2xl font-black text-emerald-700">{totalHistoricalTonnage.toLocaleString()} MT</span>
-                  <span className="text-[10px] text-slate-500 block font-sans">Standard & Narrow Gauge</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[10px] text-blue-500 font-bold uppercase block">Delivered & Closed</span>
-                  <span className="text-2xl font-black text-blue-700">{completedCount}</span>
-                  <span className="text-[10px] text-slate-500 block font-sans">Discharge Tally Audited</span>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[10px] text-amber-500 font-bold uppercase block">Corridor En Route</span>
-                  <span className="text-2xl font-black text-amber-700">{inTransitCount}</span>
-                  <span className="text-[10px] text-slate-500 block font-sans">Live Satellite Tracking</span>
-                </div>
-              </div>
-
-              {/* AUDIT LEDGER CONTAINER */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
-                  <div>
-                    <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Terminal Shift Summary</span>
-                    <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                      Officer Shift Tally Audit Ledger — Station: {user?.stationName || station}
-                    </h3>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* DATE CATEGORY FILTER PILLS */}
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                      {[
-                        { id: 'ALL', label: 'All Records' },
-                        { id: 'TODAY', label: StateEngine.getTodayLabel() },
-                        { id: 'YESTERDAY', label: StateEngine.getYesterdayLabel() },
-                        { id: 'THIS_WEEK', label: 'This Week' },
-                        { id: 'THIS_MONTH', label: StateEngine.getThisMonthLabel() },
-                      ].map((f) => (
-                        <button
-                          key={f.id}
-                          onClick={() => setHistoryDateFilter(f.id as any)}
-                          className={`text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all ${
-                            historyDateFilter === f.id
-                              ? 'bg-[#62BC37] text-white shadow-sm'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
+                <div className="font-mono text-slate-600 text-right">
+                  {isUnloaded ? (
+                    <div>
+                      <p className="text-emerald-700 font-bold">
+                        Unloaded ({Number(w.unloadedQty || w.qty || 1200).toLocaleString()} Bags) in {w.unloadDurationStr || '—'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {w.unloadStartDate} {w.unloadStartTime} ➔ {w.unloadEndDate} {w.unloadEndTime}
+                      </p>
                     </div>
-
+                  ) : isUnloading ? (
+                    <p className="text-purple-700 font-bold animate-pulse">Discharge in progress...</p>
+                  ) : (
+                    <p className="text-slate-400">Ready to unload</p>
+                  )}
+                </div>
+                <div>
+                  {isUnloaded ? (
+                    <Badge
+                      text={w.hasComplaint ? 'DISCREPANCY FLAGGED' : 'DISCHARGED INTACT'}
+                      color={w.hasComplaint ? 'rose' : 'green'}
+                    />
+                  ) : isUnloading ? (
                     <button
-                      onClick={() => window.print()}
-                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-xs"
+                      onClick={() => handleOpenStopUnloadModal(w)}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl"
                     >
-                      Print Shift Tally (PDF)
+                      Stop Unload
                     </button>
-                  </div>
+                  ) : !activeUnload ? (
+                    <button
+                      onClick={() => startUnloading(w.wagonId)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1"
+                    >
+                      <span>Start Unload</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Waiting for active wagon</span>
+                  )}
                 </div>
 
-                {filteredTrips.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 space-y-2">
-                    <p className="text-sm font-bold">No freight records found for the selected date filter.</p>
-                    <p className="text-xs">Adjust the filter above to view historical shift dispatches.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 font-sans">
-                    {filteredTrips.map((t) => {
-                      const isCompleted = t.status === 'COMPLETED' || t.status === 'ARRIVED';
-                      const isInTransit = t.status === 'IN_TRANSIT';
-                      const isMonthlyTranche = Boolean(t.trancheNumber || t.dealType === 'MONTHLY_CONTRACT');
-                      const wagonCount = t.wagonLogs?.length || 23;
-                      const dateCat = StateEngine.getDateCategory(t.createdAt || t.dispatchTime);
-
-                      return (
-                        <div
-                          key={t.id}
-                          className="bg-slate-50 hover:bg-slate-100/80 p-4 rounded-2xl border border-slate-200 transition-all space-y-3"
-                        >
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-black text-slate-900 text-sm">{t.id}</span>
-                              <span className="text-xs font-black text-[#0E4B88]">{t.company}</span>
-                              {isMonthlyTranche && (
-                                <span className="bg-indigo-100 text-indigo-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-indigo-200">
-                                  Tranche {t.trancheNumber || 1} of {t.totalPlannedTrips || 10}
-                                </span>
-                              )}
-                              <span className="bg-slate-200 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
-                                {dateCat === 'TODAY' ? 'TODAY (07 SEP)' : dateCat === 'YESTERDAY' ? 'YESTERDAY (06 SEP)' : 'SEPTEMBER 2026'}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-[10px] font-mono font-black px-2.5 py-1 rounded-lg uppercase ${
-                                  isCompleted
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : isInTransit
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                ● {t.status}
-                              </span>
-                              <span className="text-slate-400 font-mono text-[10px]">{t.dispatchTime}</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200 text-xs font-mono">
-                            <div>
-                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Corridor Path</span>
-                              <span className="font-bold text-slate-800">{t.origin} → {t.destination}</span>
-                            </div>
-                            <div>
-                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Cargo Consist</span>
-                              <span className="font-bold text-slate-800">{t.quantity || 920} MT ({wagonCount} Wagons)</span>
-                            </div>
-                            <div>
-                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Locomotive</span>
-                              <span className="font-bold text-slate-800">{t.locomotiveId || 'L2205'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[9px] uppercase text-slate-400 font-sans block">Discrepancy Audit</span>
-                              <span className={`font-bold ${t.damages?.damagedUnits > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                {t.damages?.damagedUnits > 0 ? `${t.damages.damagedUnits} Units Flagged` : '0 Discrepancies (100% Intact)'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {isUnloaded && (
+                  <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Verified Delivered</span>
+                      <span className="font-mono font-bold text-emerald-800">
+                        {w.correctQty || w.unloadedQty || w.qty || 1200} Bags
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Damaged Units</span>
+                      <span className="font-mono font-bold text-rose-600">{w.damageQty || 0} Units</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Burst Bags</span>
+                      <span className="font-mono font-bold text-amber-700">{w.burstBags || 0} Bags</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Complaint Audit</span>
+                      <span className={`font-extrabold ${w.hasComplaint ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {w.hasComplaint ? 'DISCREPANCY' : 'CLEAN DISCHARGE'}
+                      </span>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Notes / Reason</span>
+                      <span className="text-slate-700 font-medium truncate block">
+                        {w.complaintNotes || 'Clean discharge verified'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          );
-        })()}
+            );
+          })}
+        </div>
 
-        {/* ─── TAB: FIELD FUND REQUISITIONS ─── */}
-        {activeTab === 'requisitions' && (
-          <div className="space-y-6 font-sans">
-            {/* KPI STATS */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 font-mono">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block">Field Requisitions</span>
-                <span className="text-2xl font-black text-slate-900">{requests.length}</span>
-                <span className="text-[10px] text-slate-500 block font-sans">All Submissions</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[10px] text-amber-500 font-bold uppercase block">Pending Clearance</span>
-                <span className="text-2xl font-black text-amber-700">
-                  {requests.filter((r: any) => r.status === 'PENDING' || r.stage === 'Admin' || r.stage === 'Head of Operations').length}
-                </span>
-                <span className="text-[10px] text-slate-500 block font-sans">Under Executive Review</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[10px] text-blue-500 font-bold uppercase block">Executive Approved</span>
-                <span className="text-2xl font-black text-blue-700">
-                  {requests.filter((r: any) => r.status === 'APPROVED' || r.status === 'CEO_APPROVED' || r.stage === 'CEO' || r.stage === 'Accountant').length}
-                </span>
-                <span className="text-[10px] text-slate-500 block font-sans">In Finance Pipeline</span>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[10px] text-emerald-500 font-bold uppercase block">Paid & Disbursed</span>
-                <span className="text-2xl font-black text-emerald-700">
-                  ₦{requests.filter((r: any) => r.status === 'DISBURSED' || r.stage === 'Paid').reduce((acc: number, r: any) => acc + (Number(r.amount) || 0), 0).toLocaleString()}
-                </span>
-                <span className="text-[10px] text-slate-500 block font-sans">Cleared to Field</span>
-              </div>
-            </div>
+        {allUnloaded && (
+          <div className="bg-[#62BC37] text-slate-950 rounded-2xl p-5 space-y-3 mt-4 shadow-md">
+            <p className="text-sm font-black text-slate-950">
+              All {logs.length} Wagons Successfully Discharged at {sName(trip.destination)}!
+            </p>
+            <button
+              onClick={completeTrip}
+              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5" />
+              <span>Complete Consignment & Return Wagons to Fleet Inventory</span>
+            </button>
+          </div>
+        )}
+      </div>
 
-            {/* HEADER & ACTION BUTTON */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {stoppingUnloadWagon && (
+        <Modal onClose={() => setStoppingUnloadWagon(null)}>
+          <div className="p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">Siding Operating Expenses</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Field Fund Requisitions & Clearance Ledger — {user?.stationName || station} Terminal
+                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Unloading Discrepancy &amp; Inspection Audit
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Request operations funds for tarpaulins, payloader AGO fuel, weighbridge calibration, or escort logistics.
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Wagon <strong>{stoppingUnloadWagon.wagonId}</strong> arrived from <strong>{sName(trip.origin)}</strong>. Record delivered bags, damages, burst bags, and notes.
                 </p>
               </div>
-              <button
-                onClick={() => setShowFundModal(true)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-md transition-all flex items-center gap-2 whitespace-nowrap"
-              >
-                <span>+ Request Siding Funds</span>
+              <button onClick={() => setStoppingUnloadWagon(null)} className="text-slate-400 hover:text-slate-700">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* REQUISITIONS TABLE */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-sans">
-                  <thead className="bg-slate-50 text-slate-600 font-mono font-bold text-[10px] uppercase border-b border-slate-200">
-                    <tr>
-                      <th className="p-3">Req ID</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3">Title & Siding Purpose</th>
-                      <th className="p-3">Requested Amount</th>
-                      <th className="p-3">Corridor / Trip</th>
-                      <th className="p-3">Approval Progression</th>
-                      <th className="p-3">Status / Payment Ref</th>
-                      <th className="p-3 text-right">Details & Q&A</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono">
-                    {requests.map((req: any, idx: number) => {
-                      const isDisbursed = req.status === 'DISBURSED' || req.stage === 'Paid';
-                      const isCeoApproved = req.status === 'CEO_APPROVED' || req.stage === 'Accountant';
-                      const isOpsApproved = req.status === 'OPS_APPROVED' || req.stage === 'CEO';
-                      const isApproved = isDisbursed || isCeoApproved || isOpsApproved || req.status === 'APPROVED';
-
-                      const stages = [
-                        { key: 'Admin', label: '1. Admin' },
-                        { key: 'Head of Operations', label: '2. Ops Head' },
-                        { key: 'CEO', label: '3. CEO' },
-                        { key: 'Accountant', label: '4. Finance' },
-                        { key: 'Paid', label: '5. Paid' },
-                      ];
-                      const currentStageIdx = stages.findIndex((s) => s.key === req.stage);
-
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-3 font-bold text-amber-800">{req.requisitionNo || req.id}</td>
-                          <td className="p-3">
-                            <span className="bg-slate-100 text-slate-800 text-[10px] px-2 py-0.5 rounded border border-slate-200 font-sans font-bold">
-                              {req.category || 'OPERATIONAL'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-sans font-bold text-slate-900 max-w-xs">{req.title || req.description}</td>
-                          <td className="p-3 font-extrabold text-emerald-700 text-sm">
-                            ₦{Number(req.amount || 0).toLocaleString()}
-                          </td>
-                          <td className="p-3 font-mono text-slate-600">
-                            {req.tripNo || 'TRIP-001'}
-                          </td>
-                          <td className="p-3 font-sans">
-                            <div className="flex items-center gap-1">
-                              {stages.map((s, sIdx) => {
-                                const active = sIdx === currentStageIdx;
-                                const passed = currentStageIdx > -1 ? sIdx < currentStageIdx : isApproved;
-                                return (
-                                  <span
-                                    key={s.key}
-                                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
-                                      active
-                                        ? 'bg-[#62BC37] text-white'
-                                        : passed
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : 'bg-slate-100 text-slate-400'
-                                    }`}
-                                  >
-                                    {s.label}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            {isDisbursed ? (
-                              <div>
-                                <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase block w-fit font-sans">
-                                  PAID & DISBURSED
-                                </span>
-                                <span className="text-[9px] text-slate-500 font-mono block mt-0.5">
-                                  Ref: {req.paymentDetails?.ref || 'TRF-GTB-998120'}
-                                </span>
-                              </div>
-                            ) : isApproved ? (
-                              <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase font-sans">
-                                IN FINANCE PIPELINE
-                              </span>
-                            ) : (
-                              <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded uppercase font-sans">
-                                AWAITING CLEARANCE
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => setSelectedReqForChat(req)}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all"
-                            >
-                              Notes ({req.conversation?.length || 0})
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ─── MODAL: CREATE & DISPATCH FREIGHT TRIP FROM DEAL ─── */}
-        {createTripModalDeal && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full border border-slate-200 shadow-2xl space-y-5">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+            <form onSubmit={confirmStopUnloading} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
-                    OPERATIONAL DISPATCH TERMINAL
-                  </span>
-                  <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                    Create & Launch Freight Trip — {createTripModalDeal.companyName || createTripModalDeal.company}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">
-                    Deal Ref: <span className="font-bold text-slate-900">{createTripModalDeal.dealNumber || createTripModalDeal.id}</span> • Corridor: <span className="font-bold text-amber-700">{createTripModalDeal.loadingStation || 'EWK'} → {createTripModalDeal.destination || 'MNY'}</span>
-                  </p>
-                </div>
-                <button
-                  onClick={() => setCreateTripModalDeal(null)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-black border border-slate-200"
-                >
-                  Close
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateTripFromDeal} className="space-y-4 text-xs font-semibold">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Locomotive ID *</label>
-                    <input
-                      required
-                      value={tripForm.locomotiveId}
-                      onChange={(e) => setTripForm({ ...tripForm, locomotiveId: e.target.value })}
-                      placeholder="e.g. L2205"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Weighbridge Gross (MT) *</label>
-                    <input
-                      required
-                      value={tripForm.weighbridgeGrossMt}
-                      onChange={(e) => setTripForm({ ...tripForm, weighbridgeGrossMt: e.target.value })}
-                      placeholder="e.g. 80.5"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Allocated Wagon #1 *</label>
-                    <select
-                      value={tripForm.wagonId1}
-                      onChange={(e) => setTripForm({ ...tripForm, wagonId1: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    >
-                      {wagons.map((w, idx) => (
-                        <option key={idx} value={w.id}>{w.id} ({w.wagonType || 'Covered Hopper'})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security Seal #1 *</label>
-                    <input
-                      required
-                      value={tripForm.seal1}
-                      onChange={(e) => setTripForm({ ...tripForm, seal1: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-amber-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Allocated Wagon #2 *</label>
-                    <select
-                      value={tripForm.wagonId2}
-                      onChange={(e) => setTripForm({ ...tripForm, wagonId2: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    >
-                      {wagons.map((w, idx) => (
-                        <option key={idx} value={w.id}>{w.id} ({w.wagonType || 'Covered Hopper'})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security Seal #2 *</label>
-                    <input
-                      required
-                      value={tripForm.seal2}
-                      onChange={(e) => setTripForm({ ...tripForm, seal2: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-amber-800"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Escort Officer Name</label>
-                    <input
-                      value={tripForm.escortName}
-                      onChange={(e) => setTripForm({ ...tripForm, escortName: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Badge / Phone Ping</label>
-                    <input
-                      value={tripForm.badgeId}
-                      onChange={(e) => setTripForm({ ...tripForm, badgeId: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setCreateTripModalDeal(null)}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold py-3 rounded-xl shadow-md transition-all"
-                  >
-                    Launch Freight Trip & Issue Waybill
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-        {/* ─── MODAL: FIELD FUND REQUISITION DISPATCH ─── */}
-        {showFundModal && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
-                    FIELD SIDING REQUISITION DISPATCH
-                  </span>
-                  <h3 className="text-xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                    Request Siding Operational Funds
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFundModal(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
-                >
-                  ×
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateFundRequest} className="space-y-4 text-xs font-semibold">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Expense Category *</label>
-                  <select
-                    value={fundForm.category}
-                    onChange={(e) => {
-                      const cat = e.target.value;
-                      let amt = fundForm.amount;
-                      if (cat.includes('Tarpaulin')) amt = '350000';
-                      else if (cat.includes('Payloader')) amt = '280000';
-                      else if (cat.includes('Sanding')) amt = '120000';
-                      else if (cat.includes('Escort')) amt = '180000';
-                      else if (cat.includes('Weighbridge')) amt = '150000';
-                      else if (cat.includes('Emergency')) amt = '250000';
-                      setFundForm({ ...fundForm, category: cat, amount: amt });
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
-                  >
-                    <option value="Tarpaulin Covering & Lashing (₦350,000)">Tarpaulin Covering & Lashing (₦350,000)</option>
-                    <option value="Payloader Fuel & Operator Fee (₦280,000)">Payloader Fuel & Operator Fee (₦280,000)</option>
-                    <option value="Locomotive Sanding & Shunting Fee (₦120,000)">Locomotive Sanding & Shunting Fee (₦120,000)</option>
-                    <option value="Security & Escort Crew Logistics (₦180,000)">Security & Escort Crew Logistics (₦180,000)</option>
-                    <option value="Siding Track Weed Clearance & Maintenance (₦95,000)">Siding Track Weed Clearance & Maintenance (₦95,000)</option>
-                    <option value="Weighbridge Recalibration & Certification (₦150,000)">Weighbridge Recalibration & Certification (₦150,000)</option>
-                    <option value="Emergency Mechanical Siding Repair (₦250,000)">Emergency Mechanical Siding Repair (₦250,000)</option>
-                    <option value="Custom Operational Siding Expense">Custom Operational Siding Expense</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Requested Amount (₦) *</label>
-                    <input
-                      required
-                      type="number"
-                      value={fundForm.amount}
-                      onChange={(e) => setFundForm({ ...fundForm, amount: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Related Trip Number</label>
-                    <select
-                      value={fundForm.tripNo || activeTrip?.id}
-                      onChange={(e) => setFundForm({ ...fundForm, tripNo: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
-                    >
-                      {trips.map((t) => (
-                        <option key={t.id} value={t.id}>{t.id} ({t.origin} → {t.destination})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Purpose / Title *</label>
+                  <label className={lc}>Unload Start Time</label>
                   <input
                     type="text"
-                    placeholder="e.g. Purchase of 15 heavy-duty waterproof tarpaulins for rainy season"
-                    value={fundForm.title}
-                    onChange={(e) => setFundForm({ ...fundForm, title: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                    value={unloadForm.unloadStartTimeEdit}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, unloadStartTimeEdit: e.target.value })}
+                    className={`${ic} font-mono`}
+                    placeholder="02:15 PM"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Operational Justification / Field Description</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Details on vendor, urgency, or siding location requirement..."
-                    value={fundForm.description}
-                    onChange={(e) => setFundForm({ ...fundForm, description: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium"
+                  <label className={lc}>Concluding Time</label>
+                  <input
+                    type="text"
+                    value={unloadForm.unloadEndTimeEdit}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, unloadEndTimeEdit: e.target.value })}
+                    className={`${ic} font-mono`}
+                    placeholder="04:00 PM"
                   />
                 </div>
-
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">Terminal Dispatch Siding:</span>
-                  <span className="font-mono font-bold text-[#62BC37]">{user?.stationName || station}</span>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowFundModal(false)}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
-                  >
-                    Submit Requisition to Head Office
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* ─── MODAL: REQUISITION NOTES & CONVERSATION ─── */}
-        {selectedReqForChat && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50 font-sans">
-            <div className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-200 shadow-2xl space-y-4">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase">{selectedReqForChat.requisitionNo || selectedReqForChat.id}</span>
-                  <h4 className="text-base font-black text-slate-900">{selectedReqForChat.title}</h4>
-                  <p className="text-xs text-slate-500 font-medium">₦{Number(selectedReqForChat.amount).toLocaleString()} • Stage: <b className="text-slate-800">{selectedReqForChat.stage}</b></p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedReqForChat(null)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm"
-                >
-                  ×
-                </button>
               </div>
 
-              {selectedReqForChat.paymentDetails && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 font-mono text-xs">
-                  <span className="text-[10px] text-emerald-600 font-bold uppercase block font-sans">Disbursed via GTBank</span>
-                  <span className="font-black text-emerald-800 text-sm">Ref: {selectedReqForChat.paymentDetails.ref}</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5 font-sans">Date: {selectedReqForChat.paymentDetails.date || selectedReqForChat.paymentDetails.disbursedAt}</span>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={lc}>Delivered Intact *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={unloadForm.correctQty}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, correctQty: e.target.value })}
+                    className={`${ic} font-mono font-bold text-emerald-700`}
+                  />
                 </div>
-              )}
+                <div>
+                  <label className={lc}>Damaged Quantity *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={unloadForm.damageQty}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, damageQty: e.target.value })}
+                    className={`${ic} font-mono font-bold text-rose-600`}
+                  />
+                </div>
+                <div>
+                  <label className={lc}>Burst Bags Count *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={unloadForm.burstBags}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, burstBags: e.target.value })}
+                    className={`${ic} font-mono font-bold text-amber-700`}
+                  />
+                </div>
+              </div>
 
-              <div className="bg-slate-50 rounded-2xl p-4 space-y-3 max-h-60 overflow-y-auto border border-slate-200 text-xs">
-                {(!selectedReqForChat.conversation || selectedReqForChat.conversation.length === 0) ? (
-                  <p className="text-center text-slate-400 py-3">No messages or questions logged yet.</p>
-                ) : (
-                  selectedReqForChat.conversation.map((m: any, idx: number) => (
-                    <div key={idx} className={`p-3 rounded-xl border ${m.sender === user?.fullName ? 'bg-[#0E4B88] text-white ml-6 border-transparent' : 'bg-white text-slate-800 mr-6 border-slate-200'}`}>
-                      <div className="flex justify-between items-center text-[10px] opacity-80 mb-1">
-                        <span className="font-bold">{m.sender} ({m.role})</span>
-                        <span className="font-mono">{m.time}</span>
-                      </div>
-                      <p className="leading-snug">{m.msg}</p>
-                    </div>
-                  ))
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-900">Flag Discrepancy for this Wagon?</label>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                      <input
+                        type="radio"
+                        name="complaint"
+                        checked={!unloadForm.hasComplaint}
+                        onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: false })}
+                      />
+                      <span className="text-emerald-700">NO (Clean Discharge)</span>
+                    </label>
+                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
+                      <input
+                        type="radio"
+                        name="complaint"
+                        checked={unloadForm.hasComplaint}
+                        onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: true })}
+                      />
+                      <span className="text-rose-600">YES (Log Discrepancy)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {unloadForm.hasComplaint && (
+                  <div>
+                    <label className={lc}>Reason for Wagon Complaint / Discrepancy *</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={unloadForm.complaintNotes}
+                      onChange={(e) => setUnloadForm({ ...unloadForm, complaintNotes: e.target.value })}
+                      placeholder="Describe exact cause of damage/burst bags for insurance audit..."
+                      className={`${ic} resize-none`}
+                    />
+                  </div>
                 )}
               </div>
 
-              <form onSubmit={handleSendReqChat} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Type message or field update..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                />
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStoppingUnloadWagon(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md"
                 >
-                  Send
+                  Save &amp; Complete Unload
                 </button>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
-      </div>
+        </Modal>
+      )}
+
+      <CustomAlertModal
+        isOpen={!!customAlert}
+        message={customAlert?.message || null}
+        title={customAlert?.title}
+        onClose={() => setCustomAlert(null)}
+      />
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   FUND REQUEST DETAIL & CONVERSATION MODAL
+───────────────────────────────────────────────────────── */
+function FundRequestDetailModal({
+  req,
+  user,
+  onClose,
+  onSaveRequests,
+  allRequests,
+}: {
+  req: any;
+  user: any;
+  onClose: () => void;
+  onSaveRequests: (r: any[]) => void;
+  allRequests: any[];
+}) {
+  const [chatInput, setChatInput] = useState('');
+
+  const handleSendChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const newMsg = {
+      sender: user?.fullName || 'Cargo Officer',
+      role: 'Cargo Officer',
+      msg: chatInput.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const updated = allRequests.map((r: any) =>
+      r.id === req.id
+        ? {
+            ...r,
+            conversation: [...(r.conversation || []), newMsg],
+          }
+        : r
+    );
+
+    onSaveRequests(updated);
+    setChatInput('');
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 space-y-4 font-sans">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-black text-[#0E4B88] text-sm">{req.id}</span>
+              <Badge text={req.stage} color={stageColor(req.stage)} />
+            </div>
+            <h3 className="text-base font-black text-slate-900 mt-1">{req.title}</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+          <div>
+            <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Amount</span>
+            <span className="font-mono font-black text-slate-900 text-base">₦{Number(req.amount).toLocaleString()}</span>
+          </div>
+          <div>
+            <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Category</span>
+            <span className="font-bold text-slate-800">{req.category}</span>
+          </div>
+          <div>
+            <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Originating Station</span>
+            <span className="font-bold text-slate-800">{sName(req.station)}</span>
+          </div>
+          <div>
+            <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Associated Trip</span>
+            <span className="font-mono font-bold text-[#0E4B88]">{req.tripNo || 'TRIP-001'}</span>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-xs font-black text-slate-900 mb-2">Audit &amp; Approval Conversation Log</h4>
+          <div className="bg-slate-50 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2 border border-slate-200 text-xs">
+            {(req.conversation || []).map((m: any, idx: number) => (
+              <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
+                <div className="flex justify-between items-center text-[10px] text-slate-400 mb-1">
+                  <span className="font-bold text-slate-800">
+                    {m.sender} <span className="font-medium text-slate-400">({m.role})</span>
+                  </span>
+                  <span>{m.time}</span>
+                </div>
+                <p className="text-slate-700 text-xs">{m.msg}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={handleSendChat} className="flex gap-2">
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            placeholder="Type field reply or message to Head of Finance..."
+            className={`${ic} flex-1`}
+          />
+          <button
+            type="submit"
+            className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Send</span>
+          </button>
+        </form>
+      </div>
+    </Modal>
   );
 }
