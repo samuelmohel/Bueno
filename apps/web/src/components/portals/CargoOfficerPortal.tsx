@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { StateEngine, SEED_WAGONS, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
@@ -18,13 +19,9 @@ import {
   Plus,
   ArrowRight,
   ArrowLeft,
-  ChevronRight,
   MapPin,
   Building2,
-  Package,
-  Search,
   DollarSign,
-  MessageSquare,
   X,
   Radio,
   Compass,
@@ -33,8 +30,6 @@ import {
   Menu,
   Check,
   Send,
-  UserCheck,
-  Calendar
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────────
@@ -55,30 +50,6 @@ const STATIONS: Record<string, string> = {
 
 const sName = (c: string) => STATIONS[c] || c || 'Station';
 
-const WAGON_TYPES = [
-  { code: 'PXG', name: 'PXG Covered Hopper (Cement / Bags)' },
-  { code: 'GND', name: 'Open Top Gondola Wagon (Gypsum / Minerals)' },
-  { code: 'BTM', name: 'Bottom Dumper Wagon (Limestone / Raw Ore)' },
-  { code: 'FLT', name: 'Flatbed Container Wagon (20ft / 40ft TEU)' },
-  { code: 'TNK', name: 'Tanker Wagon (Diesel / Liquid Fuel)' },
-];
-
-function getOccupiedWagonIds(trips: any[]): Set<string> {
-  const occupied = new Set<string>();
-  (trips || []).forEach((t: any) => {
-    if (t.status === 'LOADING' || t.status === 'IN_TRANSIT' || t.status === 'UNLOADING') {
-      (t.wagonLogs || []).forEach((w: any) => {
-        if (w.wagonId && w.unloadStatus !== 'UNLOADED') {
-          occupied.add(w.wagonId);
-        }
-      });
-      if (t.wagonId1) occupied.add(t.wagonId1);
-      if (t.wagonId2) occupied.add(t.wagonId2);
-    }
-  });
-  return occupied;
-}
-
 const ic = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]';
 const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1';
 
@@ -90,7 +61,6 @@ function Badge({ text, color }: { text: string; color?: string }) {
     blue: 'bg-sky-50 text-sky-700 border-sky-200',
     purple: 'bg-purple-50 text-purple-700 border-purple-200',
     rose: 'bg-rose-50 text-rose-700 border-rose-200',
-    red: 'bg-rose-50 text-rose-700 border-rose-200',
     slate: 'bg-slate-100 text-slate-700 border-slate-200',
   };
   return (
@@ -111,7 +81,7 @@ function stageColor(s: string) {
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100">
         {children}
       </div>
@@ -132,7 +102,7 @@ function CustomAlertModal({
 }) {
   if (!isOpen || !message) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 font-sans text-center">
         <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
           <CheckCircle2 className="w-6 h-6" />
@@ -192,7 +162,6 @@ function TableWrap({
 }) {
   return (
     <div className="space-y-3">
-      {/* Desktop View */}
       <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -210,7 +179,6 @@ function TableWrap({
         </div>
       </div>
 
-      {/* Mobile View */}
       {mobileCard && data.length > 0 && (
         <div className="md:hidden space-y-3">
           {data.map((item, i) => (
@@ -257,15 +225,19 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     'deals' | 'trips' | 'in_transit' | 'incoming_unload' | 'moniya' | 'wagons' | 'funds' | 'terminal_info'
   >('deals');
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedUnloadTripId, setSelectedUnloadTripId] = useState<string | null>(null);
   const [selectedReq, setSelectedReq] = useState<any | null>(null);
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
-  const [deals, setDeals] = useState<any[]>([]);
-  const [trips, setTrips] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [wagons, setWagons] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>(() => StateEngine.getDeals());
+  const [trips, setTrips] = useState<any[]>(() => StateEngine.getTrips());
+  const [requests, setRequests] = useState<any[]>(() => StateEngine.getRequests());
+  const [wagons, setWagons] = useState<any[]>(() => {
+    const w = StateEngine.getWagons();
+    return w && w.length > 0 ? w : SEED_WAGONS;
+  });
 
   const [createDeal, setCreateDeal] = useState<any | null>(null);
   const [addWagonModal, setAddWagonModal] = useState(false);
@@ -294,7 +266,6 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
   const station = user?.assignedStation || 'EWK';
 
-  // Sync state from StateEngine & remote cPanel backend
   const syncData = () => {
     const liveDeals = StateEngine.getDeals();
     const liveTrips = StateEngine.getTrips();
@@ -303,7 +274,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
     setDeals(liveDeals);
     setTrips(liveTrips);
-    setWagons(liveWagons.length > 0 ? liveWagons : SEED_WAGONS);
+    setWagons(liveWagons && liveWagons.length > 0 ? liveWagons : SEED_WAGONS);
     setRequests(liveRequests);
   };
 
@@ -333,8 +304,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     };
   }, []);
 
-  const occupiedWagonIds = getOccupiedWagonIds(trips);
-  const availableWagons = wagons.filter((w) => !occupiedWagonIds.has(w.id));
+  // Fleet calculation — ensures 46 wagons are ALWAYS ready and available
+  const fleetWagons = wagons && wagons.length > 0 ? wagons : SEED_WAGONS;
 
   // Inclusive deal and trip views — ensures NO deal created from Admin is ever hidden
   const myDeals = deals.filter((d) => d.status !== 'COMPLETED' && d.status !== 'CANCELLED');
@@ -407,11 +378,9 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       wagonLogs: [],
     };
 
-    // Save trip
     const updatedTrips = [newTrip, ...trips];
     saveTrips(updatedTrips);
 
-    // Update deal dispatched status
     const updatedDeals = deals.map((d) => {
       if (d.id === createDeal.id) {
         const nextDispatched = (d.dispatchedTripsCount || 0) + 1;
@@ -426,12 +395,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     });
     saveDeals(updatedDeals);
 
-    // Send notifications
     try {
       const notifPayload = {
         id: `ntf_${Date.now()}`,
         title: `Trip Initiated: ${newTrip.tripId}`,
-        message: `Locomotive ${newTrip.locomotiveId} assigned for ${newTrip.company}. Wagon loading initiated at ${sName(station)}.`,
+        message: `Locomotive ${newTrip.locomotiveId} assigned for ${newTrip.company}. Wagon loading initiated.`,
         targetId: newTrip.id,
         targetTab: 'trips',
         read: false,
@@ -447,18 +415,17 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     } catch {}
 
     setCreateDeal(null);
-    // Immediately open the Trip Wagon Loading Dashboard!
     setSelectedTripId(newTrip.id);
   };
 
-  // 2. Register New Wagon to Fleet
+  // 2. Register New Wagon
   const handleRegisterWagon = (e: React.FormEvent) => {
     e.preventDefault();
     const wId = newWagonId.trim().toUpperCase() || `PXG ${Math.floor(9000 + Math.random() * 999)}`;
-    if (wagons.some((w) => w.id === wId)) {
+    if (fleetWagons.some((w: any) => w.id === wId)) {
       setCustomAlert({
         title: 'Wagon Already Registered',
-        message: `Wagon ${wId} is already registered in the station fleet inventory!`,
+        message: `Wagon ${wId} is already registered in the fleet inventory!`,
       });
       return;
     }
@@ -473,7 +440,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       addedBy: user?.fullName || 'Ade Bello',
       createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     };
-    saveWagons([...wagons, newW]);
+    saveWagons([...fleetWagons, newW]);
     setNewWagonId('');
     setAddWagonModal(false);
     setCustomAlert({
@@ -482,7 +449,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     });
   };
 
-  // 3. Fund Request Submission
+  // 3. Fund Request
   const handleFundRequest = (e: React.FormEvent) => {
     e.preventDefault();
     const req = {
@@ -526,447 +493,482 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     { key: 'in_transit', label: 'Trips on the Move', icon: Radio },
     { key: 'incoming_unload', label: 'Incoming Consignments (Unload)', icon: Truck },
     { key: 'moniya', label: 'Moniya Container Terminal', icon: Building2 },
-    { key: 'wagons', label: `Wagon Fleet (${wagons.length})`, icon: Layers },
+    { key: 'wagons', label: `Wagon Fleet (${fleetWagons.length})`, icon: Layers },
     { key: 'funds', label: 'Request Funds', icon: DollarSign },
     { key: 'terminal_info', label: 'Terminal Info Ledger', icon: Compass },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-      {/* Top Navigation Bar */}
-      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+      {/* ── CLEAN CORPORATE WHITE HEADER (MATCHING BUENO OS IDENTITY) ── */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+        <div className="px-4 sm:px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#62BC37] to-emerald-400 flex items-center justify-center text-slate-950 font-black shadow-md">
-              <Train className="w-5 h-5 text-slate-950" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm sm:text-base tracking-tight text-white font-mono">BUENO FREIGHT OS</span>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#62BC37]/20 text-[#62BC37] border border-[#62BC37]/30">
-                  CARGO COMMAND
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-slate-600 hover:text-slate-900 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all cursor-pointer"
+              title="Toggle Sidebar"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/bueno_logo.png"
+                alt="Bueno Logistics"
+                className="h-8 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              <div>
+                <h1 className="text-sm font-black tracking-wider text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  BUENO LOGISTICS
+                </h1>
+                <span className="text-[10px] font-mono text-slate-400 block -mt-0.5 uppercase tracking-widest font-bold">
+                  CARGO COMMAND DISPATCH
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <MapPin className="w-3 h-3 text-[#62BC37]" />
-                Station: <strong className="text-white">{sName(station)}</strong> ({station})
-              </p>
+            </div>
+
+            <div className="hidden md:flex items-center gap-1.5 ml-4 pl-4 border-l border-slate-200">
+              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="text-xs font-black text-slate-700">{sName(station)}</span>
+              <span className="text-[10px] font-mono text-slate-400">({station})</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-black text-white">{user?.fullName || 'Cargo Officer'}</span>
-              <span className="text-[10px] font-semibold text-emerald-400 font-mono">ID: {user?.staffId || 'EWK-01'}</span>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:block text-right">
+              <span className="text-xs font-black text-slate-900 block">{user?.fullName || 'Cargo Officer'}</span>
+              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">
+                {user?.staffId ? `ID: ${user.staffId}` : 'Station Field Officer'}
+              </span>
             </div>
+
             <button
               onClick={onSignOut}
-              className="flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+              className="bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-extrabold text-xs px-4 py-2 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
         </div>
-
-        {/* Horizontal Navigation Tabs */}
-        <div className="bg-slate-950/80 border-t border-slate-800/80 backdrop-blur-xs overflow-x-auto">
-          <div className="max-w-7xl mx-auto px-4 flex items-center gap-1 py-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = view === item.key && !selectedTripId && !selectedUnloadTripId;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    setView(item.key as any);
-                    setSelectedTripId(null);
-                    setSelectedUnloadTripId(null);
-                  }}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-[#62BC37] text-slate-950 shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </header>
 
-      {/* Main Workspace Body */}
-      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1">
-        {selectedTripId ? (
-          /* ACTIVE PER-WAGON LOADING DASHBOARD (TIMED WAGONS & AUDIT) */
-          <TripWagonView
-            tripId={selectedTripId}
-            trips={trips}
-            wagons={wagons}
-            onBack={() => setSelectedTripId(null)}
-            onSaveTrips={saveTrips}
-          />
-        ) : selectedUnloadTripId ? (
-          /* DESTINATION UNLOADING DASHBOARD (TIMED UNLOAD & DISCREPANCY AUDIT) */
-          <TripUnloadWagonView
-            tripId={selectedUnloadTripId}
-            trips={trips}
-            user={user}
-            onBack={() => setSelectedUnloadTripId(null)}
-            onSaveTrips={saveTrips}
-          />
-        ) : (
-          <>
-            {/* VIEW 1: LATEST DEALS (LOADING) — DEFAULT ENTRY POINT */}
-            {view === 'deals' && (
-              <Section
-                title="Latest Deals (Origin Loading Station)"
-                subtitle={`Approved freight deals allocated to ${sName(station)} — click 'Create Trip' to configure consist & start timed wagon loading`}
-              >
-                <TableWrap
-                  headers={['Deal ID', 'Client / Consignor', 'Route Corridor', 'Cargo Spec & Bags', 'Action']}
-                  mobileCard={(d: any) => (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</span>
-                        <span className="text-xs font-bold text-slate-700">{sName(d.destination)}</span>
-                      </div>
-                      <p className="font-bold text-slate-900">{d.company}</p>
-                      <p className="text-xs text-slate-600">
-                        {d.cargoType} ({Number(d.quantity).toLocaleString()} Bags)
-                      </p>
-                      <button
-                        onClick={() => {
-                          setCreateDeal(d);
-                          setTripForm((f) => ({
-                            ...f,
-                            selectedWagon: availableWagons[0]?.id || '',
-                            qty: String(d.quantity || 27600),
-                          }));
-                        }}
-                        className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs py-2.5 rounded-xl mt-2 shadow-sm flex items-center justify-center gap-2 transition-all"
-                      >
-                        <span>Create Trip & Start Loading</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                  data={myDeals}
-                >
-                  {myDeals.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-12 text-center bg-gradient-to-b from-slate-50 to-emerald-50/20">
-                        <div className="max-w-md mx-auto space-y-3">
-                          <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
-                            <ShieldCheck className="w-6 h-6" />
-                          </div>
-                          <h4 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                            {sName(station)} Siding Ready & Operational
-                          </h4>
-                          <p className="text-xs text-slate-500">
-                            No pending freight deals allocated to this station right now. Deals registered in the Admin Portal will appear here immediately for trip creation.
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    myDeals.map((d) => (
-                      <tr key={d.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</td>
-                        <td className="p-4">
-                          <p className="font-bold text-slate-900">{d.company}</p>
-                          <p className="text-[10px] text-slate-400">Approved Commercial Contract</p>
-                        </td>
-                        <td className="p-4 text-slate-700 font-semibold">
-    <div className="flex items-center gap-1.5 text-xs">
-      <span className="font-bold text-slate-800">{sName(d.loadingStation || d.origin || station)}</span>
-      <span className="text-slate-400">➔</span>
-      <span className="font-bold text-[#0E4B88]">{sName(d.destination || 'MNY')}</span>
-    </div>
-  </td>
-                        <td className="p-4 text-slate-700">
-                          <div className="font-medium">{d.cargoType}</div>
-                          <div className="font-mono font-bold text-emerald-700">
-                            {Number(d.quantity).toLocaleString()} Bags ({((Number(d.quantity) || 0) * 0.05).toFixed(0)} MT)
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <button
-                            onClick={() => {
-                              setCreateDeal(d);
-                              setTripForm((f) => ({
-                                ...f,
-                                selectedWagon: availableWagons[0]?.id || '',
-                                qty: String(d.quantity || 27600),
-                              }));
-                            }}
-                            className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
-                          >
-                            <span>Create Trip</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </TableWrap>
-              </Section>
-            )}
+      {/* ── TWO-COLUMN WORKSPACE: LEFT SIDEBAR + MAIN VIEW ── */}
+      <div className="flex flex-1 w-full min-h-[calc(100vh-64px)]">
+        {/* LEFT SIDEBAR NAVIGATION */}
+        {sidebarOpen && (
+          <aside className="w-64 sm:w-72 bg-white border-r border-slate-200 p-4 space-y-4 shrink-0 transition-all sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+            <div className="px-2 pt-1">
+              <span className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-slate-400">
+                OPERATIONAL DESK
+              </span>
+            </div>
 
-            {/* VIEW 2: TRIPS CREATED (LOADING) */}
-            {view === 'trips' && (
-              <Section
-                title="Trips Created (Wagon Loading)"
-                subtitle="Trips active at this terminal — click any trip row to enter the timed wagon loading dashboard"
-              >
-                <TableWrap
-                  headers={['Trip ID', 'Cargo Officer', 'Company / Cargo', 'Route Corridor', 'Wagons Loaded', 'Action']}
-                  mobileCard={(t: any) => {
-                    const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                    return (
-                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                          <span className="font-mono font-bold text-[#62BC37] text-xs">
-                            {loaded} / {t.targetWagonsCount || 23} Loaded
-                          </span>
-                        </div>
-                        <p className="font-bold text-slate-900">{t.company}</p>
-                        <p className="text-xs text-slate-600">
-                          {sName(t.origin)} ➔ {sName(t.destination)}
-                        </p>
-                        <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
-                          <span>Open Wagon Loading Console</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </p>
-                      </div>
-                    );
-                  }}
-                  data={myTrips}
-                >
-                  {myTrips.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
-                        No active loading trips. Navigate to 'Latest Deals' to create a new trip.
-                      </td>
-                    </tr>
-                  ) : (
-                    myTrips.map((t) => {
-                      const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
-                      return (
-                        <tr
-                          key={t.id}
-                          className="hover:bg-slate-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedTripId(t.id)}
-                        >
-                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
-                          <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
-                          <td className="p-4">
-                            <p className="font-bold text-slate-900">{t.company}</p>
-                            <p className="text-[10px] text-slate-500">{t.cargoType}</p>
-                          </td>
-                          <td className="p-4 text-slate-600 font-medium">
-                            {sName(t.origin)} ➔ {sName(t.destination)}
-                          </td>
-                          <td className="p-4 font-mono font-bold text-[#62BC37]">
-                            {loaded} / {t.targetWagonsCount || 23} Wagons
-                          </td>
-                          <td className="p-4">
-                            <span className="text-xs font-bold text-[#0E4B88] hover:underline flex items-center gap-1">
-                              <span>Open Loading</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </TableWrap>
-              </Section>
-            )}
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = view === item.key && !selectedTripId && !selectedUnloadTripId;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      setView(item.key as any);
+                      setSelectedTripId(null);
+                      setSelectedUnloadTripId(null);
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#62BC37] text-white shadow-sm font-black'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
 
-            {/* VIEW 3: TRIPS ON THE MOVE (IN TRANSIT) */}
-            {view === 'in_transit' && (
-              <div className="space-y-4">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 space-y-1 mt-6">
+              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                <MapPin className="w-3.5 h-3.5 text-[#62BC37]" />
+                <span>Station Duty Node</span>
+              </div>
+              <p className="text-xs font-black text-slate-900">{sName(station)}</p>
+              <p className="text-[10px] text-slate-400">Rolling Stock: 46 Covered Wagons</p>
+            </div>
+          </aside>
+        )}
+
+        {/* MAIN OPERATIONAL WORKSPACE */}
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto min-w-0">
+          {selectedTripId ? (
+            /* ACTIVE PER-WAGON TIMED LOADING DASHBOARD */
+            <TripWagonView
+              tripId={selectedTripId}
+              trips={trips}
+              wagons={fleetWagons}
+              onBack={() => setSelectedTripId(null)}
+              onSaveTrips={saveTrips}
+            />
+          ) : selectedUnloadTripId ? (
+            /* DESTINATION DISCHARGE & AUDIT DASHBOARD */
+            <TripUnloadWagonView
+              tripId={selectedUnloadTripId}
+              trips={trips}
+              user={user}
+              onBack={() => setSelectedUnloadTripId(null)}
+              onSaveTrips={saveTrips}
+            />
+          ) : (
+            <>
+              {/* VIEW 1: LATEST DEALS (LOADING) — DEFAULT ENTRY POINT */}
+              {view === 'deals' && (
                 <Section
-                  title="Trips on the Move (Live Corridor Transit)"
-                  subtitle="Active train consists departed from your station currently running along the Lagos-Ibadan corridor"
+                  title="Latest Deals (Origin Loading Station)"
+                  subtitle={`Approved freight deals allocated for loading — click 'Create Trip' to configure consist & start timed wagon loading`}
                 >
                   <TableWrap
-                    headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status', 'Action']}
-                    mobileCard={(t: any) => (
-                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                    headers={['Deal ID', 'Client / Consignor', 'Route Corridor', 'Cargo Spec & Bags', 'Action']}
+                    mobileCard={(d: any) => (
+                      <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                          <Badge text={t.status} color="green" />
+                          <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</span>
+                          <span className="text-xs font-bold text-slate-700">
+                            {sName(d.loadingStation || d.origin || station)} ➔ {sName(d.destination || 'MNY')}
+                          </span>
                         </div>
-                        <p className="font-bold text-slate-900">{t.company}</p>
-                        <p className="text-xs font-mono text-slate-700">Loco: {t.locomotiveId}</p>
+                        <p className="font-bold text-slate-900">{d.company}</p>
                         <p className="text-xs text-slate-600">
-                          {sName(t.origin)} ➔ {sName(t.destination)}
+                          {d.cargoType} ({Number(d.quantity).toLocaleString()} Bags)
                         </p>
-                        <p className="text-xs font-bold text-[#62BC37] pt-1 flex items-center gap-1">
-                          <span>Inspect Consist & Telemetry</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </p>
+                        <button
+                          onClick={() => {
+                            setCreateDeal(d);
+                            setTripForm((f) => ({
+                              ...f,
+                              selectedWagon: fleetWagons[0]?.id || 'PXG 09029',
+                              qty: String(d.quantity || 27600),
+                            }));
+                          }}
+                          className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs py-2.5 rounded-xl mt-2 shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        >
+                          <span>Create Trip & Start Loading</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
-                    data={myInTransit}
+                    data={myDeals}
                   >
-                    {myInTransit.length === 0 ? (
+                    {myDeals.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
-                          No trains currently in corridor transit.
+                        <td colSpan={5} className="p-12 text-center bg-white">
+                          <div className="max-w-md mx-auto space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
+                              <ShieldCheck className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                              Loading Siding Ready & Operational
+                            </h4>
+                            <p className="text-xs text-slate-500">
+                              No active freight deals in queue right now. Deals registered in the Admin Portal will appear here immediately for trip creation.
+                            </p>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      myInTransit.map((t) => (
-                        <tr
-                          key={t.id}
-                          className="hover:bg-slate-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedTripId(t.id)}
-                        >
-                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
-                          <td className="p-4 font-bold text-slate-900">{t.company}</td>
-                          <td className="p-4 font-mono text-slate-800 font-bold">{t.locomotiveId}</td>
-                          <td className="p-4 text-slate-600 font-medium">
-                            {sName(t.origin)} ➔ {sName(t.destination)}
+                      myDeals.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900">{d.company}</p>
+                            <p className="text-[10px] text-slate-400">Approved Commercial Contract</p>
+                          </td>
+                          <td className="p-4 text-slate-700 font-semibold">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="font-bold text-slate-800">{sName(d.loadingStation || d.origin || station)}</span>
+                              <span className="text-slate-400">➔</span>
+                              <span className="font-bold text-[#0E4B88]">{sName(d.destination || 'MNY')}</span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-slate-700">
+                            <div className="font-medium">{d.cargoType}</div>
+                            <div className="font-mono font-bold text-emerald-700">
+                              {Number(d.quantity).toLocaleString()} Bags ({((Number(d.quantity) || 0) * 0.05).toFixed(0)} MT)
+                            </div>
                           </td>
                           <td className="p-4">
-                            <Badge text={t.status} color="green" />
+                            <button
+                              onClick={() => {
+                                setCreateDeal(d);
+                                setTripForm((f) => ({
+                                  ...f,
+                                  selectedWagon: fleetWagons[0]?.id || 'PXG 09029',
+                                  qty: String(d.quantity || 27600),
+                                }));
+                              }}
+                              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <span>Create Trip</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
                           </td>
-                          <td className="p-4 font-bold text-[#62BC37] hover:underline">Inspect Consist & GPS ➔</td>
                         </tr>
                       ))
                     )}
                   </TableWrap>
                 </Section>
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-                  <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                    Live GPS Telemetry & Waypoint Corridor
-                  </h3>
-                  <LiveGpsMap trips={myInTransit} />
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* VIEW 4: INCOMING CONSIGNMENTS (UNLOAD) */}
-            {view === 'incoming_unload' && (
-              <Section
-                title="Incoming Consignments (Destination Unloading Yard)"
-                subtitle={`Consignments scheduled or arrived at ${sName(station)} — click 'Unload Consignment' to audit and discharge wagons`}
-              >
-                <TableWrap
-                  headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Wagon Progress', 'Status', 'Action']}
-                  mobileCard={(t: any) => {
-                    const totalWagons = (t.wagonLogs || []).length;
-                    const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
-                    return (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                          <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
-                        </div>
-                        <p className="font-bold text-slate-900">
-                          {t.company} — {t.cargoType}
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          Origin: {sName(t.origin)} | Discharged: {unloadedCount} / {totalWagons || 23} Wagons
-                        </p>
-                        <button
-                          onClick={() => setSelectedUnloadTripId(t.id)}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2 rounded-xl mt-1 shadow-xs flex items-center justify-center gap-1"
-                        >
-                          <span>Unload Consignment</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  }}
-                  data={myIncomingUnload}
+              {/* VIEW 2: TRIPS CREATED (LOADING) */}
+              {view === 'trips' && (
+                <Section
+                  title="Trips Created (Wagon Loading)"
+                  subtitle="Active trips in loading phase — click any trip row to enter the timed wagon loading dashboard"
                 >
-                  {myIncomingUnload.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
-                        No incoming freight scheduled for {sName(station)}.
-                      </td>
-                    </tr>
-                  ) : (
-                    myIncomingUnload.map((t) => {
+                  <TableWrap
+                    headers={['Trip ID', 'Cargo Officer', 'Company / Cargo', 'Route Corridor', 'Wagons Loaded', 'Action']}
+                    mobileCard={(t: any) => {
+                      const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
+                      return (
+                        <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                            <span className="font-mono font-bold text-[#62BC37] text-xs">
+                              {loaded} / {t.targetWagonsCount || 23} Loaded
+                            </span>
+                          </div>
+                          <p className="font-bold text-slate-900">{t.company}</p>
+                          <p className="text-xs text-slate-600">
+                            {sName(t.origin)} ➔ {sName(t.destination)}
+                          </p>
+                          <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                            <span>Open Wagon Loading Console</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </p>
+                        </div>
+                      );
+                    }}
+                    data={myTrips}
+                  >
+                    {myTrips.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                          No active loading trips. Navigate to 'Latest Deals' to create a new trip.
+                        </td>
+                      </tr>
+                    ) : (
+                      myTrips.map((t) => {
+                        const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
+                        return (
+                          <tr
+                            key={t.id}
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
+                            onClick={() => setSelectedTripId(t.id)}
+                          >
+                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
+                            <td className="p-4">
+                              <p className="font-bold text-slate-900">{t.company}</p>
+                              <p className="text-[10px] text-slate-500">{t.cargoType}</p>
+                            </td>
+                            <td className="p-4 text-slate-600 font-medium">
+                              {sName(t.origin)} ➔ {sName(t.destination)}
+                            </td>
+                            <td className="p-4 font-mono font-bold text-[#62BC37]">
+                              {loaded} / {t.targetWagonsCount || 23} Wagons
+                            </td>
+                            <td className="p-4">
+                              <span className="text-xs font-bold text-[#0E4B88] hover:underline flex items-center gap-1">
+                                <span>Open Loading</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </TableWrap>
+                </Section>
+              )}
+
+              {/* VIEW 3: TRIPS ON THE MOVE (IN TRANSIT) */}
+              {view === 'in_transit' && (
+                <div className="space-y-4">
+                  <Section
+                    title="Trips on the Move (Live Corridor Transit)"
+                    subtitle="Active train consists currently running along the Lagos-Ibadan corridor"
+                  >
+                    <TableWrap
+                      headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status', 'Action']}
+                      mobileCard={(t: any) => (
+                        <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                            <Badge text={t.status} color="green" />
+                          </div>
+                          <p className="font-bold text-slate-900">{t.company}</p>
+                          <p className="text-xs font-mono text-slate-700">Loco: {t.locomotiveId}</p>
+                          <p className="text-xs text-slate-600">
+                            {sName(t.origin)} ➔ {sName(t.destination)}
+                          </p>
+                          <p className="text-xs font-bold text-[#62BC37] pt-1 flex items-center gap-1">
+                            <span>Inspect Consist & Telemetry</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </p>
+                        </div>
+                      )}
+                      data={myInTransit}
+                    >
+                      {myInTransit.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                            No trains currently in corridor transit.
+                          </td>
+                        </tr>
+                      ) : (
+                        myInTransit.map((t) => (
+                          <tr
+                            key={t.id}
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
+                            onClick={() => setSelectedTripId(t.id)}
+                          >
+                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-bold text-slate-900">{t.company}</td>
+                            <td className="p-4 font-mono text-slate-800 font-bold">{t.locomotiveId}</td>
+                            <td className="p-4 text-slate-600 font-medium">
+                              {sName(t.origin)} ➔ {sName(t.destination)}
+                            </td>
+                            <td className="p-4">
+                              <Badge text={t.status} color="green" />
+                            </td>
+                            <td className="p-4 font-bold text-[#62BC37] hover:underline">Inspect Consist & GPS ➔</td>
+                          </tr>
+                        ))
+                      )}
+                    </TableWrap>
+                  </Section>
+                  <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+                    <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                      Live GPS Telemetry & Waypoint Corridor
+                    </h3>
+                    <LiveGpsMap trips={myInTransit} />
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 4: INCOMING CONSIGNMENTS (UNLOAD) */}
+              {view === 'incoming_unload' && (
+                <Section
+                  title="Incoming Consignments (Destination Unloading Yard)"
+                  subtitle={`Consignments scheduled or arrived at ${sName(station)} — click 'Unload Consignment' to audit and discharge wagons`}
+                >
+                  <TableWrap
+                    headers={['Trip ID', 'Origin Station', 'Company & Cargo', 'Wagon Progress', 'Status', 'Action']}
+                    mobileCard={(t: any) => {
                       const totalWagons = (t.wagonLogs || []).length;
                       const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
                       return (
-                        <tr key={t.id} className="hover:bg-purple-50/40 transition-colors">
-                          <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
-                          <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
-                          <td className="p-4 text-slate-700 font-medium">
-                            {t.company} — {t.cargoType}
-                          </td>
-                          <td className="p-4 font-mono font-bold text-slate-900">
-                            {unloadedCount} / {totalWagons || 23} Discharged
-                          </td>
-                          <td className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
                             <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
-                          </td>
-                          <td className="p-4">
-                            <button
-                              onClick={() => setSelectedUnloadTripId(t.id)}
-                              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1 transition-all"
-                            >
-                              <span>Unload Consignment</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </button>
-                          </td>
-                        </tr>
+                          </div>
+                          <p className="font-bold text-slate-900">
+                            {t.company} — {t.cargoType}
+                          </p>
+                          <p className="text-xs text-slate-600">
+                            Origin: {sName(t.origin)} | Discharged: {unloadedCount} / {totalWagons || 23} Wagons
+                          </p>
+                          <button
+                            onClick={() => setSelectedUnloadTripId(t.id)}
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2 rounded-xl mt-1 shadow-xs flex items-center justify-center gap-1"
+                          >
+                            <span>Unload Consignment</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       );
-                    })
-                  )}
-                </TableWrap>
-              </Section>
-            )}
-
-            {/* VIEW 5: MONIYA CONTAINER TERMINAL */}
-            {view === 'moniya' && <MoniyaContainerView user={user} />}
-
-            {/* VIEW 6: WAGON FLEET INVENTORY */}
-            {view === 'wagons' && (
-              <Section
-                title="Wagon Fleet Inventory (46+ Registered Wagons)"
-                subtitle="Enterprise rolling stock registry — occupied wagons are locked system-wide across loading, corridor transit, and discharge"
-                action={
-                  <button
-                    onClick={() => setAddWagonModal(true)}
-                    className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
+                    }}
+                    data={myIncomingUnload}
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>Register New Wagon</span>
-                  </button>
-                }
-              >
-                <TableWrap
-                  headers={['Wagon ID', 'Carriage Spec', 'Capacity (Bags / MT)', 'Live Status', 'Current Station', 'Added By']}
-                  mobileCard={(w: any) => {
-                    const isOccupied = occupiedWagonIds.has(w.id);
-                    return (
+                    {myIncomingUnload.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 text-xs">
+                          No incoming freight scheduled for {sName(station)}.
+                        </td>
+                      </tr>
+                    ) : (
+                      myIncomingUnload.map((t) => {
+                        const totalWagons = (t.wagonLogs || []).length;
+                        const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
+                        return (
+                          <tr key={t.id} className="hover:bg-purple-50/40 transition-colors">
+                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
+                            <td className="p-4 text-slate-700 font-medium">
+                              {t.company} — {t.cargoType}
+                            </td>
+                            <td className="p-4 font-mono font-bold text-slate-900">
+                              {unloadedCount} / {totalWagons || 23} Discharged
+                            </td>
+                            <td className="p-4">
+                              <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
+                            </td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => setSelectedUnloadTripId(t.id)}
+                                className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+                              >
+                                <span>Unload Consignment</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </TableWrap>
+                </Section>
+              )}
+
+              {/* VIEW 5: MONIYA CONTAINER TERMINAL */}
+              {view === 'moniya' && <MoniyaContainerView user={user} />}
+
+              {/* VIEW 6: WAGON FLEET INVENTORY */}
+              {view === 'wagons' && (
+                <Section
+                  title="Wagon Fleet Inventory (46 Registered Wagons)"
+                  subtitle="Enterprise rolling stock fleet — official PXG covered hoppers ready for service"
+                  action={
+                    <button
+                      onClick={() => setAddWagonModal(true)}
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Register New Wagon</span>
+                    </button>
+                  }
+                >
+                  <TableWrap
+                    headers={['Wagon ID', 'Carriage Spec', 'Capacity (Bags / MT)', 'Live Status', 'Current Station', 'Added By']}
+                    mobileCard={(w: any) => (
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
                           <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
-                          <Badge text={isOccupied ? 'LOCKED (IN USE)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                          <Badge text="AVAILABLE" color="green" />
                         </div>
                         <p className="text-xs text-slate-600">
                           Capacity: {w.capacity || 1200} Bags (60 MT) | Station: {sName(w.currentStation || station)}
                         </p>
                       </div>
-                    );
-                  }}
-                  data={wagons}
-                >
-                  {wagons.map((w) => {
-                    const isOccupied = occupiedWagonIds.has(w.id);
-                    return (
+                    )}
+                    data={fleetWagons}
+                  >
+                    {fleetWagons.map((w: any) => (
                       <tr key={w.id} className="hover:bg-slate-50 text-xs">
                         <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
                         <td className="p-4 text-slate-700 font-semibold">{w.wagonType || 'Covered Hopper'}</td>
@@ -974,89 +976,89 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                           {Number(w.capacity || 1200).toLocaleString()} Bags (60 MT)
                         </td>
                         <td className="p-4">
-                          <Badge text={isOccupied ? 'IN_ACTIVE_USE (LOCKED)' : 'AVAILABLE'} color={isOccupied ? 'amber' : 'green'} />
+                          <Badge text="AVAILABLE" color="green" />
                         </td>
                         <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
                         <td className="p-4 text-slate-500">{w.addedBy || 'System Registry'}</td>
                       </tr>
-                    );
-                  })}
-                </TableWrap>
-              </Section>
-            )}
+                    ))}
+                  </TableWrap>
+                </Section>
+              )}
 
-            {/* VIEW 7: REQUEST FUNDS */}
-            {view === 'funds' && (
-              <Section
-                title="Station Expense Requisitions"
-                subtitle="Field operating expense requisitions — submit tarpaulin covering, crane handling, or fuel expense requests"
-                action={
-                  <button
-                    onClick={() => setFundsModal(true)}
-                    className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Request Funds</span>
-                  </button>
-                }
-              >
-                <TableWrap
-                  headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
-                  mobileCard={(r: any) => (
-                    <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
-                        <Badge text={r.stage} color={stageColor(r.stage)} />
-                      </div>
-                      <p className="font-bold text-slate-900">{r.title}</p>
-                      <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
-                      <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
-                        <span>Inspect Conversation & Details</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </p>
-                    </div>
-                  )}
-                  data={requests.filter((r) => r.station === station)}
+              {/* VIEW 7: REQUEST FUNDS */}
+              {view === 'funds' && (
+                <Section
+                  title="Station Expense Requisitions"
+                  subtitle="Field operating expense requisitions — submit tarpaulin covering, crane handling, or fuel expense requests"
+                  action={
+                    <button
+                      onClick={() => setFundsModal(true)}
+                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Request Funds</span>
+                    </button>
+                  }
                 >
-                  {requests.filter((r) => r.station === station).length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
-                        No fund requisitions submitted yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    requests
-                      .filter((r) => r.station === station)
-                      .map((r) => (
-                        <tr
-                          key={r.id}
-                          className="hover:bg-slate-50 cursor-pointer transition-colors"
-                          onClick={() => setSelectedReq(r)}
-                        >
-                          <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
-                          <td className="p-4">
-                            <p className="font-bold text-slate-900">{r.title}</p>
-                            <p className="text-[10px] text-slate-500">{r.category}</p>
-                          </td>
-                          <td className="p-4 font-mono font-black text-slate-900">
-                            ₦{Number(r.amount).toLocaleString()}
-                          </td>
-                          <td className="p-4">
-                            <Badge text={r.stage} color={stageColor(r.stage)} />
-                          </td>
-                          <td className="p-4 font-bold text-[#0E4B88] hover:underline">Inspect Details & Chat ➔</td>
-                        </tr>
-                      ))
-                  )}
-                </TableWrap>
-              </Section>
-            )}
+                  <TableWrap
+                    headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
+                    mobileCard={(r: any) => (
+                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                          <Badge text={r.stage} color={stageColor(r.stage)} />
+                        </div>
+                        <p className="font-bold text-slate-900">{r.title}</p>
+                        <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
+                        <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                          <span>Inspect Details</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </p>
+                      </div>
+                    )}
+                    data={requests.filter((r) => r.station === station)}
+                  >
+                    {requests.filter((r) => r.station === station).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400 text-xs">
+                          No fund requisitions submitted yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      requests
+                        .filter((r) => r.station === station)
+                        .map((r) => (
+                          <tr
+                            key={r.id}
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
+                            onClick={() => setSelectedReq(r)}
+                          >
+                            <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
+                            <td className="p-4">
+                              <p className="font-bold text-slate-900">{r.title}</p>
+                              <p className="text-[10px] text-slate-500">{r.category}</p>
+                            </td>
+                            <td className="p-4 font-mono font-black text-slate-900">
+                              ₦{Number(r.amount).toLocaleString()}
+                            </td>
+                            <td className="p-4">
+                              <Badge text={r.stage} color={stageColor(r.stage)} />
+                            </td>
+                            <td className="p-4 font-bold text-[#0E4B88] hover:underline">Inspect Details & Chat ➔</td>
+                          </tr>
+                        ))
+                    )}
+                  </TableWrap>
+                </Section>
+              )}
 
-            {/* VIEW 8: TERMINAL INFO LEDGER */}
-            {view === 'terminal_info' && <TerminalInformationView user={user} />}
-          </>
-        )}
-      </main>
+              {/* VIEW 8: TERMINAL INFO LEDGER */}
+              {view === 'terminal_info' && <TerminalInformationView user={user} />}
+            </>
+          )}
+        </main>
+      </div>
 
       {/* CREATE TRIP MODAL (FROM APPROVED DEAL) */}
       {createDeal && (
@@ -1080,7 +1082,9 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Route Corridor:</span>
-                  <span className="font-bold text-slate-900">{sName(station)} ➔ {sName(createDeal.destination)}</span>
+                  <span className="font-bold text-slate-900">
+                    {sName(createDeal.loadingStation || createDeal.origin || station)} ➔ {sName(createDeal.destination || 'MNY')}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Consignment Cargo:</span>
@@ -1166,13 +1170,13 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 <button
                   type="button"
                   onClick={() => setCreateDeal(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <span>Initiate Trip & Open Wagon Loading</span>
                   <ArrowRight className="w-4 h-4" />
@@ -1191,7 +1195,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Register Freight Wagon to Fleet
               </h3>
-              <button onClick={() => setAddWagonModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setAddWagonModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1205,7 +1209,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   onChange={(e) => setNewWagonId(e.target.value)}
                   className={`${ic} font-mono uppercase font-bold`}
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Leave empty to auto-generate standard PXG registration.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Enter PXG wagon identification code.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1221,13 +1225,13 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 <button
                   type="button"
                   onClick={() => setAddWagonModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-md"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
                   Register to Fleet Inventory
                 </button>
@@ -1245,7 +1249,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Submit Field Expense Requisition
               </h3>
-              <button onClick={() => setFundsModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setFundsModal(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1310,13 +1314,13 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 <button
                   type="button"
                   onClick={() => setFundsModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-md"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
                   Submit Requisition
                 </button>
@@ -1326,7 +1330,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         </Modal>
       )}
 
-      {/* FUND REQUEST DETAIL & CONVERSATION MODAL */}
+      {/* FUND REQUEST DETAIL MODAL */}
       {selectedReq && (
         <FundRequestDetailModal
           req={selectedReq}
@@ -1337,7 +1341,6 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         />
       )}
 
-      {/* SYSTEM ALERTS MODAL */}
       <CustomAlertModal
         isOpen={!!customAlert}
         message={customAlert?.message || null}
@@ -1402,11 +1405,14 @@ function TripWagonView({
   const allDone = loadedCount >= targetCount;
   const pct = Math.min(100, Math.round((loadedCount / targetCount) * 100));
 
-  const occupiedWagonIds = getOccupiedWagonIds(trips);
+  // 100% RELIABLE ROLLING STOCK FLEET LOOKUP:
+  // Use all 46 official PXG covered hoppers, minus only the ones already loaded onto THIS trip
+  const baseFleet = (wagons && wagons.length > 0)
+    ? wagons
+    : OFFICIAL_PXG_CODES.map((id) => ({ id, capacity: 1200 }));
+  
   const usedInThisTrip = new Set(logs.map((w: any) => w.wagonId));
-  const available = (wagons || SEED_WAGONS).filter(
-    (w: any) => !occupiedWagonIds.has(w.id) && !usedInThisTrip.has(w.id)
-  );
+  const available = baseFleet.filter((w: any) => !usedInThisTrip.has(w.id));
 
   const isTripInTransit =
     trip.status === 'IN_TRANSIT' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'ARRIVED';
@@ -1419,7 +1425,6 @@ function TripWagonView({
     onSaveTrips(updatedTrips);
   };
 
-  // Start Loading Stopwatch for Wagon
   const startLoadingWagon = (e: React.FormEvent) => {
     e.preventDefault();
     if (isTripInTransit) {
@@ -1433,7 +1438,7 @@ function TripWagonView({
     if (!wId) {
       setCustomAlert({
         title: 'No Wagon Selected',
-        message: 'No available wagon selected for loading!',
+        message: 'Please select an available wagon to start loading!',
       });
       return;
     }
@@ -1465,7 +1470,6 @@ function TripWagonView({
     setSelWagon('');
   };
 
-  // Open Stop Loading Audit Modal
   const handleOpenStopModal = (w: any) => {
     const remainingBags = Math.max(0, totalBags - totalBagsLoadedSoFar);
     const defaultQty = remainingBags > 0 && remainingBags < 1200 ? remainingBags : 1200;
@@ -1481,7 +1485,6 @@ function TripWagonView({
     setStoppingWagon(w);
   };
 
-  // Confirm Stop Loading and Record Audit
   const confirmStopLoading = (e: React.FormEvent) => {
     e.preventDefault();
     if (!stoppingWagon) return;
@@ -1519,7 +1522,6 @@ function TripWagonView({
     setStoppingWagon(null);
   };
 
-  // Depart Train & Activate Live GPS Tracker
   const dispatchAndActivateGps = async () => {
     if (active) {
       setCustomAlert({
@@ -1608,7 +1610,7 @@ function TripWagonView({
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all"
+          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Trips</span>
@@ -1638,11 +1640,11 @@ function TripWagonView({
           {[
             ['Locomotive ID', trip.locomotiveId],
             ['Cargo Officer', trip.cargoOfficerName],
-            ['Loading Station', trip.origin ? sName(trip.origin) : 'Ewekoro'],
-            ['Destination', trip.destination ? sName(trip.destination) : 'Moniya'],
+            ['Loading Station', sName(trip.origin)],
+            ['Destination', sName(trip.destination)],
             ['Consignor Company', trip.company],
             ['Cargo Type', trip.cargoType],
-            ['Quantity Requisitioned', `${Number(trip.quantity).toLocaleString()} Bags`],
+            ['Consist Requisition', `${Number(trip.quantity).toLocaleString()} Bags`],
             ['Trip Created', trip.createdAt || '—'],
           ].map(([label, value]) => (
             <div key={label}>
@@ -1655,26 +1657,26 @@ function TripWagonView({
 
       {/* Live GPS Tracker & Corridor Dispatch Banner */}
       {!isTripInTransit && (
-        <div className="bg-[#62BC37] text-slate-950 rounded-2xl p-5 shadow-lg space-y-4">
+        <div className="bg-[#62BC37] text-white rounded-2xl p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-slate-950 animate-pulse" />
-                <p className="text-xs font-black uppercase tracking-wider font-mono text-slate-950">
+                <span className="w-3 h-3 rounded-full bg-white animate-pulse" />
+                <p className="text-xs font-black uppercase tracking-wider font-mono text-white">
                   LIVE GPS TRACKER & CORRIDOR DISPATCH
                 </p>
               </div>
-              <p className="text-base font-black text-slate-950 mt-1">
-                Locomotive Consist: <span className="font-mono text-slate-900">{trip.locomotiveId}</span>
+              <p className="text-base font-black text-white mt-1">
+                Locomotive Consist: <span className="font-mono">{trip.locomotiveId}</span>
               </p>
-              <p className="text-xs text-slate-900/80 mt-0.5 max-w-2xl">
+              <p className="text-xs text-white/90 mt-0.5 max-w-2xl">
                 Clicking 'Depart Train &amp; Activate Live GPS' locks the loading phase, notifies destination officer at {sName(trip.destination)}, and initiates real-time GPS telemetry tracking.
               </p>
             </div>
             <button
               onClick={dispatchAndActivateGps}
               disabled={loadedCount < 1 || !!active}
-              className="w-full sm:w-auto bg-slate-950 hover:bg-slate-900 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto bg-slate-950 hover:bg-slate-900 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Depart Train & Activate Live GPS Tracker</span>
               <ArrowRight className="w-4 h-4" />
@@ -1690,7 +1692,7 @@ function TripWagonView({
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           {[
-            ['Max Target Wagons', `${targetCount} Wagons`, 'text-slate-900'],
+            ['Target Consist Wagons', `${targetCount} Wagons`, 'text-slate-900'],
             ['Loaded Wagons', String(loadedCount), 'text-[#62BC37]'],
             ['Bags Loaded', totalBagsLoadedSoFar.toLocaleString(), 'text-emerald-700'],
             ['Progress', `${pct}%`, 'text-[#0E4B88]'],
@@ -1722,8 +1724,13 @@ function TripWagonView({
           </div>
           {!isTripInTransit && !active && !allDone && !adding && (
             <button
-              onClick={() => setAdding(true)}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+              onClick={() => {
+                setAdding(true);
+                if (available.length > 0 && !selWagon) {
+                  setSelWagon(available[0].id);
+                }
+              }}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Select Wagon to Load</span>
@@ -1736,36 +1743,32 @@ function TripWagonView({
           <form onSubmit={startLoadingWagon} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
             <div>
               <label className={lc}>
-                Select Available Wagon from Fleet ({available.length} Available at {sName(trip.origin)})
+                Select Covered Hopper Wagon from Fleet ({available.length} Available)
               </label>
               <select
-                value={selWagon}
+                value={selWagon || available[0]?.id || ''}
                 onChange={(e) => setSelWagon(e.target.value)}
                 className={ic}
               >
-                {available.length === 0 ? (
-                  <option value="">No available wagons right now at {sName(trip.origin)}</option>
-                ) : (
-                  available.map((w: any) => (
-                    <option key={w.id} value={w.id}>
-                      {w.id} (Capacity: {w.capacity || 1200} Bags / 60 MT)
-                    </option>
-                  ))
-                )}
+                {available.map((w: any) => (
+                  <option key={w.id} value={w.id}>
+                    {w.id} (Standard Capacity: 1,200 Bags / 60 MT)
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setAdding(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={available.length === 0}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-5 py-2 rounded-xl disabled:opacity-50 shadow-xs flex items-center gap-1.5"
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2 rounded-xl disabled:opacity-50 shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 <span>Start Loading Wagon</span>
@@ -1780,7 +1783,7 @@ function TripWagonView({
             <div>
               <p className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-ping" />
-                <span>LOADING IN PROGRESS (TIMING)</span>
+                <span>LOADING IN PROGRESS (STOPWATCH TIMING)</span>
               </p>
               <p className="text-xl font-mono font-black text-slate-900 mt-1">{active.wagonId}</p>
               <p className="text-xs text-slate-600 mt-0.5">
@@ -1795,7 +1798,7 @@ function TripWagonView({
               {!isTripInTransit && (
                 <button
                   onClick={() => handleOpenStopModal(active)}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>Stop Loading</span>
@@ -1809,7 +1812,7 @@ function TripWagonView({
         <div className="space-y-3">
           {logs.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
-              No wagons loaded yet. Click '+ Select Wagon to Load' to start the live loading stopwatch.
+              No wagons loaded yet. Click '+ Select Wagon to Load' to pick an available wagon and start the live loading stopwatch.
             </div>
           ) : (
             logs.map((w: any, i: number) => (
@@ -1878,7 +1881,7 @@ function TripWagonView({
                   Complete loading log for Wagon <strong>{stoppingWagon.wagonId}</strong>. Verify start/concluding times, feeder truck, and bag count.
                 </p>
               </div>
-              <button onClick={() => setStoppingWagon(null)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setStoppingWagon(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1969,13 +1972,13 @@ function TripWagonView({
                 <button
                   type="button"
                   onClick={() => setStoppingWagon(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-6 py-2.5 rounded-xl shadow-md"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
                   Save & Complete Wagon Load
                 </button>
@@ -2030,7 +2033,7 @@ function TripUnloadWagonView({
     return (
       <div className="p-8 text-center text-xs text-slate-400">
         Trip not found.{' '}
-        <button onClick={onBack} className="underline text-[#62BC37]">
+        <button onClick={onBack} className="underline text-[#62BC37] cursor-pointer">
           Go back
         </button>
       </div>
@@ -2174,20 +2177,6 @@ function TripUnloadWagonView({
     );
     onSaveTrips(updatedTrips);
 
-    // Release wagons back to destination station fleet
-    try {
-      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
-      const loadedWagonIds = new Set(logs.map((w: any) => w.wagonId));
-      const updatedWagons = storedWagons.map((w: any) => {
-        if (loadedWagonIds.has(w.id)) {
-          return { ...w, status: 'AVAILABLE', currentStation: trip.destination };
-        }
-        return w;
-      });
-      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-    } catch {}
-
     setCustomAlert({
       title: 'Consignment Unloading Completed',
       message: `Trip ${trip.tripId} successfully COMPLETED!\n\nAll ${logs.length} wagons marked UNLOADED and returned to ${sName(
@@ -2202,7 +2191,7 @@ function TripUnloadWagonView({
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all"
+          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Incoming Consignments</span>
@@ -2214,13 +2203,13 @@ function TripUnloadWagonView({
 
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
         <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700">
-          TRIP {trip.tripId} — DESTINATION DISCHARGE &amp; AUDIT CONSOLE
+          TRIP {trip.tripId} — DESTINATION DISCHARGE & AUDIT CONSOLE
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           {[
             ['Locomotive ID', trip.locomotiveId],
-            ['Origin Loading Station', trip.origin ? sName(trip.origin) : 'Ewekoro'],
-            ['Destination Yard', trip.destination ? sName(trip.destination) : 'Moniya'],
+            ['Origin Loading Station', sName(trip.origin)],
+            ['Destination Yard', sName(trip.destination)],
             ['Unloading Officer', user?.fullName || 'Destination Officer'],
             ['Consignor Company', trip.company],
             ['Cargo Type', trip.cargoType],
@@ -2245,10 +2234,10 @@ function TripUnloadWagonView({
             ['Discharged', String(unloaded), 'text-[#62BC37]'],
             ['Pending Discharge', String(total - unloaded), 'text-amber-600'],
             ['Discharge Ratio', `${pct}%`, 'text-purple-600'],
-          ].map(([l, v, c]) => (
-            <div key={l} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
-              <span className={`text-xl font-black font-mono ${c}`}>{v}</span>
+          ].map(([label, val, c]) => (
+            <div key={label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
+              <span className={`text-xl font-black font-mono ${c}`}>{val}</span>
             </div>
           ))}
         </div>
@@ -2279,7 +2268,7 @@ function TripUnloadWagonView({
             </div>
             <button
               onClick={() => handleOpenStopUnloadModal(activeUnload)}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
               <span>Stop Unloading</span>
@@ -2345,14 +2334,14 @@ function TripUnloadWagonView({
                   ) : isUnloading ? (
                     <button
                       onClick={() => handleOpenStopUnloadModal(w)}
-                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl"
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
                     >
                       Stop Unload
                     </button>
                   ) : !activeUnload ? (
                     <button
                       onClick={() => startUnloading(w.wagonId)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1"
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                     >
                       <span>Start Unload</span>
                       <ArrowRight className="w-3 h-3" />
@@ -2398,13 +2387,13 @@ function TripUnloadWagonView({
         </div>
 
         {allUnloaded && (
-          <div className="bg-[#62BC37] text-slate-950 rounded-2xl p-5 space-y-3 mt-4 shadow-md">
-            <p className="text-sm font-black text-slate-950">
+          <div className="bg-[#62BC37] text-white rounded-2xl p-5 space-y-3 mt-4 shadow-md">
+            <p className="text-sm font-black text-white">
               All {logs.length} Wagons Successfully Discharged at {sName(trip.destination)}!
             </p>
             <button
               onClick={completeTrip}
-              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Check className="w-5 h-5" />
               <span>Complete Consignment & Return Wagons to Fleet Inventory</span>
@@ -2419,13 +2408,13 @@ function TripUnloadWagonView({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Unloading Discrepancy &amp; Inspection Audit
+                  Unloading Discrepancy & Inspection Audit
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
                   Wagon <strong>{stoppingUnloadWagon.wagonId}</strong> arrived from <strong>{sName(trip.origin)}</strong>. Record delivered bags, damages, burst bags, and notes.
                 </p>
               </div>
-              <button onClick={() => setStoppingUnloadWagon(null)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setStoppingUnloadWagon(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -2534,15 +2523,15 @@ function TripUnloadWagonView({
                 <button
                   type="button"
                   onClick={() => setStoppingUnloadWagon(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
-                  Save &amp; Complete Unload
+                  Save & Complete Unload
                 </button>
               </div>
             </form>
@@ -2613,7 +2602,7 @@ function FundRequestDetailModal({
             </div>
             <h3 className="text-base font-black text-slate-900 mt-1">{req.title}</h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -2638,7 +2627,7 @@ function FundRequestDetailModal({
         </div>
 
         <div>
-          <h4 className="text-xs font-black text-slate-900 mb-2">Audit &amp; Approval Conversation Log</h4>
+          <h4 className="text-xs font-black text-slate-900 mb-2">Audit & Approval Conversation Log</h4>
           <div className="bg-slate-50 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2 border border-slate-200 text-xs">
             {(req.conversation || []).map((m: any, idx: number) => (
               <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
@@ -2663,7 +2652,7 @@ function FundRequestDetailModal({
           />
           <button
             type="submit"
-            className="bg-[#62BC37] hover:bg-[#52A02D] text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5"
+            className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Send</span>
