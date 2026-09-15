@@ -333,55 +333,86 @@ class StateEngineService {
     } catch {}
   }
 
+  private _isSyncing = false;
   async syncRemote(): Promise<void> {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || this._isSyncing) return;
+    this._isSyncing = true;
     try {
-      // 1. Authoritative REST Sync with NestJS Backend
-      const token = localStorage.getItem('bueno_token');
-      if (token) {
-        try {
-          const res = await bookingsApi.getAll().catch(() => null);
-          if (res && res.data && Array.isArray(res.data)) {
-            const remoteBookings = res.data;
-            if (remoteBookings.length > 0) {
-              const mappedTrips = remoteBookings.map((b: any) => ({
-                id: b.id,
-                tripId: b.bookingCode || b.id,
-                company: b.customer?.fullName || b.customer?.email || 'Industrial Consignee',
-                origin: b.route?.originTerminal || 'PAPA',
-                destination: b.route?.destinationTerminal || 'MNY',
-                cargoType: b.cargoType?.name || 'Bagged Cement (50kg)',
-                quantity: b.cargoWeightTonnes || 60,
-                unitOfMeasure: 'Metric Tonnes (MT)',
-                status: b.bookingStatus || 'LOADING',
-                progressPercent: b.bookingStatus === 'COMPLETED' ? 100 : (b.bookingStatus === 'IN_TRANSIT' ? 45 : 5),
-                speed: b.bookingStatus === 'IN_TRANSIT' ? 68 : 0,
-                locomotiveId: b.trainNumber || 'L2205',
-                createdAt: b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB') : 'Today',
-                wagonLogs: (b.wagonAllocations || []).map((wa: any, i: number) => ({
-                  wagonId: wa.wagon?.serialNumber || `PXG 090${20 + i}`,
-                  loadedAt: wa.allocatedAt ? new Date(wa.allocatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ready',
-                  condition: 'LOADED_INTACT',
-                  bagsCount: '1,200 Bags (60 MT)',
-                  burstBags: 0,
-                  damageQty: 0,
-                })),
-                damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
-              }));
-
-              const localTrips = this.getTrips();
-              const mergedMap = new Map<string, any>();
-              localTrips.forEach((t: any) => mergedMap.set(t.id, t));
-              mappedTrips.forEach((t: any) => {
-                const existing = mergedMap.get(t.id);
-                mergedMap.set(t.id, existing ? { ...t, ...existing } : t);
+      // 1. Authoritative REST Sync with cPanel Deals Endpoint
+      try {
+        const dealsRes = await fetch('/api/deals.php', { cache: 'no-store' });
+        if (dealsRes.ok) {
+          const json = await dealsRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            const remoteDeals = json.data;
+            if (remoteDeals.length > 0) {
+              const localDeals = this.readStorage<any[]>('bueno_deals', []);
+              const dealMap = new Map<string, any>();
+              localDeals.forEach((d: any) => dealMap.set(d.id || d.dealNumber, d));
+              remoteDeals.forEach((d: any) => {
+                const key = d.id || d.dealNumber;
+                if (key) {
+                  const existing = dealMap.get(key);
+                  dealMap.set(key, existing ? { ...existing, ...d } : d);
+                }
               });
-              this.writeStorage('bueno_trips', Array.from(mergedMap.values()));
+              this.writeStorage('bueno_deals', Array.from(dealMap.values()));
             }
           }
-        } catch {}
-      }
-    } catch {}
+        }
+      } catch {}
+
+      // 2. Authoritative REST Sync with cPanel Trips Endpoint
+      try {
+        const tripsRes = await fetch('/api/trips.php', { cache: 'no-store' });
+        if (tripsRes.ok) {
+          const json = await tripsRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            const remoteTrips = json.data;
+            if (remoteTrips.length > 0) {
+              const localTrips = this.readStorage<any[]>('bueno_trips', []);
+              const tripMap = new Map<string, any>();
+              localTrips.forEach((t: any) => tripMap.set(t.id || t.tripId, t));
+              remoteTrips.forEach((t: any) => {
+                const key = t.id || t.tripId;
+                if (key) {
+                  const existing = tripMap.get(key);
+                  tripMap.set(key, existing ? { ...existing, ...t } : t);
+                }
+              });
+              this.writeStorage('bueno_trips', Array.from(tripMap.values()));
+            }
+          }
+        }
+      } catch {}
+
+      // 3. Sync Invoices from cPanel
+      try {
+        const invRes = await fetch('/api/invoices.php', { cache: 'no-store' });
+        if (invRes.ok) {
+          const json = await invRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            this.writeStorage('bueno_invoices', json.data);
+          }
+        }
+      } catch {}
+
+      // 4. Sync Permissions & System Settings
+      try {
+        const permsRes = await fetch('/api/permissions.php', { cache: 'no-store' });
+        if (permsRes.ok) {
+          const json = await permsRes.json();
+          if (json && json.status === 'success') {
+            if (json.matrix) this.writeStorage('bueno_role_permissions', json.matrix);
+            if (json.settings) this.writeStorage('bueno_system_settings', json.settings);
+          }
+        }
+      } catch {}
+
+      this.notifyListeners();
+    } catch {} finally {
+      this._isSyncing = false;
+    }
   }
 
 
@@ -459,6 +490,7 @@ class StateEngineService {
     } catch {}
   }
 
+  private _initialRemoteSynced = false;
   seedInitialProductionState(): void {
     if (typeof window === 'undefined') return;
     try {
@@ -471,22 +503,10 @@ class StateEngineService {
         this.writeStorage('bueno_wagons', SEED_WAGONS);
       }
 
-      const isPurged = localStorage.getItem('bueno_prod_purge_clean_v15');
-      if (isPurged !== 'purged') {
-        // Complete Clean Slate Purge: Zero initial mock deals or trips
-        this.writeStorage('bueno_trips', []);
-        this.writeStorage('bueno_deals', []);
-        this.writeStorage('bueno_trip_costs', []);
-        this.writeStorage('bueno_invoices', []);
-        this.writeStorage('bueno_requests', []);
-        this.writeStorage('bueno_custom_deal_negotiations', []);
-        this.writeStorage('bueno_client_requests', []);
-        localStorage.removeItem('bueno_terminal_information');
-        this.writeStorage('bueno_containers', SEED_CONTAINERS);
-        this.writeStorage('bueno_gate_logs', SEED_GATE_LOGS);
-
-        localStorage.setItem('bueno_prod_purge_clean_v15', 'purged');
-        this.notifyListeners();
+      // Initial background sync from cPanel server
+      if (!this._initialRemoteSynced) {
+        this._initialRemoteSynced = true;
+        this.syncRemote();
       }
     } catch {}
   }
@@ -533,6 +553,7 @@ class StateEngineService {
 
   // ── DEALS API ─────────────────────────────────────────────────────────────
   getDeals(): any[] {
+    this.seedInitialProductionState();
     return this.readStorage('bueno_deals', SEED_DEALS);
   }
 
@@ -559,6 +580,12 @@ class StateEngineService {
     const curLat = isOriginPAPA ? 6.8974 : (origin === 'APT' ? 6.4550 : 6.8974);
     const curLng = isOriginPAPA ? 3.2141 : (origin === 'APT' ? 3.3610 : 3.2141);
 
+    // Physical Railway Constraints: 1 Covered Hopper Wagon = 1,200 Bags (60 MT). Max Consist = 23 Wagons (27,600 Bags / 1,380 MT)
+    const isCementOrBags = (deal.cargoType || '').toLowerCase().includes('cement') || (deal.unitOfMeasure || '').toLowerCase().includes('bag');
+    const trancheBags = isCementOrBags ? (deal.unitOfMeasure === 'Bags' ? trancheTonnage : Math.round(trancheTonnage * 20)) : trancheTonnage;
+    const requiredWagons = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
+    const bagsPerWagon = Math.min(1200, Math.round(trancheBags / requiredWagons));
+
     const newTrip: any = {
       id: newTripId,
       tripId: newTripId,
@@ -578,7 +605,7 @@ class StateEngineService {
       company: deal.company || deal.companyName,
       cargoType: deal.cargoType || 'Huaxin Portland Cement (50kg)',
       unitOfMeasure: deal.unitOfMeasure || 'Metric Tonnes (MT)',
-      wagonType: deal.wagonType || 'PXG/CGs Box Wagon',
+      wagonType: deal.wagonType || 'Covered Hopper Wagon',
       quantity: trancheTonnage,
       tonnage: `${trancheTonnage} MT`,
       cargoOfficerName: origin === 'PAPA' || origin === 'EWK' ? 'Ade Bello' : 'Ngozi Eze',
@@ -589,12 +616,14 @@ class StateEngineService {
       status: 'LOADING',
       dispatchTime: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      wagonLogs: OFFICIAL_PXG_CODES.slice(0, 23).map((wId, i) => ({
+      wagonLogs: OFFICIAL_PXG_CODES.slice(0, requiredWagons).map((wId, i) => ({
         wagonId: wId,
         loadedAt: 'Just Now',
-        bagsCount: `${Math.round(trancheTonnage / 23 * 20)} Bags (40 MT)`,
+        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
         sealNumber: `SEAL-BN-${9100 + (nextTrancheNum * 23) + i}`,
         condition: 'LOADED_INTACT',
+        burstBags: 0,
+        damageQty: 0,
       })),
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
@@ -646,21 +675,31 @@ class StateEngineService {
     if (str.includes('today') || str.includes('just now')) return 'TODAY';
     if (str.includes('yesterday')) return 'YESTERDAY';
 
-    let d: Date;
+    let d: Date | null = null;
     if (dateInput instanceof Date) {
       d = dateInput;
     } else {
-      d = new Date(dateInput);
+      const ukMatch = str.match(/^(\d{1,2})[\/\s-](\d{1,2}|[a-z]{3})[\/\s-](\d{4})/i);
+      if (ukMatch) {
+        const day = parseInt(ukMatch[1], 10);
+        const mStr = ukMatch[2];
+        const year = parseInt(ukMatch[3], 10);
+        let month = 0;
+        if (/^\d+$/.test(mStr)) {
+          month = parseInt(mStr, 10) - 1;
+        } else {
+          const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          month = monthNames.findIndex((m) => mStr.toLowerCase().startsWith(m));
+          if (month === -1) month = 0;
+        }
+        d = new Date(year, month, day);
+      } else {
+        const parsed = new Date(dateInput);
+        if (!isNaN(parsed.getTime())) d = parsed;
+      }
     }
 
-    if (isNaN(d.getTime())) {
-      // Try to parse common UK formats like "DD/MM/YYYY" or "DD MMM YYYY"
-      const ukMatch = str.match(/(\d{1,2})[\/\s-]([a-z]{3}|\d{1,2})[\/\s-](\d{4})/i);
-      if (ukMatch) {
-        d = new Date(dateInput);
-      }
-      if (isNaN(d.getTime())) return 'TODAY';
-    }
+    if (!d || isNaN(d.getTime())) return 'TODAY';
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

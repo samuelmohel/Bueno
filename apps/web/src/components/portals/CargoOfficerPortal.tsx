@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { StateEngine } from '@/lib/services/StateEngine';
+import { StateEngine, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
 import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 import { TerminalInformationView } from '@/components/TerminalInformationView';
+import { Inbox, Train, RefreshCw, AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 // COMMODITY CONFIG MATRIX FOR CARGO OFFICERS
 const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string; auditMetric: string }> = {
@@ -227,6 +228,55 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     const wagonTypeLabel = COMMODITY_CONFIG[dealCargoType]?.wagonType || 'Covered Hopper Wagon';
     const newTripId = 'TRP-' + Math.floor(1000 + Math.random() * 8999);
 
+    // Calculate wagon consist allocations based on railway physical constraints
+    const isCementOrBags = (dealCargoType || '').toLowerCase().includes('cement') || unitLabel.toLowerCase().includes('bag');
+    const trancheBags = isCementOrBags ? (unitLabel === 'Bags' ? trancheVolume : Math.round(trancheVolume * 20)) : trancheVolume;
+    const requiredWagons = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
+    const bagsPerWagon = Math.min(1200, Math.round(trancheBags / requiredWagons));
+
+    const initialWagonLogs: any[] = [];
+    if (tripForm.wagonId1) {
+      initialWagonLogs.push({
+        wagonId: tripForm.wagonId1,
+        loadedAt: 'Just Now',
+        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
+        sealNumber: tripForm.seal1 || `SEAL-BN-${Math.floor(1000 + Math.random() * 8999)}`,
+        condition: 'LOADED_INTACT',
+        burstBags: 0,
+        damageQty: 0,
+      });
+    }
+    if (tripForm.wagonId2 && tripForm.wagonId2 !== tripForm.wagonId1) {
+      initialWagonLogs.push({
+        wagonId: tripForm.wagonId2,
+        loadedAt: 'Just Now',
+        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
+        sealNumber: tripForm.seal2 || `SEAL-BN-${Math.floor(1000 + Math.random() * 8999)}`,
+        condition: 'LOADED_INTACT',
+        burstBags: 0,
+        damageQty: 0,
+      });
+    }
+    // Pre-populate consist to match the required wagons from official fleet
+    if (initialWagonLogs.length < requiredWagons) {
+      const existingIds = new Set(initialWagonLogs.map((w) => w.wagonId));
+      for (let i = 0; i < 46 && initialWagonLogs.length < requiredWagons; i++) {
+        const candidateId = OFFICIAL_PXG_CODES[i];
+        if (!existingIds.has(candidateId)) {
+          existingIds.add(candidateId);
+          initialWagonLogs.push({
+            wagonId: candidateId,
+            loadedAt: 'Ready for Loading',
+            bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
+            sealNumber: `SEAL-BN-${9100 + (nextTrancheNum * 23) + initialWagonLogs.length}`,
+            condition: 'LOADED_INTACT',
+            burstBags: 0,
+            damageQty: 0,
+          });
+        }
+      }
+    }
+
     const newTrip: any = {
       id: newTripId,
       tripId: newTripId,
@@ -253,7 +303,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       progressPercent: 5,
       dispatchTime: new Date().toLocaleString('en-GB'),
       createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      wagonLogs: [],
+      wagonLogs: initialWagonLogs,
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
 
@@ -953,117 +1003,155 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         {activeTab === 'loading' && (
           <div className="space-y-6 font-sans">
             {/* ─── APPROVED DEALS QUEUE FOR TRIP CREATION ─── */}
-            {deals.length > 0 && (
-              <div className="bg-[#1E293B] text-white p-6 rounded-3xl shadow-lg border border-slate-700 space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-700 pb-3">
+            <div className="bg-[#1E293B] text-white p-6 rounded-3xl shadow-lg border border-slate-700 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-700 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[#62BC37]">
+                    <Train className="w-5 h-5" />
+                  </div>
                   <div>
                     <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-widest block">
                       COMMERCIAL DISPATCH DESK QUEUE
                     </span>
                     <h3 className="text-base font-black text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                      Approved Deals Awaiting Freight Trip Creation
+                      Approved Commercial Deals Awaiting Freight Trip
                     </h3>
                   </div>
-                  {/* DATE & CONTRACT TYPE FILTER PILLS */}
-                  <div className="flex flex-wrap items-center gap-1.5 bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
-                    {[
-                      { id: 'ALL', label: 'All Deals' },
-                      { id: 'MONTHLY', label: 'Monthly Contracts (Tranches)' },
-                      { id: 'TODAY', label: StateEngine.getTodayLabel() },
-                      { id: 'THIS_WEEK', label: 'This Week' },
-                    ].map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => setDealsQueueFilter(f.id as any)}
-                        className={`text-[10px] font-bold px-3 py-1 rounded-xl transition-all ${
-                          dealsQueueFilter === f.id
-                            ? 'bg-[#62BC37] text-white shadow-sm'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
+                {/* DATE & CONTRACT TYPE FILTER PILLS */}
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
+                  {[
+                    { id: 'ALL', label: 'All Deals' },
+                    { id: 'MONTHLY', label: 'Monthly Contracts' },
+                    { id: 'TODAY', label: StateEngine.getTodayLabel() },
+                    { id: 'THIS_WEEK', label: 'This Week' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setDealsQueueFilter(f.id as any)}
+                      className={`text-[10px] font-bold px-3 py-1 rounded-xl transition-all ${
+                        dealsQueueFilter === f.id
+                          ? 'bg-[#62BC37] text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      StateEngine.syncRemote();
+                      syncData();
+                    }}
+                    title="Refresh server deals"
+                    className="p-1.5 text-slate-400 hover:text-white bg-slate-700/60 hover:bg-slate-700 rounded-xl transition-all"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {deals
-                    .filter((deal) => {
-                      if (deal.status === 'TRIP_CREATED' && deal.dealType !== 'MONTHLY_CONTRACT') return false;
-                      if (deal.dealType === 'MONTHLY_CONTRACT' && (deal.dispatchedTripsCount || 0) >= (deal.totalPlannedTrips || 10)) return false;
-                      if (dealsQueueFilter === 'MONTHLY') return deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
-                      if (dealsQueueFilter === 'TODAY') return StateEngine.getDateCategory(deal.createdAt) === 'TODAY';
-                      if (dealsQueueFilter === 'THIS_WEEK') {
-                        const cat = StateEngine.getDateCategory(deal.createdAt);
-                        return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
-                      }
-                      return true;
-                    })
-                    .map((deal, idx) => {
+              {(() => {
+                const filteredDeals = deals.filter((deal) => {
+                  if (deal.status === 'TRIP_CREATED' && deal.dealType !== 'MONTHLY_CONTRACT') return false;
+                  if (deal.dealType === 'MONTHLY_CONTRACT' && (deal.dispatchedTripsCount || 0) >= (deal.totalPlannedTrips || 10)) return false;
+                  if (dealsQueueFilter === 'MONTHLY') return deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
+                  if (dealsQueueFilter === 'TODAY') return StateEngine.getDateCategory(deal.createdAt) === 'TODAY';
+                  if (dealsQueueFilter === 'THIS_WEEK') {
+                    const cat = StateEngine.getDateCategory(deal.createdAt);
+                    return cat === 'TODAY' || cat === 'YESTERDAY' || cat === 'THIS_WEEK';
+                  }
+                  return true;
+                });
+
+                if (filteredDeals.length === 0) {
+                  return (
+                    <div className="text-center py-10 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
+                      <Inbox className="w-8 h-8 text-slate-500 mx-auto" />
+                      <p className="text-xs font-bold text-slate-300">No Commercial Consignments in Queue</p>
+                      <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                        Deals approved by Commercial Operations will appear here automatically across all corridor sidings (Ewekoro, Papalanto, Moniya).
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredDeals.map((deal, idx) => {
                       const isMonthly = deal.dealType === 'MONTHLY_CONTRACT' || deal.isMonthlyContract;
                       const nextTranche = (deal.dispatchedTripsCount || 0) + 1;
                       const totalTrips = deal.totalPlannedTrips || 10;
+                      const isCementOrBags = (deal.cargoType || '').toLowerCase().includes('cement') || (deal.unitOfMeasure || '').toLowerCase().includes('bag');
+                      const trancheVol = deal.trancheTonnage || Math.round((Number(deal.quantity) || 20000) / totalTrips);
+                      const trancheBags = isCementOrBags ? (deal.unitOfMeasure === 'Bags' ? trancheVol : Math.round(trancheVol * 20)) : trancheVol;
+                      const wagonsNeeded = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
+
                       return (
-                        <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
-                              <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              {isMonthly ? (
-                                <span className="text-[9px] font-mono font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/40">
-                                  MONTHLY CONTRACT
-                                </span>
-                              ) : (
-                                <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
-                                  APPROVED
-                                </span>
-                              )}
-                              {isMonthly && (
-                                <span className="text-[9px] font-mono font-bold bg-[#62BC37]/20 text-[#62BC37] px-2 py-0.5 rounded">
-                                  Tranche {nextTranche} of {totalTrips}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {isMonthly && (
-                            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-                              <div className="flex justify-between text-[10px] font-mono">
-                                <span className="text-slate-400">Tranche Progress</span>
-                                <span className="text-emerald-400 font-bold">
-                                  {deal.dispatchedTripsCount || 0}/{totalTrips} Trips ({((deal.dispatchedTripsCount || 0) * (deal.trancheTonnage || 920)).toLocaleString()}/{Number(deal.quantity || 9200).toLocaleString()} MT)
-                                </span>
+                        <div key={idx} className="bg-slate-900/90 border border-slate-700/80 p-4 rounded-2xl space-y-3 relative hover:border-[#62BC37] transition-all flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="text-[10px] font-mono font-bold text-amber-400 block">{deal.dealNumber || deal.id}</span>
+                                <h4 className="text-xs font-black text-white">{deal.companyName || deal.company}</h4>
                               </div>
-                              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className="bg-[#62BC37] h-1.5 rounded-full transition-all"
-                                  style={{ width: `${Math.min(100, Math.round(((deal.dispatchedTripsCount || 0) / totalTrips) * 100))}%` }}
-                                />
+                              <div className="flex flex-col items-end gap-1">
+                                {isMonthly ? (
+                                  <span className="text-[9px] font-mono font-bold bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/40">
+                                    MONTHLY CONTRACT
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
+                                    APPROVED
+                                  </span>
+                                )}
+                                {isMonthly && (
+                                  <span className="text-[9px] font-mono font-bold bg-[#62BC37]/20 text-[#62BC37] px-2 py-0.5 rounded">
+                                    Tranche {nextTranche} of {totalTrips}
+                                  </span>
+                                )}
                               </div>
                             </div>
-                          )}
 
-                          <div className="text-[11px] text-slate-300 space-y-1 font-mono">
-                            <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
-                            <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{isMonthly ? `${deal.trancheTonnage || 920} MT / Trip (${deal.quantity || 9200} MT Total)` : `${deal.quantity} Units`}</span></p>
-                            <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} → {deal.destination || 'MNY'}</span></p>
+                            {isMonthly && (
+                              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+                                <div className="flex justify-between text-[10px] font-mono">
+                                  <span className="text-slate-400">Tranche Progress</span>
+                                  <span className="text-emerald-400 font-bold">
+                                    {deal.dispatchedTripsCount || 0}/{totalTrips} Trips ({((deal.dispatchedTripsCount || 0) * (deal.trancheTonnage || 920)).toLocaleString()}/{Number(deal.quantity || 9200).toLocaleString()} MT)
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className="bg-[#62BC37] h-1.5 rounded-full transition-all"
+                                    style={{ width: `${Math.min(100, Math.round(((deal.dispatchedTripsCount || 0) / totalTrips) * 100))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="text-[11px] text-slate-300 space-y-1 font-mono">
+                              <p><span className="text-slate-400 font-sans">Cargo:</span> <span className="text-emerald-400 font-bold">{deal.cargoType}</span></p>
+                              <p><span className="text-slate-400 font-sans">Volume:</span> <span className="text-white font-bold">{isMonthly ? `${Number(deal.trancheTonnage || 2000).toLocaleString()} ${deal.unitOfMeasure || 'MT'} / Trip (${Number(deal.quantity || 20000).toLocaleString()} Total)` : `${Number(deal.quantity).toLocaleString()} Units`}</span></p>
+                              <p><span className="text-slate-400 font-sans">Corridor:</span> <span className="text-amber-300 font-bold">{deal.loadingStation || 'EWK'} → {deal.destination || 'MNY'}</span></p>
+                              <p><span className="text-slate-400 font-sans">Consist:</span> <span className="text-emerald-300 font-bold">{wagonsNeeded} Wagons (max 23 / 1,200 bags each)</span></p>
+                            </div>
                           </div>
 
                           <button
                             onClick={() => setCreateTripModalDeal(deal)}
                             className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
                           >
-                            {isMonthly ? `Dispatch Tranche #${nextTranche} (of ${totalTrips}) →` : 'Create & Launch Freight Trip'}
+                            <Train className="w-3.5 h-3.5" />
+                            {isMonthly ? `Dispatch Tranche #${nextTranche} (of ${totalTrips})` : 'Create & Launch Freight Trip'}
                           </button>
                         </div>
                       );
                     })}
-                </div>
-              </div>
-            )}
+                  </div>
+                );
+              })()}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LOADING FORM */}

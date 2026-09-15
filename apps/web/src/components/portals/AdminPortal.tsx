@@ -1890,7 +1890,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-base"></span>
+                      <Train className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold">Single-Trip Spot Run</span>
                     </div>
                     <p className="text-[10px] font-normal text-slate-500 mt-1">1 Dedicated Train Voyage (e.g. ad-hoc single shipment)</p>
@@ -1899,7 +1899,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <button
                     type="button"
                     onClick={() => {
-                      const qty = Number(newDealForm.quantity) || 2000;
+                      const qty = Number(newDealForm.quantity) || 20000;
                       const trips = 10;
                       setNewDealForm({
                         ...newDealForm,
@@ -1915,7 +1915,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     }`}
                   >
                     <div className="flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-slate-500" />
+                      <Calendar className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold">Monthly Master Contract</span>
                     </div>
                     <p className="text-[10px] font-normal text-slate-500 mt-1">Multi-trip consignment spread across the month (e.g. HBM 10 Trips)</p>
@@ -1925,7 +1925,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               {/* Monthly Master Contract Dispatch Scheduling Controls */}
               {newDealForm.dealType === 'MONTHLY_CONTRACT' && (
-                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2.5">
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold text-emerald-900 tracking-wider">MONTHLY CONSIGNMENT DISPATCH SCHEDULE</span>
                     <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">Multi-Tranche</span>
@@ -1941,7 +1941,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         value={newDealForm.totalPlannedTrips}
                         onChange={(e) => {
                           const trips = Math.max(1, Number(e.target.value) || 1);
-                          const qty = Number(newDealForm.quantity) || 2000;
+                          const qty = Number(newDealForm.quantity) || 20000;
                           setNewDealForm({
                             ...newDealForm,
                             totalPlannedTrips: trips,
@@ -1987,9 +1987,45 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <option value="On-Demand Drawdown">On-Demand Drawdown (Customer Call-Offs)</option>
                     </select>
                   </div>
-                  <p className="text-[10px] text-emerald-800 leading-snug">
-                    <b>Operational Drawdown:</b> Total payload of <b>{Number(newDealForm.quantity || 0).toLocaleString()} {currentCargoConfig.unit}</b> will be drawn down across <b>{newDealForm.totalPlannedTrips} separate train trips</b> (~{Number(newDealForm.trancheTonnage || 0).toLocaleString()} {currentCargoConfig.unit}/trip).
-                  </p>
+
+                  {/* Reactive Railway Consist Calculator & Constraints */}
+                  {(() => {
+                    const totalQty = Number(newDealForm.quantity) || 0;
+                    const trips = Math.max(1, Number(newDealForm.totalPlannedTrips) || 10);
+                    const trancheQty = Math.round(totalQty / trips);
+                    const isCementOrBags = (newDealForm.cargoType || '').toLowerCase().includes('cement') || currentCargoConfig.unit === 'Bags';
+                    const trancheBags = isCementOrBags ? (currentCargoConfig.unit === 'Bags' ? trancheQty : Math.round(trancheQty * 20)) : trancheQty;
+                    const wagonsNeeded = Math.ceil(trancheBags / 1200);
+                    const exceedsMaxConsist = wagonsNeeded > 23;
+
+                    return (
+                      <div className="space-y-2 pt-1 border-t border-emerald-200">
+                        <div className="bg-white p-2.5 rounded-xl border border-emerald-200 grid grid-cols-2 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 block text-[9px] uppercase font-bold">Consist per Train</span>
+                            <span className="font-extrabold text-emerald-900">1 Loco + {Math.min(23, wagonsNeeded)} Wagons</span>
+                            <span className="text-[10px] text-slate-500 block">({Math.min(23, wagonsNeeded)} / 23 wagons max)</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[9px] uppercase font-bold">Wagon Payload</span>
+                            <span className="font-extrabold text-slate-800">1,200 Bags / Wagon</span>
+                            <span className="text-[10px] text-emerald-700 block font-semibold">(60 MT per wagon)</span>
+                          </div>
+                        </div>
+
+                        {exceedsMaxConsist ? (
+                          <div className="bg-amber-100 text-amber-900 p-2.5 rounded-xl border border-amber-300 text-[10px] flex flex-col gap-1">
+                            <span className="font-bold">Consist Limit Exceeded:</span>
+                            <span>A single tranche of {trancheBags.toLocaleString()} bags requires {wagonsNeeded} wagons, which exceeds the locomotive capacity of 23 wagons (27,600 bags / 1,380 MT). Please increase planned trips to at least {Math.ceil(totalQty / 27600)} trips to keep each train consist within physical corridor safety limits.</span>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-emerald-800 leading-snug">
+                            <b>Operational Drawdown:</b> Total consignment of <b>{totalQty.toLocaleString()} {currentCargoConfig.unit}</b> split into <b>{trips} trips</b> = <b>{trancheQty.toLocaleString()} {currentCargoConfig.unit} per trip</b> ({wagonsNeeded} covered hopper wagons per train run).
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               <div>
