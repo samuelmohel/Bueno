@@ -36,6 +36,12 @@ if ($method === 'POST') {
     $rawInput = file_get_contents('php://input');
     $data = json_decode($rawInput, true);
 
+    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
+        $pdo->exec("DELETE FROM bueno_fund_requests");
+        echo json_encode(['status' => 'success', 'message' => 'All fund requests purged successfully']);
+        exit();
+    }
+
     if (!$data) {
         echo json_encode(['status' => 'error', 'message' => 'Invalid request data']);
         exit();

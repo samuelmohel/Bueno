@@ -70,6 +70,12 @@ if ($method === 'POST') {
         exit();
     }
 
+    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
+        if ($pdo) { try { $pdo->exec('DELETE FROM bueno_invoices'); } catch (Exception $e) {} }
+        echo json_encode(['status' => 'success', 'message' => 'All invoices purged', 'data' => []]);
+        exit();
+    }
+
     $invoices = isset($data[0]) ? $data : [$data];
 
     $stmt = $pdo->prepare("REPLACE INTO bueno_invoices (

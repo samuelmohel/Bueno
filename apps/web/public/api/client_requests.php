@@ -19,6 +19,12 @@ if ($method === 'POST') {
     $rawInput = file_get_contents('php://input');
     $data = json_decode($rawInput, true);
 
+    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
+        $pdo->exec("DELETE FROM bueno_client_requests");
+        echo json_encode(['status' => 'success', 'message' => 'All client requests purged successfully']);
+        exit();
+    }
+
     if (!$data) {
         echo json_encode(['status' => 'error', 'message' => 'Invalid client request data']);
         exit();

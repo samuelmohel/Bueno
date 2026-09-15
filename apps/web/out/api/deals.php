@@ -16,30 +16,24 @@ function getDealsFromFile($file) {
 
 function saveDealsToFile($file, $deals) {
     try {
-        $current = getDealsFromFile($file);
-        $map = [];
-        foreach ($current as $item) {
-            $key = $item['id'] ?? ($item['dealNumber'] ?? '');
-            if ($key) $map[$key] = $item;
-        }
-        foreach ($deals as $item) {
-            $key = $item['id'] ?? ($item['dealNumber'] ?? '');
-            if ($key) $map[$key] = $item;
-        }
-        file_put_contents($file, json_encode(array_values($map), JSON_PRETTY_PRINT));
+        file_put_contents($file, json_encode(array_values($deals), JSON_PRETTY_PRINT));
     } catch (Exception $e) {}
 }
 
 if ($method === 'GET') {
     $result = [];
+    $hasDb = false;
+
     if ($pdo) {
         try {
             $stmt = $pdo->query("SELECT * FROM bueno_deals ORDER BY id DESC");
             $result = $stmt->fetchAll();
+            $hasDb = true;
         } catch (Exception $e) {}
     }
 
-    if (empty($result)) {
+    // Only fallback to file store if database connection failed entirely
+    if (!$hasDb) {
         $result = getDealsFromFile($storeFile);
     }
 
@@ -56,7 +50,12 @@ if ($method === 'GET') {
         return $d;
     }, $result);
 
-    echo json_encode(['status' => 'success', 'data' => array_values($sanitized)]);
+    echo json_encode([
+        'status' => 'success',
+        'data' => array_values($sanitized),
+        'serverTime' => gmdate('Y-m-d\\TH:i:s\\Z'),
+        'count' => count($sanitized)
+    ]);
     exit();
 }
 
@@ -69,7 +68,7 @@ if ($method === 'POST') {
         exit();
     }
 
-    // Check if purge all request { action: 'PURGE_ALL' }
+    // Purge all deals
     if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
         @unlink($storeFile);
         if ($pdo) {
@@ -77,24 +76,22 @@ if ($method === 'POST') {
                 $pdo->exec("DELETE FROM bueno_deals");
             } catch (Exception $e) {}
         }
-        echo json_encode(['status' => 'success', 'message' => 'All deals purged successfully']);
+        echo json_encode(['status' => 'success', 'message' => 'All deals purged successfully', 'data' => []]);
         exit();
     }
 
-    // Check if single deletion request { action: 'DELETE', id: 'DEAL-001' }
+    // Delete single deal
     if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
-        try {
-            $existing = getDealsFromFile($storeFile);
-            $filtered = array_filter($existing, function($d) use ($data) {
-                return ($d['id'] ?? '') !== $data['id'];
-            });
-            file_put_contents($storeFile, json_encode(array_values($filtered), JSON_PRETTY_PRINT));
-        } catch (Exception $e) {}
+        $existing = getDealsFromFile($storeFile);
+        $filtered = array_filter($existing, function($d) use ($data) {
+            return ($d['id'] ?? '') !== $data['id'] && ($d['dealNumber'] ?? '') !== $data['id'];
+        });
+        saveDealsToFile($storeFile, $filtered);
 
         if ($pdo) {
             try {
-                $stmt = $pdo->prepare("DELETE FROM bueno_deals WHERE id = ?");
-                $stmt->execute([$data['id']]);
+                $stmt = $pdo->prepare("DELETE FROM bueno_deals WHERE id = ? OR dealNumber = ?");
+                $stmt->execute([$data['id'], $data['id']]);
             } catch (Exception $e) {}
         }
         echo json_encode(['status' => 'success', 'message' => 'Deal deleted successfully']);
@@ -103,10 +100,10 @@ if ($method === 'POST') {
 
     $deals = isset($data[0]) ? $data : [$data];
 
-    // 1. Save to JSON file store
+    // Save authoritative array to JSON file store
     saveDealsToFile($storeFile, $deals);
 
-    // 2. Save to SQL Database if available
+    // Save to SQL Database
     if ($pdo) {
         try {
             $stmt = $pdo->prepare("REPLACE INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, status, tripId, createdBy, createdAt)
@@ -132,6 +129,6 @@ if ($method === 'POST') {
         } catch (Exception $e) {}
     }
 
-    echo json_encode(['status' => 'success', 'message' => 'Deals updated successfully']);
+    echo json_encode(['status' => 'success', 'message' => 'Deals updated successfully', 'count' => count($deals)]);
     exit();
 }

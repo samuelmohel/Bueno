@@ -30,6 +30,12 @@ if ($method === 'POST') {
         exit();
     }
 
+    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
+        if ($pdo) { try { $pdo->exec('DELETE FROM bueno_trip_costs'); } catch (Exception $e) {} }
+        echo json_encode(['status' => 'success', 'message' => 'All trip costs purged', 'data' => []]);
+        exit();
+    }
+
     // Handle single item deletion request
     if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
         $stmt = $pdo->prepare("DELETE FROM bueno_trip_costs WHERE id = ?");

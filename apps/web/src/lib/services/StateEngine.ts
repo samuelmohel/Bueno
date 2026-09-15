@@ -344,20 +344,7 @@ class StateEngineService {
         if (dealsRes.ok) {
           const json = await dealsRes.json();
           if (json && json.status === 'success' && Array.isArray(json.data)) {
-            const remoteDeals = json.data;
-            if (remoteDeals.length > 0) {
-              const localDeals = this.readStorage<any[]>('bueno_deals', []);
-              const dealMap = new Map<string, any>();
-              localDeals.forEach((d: any) => dealMap.set(d.id || d.dealNumber, d));
-              remoteDeals.forEach((d: any) => {
-                const key = d.id || d.dealNumber;
-                if (key) {
-                  const existing = dealMap.get(key);
-                  dealMap.set(key, existing ? { ...existing, ...d } : d);
-                }
-              });
-              this.writeStorage('bueno_deals', Array.from(dealMap.values()));
-            }
+            this.writeStorage('bueno_deals', json.data);
           }
         }
       } catch {}
@@ -368,20 +355,7 @@ class StateEngineService {
         if (tripsRes.ok) {
           const json = await tripsRes.json();
           if (json && json.status === 'success' && Array.isArray(json.data)) {
-            const remoteTrips = json.data;
-            if (remoteTrips.length > 0) {
-              const localTrips = this.readStorage<any[]>('bueno_trips', []);
-              const tripMap = new Map<string, any>();
-              localTrips.forEach((t: any) => tripMap.set(t.id || t.tripId, t));
-              remoteTrips.forEach((t: any) => {
-                const key = t.id || t.tripId;
-                if (key) {
-                  const existing = tripMap.get(key);
-                  tripMap.set(key, existing ? { ...existing, ...t } : t);
-                }
-              });
-              this.writeStorage('bueno_trips', Array.from(tripMap.values()));
-            }
+            this.writeStorage('bueno_trips', json.data);
           }
         }
       } catch {}
@@ -391,8 +365,52 @@ class StateEngineService {
         const invRes = await fetch('/api/invoices.php', { cache: 'no-store' });
         if (invRes.ok) {
           const json = await invRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
             this.writeStorage('bueno_invoices', json.data);
+          }
+        }
+      } catch {}
+
+      // 4. Sync Trip Costs from cPanel
+      try {
+        const costsRes = await fetch('/api/trip_costs.php', { cache: 'no-store' });
+        if (costsRes.ok) {
+          const json = await costsRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            this.writeStorage('bueno_trip_costs', json.data);
+          }
+        }
+      } catch {}
+
+      // 5. Sync Fund Requests from cPanel
+      try {
+        const reqRes = await fetch('/api/requests.php', { cache: 'no-store' });
+        if (reqRes.ok) {
+          const json = await reqRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            this.writeStorage('bueno_requests', json.data);
+          }
+        }
+      } catch {}
+
+      // 6. Sync Client Requests from cPanel
+      try {
+        const clRes = await fetch('/api/client_requests.php', { cache: 'no-store' });
+        if (clRes.ok) {
+          const json = await clRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            this.writeStorage('bueno_client_requests', json.data);
+          }
+        }
+      } catch {}
+
+      // 7. Sync Notifications from cPanel
+      try {
+        const notifRes = await fetch('/api/notifications.php', { cache: 'no-store' });
+        if (notifRes.ok) {
+          const json = await notifRes.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            this.writeStorage('bueno_notifications', json.data);
           }
         }
       } catch {}
@@ -478,14 +496,20 @@ class StateEngineService {
       this.writeStorage('bueno_deals', []);
       this.writeStorage('bueno_custom_deal_negotiations', []);
       this.writeStorage('bueno_client_requests', []);
+      this.writeStorage('bueno_notifications', []);
       this.writeStorage('bueno_users', SEED_USERS);
+      this.writeStorage('bueno_wagons', SEED_WAGONS);
       localStorage.setItem('bueno_prod_purge_clean_v15', 'purged');
       this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/trip_costs.php', []);
-      this.postRemote('/api/invoices.php', []);
-      this.postRemote('/api/requests.php', []);
+      this.postRemote('/api/trip_costs.php', { action: 'PURGE_ALL' });
+      this.postRemote('/api/invoices.php', { action: 'PURGE_ALL' });
+      this.postRemote('/api/requests.php', { action: 'PURGE_ALL' });
+      this.postRemote('/api/client_requests.php', { action: 'PURGE_ALL' });
+      this.postRemote('/api/negotiations.php', { action: 'PURGE_ALL' });
+      this.postRemote('/api/notifications.php', { action: 'PURGE_ALL' });
       this.postRemote('/api/deals.php', { action: 'PURGE_ALL' });
       this.postRemote('/api/users.php', SEED_USERS);
+      this.postRemote('/api/wagons.php', SEED_WAGONS);
       this.notifyListeners();
     } catch {}
   }
@@ -616,15 +640,7 @@ class StateEngineService {
       status: 'LOADING',
       dispatchTime: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      wagonLogs: OFFICIAL_PXG_CODES.slice(0, requiredWagons).map((wId, i) => ({
-        wagonId: wId,
-        loadedAt: 'Just Now',
-        bagsCount: `${bagsPerWagon.toLocaleString()} Bags (${(bagsPerWagon * 0.05).toFixed(0)} MT)`,
-        sealNumber: `SEAL-BN-${9100 + (nextTrancheNum * 23) + i}`,
-        condition: 'LOADED_INTACT',
-        burstBags: 0,
-        damageQty: 0,
-      })),
+      wagonLogs: [],
       damages: { damagedUnits: 0, burstBags: 0, complaintNotes: [] },
     };
 

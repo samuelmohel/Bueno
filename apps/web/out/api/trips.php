@@ -5,7 +5,6 @@ $pdo = getDbConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 $storeFile = __DIR__ . '/bueno_trips_store.json';
 
-// Helper to read backup JSON
 function getTripsFromFile($file) {
     if (file_exists($file) && is_readable($file)) {
         $content = file_get_contents($file);
@@ -15,29 +14,20 @@ function getTripsFromFile($file) {
     return [];
 }
 
-// Helper to save backup JSON
 function saveTripsToFile($file, $trips) {
     try {
-        $current = getTripsFromFile($file);
-        $map = [];
-        foreach ($current as $item) {
-            $key = $item['id'] ?? ($item['tripId'] ?? '');
-            if ($key) $map[$key] = $item;
-        }
-        foreach ($trips as $item) {
-            $key = $item['id'] ?? ($item['tripId'] ?? '');
-            if ($key) $map[$key] = $item;
-        }
-        file_put_contents($file, json_encode(array_values($map), JSON_PRETTY_PRINT));
+        file_put_contents($file, json_encode(array_values($trips), JSON_PRETTY_PRINT));
     } catch (Exception $e) {}
 }
 
 if ($method === 'GET') {
     $tripId = $_GET['id'] ?? $_GET['tripId'] ?? '';
-    
     $result = [];
+    $hasDb = false;
+
     if ($pdo) {
         try {
+            $hasDb = true;
             if ($tripId !== '') {
                 $stmt = $pdo->prepare("SELECT * FROM bueno_trips WHERE id = ? OR tripId = ? LIMIT 1");
                 $stmt->execute([$tripId, $tripId]);
@@ -66,8 +56,8 @@ if ($method === 'GET') {
         } catch (Exception $e) {}
     }
 
-    // If SQL empty or unavailable, fallback to file storage
-    if (empty($result)) {
+    // Only fallback to file storage if database failed to connect
+    if (!$hasDb) {
         $fileTrips = getTripsFromFile($storeFile);
         if ($tripId !== '') {
             foreach ($fileTrips as $ft) {
@@ -80,7 +70,12 @@ if ($method === 'GET') {
         $result = $fileTrips;
     }
 
-    echo json_encode(['status' => 'success', 'data' => $result]);
+    echo json_encode([
+        'status' => 'success',
+        'data' => array_values($result),
+        'serverTime' => gmdate('Y-m-d\\TH:i:s\\Z'),
+        'count' => count($result)
+    ]);
     exit();
 }
 
@@ -93,7 +88,7 @@ if ($method === 'POST') {
         exit();
     }
 
-    // Check if purge all request { action: 'PURGE_ALL' }
+    // Purge all trips
     if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
         @unlink($storeFile);
         if ($pdo) {
@@ -101,16 +96,34 @@ if ($method === 'POST') {
                 $pdo->exec("DELETE FROM bueno_trips");
             } catch (Exception $e) {}
         }
-        echo json_encode(['status' => 'success', 'message' => 'All trips purged successfully']);
+        echo json_encode(['status' => 'success', 'message' => 'All trips purged successfully', 'data' => []]);
+        exit();
+    }
+
+    // Single delete
+    if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
+        $existing = getTripsFromFile($storeFile);
+        $filtered = array_filter($existing, function($t) use ($data) {
+            return ($t['id'] ?? '') !== $data['id'] && ($t['tripId'] ?? '') !== $data['id'];
+        });
+        saveTripsToFile($storeFile, $filtered);
+
+        if ($pdo) {
+            try {
+                $stmt = $pdo->prepare("DELETE FROM bueno_trips WHERE id = ? OR tripId = ?");
+                $stmt->execute([$data['id'], $data['id']]);
+            } catch (Exception $e) {}
+        }
+        echo json_encode(['status' => 'success', 'message' => 'Trip deleted successfully']);
         exit();
     }
 
     $trips = isset($data[0]) ? $data : [$data];
 
-    // 1. Always persist to resilient JSON file store first
+    // Save exact array to file store
     saveTripsToFile($storeFile, $trips);
 
-    // 2. Persist to SQL database if connection available
+    // Persist to SQL database
     if ($pdo) {
         try {
             $stmt = $pdo->prepare("REPLACE INTO bueno_trips (
@@ -171,6 +184,6 @@ if ($method === 'POST') {
         } catch (Exception $e) {}
     }
 
-    echo json_encode(['status' => 'success', 'message' => 'Trips, Consists & Audit Logs saved successfully']);
+    echo json_encode(['status' => 'success', 'message' => 'Trips updated successfully', 'count' => count($trips)]);
     exit();
 }
