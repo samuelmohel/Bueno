@@ -8,6 +8,7 @@ import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 import { TerminalInformationView } from '@/components/TerminalInformationView';
 import {
   Train,
+  Search,
   Clock,
   CheckCircle2,
   AlertTriangle,
@@ -1353,6 +1354,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
 /* ─────────────────────────────────────────────────────────
    TRIP WAGON LOADING DASHBOARD (Origin Loading Station)
+   Concurrent Multi-Wagon Loading & Multi-Feeder Truck Audit
 ───────────────────────────────────────────────────────── */
 function TripWagonView({
   tripId,
@@ -1371,18 +1373,45 @@ function TripWagonView({
   const [logs, setLogs] = useState<any[]>(trip?.wagonLogs || []);
   const [adding, setAdding] = useState(false);
   const [selWagon, setSelWagon] = useState('');
+  const [wagonSearch, setWagonSearch] = useState('');
+  const [isCustomWagon, setIsCustomWagon] = useState(false);
+  const [customWagonId, setCustomWagonId] = useState('');
   const [stoppingWagon, setStoppingWagon] = useState<any | null>(null);
   const [bagsLoadedInput, setBagsLoadedInput] = useState('1200');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
 
-  const [loadingLogForm, setLoadingLogForm] = useState({
-    sourceEnv: 'Silo Bay 1 - Loading Siding',
-    truckRegNo: 'KJA-482-XY',
-    driverDetails: 'Ibrahim Garba (08031112233)',
-    transporter: 'HBM Logistics Fleet',
-    startTimeEdit: '',
-    endTimeEdit: '',
-  });
+  // Commodity unit detection
+  const isBulkTonnes =
+    trip?.cargoType?.toLowerCase().includes('gypsum') ||
+    trip?.cargoType?.toLowerCase().includes('limestone') ||
+    trip?.cargoType?.toLowerCase().includes('clinker') ||
+    trip?.unitOfMeasure?.includes('MT') ||
+    trip?.unitOfMeasure?.includes('Tonne');
+  const unitLabel = isBulkTonnes ? 'Metric Tonnes (MT)' : 'Bags';
+  const unitShort = isBulkTonnes ? 'MT' : 'Bags';
+  const defaultCapacity = isBulkTonnes ? 60 : 1200;
+
+  // Multi-feeder trucks form state for current wagon
+  const [sourceBay, setSourceBay] = useState('Silo Bay 1 - Loading Siding');
+  const [startTimeEdit, setStartTimeEdit] = useState('');
+  const [endTimeEdit, setEndTimeEdit] = useState('');
+  const [feederTrucks, setFeederTrucks] = useState<
+    Array<{
+      truckRegNo: string;
+      driverName: string;
+      phone: string;
+      transporter: string;
+      qtyContributed: string;
+    }>
+  >([
+    {
+      truckRegNo: 'KJA-482-XY',
+      driverName: 'Ibrahim Garba',
+      phone: '08031112233',
+      transporter: 'Dangote Logistics Fleet',
+      qtyContributed: String(defaultCapacity),
+    },
+  ]);
 
   if (!trip) {
     return (
@@ -1395,24 +1424,35 @@ function TripWagonView({
     );
   }
 
-  const totalBags = Number(trip.quantity) || 27600;
-  const targetCount = trip.targetWagonsCount || Math.min(23, Math.max(1, Math.ceil(totalBags / 1200)));
+  const totalReqQty = Number(trip.quantity) || (isBulkTonnes ? 1380 : 27600);
+  const targetCount = trip.targetWagonsCount || Math.min(23, Math.max(1, Math.ceil(totalReqQty / defaultCapacity)));
 
   const loadedLogs = logs.filter((w: any) => w.status === 'LOADED');
   const loadedCount = loadedLogs.length;
-  const active = logs.find((w: any) => w.status === 'LOADING');
-  const totalBagsLoadedSoFar = loadedLogs.reduce((acc: number, w: any) => acc + (Number(w.qty) || 0), 0);
+  const activeLoadingWagons = logs.filter((w: any) => w.status === 'LOADING');
+  const totalQtyLoadedSoFar = loadedLogs.reduce((acc: number, w: any) => acc + (Number(w.qty) || 0), 0);
   const allDone = loadedCount >= targetCount;
   const pct = Math.min(100, Math.round((loadedCount / targetCount) * 100));
 
-  // 100% RELIABLE ROLLING STOCK FLEET LOOKUP:
-  // Use all 46 official PXG covered hoppers, minus only the ones already loaded onto THIS trip
-  const baseFleet = (wagons && wagons.length > 0)
-    ? wagons
-    : OFFICIAL_PXG_CODES.map((id) => ({ id, capacity: 1200 }));
-  
+  // Full 46 PXG Covered Hoppers Rolling Stock Fleet
+  const baseFleet =
+    wagons && wagons.length > 0
+      ? wagons
+      : OFFICIAL_PXG_CODES.map((id) => ({
+          id,
+          capacity: defaultCapacity,
+          wagonType: 'Covered Hopper Wagon',
+          currentStation: trip.origin || 'EWK',
+        }));
+
   const usedInThisTrip = new Set(logs.map((w: any) => w.wagonId));
-  const available = baseFleet.filter((w: any) => !usedInThisTrip.has(w.id));
+  const availableFleetWagons = baseFleet.filter((w: any) => !usedInThisTrip.has(w.id));
+
+  const filteredWagons = availableFleetWagons.filter(
+    (w: any) =>
+      w.id.toLowerCase().includes(wagonSearch.toLowerCase()) ||
+      (w.currentStation && w.currentStation.toLowerCase().includes(wagonSearch.toLowerCase()))
+  );
 
   const isTripInTransit =
     trip.status === 'IN_TRANSIT' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'ARRIVED';
@@ -1434,11 +1474,45 @@ function TripWagonView({
       });
       return;
     }
-    const wId = selWagon || available[0]?.id || 'PXG 09029';
-    if (!wId) {
+
+    let targetWagonId = '';
+    if (isCustomWagon) {
+      targetWagonId = customWagonId.trim().toUpperCase();
+      if (!targetWagonId) {
+        setCustomAlert({
+          title: 'Wagon ID Required',
+          message: 'Please enter a valid custom wagon registration number!',
+        });
+        return;
+      }
+      // Register custom wagon to SQL StateEngine
+      StateEngine.registerWagon({
+        id: targetWagonId,
+        wagonType: isBulkTonnes ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon',
+        payloadCapacity: `${defaultCapacity} ${unitShort}`,
+        capacity: defaultCapacity,
+        status: 'IN_USE',
+        currentStation: trip.origin || 'EWK',
+        gauge: 'STANDARD_GAUGE',
+        addedBy: 'Cargo Officer (Field)',
+        createdAt: new Date().toLocaleDateString('en-GB'),
+      });
+    } else {
+      targetWagonId = selWagon || availableFleetWagons[0]?.id;
+    }
+
+    if (!targetWagonId) {
       setCustomAlert({
         title: 'No Wagon Selected',
-        message: 'Please select an available wagon to start loading!',
+        message: 'Please select an available wagon or enter a custom wagon number.',
+      });
+      return;
+    }
+
+    if (logs.some((w: any) => w.wagonId === targetWagonId)) {
+      setCustomAlert({
+        title: 'Wagon Already Added',
+        message: `Wagon ${targetWagonId} is already in the loading queue for this trip.`,
       });
       return;
     }
@@ -1448,8 +1522,8 @@ function TripWagonView({
     const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     const newLog = {
-      id: `wl_${Date.now()}`,
-      wagonId: wId,
+      id: `wl_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      wagonId: targetWagonId,
       startTimestamp: Date.now(),
       startDate: formattedDate,
       startTime: formattedTime,
@@ -1457,10 +1531,9 @@ function TripWagonView({
       endTime: null,
       durationStr: null,
       qty: null,
-      sourceEnv: loadingLogForm.sourceEnv || 'Silo Bay 1 - Loading Siding',
-      truckRegNo: loadingLogForm.truckRegNo || 'KJA-482-XY',
-      driverDetails: loadingLogForm.driverDetails || 'Ibrahim Garba (08031112233)',
-      transporter: loadingLogForm.transporter || 'HBM Logistics Fleet',
+      unitOfMeasure: unitShort,
+      sourceEnv: sourceBay,
+      feederTrucks: [],
       status: 'LOADING',
       unloadStatus: 'PENDING_UNLOAD',
     };
@@ -1468,21 +1541,71 @@ function TripWagonView({
     commitLogs([...logs, newLog], 'LOADING');
     setAdding(false);
     setSelWagon('');
+    setCustomWagonId('');
+    setIsCustomWagon(false);
+    setWagonSearch('');
   };
 
   const handleOpenStopModal = (w: any) => {
-    const remainingBags = Math.max(0, totalBags - totalBagsLoadedSoFar);
-    const defaultQty = remainingBags > 0 && remainingBags < 1200 ? remainingBags : 1200;
+    const remaining = Math.max(0, totalReqQty - totalQtyLoadedSoFar);
+    const defaultQty = remaining > 0 && remaining < defaultCapacity ? remaining : defaultCapacity;
     setBagsLoadedInput(String(defaultQty));
-    setLoadingLogForm({
-      sourceEnv: w.sourceEnv || 'Silo Bay 1 - Loading Siding',
-      truckRegNo: w.truckRegNo || 'KJA-482-XY',
-      driverDetails: w.driverDetails || 'Ibrahim Garba (08031112233)',
-      transporter: w.transporter || 'HBM Logistics Fleet',
-      startTimeEdit: w.startTime || '08:30 AM',
-      endTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    });
+    setSourceBay(w.sourceEnv || 'Silo Bay 1 - Loading Siding');
+    setStartTimeEdit(w.startTime || '08:30 AM');
+    setEndTimeEdit(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+    if (w.feederTrucks && Array.isArray(w.feederTrucks) && w.feederTrucks.length > 0) {
+      setFeederTrucks(
+        w.feederTrucks.map((ft: any) => ({
+          truckRegNo: ft.truckRegNo || '',
+          driverName: ft.driverName || '',
+          phone: ft.phone || '',
+          transporter: ft.transporter || '',
+          qtyContributed: String(ft.qtyContributed || ''),
+        }))
+      );
+    } else {
+      setFeederTrucks([
+        {
+          truckRegNo: w.truckRegNo || 'KJA-482-XY',
+          driverName: w.driverDetails?.split('(')[0]?.trim() || 'Ibrahim Garba',
+          phone: w.driverDetails?.match(/\((.*?)\)/)?.[1] || '08031112233',
+          transporter: w.transporter || 'Dangote Logistics Fleet',
+          qtyContributed: String(defaultQty),
+        },
+      ]);
+    }
     setStoppingWagon(w);
+  };
+
+  const handleAddFeederTruck = () => {
+    setFeederTrucks([
+      ...feederTrucks,
+      {
+        truckRegNo: '',
+        driverName: '',
+        phone: '',
+        transporter: 'Bueno Logistics Fleet',
+        qtyContributed: '',
+      },
+    ]);
+  };
+
+  const handleRemoveFeederTruck = (idx: number) => {
+    if (feederTrucks.length <= 1) return;
+    setFeederTrucks(feederTrucks.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateFeederTruck = (idx: number, field: string, value: string) => {
+    const updated = [...feederTrucks];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setFeederTrucks(updated);
+
+    // Auto-recalculate total wagon payload from the sum of feeder trucks
+    const sum = updated.reduce((acc, t) => acc + (Number(t.qtyContributed) || 0), 0);
+    if (sum > 0) {
+      setBagsLoadedInput(String(sum));
+    }
   };
 
   const confirmStopLoading = (e: React.FormEvent) => {
@@ -1491,28 +1614,40 @@ function TripWagonView({
 
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime = loadingLogForm.endTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedTime = endTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const mins = Math.max(1, Math.round((Date.now() - stoppingWagon.startTimestamp) / 60000));
+    const mins = Math.max(1, Math.round((Date.now() - (stoppingWagon.startTimestamp || Date.now())) / 60000));
     const hours = Math.floor(mins / 60);
     const remMins = mins % 60;
     const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
 
-    const bagsQty = Number(bagsLoadedInput) || 1200;
+    const finalLoadedQty = Number(bagsLoadedInput) || defaultCapacity;
+
+    const formattedFeederTrucks = feederTrucks.map((ft) => ({
+      truckRegNo: ft.truckRegNo.trim().toUpperCase() || 'N/A',
+      driverName: ft.driverName.trim() || 'N/A',
+      phone: ft.phone.trim() || 'N/A',
+      transporter: ft.transporter.trim() || 'Logistics Fleet',
+      qtyContributed: Number(ft.qtyContributed) || Math.round(finalLoadedQty / feederTrucks.length),
+    }));
+
+    const primaryTruck = formattedFeederTrucks[0];
 
     const updated = logs.map((w: any) => {
       if (w.id !== stoppingWagon.id) return w;
       return {
         ...w,
-        startTime: loadingLogForm.startTimeEdit || w.startTime,
+        startTime: startTimeEdit || w.startTime,
         endDate: formattedDate,
         endTime: formattedTime,
         durationStr,
-        qty: bagsQty,
-        sourceEnv: loadingLogForm.sourceEnv,
-        truckRegNo: loadingLogForm.truckRegNo,
-        driverDetails: loadingLogForm.driverDetails,
-        transporter: loadingLogForm.transporter,
+        qty: finalLoadedQty,
+        unitOfMeasure: unitShort,
+        sourceEnv: sourceBay,
+        truckRegNo: formattedFeederTrucks.map((t) => t.truckRegNo).join(', '),
+        driverDetails: formattedFeederTrucks.map((t) => `${t.driverName} (${t.phone})`).join('; '),
+        transporter: primaryTruck?.transporter || 'Rail Haulage Fleet',
+        feederTrucks: formattedFeederTrucks,
         status: 'LOADED',
         unloadStatus: 'PENDING_UNLOAD',
       };
@@ -1523,17 +1658,17 @@ function TripWagonView({
   };
 
   const dispatchAndActivateGps = async () => {
-    if (active) {
+    if (activeLoadingWagons.length > 0) {
       setCustomAlert({
-        title: 'Wagon Still Loading',
-        message: `Wagon ${active.wagonId} is currently being loaded! Please stop loading before dispatching the train.`,
+        title: 'Wagons Still Loading',
+        message: `There are ${activeLoadingWagons.length} wagon(s) currently loading (${activeLoadingWagons.map((w) => w.wagonId).join(', ')}). Please finalize all active wagons before dispatching the train.`,
       });
       return;
     }
     if (loadedCount < 1) {
       setCustomAlert({
         title: 'No Wagons Loaded',
-        message: 'Please load at least 1 wagon before dispatching the train!',
+        message: 'Please load at least 1 wagon before dispatching the trip!',
       });
       return;
     }
@@ -1559,12 +1694,12 @@ function TripWagonView({
           signalQuality: 'GPS_SATELLITE_LIVE',
         }),
       });
-    } catch {}
+    } catch (e) {}
 
     const notifPayload = {
       id: `ntf_${Date.now()}`,
       title: 'Train Departed Origin Station',
-      message: `Locomotive ${trip.locomotiveId} with ${loadedCount} wagons (${totalBagsLoadedSoFar.toLocaleString()} bags) departed ${sName(
+      message: `Locomotive ${trip.locomotiveId} with ${loadedCount} wagons (${totalQtyLoadedSoFar.toLocaleString()} ${unitShort}) departed ${sName(
         trip.origin
       )} heading to ${sName(trip.destination)}.`,
       targetId: trip.id,
@@ -1580,7 +1715,7 @@ function TripWagonView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notifPayload),
-      }).catch(() => {});
+      });
     } catch {}
 
     const updatedTrips = trips.map((t: any) =>
@@ -1605,15 +1740,15 @@ function TripWagonView({
   };
 
   return (
-    <div className="space-y-5">
-      {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="space-y-5 font-sans">
+      {/* HEADER CONTROLS */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all cursor-pointer"
+          className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Trips</span>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Operational Desk</span>
         </button>
         <div className="flex items-center gap-2">
           {isTripInTransit && (
@@ -1621,62 +1756,67 @@ function TripWagonView({
               LOADING LOCKED (IN TRANSIT)
             </span>
           )}
-          <span className="text-xs font-bold text-[#62BC37] bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl font-mono">
-            {loadedCount} / {targetCount} Wagons Loaded ({totalBagsLoadedSoFar.toLocaleString()} / {totalBags.toLocaleString()} Bags)
+          <span className="text-xs font-bold text-[#62BC37] bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+            {loadedCount} / {targetCount} Wagons ({totalQtyLoadedSoFar.toLocaleString()} / {totalReqQty.toLocaleString()} {unitShort})
           </span>
         </div>
       </div>
 
-      {/* Origin Loading Details Card */}
+      {/* TRIP SUMMARY INFO CARD */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37] flex items-center gap-1.5">
-            <Train className="w-3.5 h-3.5" />
-            <span>TRIP {trip.tripId} — ORIGIN LOADING SIDING CONSOLE</span>
-          </p>
-          <Badge text={trip.status} color={trip.status === 'IN_TRANSIT' ? 'green' : 'amber'} />
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37]">
+              TRIP {trip.tripId} — ORIGIN SIDING LOADING MANIFEST
+            </p>
+            <h3 className="text-base font-black text-slate-900">{trip.company}</h3>
+          </div>
+          <span className="bg-blue-50 text-[#0E4B88] font-mono font-bold text-xs px-3 py-1 rounded-xl border border-blue-200">
+            {sName(trip.origin)} ➔ {sName(trip.destination)}
+          </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          {[
-            ['Locomotive ID', trip.locomotiveId],
-            ['Cargo Officer', trip.cargoOfficerName],
-            ['Loading Station', sName(trip.origin)],
-            ['Destination', sName(trip.destination)],
-            ['Consignor Company', trip.company],
-            ['Cargo Type', trip.cargoType],
-            ['Consist Requisition', `${Number(trip.quantity).toLocaleString()} Bags`],
-            ['Trip Created', trip.createdAt || '—'],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
-              <span className="font-bold text-slate-900">{value}</span>
-            </div>
-          ))}
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Locomotive</span>
+            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Cargo Officer</span>
+            <span className="font-bold text-slate-900">{trip.cargoOfficerName || trip.monitoringOfficer || 'Field Officer'}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Consignment</span>
+            <span className="font-bold text-slate-900">{trip.cargoType}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Target Volume</span>
+            <span className="font-mono font-bold text-emerald-700">
+              {totalReqQty.toLocaleString()} {unitLabel}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Live GPS Tracker & Corridor Dispatch Banner */}
+      {/* LIVE DISPATCH BANNER */}
       {!isTripInTransit && (
         <div className="bg-[#62BC37] text-white rounded-2xl p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-white animate-pulse" />
-                <p className="text-xs font-black uppercase tracking-wider font-mono text-white">
-                  LIVE GPS TRACKER & CORRIDOR DISPATCH
-                </p>
+                <p className="text-xs font-black uppercase tracking-wider font-mono">LIVE GPS CORRIDOR DISPATCH GATE</p>
               </div>
               <p className="text-base font-black text-white mt-1">
-                Locomotive Consist: <span className="font-mono">{trip.locomotiveId}</span>
+                Locomotive: <span className="font-mono text-white/90">{trip.locomotiveId || 'L2205'}</span> ({loadedCount} Wagons Finalized)
               </p>
-              <p className="text-xs text-white/90 mt-0.5 max-w-2xl">
-                Clicking 'Depart Train &amp; Activate Live GPS' locks the loading phase, notifies destination officer at {sName(trip.destination)}, and initiates real-time GPS telemetry tracking.
+              <p className="text-xs text-white/80 mt-0.5">
+                Finalize all active loading wagons to unlock corridor departure & satellite telemetry.
               </p>
             </div>
             <button
               onClick={dispatchAndActivateGps}
-              disabled={loadedCount < 1 || !!active}
-              className="w-full sm:w-auto bg-slate-950 hover:bg-slate-900 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              disabled={loadedCount < 1 || activeLoadingWagons.length > 0}
+              className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Depart Train & Activate Live GPS Tracker</span>
               <ArrowRight className="w-4 h-4" />
@@ -1685,23 +1825,30 @@ function TripWagonView({
         </div>
       )}
 
-      {/* Wagon Loading Progress Metrics */}
+      {/* PROGRESS OVERVIEW */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-          Consist Loading Progress
+          Consist Loading Metrics & Progress
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[
-            ['Target Consist Wagons', `${targetCount} Wagons`, 'text-slate-900'],
-            ['Loaded Wagons', String(loadedCount), 'text-[#62BC37]'],
-            ['Bags Loaded', totalBagsLoadedSoFar.toLocaleString(), 'text-emerald-700'],
-            ['Progress', `${pct}%`, 'text-[#0E4B88]'],
-          ].map(([label, val, col]) => (
-            <div key={label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
-              <span className={`text-xl font-black font-mono ${col}`}>{val}</span>
-            </div>
-          ))}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Target Consist</span>
+            <span className="text-xl font-black font-mono text-slate-900">{targetCount} Wagons</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Finalized Wagons</span>
+            <span className="text-xl font-black font-mono text-[#62BC37]">{loadedCount}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Volume Loaded</span>
+            <span className="text-xl font-black font-mono text-emerald-700">
+              {totalQtyLoadedSoFar.toLocaleString()} {unitShort}
+            </span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Loading Ratio</span>
+            <span className="text-xl font-black font-mono text-[#0E4B88]">{pct}%</span>
+          </div>
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
           <div
@@ -1711,283 +1858,483 @@ function TripWagonView({
         </div>
       </div>
 
-      {/* Wagon Loading Logs & Active Timer Section */}
+      {/* ACTIVE SIMULTANEOUS MULTI-WAGON LOADING DECK */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-              Wagon Loading Logs & Stopwatch Timer
+              Active Simultaneous Loading Deck ({activeLoadingWagons.length} Wagons Timing)
             </h3>
             <p className="text-xs text-slate-500">
-              Each covered hopper carries up to 1,200 bags (60 MT). Cargo Officer starts and stops loading timer per wagon.
+              Initiate multiple wagons concurrently. Stop and audit each wagon independently when filled.
             </p>
           </div>
-          {!isTripInTransit && !active && !allDone && !adding && (
+          {!isTripInTransit && (
             <button
               onClick={() => {
                 setAdding(true);
-                if (available.length > 0 && !selWagon) {
-                  setSelWagon(available[0].id);
+                if (availableFleetWagons.length > 0 && !selWagon) {
+                  setSelWagon(availableFleetWagons[0].id);
                 }
               }}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Select Wagon to Load</span>
+              <span>Add Wagon to Loading Deck</span>
             </button>
           )}
         </div>
 
-        {/* Wagon Selector Form */}
+        {/* WAGON SELECTION FORM / MODAL */}
         {!isTripInTransit && adding && (
-          <form onSubmit={startLoadingWagon} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <div>
-              <label className={lc}>
-                Select Covered Hopper Wagon from Fleet ({available.length} Available)
-              </label>
-              <select
-                value={selWagon || available[0]?.id || ''}
-                onChange={(e) => setSelWagon(e.target.value)}
-                className={ic}
-              >
-                {available.map((w: any) => (
-                  <option key={w.id} value={w.id}>
-                    {w.id} (Standard Capacity: 1,200 Bags / 60 MT)
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
+          <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 border-2 border-[#0E4B88]/20 rounded-2xl p-5 space-y-4 shadow-xs">
+            <div className="flex justify-between items-center border-b border-slate-200/60 pb-3">
+              <div>
+                <h4 className="font-black text-slate-900 text-sm">Wagon Allocation & Siding Dispatch</h4>
+                <p className="text-xs text-slate-500">
+                  Pick from the 46 dedicated PXG covered hoppers or enter a custom external wagon number.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setAdding(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                onClick={() => setIsCustomWagon(!isCustomWagon)}
+                className="text-xs font-bold text-[#0E4B88] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={available.length === 0}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2 rounded-xl disabled:opacity-50 shadow-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Start Loading Wagon</span>
+                {isCustomWagon ? 'Pick from 46 Fleet Wagons' : 'Write Custom / External Wagon ID'}
               </button>
             </div>
-          </form>
-        )}
 
-        {/* Live Active Wagon Stopwatch Card */}
-        {active && (
-          <div className="bg-emerald-50 border-2 border-[#62BC37] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-            <div>
-              <p className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-ping" />
-                <span>LOADING IN PROGRESS (STOPWATCH TIMING)</span>
-              </p>
-              <p className="text-xl font-mono font-black text-slate-900 mt-1">{active.wagonId}</p>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Started: <strong className="text-slate-800">{active.startDate} at {active.startTime}</strong>
-              </p>
-            </div>
-            <div className="flex items-center gap-6">
-              <div>
-                <span className={lc}>Live Stopwatch</span>
-                <LiveTimer ts={active.startTimestamp} />
-              </div>
-              {!isTripInTransit && (
-                <button
-                  onClick={() => handleOpenStopModal(active)}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>Stop Loading</span>
-                </button>
+            <form onSubmit={startLoadingWagon} className="space-y-4">
+              {isCustomWagon ? (
+                <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
+                  <label className="block text-xs font-bold text-slate-700">Enter External / Custom Wagon Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={customWagonId}
+                    onChange={(e) => setCustomWagonId(e.target.value)}
+                    placeholder="e.g. PXG 09048, GND 4410, NRC-HPR-88"
+                    className="w-full font-mono text-sm font-bold uppercase p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-[#62BC37]"
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    This custom wagon will be automatically saved and registered to the live SQL database.
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-700">
+                      Select from 46 Dedicated Covered Hopper Wagons ({availableFleetWagons.length} Available at {sName(trip.origin)})
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      value={wagonSearch}
+                      onChange={(e) => setWagonSearch(e.target.value)}
+                      placeholder="Filter wagons by number (e.g. PXG 09001)..."
+                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#62BC37]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1">
+                    {filteredWagons.length === 0 ? (
+                      <p className="col-span-full text-center text-xs text-slate-400 py-4">
+                        No wagons match "{wagonSearch}". Switch to custom input above.
+                      </p>
+                    ) : (
+                      filteredWagons.map((w: any) => {
+                        const isSelected = selWagon === w.id || (!selWagon && filteredWagons[0]?.id === w.id);
+                        return (
+                          <button
+                            type="button"
+                            key={w.id}
+                            onClick={() => setSelWagon(w.id)}
+                            className={`p-2.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
+                              isSelected
+                                ? 'bg-emerald-50 border-2 border-[#62BC37] text-slate-900 shadow-xs'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <span className="font-mono font-bold block">{w.id}</span>
+                            <span className="text-[10px] text-slate-400 block">
+                              {w.currentStation || trip.origin || 'EWK'} • 60 MT
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               )}
-            </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Loading Siding / Silo Bay Location</label>
+                <input
+                  type="text"
+                  value={sourceBay}
+                  onChange={(e) => setSourceBay(e.target.value)}
+                  placeholder="e.g. Silo Bay 1 - Loading Siding"
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#62BC37]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAdding(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>Start Loading Wagon</span>
+                </button>
+              </div>
+            </form>
           </div>
         )}
 
-        {/* Wagon Logs Feed */}
+        {/* ACTIVE WAGONS GRID (CONCURRENT SIMULTANEOUS LOADING) */}
+        {activeLoadingWagons.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeLoadingWagons.map((active: any) => (
+              <div
+                key={active.id}
+                className="bg-emerald-50/60 border-2 border-[#62BC37] rounded-2xl p-4 space-y-3 shadow-xs"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-wider block">
+                      LOADING IN PROGRESS
+                    </span>
+                    <h4 className="text-xl font-mono font-black text-slate-900">{active.wagonId}</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Started: {active.startDate} at {active.startTime}
+                    </p>
+                  </div>
+                  <span className="w-3 h-3 rounded-full bg-[#62BC37] animate-ping" />
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-emerald-200 flex justify-between items-center">
+                  <div>
+                    <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Live Stopwatch</span>
+                    <LiveTimer ts={active.startTimestamp} />
+                  </div>
+                  {!isTripInTransit && (
+                    <button
+                      onClick={() => handleOpenStopModal(active)}
+                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span>Stop & Finalize</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* FINALIZED WAGON LOADING MANIFEST TABLE */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
+        <div>
+          <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+            Finalized Wagon Loading Manifest
+          </h3>
+          <p className="text-xs text-slate-500">
+            Complete detailed loading audit per wagon, including all feeder trucks and time records.
+          </p>
+        </div>
+
         <div className="space-y-3">
           {logs.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
-              No wagons loaded yet. Click '+ Select Wagon to Load' to pick an available wagon and start the live loading stopwatch.
+              No wagons loaded yet. Click '+ Add Wagon to Loading Deck' to start loading.
             </div>
           ) : (
-            logs.map((w: any, i: number) => (
-              <div
-                key={w.id || i}
-                className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <div>
-                  <span className="text-[10px] font-mono text-slate-400 mr-2">Wagon #{i + 1}</span>
-                  <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
-                  {w.status === 'LOADED' && (
-                    <span className="ml-3 font-bold text-emerald-700 font-mono">
-                      ({Number(w.qty || 1200).toLocaleString()} Bags Loaded)
-                    </span>
-                  )}
-                </div>
-                <div className="font-mono text-slate-600">
-                  <span>
-                    Started: <strong>{w.startDate} {w.startTime}</strong>
-                  </span>
-                  {w.endDate && (
-                    <span className="ml-3">
-                      Ended: <strong>{w.endDate} {w.endTime}</strong>
-                    </span>
-                  )}
-                  <span className="ml-3 font-bold text-slate-900">Duration: {w.durationStr || 'Running...'}</span>
-                </div>
-                <Badge text={w.status} color={w.status === 'LOADED' ? 'green' : 'blue'} />
+            logs.map((w: any, i: number) => {
+              const isLoaded = w.status === 'LOADED';
+              const truckCount = w.feederTrucks?.length || 1;
 
-                {w.status === 'LOADED' && (
-                  <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Source Environment</span>
-                      <span className="font-bold text-slate-800">{w.sourceEnv || 'Plant Siding'}</span>
+              return (
+                <div key={w.id || i} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-mono font-bold text-xs flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
+                      {isLoaded && (
+                        <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-2.5 py-0.5 rounded-lg text-xs">
+                          {Number(w.qty || defaultCapacity).toLocaleString()} {w.unitOfMeasure || unitShort} Loaded
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Truck Reg No.</span>
-                      <span className="font-mono font-black text-[#0E4B88]">{w.truckRegNo || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Driver Details</span>
-                      <span className="font-bold text-slate-800">{w.driverDetails || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Transporter Company</span>
-                      <span className="font-bold text-slate-800">{w.transporter || 'HBM Logistics Fleet'}</span>
+                    <div className="font-mono text-slate-600 flex items-center gap-3">
+                      <span>
+                        Started: <b>{w.startDate} {w.startTime}</b>
+                      </span>
+                      {w.endDate && (
+                        <span>
+                          Ended: <b>{w.endDate} {w.endTime}</b>
+                        </span>
+                      )}
+                      <span className="font-bold text-slate-900">Duration: {w.durationStr || 'In Progress'}</span>
+                      <Badge text={w.status} color={isLoaded ? 'green' : 'blue'} />
                     </div>
                   </div>
-                )}
-              </div>
-            ))
+
+                  {isLoaded && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-400">
+                          Feeder Trucks Audit ({truckCount} Truck{truckCount > 1 ? 's' : ''} Completed Loading)
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Siding: <b>{w.sourceEnv || 'Plant Siding'}</b>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {w.feederTrucks && w.feederTrucks.length > 0 ? (
+                          w.feederTrucks.map((ft: any, ftIdx: number) => (
+                            <div key={ftIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="font-mono font-bold text-[#0E4B88] text-xs flex items-center gap-1">
+                                  <Truck className="w-3.5 h-3.5" />
+                                  <span>{ft.truckRegNo}</span>
+                                </span>
+                                <span className="font-mono font-bold text-emerald-700 text-xs">
+                                  {Number(ft.qtyContributed).toLocaleString()} {w.unitOfMeasure || unitShort}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-700 truncate">
+                                {ft.driverName} ({ft.phone})
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate">{ft.transporter}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-full bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
+                            <div>
+                              <span className="font-mono font-bold text-[#0E4B88] text-xs flex items-center gap-1">
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>{w.truckRegNo || 'N/A'}</span>
+                              </span>
+                              <p className="text-[11px] text-slate-700">{w.driverDetails || 'N/A'}</p>
+                            </div>
+                            <span className="font-mono font-bold text-emerald-700 text-xs">
+                              {Number(w.qty || defaultCapacity).toLocaleString()} {w.unitOfMeasure || unitShort}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* Stop Loading Audit Modal */}
+      {/* STOP & FINALIZE WAGON MODAL (DYNAMIC MULTI-FEEDER TRUCKS SUPPORT) */}
       {stoppingWagon && (
         <Modal onClose={() => setStoppingWagon(null)}>
-          <div className="p-6 space-y-4 font-sans">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="p-6 space-y-4 font-sans max-w-2xl">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Wagon Loading Source Logistics & Time Audit
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Finalize Loading Audit for Wagon {stoppingWagon.wagonId}
                 </h3>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Complete loading log for Wagon <strong>{stoppingWagon.wagonId}</strong>. Verify start/concluding times, feeder truck, and bag count.
+                <p className="text-xs text-slate-600">
+                  Record all feeder trucks that completed filling this wagon (e.g. 1 truck or truck & a half).
                 </p>
               </div>
-              <button onClick={() => setStoppingWagon(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+              <span className="bg-emerald-100 text-emerald-800 font-mono font-bold px-2.5 py-1 rounded-lg text-xs">
+                {unitLabel}
+              </span>
             </div>
 
-            <form onSubmit={confirmStopLoading} className="space-y-3">
+            <form onSubmit={confirmStopLoading} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lc}>Loading Start Time</label>
+                  <label className="block font-bold text-slate-700 mb-1">Loading Start Time</label>
                   <input
                     type="text"
-                    value={loadingLogForm.startTimeEdit}
-                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, startTimeEdit: e.target.value })}
-                    className={`${ic} font-mono`}
+                    value={startTimeEdit}
+                    onChange={(e) => setStartTimeEdit(e.target.value)}
+                    className="w-full font-mono p-2.5 rounded-xl border border-slate-300"
                     placeholder="08:30 AM"
                   />
                 </div>
                 <div>
-                  <label className={lc}>Concluding Time</label>
+                  <label className="block font-bold text-slate-700 mb-1">Concluding Time</label>
                   <input
                     type="text"
-                    value={loadingLogForm.endTimeEdit}
-                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, endTimeEdit: e.target.value })}
-                    className={`${ic} font-mono`}
+                    value={endTimeEdit}
+                    onChange={(e) => setEndTimeEdit(e.target.value)}
+                    className="w-full font-mono p-2.5 rounded-xl border border-slate-300"
                     placeholder="10:15 AM"
                   />
                 </div>
               </div>
 
               <div>
-                <label className={lc}>Source for Loading Wagon *</label>
+                <label className="block font-bold text-slate-700 mb-1">Source Loading Siding / Silo Bay *</label>
                 <input
                   required
-                  value={loadingLogForm.sourceEnv}
-                  onChange={(e) => setLoadingLogForm({ ...loadingLogForm, sourceEnv: e.target.value })}
+                  value={sourceBay}
+                  onChange={(e) => setSourceBay(e.target.value)}
                   placeholder="e.g. Silo Bay 1 - Loading Siding"
-                  className={ic}
+                  className="w-full p-2.5 rounded-xl border border-slate-300"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={lc}>Feeder Truck Registration Number *</label>
-                  <input
-                    required
-                    value={loadingLogForm.truckRegNo}
-                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, truckRegNo: e.target.value })}
-                    placeholder="e.g. KJA-482-XY"
-                    className={`${ic} font-mono uppercase font-bold`}
-                  />
+              {/* DYNAMIC MULTI-TRUCK FEEDER ENTRIES */}
+              <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-black text-slate-900 text-xs">Feeder Trucks Discharged into this Wagon</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Add each truck details that discharged cargo to complete this wagon.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddFeederTruck}
+                    className="text-xs font-bold text-[#0E4B88] bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Another Feeder Truck</span>
+                  </button>
                 </div>
-                <div>
-                  <label className={lc}>Transporter / Haulage Company *</label>
-                  <input
-                    required
-                    value={loadingLogForm.transporter}
-                    onChange={(e) => setLoadingLogForm({ ...loadingLogForm, transporter: e.target.value })}
-                    placeholder="e.g. HBM Logistics Fleet"
-                    className={ic}
-                  />
-                </div>
+
+                {feederTrucks.map((ft, idx) => (
+                  <div key={idx} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 relative">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Feeder Truck #{idx + 1}</span>
+                      </span>
+                      {feederTrucks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFeederTruck(idx)}
+                          className="text-rose-600 hover:text-rose-800 text-xs font-bold cursor-pointer"
+                        >
+                          ✕ Remove Truck
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                          Truck License Plate / Reg No *
+                        </label>
+                        <input
+                          required
+                          value={ft.truckRegNo}
+                          onChange={(e) => handleUpdateFeederTruck(idx, 'truckRegNo', e.target.value)}
+                          placeholder="e.g. KJA-482-XY"
+                          className="w-full font-mono uppercase font-bold p-2 rounded-lg border border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                          Transporter / Haulage Co *
+                        </label>
+                        <input
+                          required
+                          value={ft.transporter}
+                          onChange={(e) => handleUpdateFeederTruck(idx, 'transporter', e.target.value)}
+                          placeholder="e.g. Dangote Logistics Fleet"
+                          className="w-full p-2 rounded-lg border border-slate-300 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Driver Name</label>
+                        <input
+                          value={ft.driverName}
+                          onChange={(e) => handleUpdateFeederTruck(idx, 'driverName', e.target.value)}
+                          placeholder="e.g. Ibrahim Garba"
+                          className="w-full p-2 rounded-lg border border-slate-300 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Driver Phone</label>
+                        <input
+                          value={ft.phone}
+                          onChange={(e) => handleUpdateFeederTruck(idx, 'phone', e.target.value)}
+                          placeholder="e.g. 08031112233"
+                          className="w-full p-2 rounded-lg border border-slate-300 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                        Quantity Loaded from this Truck ({unitShort}) *
+                      </label>
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        value={ft.qtyContributed}
+                        onChange={(e) => handleUpdateFeederTruck(idx, 'qtyContributed', e.target.value)}
+                        placeholder={`e.g. ${Math.round(defaultCapacity / feederTrucks.length)}`}
+                        className="w-full font-mono font-bold text-emerald-800 p-2 rounded-lg border border-slate-300 text-xs"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div>
-                <label className={lc}>Driver Name & Phone Number *</label>
-                <input
-                  required
-                  value={loadingLogForm.driverDetails}
-                  onChange={(e) => setLoadingLogForm({ ...loadingLogForm, driverDetails: e.target.value })}
-                  placeholder="e.g. Ibrahim Garba (08031112233)"
-                  className={ic}
-                />
-              </div>
-
-              <div>
-                <label className={lc}>Actual Quantity Loaded (Bags, max 1,200) *</label>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Total Net Payload for Wagon ({unitLabel}) *
+                </label>
                 <input
                   required
                   type="number"
                   min="1"
-                  max="1200"
                   value={bagsLoadedInput}
                   onChange={(e) => setBagsLoadedInput(e.target.value)}
-                  className={`${ic} font-mono text-base font-bold text-emerald-800`}
+                  className="w-full font-mono text-base font-bold text-emerald-800 p-3 rounded-xl border border-slate-300 bg-emerald-50/40"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setStoppingWagon(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Save & Complete Wagon Load
+                  <Check className="w-4 h-4" />
+                  <span>Save & Complete Wagon Load</span>
                 </button>
               </div>
             </form>
           </div>
         </Modal>
       )}
-
       <CustomAlertModal
         isOpen={!!customAlert}
         message={customAlert?.message || null}
@@ -1999,7 +2346,8 @@ function TripWagonView({
 }
 
 /* ─────────────────────────────────────────────────────────
-   TRIP WAGON UNLOADING DASHBOARD (Destination Unload Station)
+   WAGON UNLOADING VIEW (at Destination Unloading Station)
+   Audit & Damage Discrepancy Reporting
 ───────────────────────────────────────────────────────── */
 function TripUnloadWagonView({
   tripId,
@@ -2020,7 +2368,7 @@ function TripUnloadWagonView({
   const [bagsUnloadedInput, setBagsUnloadedInput] = useState('1200');
   const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
   const [unloadForm, setUnloadForm] = useState({
-    correctQty: '1192',
+    correctQty: '1200',
     damageQty: '0',
     burstBags: '0',
     hasComplaint: false,
@@ -2029,11 +2377,21 @@ function TripUnloadWagonView({
     unloadEndTimeEdit: '',
   });
 
+  const isBulkTonnes =
+    trip?.cargoType?.toLowerCase().includes('gypsum') ||
+    trip?.cargoType?.toLowerCase().includes('limestone') ||
+    trip?.cargoType?.toLowerCase().includes('clinker') ||
+    trip?.unitOfMeasure?.includes('MT') ||
+    trip?.unitOfMeasure?.includes('Tonne');
+  const unitLabel = isBulkTonnes ? 'Metric Tonnes (MT)' : 'Bags';
+  const unitShort = isBulkTonnes ? 'MT' : 'Bags';
+  const defaultCapacity = isBulkTonnes ? 60 : 1200;
+
   if (!trip) {
     return (
       <div className="p-8 text-center text-xs text-slate-400">
         Trip not found.{' '}
-        <button onClick={onBack} className="underline text-[#62BC37] cursor-pointer">
+        <button onClick={onBack} className="underline text-[#62BC37] font-bold">
           Go back
         </button>
       </div>
@@ -2043,7 +2401,7 @@ function TripUnloadWagonView({
   const total = logs.length;
   const unloaded = logs.filter((w: any) => w.unloadStatus === 'UNLOADED').length;
   const allUnloaded = unloaded >= total && total > 0;
-  const activeUnload = logs.find((w: any) => w.unloadStatus === 'UNLOADING');
+  const activeUnloadingWagons = logs.filter((w: any) => w.unloadStatus === 'UNLOADING');
   const pct = total > 0 ? Math.min(100, Math.round((unloaded / total) * 100)) : 0;
 
   const commitLogs = (updated: any[], statusOverride?: string) => {
@@ -2081,7 +2439,7 @@ function TripUnloadWagonView({
   };
 
   const handleOpenStopUnloadModal = (w: any) => {
-    const defaultLoadedQty = Number(w.qty || 1200);
+    const defaultLoadedQty = Number(w.qty || defaultCapacity);
     setBagsUnloadedInput(String(defaultLoadedQty));
     setUnloadForm({
       correctQty: String(defaultLoadedQty),
@@ -2101,17 +2459,13 @@ function TripUnloadWagonView({
 
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime =
-      unloadForm.unloadEndTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formattedTime = unloadForm.unloadEndTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const mins = Math.max(
-      1,
-      Math.round((Date.now() - (stoppingUnloadWagon.unloadStartTimestamp || Date.now())) / 60000)
-    );
+    const mins = Math.max(1, Math.round((Date.now() - (stoppingUnloadWagon.unloadStartTimestamp || Date.now())) / 60000));
     const hours = Math.floor(mins / 60);
     const remMins = mins % 60;
     const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
-    const bagsUnloaded = Number(bagsUnloadedInput) || stoppingUnloadWagon.qty || 1200;
+    const bagsUnloaded = Number(bagsUnloadedInput) || stoppingUnloadWagon.qty || defaultCapacity;
 
     const updated = logs.map((w: any) => {
       if (w.wagonId !== stoppingUnloadWagon.wagonId) return w;
@@ -2134,7 +2488,7 @@ function TripUnloadWagonView({
     if (unloadForm.hasComplaint) {
       const insuranceNotif = {
         id: `ntf_ins_${Date.now()}`,
-        title: `Wagon Discrepancy Alert — ${stoppingUnloadWagon.wagonId}`,
+        title: `Wagon Discrepancy & Insurance Alert — ${stoppingUnloadWagon.wagonId}`,
         message: `Discrepancy logged for Wagon ${stoppingUnloadWagon.wagonId} on Trip ${trip.tripId}: ${unloadForm.damageQty} damaged, ${unloadForm.burstBags} burst bags. Notes: "${unloadForm.complaintNotes}"`,
         targetId: trip.id,
         targetTab: 'trips',
@@ -2148,7 +2502,7 @@ function TripUnloadWagonView({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(insuranceNotif),
-        }).catch(() => {});
+        });
       } catch {}
     }
 
@@ -2177,69 +2531,90 @@ function TripUnloadWagonView({
     );
     onSaveTrips(updatedTrips);
 
-    setCustomAlert({
-      title: 'Consignment Unloading Completed',
-      message: `Trip ${trip.tripId} successfully COMPLETED!\n\nAll ${logs.length} wagons marked UNLOADED and returned to ${sName(
-        trip.destination
-      )} fleet inventory.`,
-    });
-    setTimeout(() => onBack(), 1800);
+    // Release wagons back to fleet at destination station
+    try {
+      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
+      const wagonIdsInTrip = new Set(logs.map((w: any) => w.wagonId));
+      const updatedWagons = storedWagons.map((w: any) =>
+        wagonIdsInTrip.has(w.id) ? { ...w, status: 'AVAILABLE', currentStation: trip.destination } : w
+      );
+      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
+    } catch {}
+
+    onBack();
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="space-y-5 font-sans">
+      {/* TOP CONTROLS */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-all cursor-pointer"
+          className="text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Incoming Consignments</span>
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Operational Desk</span>
         </button>
-        <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl font-mono">
-          {unloaded} / {total} Wagons Discharged
+        <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">
+          Discharge: {unloaded} / {total} Wagons Offloaded
         </span>
       </div>
 
+      {/* TRIP DESTINATION AUDIT SUMMARY */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-        <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700">
-          TRIP {trip.tripId} — DESTINATION DISCHARGE & AUDIT CONSOLE
-        </p>
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700">
+              TRIP {trip.tripId} — DESTINATION UNLOAD & AUDIT LEDGER
+            </p>
+            <h3 className="text-base font-black text-slate-900">{trip.company}</h3>
+          </div>
+          <span className="bg-purple-50 text-purple-700 font-mono font-bold text-xs px-3 py-1 rounded-xl border border-purple-200">
+            Arrived at: {sName(trip.destination)}
+          </span>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          {[
-            ['Locomotive ID', trip.locomotiveId],
-            ['Origin Loading Station', sName(trip.origin)],
-            ['Destination Yard', sName(trip.destination)],
-            ['Unloading Officer', user?.fullName || 'Destination Officer'],
-            ['Consignor Company', trip.company],
-            ['Cargo Type', trip.cargoType],
-            ['Quantity Requisitioned', `${Number(trip.quantity).toLocaleString()} Bags`],
-            ['Status', trip.status],
-          ].map(([l, v]) => (
-            <div key={l}>
-              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{l}</span>
-              <span className="font-bold text-slate-900">{v}</span>
-            </div>
-          ))}
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Locomotive</span>
+            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Origin Station</span>
+            <span className="font-bold text-slate-900">{sName(trip.origin)}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Consignment</span>
+            <span className="font-bold text-slate-900">{trip.cargoType}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Discharge Officer</span>
+            <span className="font-bold text-purple-700">{user?.fullName || 'Destination Officer'}</span>
+          </div>
         </div>
       </div>
 
+      {/* UNLOAD DISCHARGE METRICS */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
         <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-          Wagon Discharge Progress
+          Destination Offload Progress & Metrics
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          {[
-            ['Total Consist Wagons', String(total), 'text-slate-900'],
-            ['Discharged', String(unloaded), 'text-[#62BC37]'],
-            ['Pending Discharge', String(total - unloaded), 'text-amber-600'],
-            ['Discharge Ratio', `${pct}%`, 'text-purple-600'],
-          ].map(([label, val, c]) => (
-            <div key={label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <span className="block text-[9px] font-extrabold uppercase text-slate-400">{label}</span>
-              <span className={`text-xl font-black font-mono ${c}`}>{val}</span>
-            </div>
-          ))}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Total Consist</span>
+            <span className="text-xl font-black font-mono text-slate-900">{total} Wagons</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Discharged</span>
+            <span className="text-xl font-black font-mono text-[#62BC37]">{unloaded}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Pending Discharge</span>
+            <span className="text-xl font-black font-mono text-amber-600">{total - unloaded}</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <span className="block text-[9px] font-extrabold uppercase text-slate-400">Discharge Ratio</span>
+            <span className="text-xl font-black font-mono text-purple-600">{pct}%</span>
+          </div>
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
           <div
@@ -2249,296 +2624,241 @@ function TripUnloadWagonView({
         </div>
       </div>
 
-      {activeUnload && (
-        <div className="bg-purple-50 border-2 border-purple-400 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xs">
-          <div>
-            <p className="text-[10px] font-extrabold text-purple-800 uppercase flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping" />
-              <span>CURRENTLY DISCHARGING WAGON</span>
-            </p>
-            <p className="text-xl font-mono font-black text-slate-900 mt-1">{activeUnload.wagonId}</p>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Started: <strong className="text-slate-800">{activeUnload.unloadStartDate} at {activeUnload.unloadStartTime}</strong>
-            </p>
-          </div>
-          <div className="flex items-center gap-5">
-            <div>
-              <span className={lc}>Unloading Timer</span>
-              <LiveTimer ts={activeUnload.unloadStartTimestamp} />
-            </div>
-            <button
-              onClick={() => handleOpenStopUnloadModal(activeUnload)}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-              <span>Stop Unloading</span>
-            </button>
-          </div>
-        </div>
-      )}
-
+      {/* UNLOAD CARDS FEED */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-xs">
-        <div>
-          <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
-            Consignment Wagons (Loaded at {sName(trip.origin)})
-          </h3>
-          <p className="text-xs text-slate-500">
-            Unload each wagon arriving from {sName(trip.origin)} and record discharged bag count and any discrepancy notes.
-          </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-black text-slate-900" style={{ fontFamily: "'Outfit',sans-serif" }}>
+              Wagon Discharge & Audit Cards
+            </h3>
+            <p className="text-xs text-slate-500">
+              Start stopwatch when unloading starts at siding. Record damages and discrepancies upon conclusion.
+            </p>
+          </div>
+          {allUnloaded && (
+            <button
+              onClick={completeTrip}
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span>Finalize Offload & Mark Trip Completed</span>
+            </button>
+          )}
         </div>
 
         <div className="space-y-3">
-          {logs.map((w: any, i: number) => {
-            const isUnloading = w.unloadStatus === 'UNLOADING';
+          {logs.map((w: any, idx: number) => {
             const isUnloaded = w.unloadStatus === 'UNLOADED';
+            const isUnloading = w.unloadStatus === 'UNLOADING';
+
             return (
               <div
-                key={w.id || i}
-                className={`border rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs transition-all ${
+                key={w.id || idx}
+                className={`p-4 rounded-2xl border transition-all text-xs space-y-3 ${
                   isUnloaded
                     ? 'bg-emerald-50/40 border-emerald-200'
                     : isUnloading
-                    ? 'bg-purple-50 border-purple-300'
+                    ? 'bg-purple-50/40 border-purple-300 shadow-xs'
                     : 'bg-slate-50 border-slate-200'
                 }`}
               >
-                <div>
-                  <span className="text-[10px] font-mono text-slate-400 mr-2">Wagon #{i + 1}</span>
-                  <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Loaded Bags: <strong className="text-slate-800">{Number(w.qty || 1200).toLocaleString()}</strong> | Origin Load Time: <strong className="text-slate-800">{w.durationStr || '—'}</strong>
-                  </p>
-                </div>
-                <div className="font-mono text-slate-600 text-right">
-                  {isUnloaded ? (
-                    <div>
-                      <p className="text-emerald-700 font-bold">
-                        Unloaded ({Number(w.unloadedQty || w.qty || 1200).toLocaleString()} Bags) in {w.unloadDurationStr || '—'}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {w.unloadStartDate} {w.unloadStartTime} ➔ {w.unloadEndDate} {w.unloadEndTime}
-                      </p>
-                    </div>
-                  ) : isUnloading ? (
-                    <p className="text-purple-700 font-bold animate-pulse">Discharge in progress...</p>
-                  ) : (
-                    <p className="text-slate-400">Ready to unload</p>
-                  )}
-                </div>
-                <div>
-                  {isUnloaded ? (
-                    <Badge
-                      text={w.hasComplaint ? 'DISCREPANCY FLAGGED' : 'DISCHARGED INTACT'}
-                      color={w.hasComplaint ? 'rose' : 'green'}
-                    />
-                  ) : isUnloading ? (
-                    <button
-                      onClick={() => handleOpenStopUnloadModal(w)}
-                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
-                    >
-                      Stop Unload
-                    </button>
-                  ) : !activeUnload ? (
-                    <button
-                      onClick={() => startUnloading(w.wagonId)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Start Unload</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">Waiting for active wagon</span>
-                  )}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-mono font-bold text-xs flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <span className="font-mono font-black text-slate-900 text-sm">{w.wagonId}</span>
+                    <span className="bg-slate-100 text-slate-700 font-mono px-2.5 py-0.5 rounded-lg text-xs">
+                      Manifest: {Number(w.qty || defaultCapacity).toLocaleString()} {w.unitOfMeasure || unitShort}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {isUnloaded ? (
+                      <span className="bg-[#62BC37] text-white font-bold text-[10px] px-3 py-1 rounded-xl flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        <span>DISCHARGED</span>
+                      </span>
+                    ) : isUnloading ? (
+                      <button
+                        onClick={() => handleOpenStopUnloadModal(w)}
+                        className="bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs px-4 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <span>Stop Unloading & Audit</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => startUnloading(w.wagonId)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Start Unloading</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {isUnloaded && (
-                  <div className="w-full mt-2 grid grid-cols-2 sm:grid-cols-5 gap-2 bg-white p-3 rounded-xl border border-slate-200 text-[11px]">
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Verified Delivered</span>
-                      <span className="font-mono font-bold text-emerald-800">
-                        {w.correctQty || w.unloadedQty || w.qty || 1200} Bags
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Damaged Units</span>
-                      <span className="font-mono font-bold text-rose-600">{w.damageQty || 0} Units</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Burst Bags</span>
-                      <span className="font-mono font-bold text-amber-700">{w.burstBags || 0} Bags</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Complaint Audit</span>
-                      <span className={`font-extrabold ${w.hasComplaint ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {w.hasComplaint ? 'DISCREPANCY' : 'CLEAN DISCHARGE'}
-                      </span>
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Notes / Reason</span>
-                      <span className="text-slate-700 font-medium truncate block">
-                        {w.complaintNotes || 'Clean discharge verified'}
-                      </span>
-                    </div>
+                {/* TIMING & DAMAGE DETAILS */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                  <div>
+                    <span className="block text-[9px] uppercase text-slate-400 font-extrabold">Unload Started</span>
+                    <span className="font-mono font-bold text-slate-700">
+                      {w.unloadStartDate ? `${w.unloadStartDate} ${w.unloadStartTime}` : 'Pending'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] uppercase text-slate-400 font-extrabold">Unload Concluded</span>
+                    <span className="font-mono font-bold text-slate-700">
+                      {w.unloadEndDate ? `${w.unloadEndDate} ${w.unloadEndTime}` : isUnloading ? 'Timing...' : 'Pending'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] uppercase text-slate-400 font-extrabold">Discharge Time</span>
+                    <span className="font-mono font-bold text-purple-800">{w.unloadDurationStr || 'Pending'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] uppercase text-slate-400 font-extrabold">Damages / Bursts</span>
+                    <span
+                      className={`font-mono font-black ${
+                        (w.damageQty || 0) > 0 || (w.burstBags || 0) > 0 ? 'text-rose-600' : 'text-[#62BC37]'
+                      }`}
+                    >
+                      {w.damageQty || 0} Damaged / {w.burstBags || 0} Bursts
+                    </span>
+                  </div>
+                </div>
+
+                {w.hasComplaint && w.complaintNotes && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-800">
+                    <strong>Discrepancy Note:</strong> {w.complaintNotes}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
-
-        {allUnloaded && (
-          <div className="bg-[#62BC37] text-white rounded-2xl p-5 space-y-3 mt-4 shadow-md">
-            <p className="text-sm font-black text-white">
-              All {logs.length} Wagons Successfully Discharged at {sName(trip.destination)}!
-            </p>
-            <button
-              onClick={completeTrip}
-              className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Check className="w-5 h-5" />
-              <span>Complete Consignment & Return Wagons to Fleet Inventory</span>
-            </button>
-          </div>
-        )}
       </div>
 
+      {/* STOP UNLOAD & DAMAGE AUDIT MODAL */}
       {stoppingUnloadWagon && (
         <Modal onClose={() => setStoppingUnloadWagon(null)}>
-          <div className="p-6 space-y-4 font-sans">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="p-6 space-y-4 font-sans max-w-xl">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Unloading Discrepancy & Inspection Audit
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Record Offload Audit for Wagon {stoppingUnloadWagon.wagonId}
                 </h3>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Wagon <strong>{stoppingUnloadWagon.wagonId}</strong> arrived from <strong>{sName(trip.origin)}</strong>. Record delivered bags, damages, burst bags, and notes.
-                </p>
+                <p className="text-xs text-slate-600">Verify discharge count, damaged items, and intact seal status.</p>
               </div>
-              <button onClick={() => setStoppingUnloadWagon(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+              <span className="bg-purple-100 text-purple-800 font-mono font-bold px-2.5 py-1 rounded-lg text-xs">
+                {unitLabel}
+              </span>
             </div>
 
-            <form onSubmit={confirmStopUnloading} className="space-y-3">
+            <form onSubmit={confirmStopUnloading} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lc}>Unload Start Time</label>
+                  <label className="block font-bold text-slate-700 mb-1">Unload Start Time</label>
                   <input
                     type="text"
                     value={unloadForm.unloadStartTimeEdit}
                     onChange={(e) => setUnloadForm({ ...unloadForm, unloadStartTimeEdit: e.target.value })}
-                    className={`${ic} font-mono`}
+                    className="w-full font-mono p-2.5 rounded-xl border border-slate-300"
                     placeholder="02:15 PM"
                   />
                 </div>
                 <div>
-                  <label className={lc}>Concluding Time</label>
+                  <label className="block font-bold text-slate-700 mb-1">Unload Concluding Time</label>
                   <input
                     type="text"
                     value={unloadForm.unloadEndTimeEdit}
                     onChange={(e) => setUnloadForm({ ...unloadForm, unloadEndTimeEdit: e.target.value })}
-                    className={`${ic} font-mono`}
-                    placeholder="04:00 PM"
+                    className="w-full font-mono p-2.5 rounded-xl border border-slate-300"
+                    placeholder="04:30 PM"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className={lc}>Delivered Intact *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Intact Count ({unitShort})</label>
                   <input
                     required
                     type="number"
                     min="0"
                     value={unloadForm.correctQty}
                     onChange={(e) => setUnloadForm({ ...unloadForm, correctQty: e.target.value })}
-                    className={`${ic} font-mono font-bold text-emerald-700`}
+                    className="w-full font-mono font-bold text-emerald-800 p-2.5 rounded-xl border border-slate-300 bg-emerald-50/40"
                   />
                 </div>
                 <div>
-                  <label className={lc}>Damaged Quantity *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Damaged Count</label>
                   <input
-                    required
                     type="number"
                     min="0"
                     value={unloadForm.damageQty}
                     onChange={(e) => setUnloadForm({ ...unloadForm, damageQty: e.target.value })}
-                    className={`${ic} font-mono font-bold text-rose-600`}
+                    className="w-full font-mono font-bold text-amber-800 p-2.5 rounded-xl border border-slate-300 bg-amber-50/40"
                   />
                 </div>
                 <div>
-                  <label className={lc}>Burst Bags Count *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Burst Bags</label>
                   <input
-                    required
                     type="number"
                     min="0"
                     value={unloadForm.burstBags}
                     onChange={(e) => setUnloadForm({ ...unloadForm, burstBags: e.target.value })}
-                    className={`${ic} font-mono font-bold text-amber-700`}
+                    className="w-full font-mono font-bold text-rose-800 p-2.5 rounded-xl border border-slate-300 bg-rose-50/40"
                   />
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-slate-900">Flag Discrepancy for this Wagon?</label>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
-                      <input
-                        type="radio"
-                        name="complaint"
-                        checked={!unloadForm.hasComplaint}
-                        onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: false })}
-                      />
-                      <span className="text-emerald-700">NO (Clean Discharge)</span>
-                    </label>
-                    <label className="flex items-center gap-1 text-xs font-bold cursor-pointer">
-                      <input
-                        type="radio"
-                        name="complaint"
-                        checked={unloadForm.hasComplaint}
-                        onChange={() => setUnloadForm({ ...unloadForm, hasComplaint: true })}
-                      />
-                      <span className="text-rose-600">YES (Log Discrepancy)</span>
-                    </label>
-                  </div>
-                </div>
+              <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={unloadForm.hasComplaint}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, hasComplaint: e.target.checked })}
+                    className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                  />
+                  <span className="font-bold text-slate-800 text-xs">
+                    File Discrepancy / Transit Damage Claim with Insurance
+                  </span>
+                </label>
 
                 {unloadForm.hasComplaint && (
-                  <div>
-                    <label className={lc}>Reason for Wagon Complaint / Discrepancy *</label>
-                    <textarea
-                      required
-                      rows={2}
-                      value={unloadForm.complaintNotes}
-                      onChange={(e) => setUnloadForm({ ...unloadForm, complaintNotes: e.target.value })}
-                      placeholder="Describe exact cause of damage/burst bags for insurance audit..."
-                      className={`${ic} resize-none`}
-                    />
-                  </div>
+                  <textarea
+                    rows={3}
+                    required
+                    value={unloadForm.complaintNotes}
+                    onChange={(e) => setUnloadForm({ ...unloadForm, complaintNotes: e.target.value })}
+                    placeholder="Enter explicit damage report: e.g. 8 bags punctured during siding offload; insurance survey requested..."
+                    className="w-full text-xs p-2.5 rounded-xl border border-rose-300 bg-white"
+                  />
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setStoppingUnloadWagon(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
+                  className="bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Save & Complete Unload
+                  <Check className="w-4 h-4" />
+                  <span>Save Offload Record</span>
                 </button>
               </div>
             </form>
           </div>
         </Modal>
       )}
-
       <CustomAlertModal
         isOpen={!!customAlert}
         message={customAlert?.message || null}
@@ -2548,6 +2868,7 @@ function TripUnloadWagonView({
     </div>
   );
 }
+
 
 /* ─────────────────────────────────────────────────────────
    FUND REQUEST DETAIL & CONVERSATION MODAL
