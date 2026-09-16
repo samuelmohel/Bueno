@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/db.php';
 
 $pdo = getDbConnection();
@@ -19,16 +19,40 @@ try {
     )");
 } catch (Exception $e) {}
 
+$ALL_CAPABILITIES = [
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
+    'deals.create', 'deals.approve', 'deals.delete',
+    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
+    'system.permissions_edit'
+];
+
 $DEFAULT_PERMISSIONS = [
-    'ADMIN' => ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'moniya'],
-    'CEO' => ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'moniya'],
-    'MD' => ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'billing', 'users', 'permissions', 'moniya'],
-    'HEAD_OF_OPERATIONS' => ['analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya'],
-    'HEAD_OF_FINANCE' => ['analytics', 'fund_requisitions', 'billing'],
-    'ACCOUNTANT' => ['analytics', 'fund_requisitions', 'billing'],
-    'CARGO_OFFICER' => ['deals', 'fleet', 'telemetry', 'manifest', 'fund_requisitions', 'moniya'],
-    'CUSTOMER' => ['negotiations', 'telemetry', 'manifest', 'billing'],
-    'CONSIGNEE' => ['negotiations', 'telemetry', 'manifest', 'billing']
+    'ADMIN' => $ALL_CAPABILITIES,
+    'CEO' => $ALL_CAPABILITIES,
+    'MD' => $ALL_CAPABILITIES,
+    'HEAD_OF_OPERATIONS' => [
+        'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest',
+        'deals.approve', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'finance.requisitions_approve'
+    ],
+    'HEAD_OF_FINANCE' => [
+        'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
+        'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
+    ],
+    'ACCOUNTANT' => [
+        'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
+        'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
+    ],
+    'CARGO_OFFICER' => [
+        'deals', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'fund_requisitions',
+        'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit'
+    ],
+    'CUSTOMER' => [
+        'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
+    ],
+    'CONSIGNEE' => [
+        'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
+    ]
 ];
 
 if ($method === 'GET') {
@@ -41,13 +65,22 @@ if ($method === 'GET') {
             foreach ($rows as $r) {
                 $matrix[$r['roleKey']] = json_decode($r['permissionsJson'] ?? '[]', true);
             }
-        } else {
-            // Seed defaults into SQL
+        }
+
+        // Fill any missing roles from defaults
+        $needsSeed = false;
+        foreach ($DEFAULT_PERMISSIONS as $role => $perms) {
+            if (!isset($matrix[$role]) || !is_array($matrix[$role]) || count($matrix[$role]) === 0) {
+                $matrix[$role] = $perms;
+                $needsSeed = true;
+            }
+        }
+
+        if ($needsSeed) {
             $insert = $pdo->prepare("REPLACE INTO bueno_role_permissions (roleKey, permissionsJson, updatedAt) VALUES (?, ?, ?)");
             $date = date('Y-m-d H:i:s');
-            foreach ($DEFAULT_PERMISSIONS as $role => $perms) {
-                $insert->execute([$role, json_encode($perms), $date]);
-                $matrix[$role] = $perms;
+            foreach ($matrix as $role => $perms) {
+                $insert->execute([$role, json_encode(array_values($perms)), $date]);
             }
         }
 
@@ -81,18 +114,28 @@ if ($method === 'POST') {
 
     $date = date('Y-m-d H:i:s');
 
+    // Handle Reset to Defaults
+    if (isset($data['action']) && $data['action'] === 'RESET_DEFAULTS') {
+        $stmt = $pdo->prepare("REPLACE INTO bueno_role_permissions (roleKey, permissionsJson, updatedAt) VALUES (?, ?, ?)");
+        foreach ($DEFAULT_PERMISSIONS as $role => $perms) {
+            $stmt->execute([$role, json_encode(array_values($perms)), $date]);
+        }
+        echo json_encode(['status' => 'success', 'message' => 'Permissions reset to defaults in SQL database', 'matrix' => $DEFAULT_PERMISSIONS]);
+        exit();
+    }
+
     // If matrix is passed
     if (isset($data['matrix']) && is_array($data['matrix'])) {
         $stmt = $pdo->prepare("REPLACE INTO bueno_role_permissions (roleKey, permissionsJson, updatedAt) VALUES (?, ?, ?)");
         foreach ($data['matrix'] as $role => $perms) {
-            $stmt->execute([$role, json_encode($perms), $date]);
+            $stmt->execute([$role, json_encode(array_values($perms)), $date]);
         }
     }
 
     // If direct role toggle is passed
     if (isset($data['roleKey']) && isset($data['permissions'])) {
         $stmt = $pdo->prepare("REPLACE INTO bueno_role_permissions (roleKey, permissionsJson, updatedAt) VALUES (?, ?, ?)");
-        $stmt->execute([$data['roleKey'], json_encode($data['permissions']), $date]);
+        $stmt->execute([$data['roleKey'], json_encode(array_values($data['permissions'])), $date]);
     }
 
     // If settings are passed

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
+  UNIFIED_PERMISSION_LIST,
   TAB_ALIASES,
   TAB_REGISTRY,
   CANONICAL_CORRIDORS,
@@ -19,6 +20,12 @@ import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
 import { MoniyaContainerView } from '@/components/MoniyaContainerView';
 import { TerminalInformationView } from '@/components/TerminalInformationView';
 import {
+  BarChart3,
+  FileSpreadsheet,
+  Wallet,
+  Box,
+  Compass,
+  Receipt,
   Scale,
   TrendingUp,
   Building2,
@@ -1421,23 +1428,39 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
-  // TOGGLE GRANULAR TAB & ACTION PERMISSION IN MATRIX
-  const handleTogglePermission = (roleKey: string, permKey: string) => {
+  // TOGGLE UNIFIED PERMISSION FOR SELECTED ROLE
+  const handleTogglePermission = (permKey: string) => {
     const fullMatrix = StateEngine.getRolePermissions();
-    const currentPerms = fullMatrix[roleKey] ?? (DEFAULT_ROLE_TAB_PERMISSIONS[roleKey] ?? []);
+    const currentPerms = fullMatrix[selectedPermissionRole] ?? (DEFAULT_ROLE_TAB_PERMISSIONS[selectedPermissionRole] ?? []);
+    const isChecked = currentPerms.includes(permKey);
 
-    const isCurrentlyChecked = currentPerms.includes(permKey);
+    const updated = isChecked
+      ? currentPerms.filter((p) => p !== permKey)
+      : Array.from(new Set([...currentPerms, permKey]));
 
-    let updatedRolePerms: string[];
-    if (isCurrentlyChecked) {
-      updatedRolePerms = currentPerms.filter((p) => p !== permKey);
-    } else {
-      updatedRolePerms = Array.from(new Set([...currentPerms, permKey]));
-    }
-
-    const updatedMatrix = { ...fullMatrix, [roleKey]: updatedRolePerms };
+    const updatedMatrix = { ...fullMatrix, [selectedPermissionRole]: updated };
     setPermissionsMatrix(updatedMatrix);
     StateEngine.saveRolePermissions(updatedMatrix);
+  };
+
+  const handleToggleAllForRole = (grantAll: boolean) => {
+    const fullMatrix = StateEngine.getRolePermissions();
+    const allKeys = UNIFIED_PERMISSION_LIST.map((p) => p.key);
+    const updated = grantAll ? allKeys : [];
+    const updatedMatrix = { ...fullMatrix, [selectedPermissionRole]: updated };
+    setPermissionsMatrix(updatedMatrix);
+    StateEngine.saveRolePermissions(updatedMatrix);
+  };
+
+  const handleResetPermissionsDefaults = async () => {
+    if (confirm('Reset all role permissions to standard factory defaults in MySQL database?')) {
+      const defaults = await StateEngine.resetPermissionsToDefaultsAsync();
+      setPermissionsMatrix(defaults);
+      setCustomAlert({
+        title: 'Permissions Reset to Defaults',
+        message: 'All role permissions have been reset to factory defaults and saved to the SQL database.',
+      });
+    }
   };
 
   // EXPLICIT SAVE PERMISSIONS MATRIX TO SQL DATABASE
@@ -1464,16 +1487,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     }
   };
 
-  // RESET PERMISSIONS MATRIX TO SYSTEM DEFAULTS
-  const handleResetPermissionsDefaults = () => {
-    const defaults = JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
-    setPermissionsMatrix(defaults);
-    StateEngine.saveRolePermissions(defaults);
-    setCustomAlert({
-      title: 'Permissions Reset to Defaults',
-      message: 'Role permissions matrix has been reset to system defaults. Click "Save Permissions to SQL Database" to persist.',
-    });
-  };
 
   // TOGGLE ADMIN NEGOTIATIONS ACCESS
   const handleToggleAdminNegotiations = (enabled: boolean) => {
@@ -3247,31 +3260,38 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
               </div>
 
-              <nav className="space-y-1.5 font-sans">
+              <nav className="space-y-1 font-sans">
                 {[
-                  { id: 'analytics', label: 'Executive Reports & Analytics' },
-                  { id: 'deals', label: 'Commercial Deals Desk' },
-                  { id: 'negotiations', label: 'Client Negotiations Chat' },
-                  { id: 'fund_requisitions', label: 'Fund Requisition & Operational Expenses' },
-                  { id: 'fleet', label: 'Fleet & Rolling Stock Management' },
-                  { id: 'terminal_info', label: 'Terminal Information Ledger (STATION: ###)' },
-                  { id: 'moniya', label: 'Moniya Container Terminal (MICT)' },
-                  { id: 'telemetry', label: 'Fleet Telemetry & Live GPS' },
-                  { id: 'manifest', label: 'Cargo Manifests & Waybills' },
-                  { id: 'billing', label: 'Commercial Invoices & Ledger' },
-                  { id: 'users', label: 'User Directory & Account Provisioning' },
-                  { id: 'permissions', label: 'Enterprise Permissions Matrix' },
-                ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTab(t.id as any)}
-                    className={`w-full text-left px-4 py-3 rounded-2xl font-extrabold text-xs transition-all ${
-                      activeTab === t.id ? 'bg-slate-900 text-white shadow-xs font-bold' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-semibold'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+                  { id: 'analytics', label: 'Executive Reports & Analytics', icon: BarChart3 },
+                  { id: 'deals', label: 'Commercial Deals Desk', icon: FileSpreadsheet },
+                  { id: 'negotiations', label: 'Client Negotiations Chat', icon: MessageSquare },
+                  { id: 'fund_requisitions', label: 'Fund Requisition & Operational Expenses', icon: Wallet },
+                  { id: 'fleet', label: 'Fleet & Rolling Stock Management', icon: Train },
+                  { id: 'terminal_info', label: 'Terminal Information Ledger (STATION: ###)', icon: Building2 },
+                  { id: 'moniya', label: 'Moniya Container Terminal (MICT)', icon: Box },
+                  { id: 'telemetry', label: 'Fleet Telemetry & Live GPS', icon: Compass },
+                  { id: 'manifest', label: 'Cargo Manifests & Waybills', icon: FileText },
+                  { id: 'billing', label: 'Commercial Invoices & Ledger', icon: Receipt },
+                  { id: 'users', label: 'User Directory & Account Provisioning', icon: Users },
+                  { id: 'permissions', label: 'Enterprise Permissions Matrix', icon: ShieldCheck },
+                ].filter((t) => StateEngine.canUserAccessTab(user, t.id)).map((t) => {
+                  const Icon = t.icon;
+                  const isActive = activeTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveTab(t.id as any)}
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
+                        isActive
+                          ? 'bg-[#62BC37] text-white shadow-sm font-black'
+                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <span>{t.label}</span>
+                    </button>
+                  );
+                })}
               </nav>
             </div>
           </aside>
@@ -6365,42 +6385,38 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           </div>
         )}
 
-        {/* ─── TAB 7: EDITABLE PERMISSIONS MATRIX ─── */}
+        {/* ─── TAB 7: UNIFIED ENTERPRISE PERMISSIONS MATRIX ─── */}
         {activeTab === 'permissions' && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5 font-sans">
-            <div className="border-b border-slate-100 pb-4 flex justify-between items-center flex-wrap gap-3">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 font-sans">
+            {/* HEADER & ACTION BUTTONS */}
+            <div className="border-b border-slate-100 pb-5 flex justify-between items-center flex-wrap gap-4">
               <div>
-                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">Spatie Role-Based Access Control</span>
-                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                  Interactive & Editable Permissions Matrix
+                <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">
+                  ROLE-BASED ACCESS CONTROL (RBAC) GOVERNANCE
+                </span>
+                <h3 className="text-xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Enterprise Permissions Matrix
                 </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Configure screen visibility and operational authorizations for each corporate role. Permissions sync directly to the SQL database.
+                </p>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm('Are you sure you want to purge all demo trips, costs, and invoices for a clean production state?')) {
-                      StateEngine.purgeDemoData();
-                      syncData();
-                      setCustomAlert({ title: 'Production Data Purged', message: 'All dummy trips, mock costs, and demo invoices have been purged.' });
-                    }
-                  }}
-                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-rose-200 flex items-center gap-1.5 cursor-pointer"
-                >
-<span className="flex items-center gap-1.5"><Trash2 className="w-3.5 h-3.5" /><span>Clean Production Reset</span></span>
-                </button>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                   type="button"
                   onClick={handleResetPermissionsDefaults}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-slate-200"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span className="flex items-center gap-1.5"><RotateCcw className="w-3.5 h-3.5" /><span>Reset Defaults</span></span>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset to Defaults</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={handleSavePermissionsMatrix}
                   disabled={isSavingPermissions}
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                 >
                   {isSavingPermissions ? (
                     <>
@@ -6409,226 +6425,147 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </>
                   ) : permissionsSaveSuccess ? (
                     <>
-                      <span>Saved to Database!</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Saved to SQL Database!</span>
                     </>
                   ) : (
                     <>
-<span className="flex items-center gap-1.5"><Save className="w-3.5 h-3.5" /><span>Save Permissions to SQL Database</span></span>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Permissions to SQL Database</span>
                     </>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* SYSTEM SETTINGS TOGGLES */}
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 font-sans">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h4 className="text-xs font-black text-slate-900">Admin Negotiations Access Control</h4>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    Allow Admin Officers (`ADMIN`) to view and participate in Client Negotiations Chat alongside Head of Operations (`HEAD_OF_OPERATIONS`).
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-bold font-mono ${systemSettings.allowAdminClientNegotiations ? 'text-emerald-700' : 'text-slate-400'}`}>
-                    {systemSettings.allowAdminClientNegotiations ? 'ENABLED' : 'DISABLED'}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={systemSettings.allowAdminClientNegotiations}
-                    onChange={(e) => handleToggleAdminNegotiations(e.target.checked)}
-                    className="w-5 h-5 text-slate-700 rounded focus:ring-slate-900 cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* PERMISSIONS SUB-NAV TABS */}
-            <div className="flex items-center gap-2 border-b border-slate-200 pb-2 flex-wrap">
-              <button
-                onClick={() => setPermissionsSubTab('granular')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  permissionsSubTab === 'granular'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-<span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-slate-700" /><span>Granular Action Matrix</span></span>
-              </button>
-              <button
-                onClick={() => setPermissionsSubTab('matrix')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  permissionsSubTab === 'matrix'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-<span className="flex items-center gap-1.5"><LayoutGrid className="w-3.5 h-3.5 text-blue-500" /><span>Portal Screen Access Grid</span></span>
-              </button>
-              <button
-                onClick={() => setPermissionsSubTab('inspector')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  permissionsSubTab === 'inspector'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-<span className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-indigo-500" /><span>Employee Capability Inspector</span></span>
-              </button>
-            </div>
-
-            {/* 1. SPATIE GRANULAR ACTION CAPABILITIES */}
-            {permissionsSubTab === 'granular' && (
-              <div className="space-y-6">
-                {/* Role Selection Pills */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  {[
-                    { key: 'ADMIN', label: 'Admin Officer', badge: 'bg-purple-100 text-purple-800' },
-                    { key: 'CEO', label: 'Managing Director / CEO', badge: 'bg-blue-100 text-blue-800' },
-                    { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations', badge: 'bg-indigo-100 text-indigo-800' },
-                    { key: 'HEAD_OF_FINANCE', label: 'Head of Finance', badge: 'bg-teal-100 text-teal-800' },
-                    { key: 'CARGO_OFFICER', label: 'Cargo Officer (Field)', badge: 'bg-amber-100 text-amber-800' },
-                    { key: 'CUSTOMER', label: 'Industrial Consignee (HBM)', badge: 'bg-emerald-100 text-emerald-800' },
-                  ].map((r) => (
+            {/* ROLE SELECTOR PILLS */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-mono font-bold uppercase text-slate-400 tracking-wider">
+                SELECT ROLE TO CONFIGURE:
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {[
+                  { key: 'ADMIN', label: 'Admin Officer', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+                  { key: 'CEO', label: 'Managing Director / CEO', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+                  { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                  { key: 'HEAD_OF_FINANCE', label: 'Head of Finance / Accounts', badge: 'bg-teal-50 text-teal-700 border-teal-200' },
+                  { key: 'CARGO_OFFICER', label: 'Cargo Officer (Siding & Yard)', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+                  { key: 'CUSTOMER', label: 'Industrial Consignee Client', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                ].map((r) => {
+                  const isSelected = selectedPermissionRole === r.key;
+                  const count = (permissionsMatrix[r.key] || DEFAULT_ROLE_TAB_PERMISSIONS[r.key] || []).length;
+                  return (
                     <button
                       key={r.key}
                       onClick={() => setSelectedPermissionRole(r.key)}
-                      className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-                        selectedPermissionRole === r.key
-                          ? 'bg-slate-900 text-white shadow-md'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                      className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 border ${
+                        isSelected
+                          ? 'bg-[#62BC37] text-white border-[#62BC37] shadow-sm font-black'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
                       }`}
                     >
                       <span>{r.label}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${selectedPermissionRole === r.key ? 'bg-white/20 text-white' : r.badge}`}>
-                        {r.key}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                        isSelected ? 'bg-white/20 text-white font-bold' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {count} Active
                       </span>
                     </button>
-                  ))}
-                </div>
-
-                {/* Selected Role Summary Banner */}
-                {(() => {
-                  const isSuperAdmin = selectedPermissionRole === 'ADMIN' || selectedPermissionRole === 'CEO';
-                  const activePerms = isSuperAdmin
-                    ? GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key))
-                    : (granularPermissions[selectedPermissionRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[selectedPermissionRole] ?? []);
-                  const totalPermsCount = GRANULAR_MODULE_PERMISSIONS.reduce((s, m) => s + m.actions.length, 0);
-
-                  return (
-                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-slate-900 text-base">
-                            Role: {selectedPermissionRole}
-                          </span>
-                          {isSuperAdmin && (
-                            <span className="bg-purple-100 text-purple-800 text-[10px] font-mono font-black px-2 py-0.5 rounded-md">
-                              SUPER-ADMIN (ALL CAPABILITIES GRANTED)
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Managing granular execution capabilities across commercial agreements, negotiations, railway operations, and double-entry accounting.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-[10px] font-mono uppercase font-bold text-slate-400 block">Capabilities</span>
-                          <span className="text-sm font-mono font-black text-slate-900">
-                            {activePerms.length} / {totalPermsCount} Active
-                          </span>
-                        </div>
-                        {!isSuperAdmin && (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allIds = GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key));
-                                handleToggleModuleAll(selectedPermissionRole, allIds, true);
-                              }}
-                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] px-3 py-1.5 rounded-xl cursor-pointer"
-                            >
-                              Grant All
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const allIds = GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key));
-                                handleToggleModuleAll(selectedPermissionRole, allIds, false);
-                              }}
-                              className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-[11px] px-3 py-1.5 rounded-xl cursor-pointer"
-                            >
-                              Revoke All
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
                   );
-                })()}
+                })}
+              </div>
+            </div>
 
-                {/* Modules Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {GRANULAR_MODULE_PERMISSIONS.map((mod) => {
-                    const isSuperAdmin = selectedPermissionRole === 'ADMIN' || selectedPermissionRole === 'CEO';
-                    const activePerms = isSuperAdmin
-                      ? mod.actions.map((p) => p.key)
-                      : (granularPermissions[selectedPermissionRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[selectedPermissionRole] ?? []);
+            {/* ROLE SUMMARY & BULK ACTIONS */}
+            {(() => {
+              const activeRolePerms = permissionsMatrix[selectedPermissionRole] || DEFAULT_ROLE_TAB_PERMISSIONS[selectedPermissionRole] || [];
+              const totalPerms = UNIFIED_PERMISSION_LIST.length;
+              const isSuperAdmin = selectedPermissionRole === 'ADMIN' || selectedPermissionRole === 'CEO';
 
-                    const modPermIds = mod.actions.map((p) => p.key);
-                    const allGranted = isSuperAdmin || modPermIds.every((id) => activePerms.includes(id));
+              return (
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">
+                      Configuring: <span className="text-[#62BC37]">{selectedPermissionRole}</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {activeRolePerms.length} of {totalPerms} permissions enabled for this role.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAllForRole(true)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAllForRole(false)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* CATEGORIZED PERMISSIONS CARDS */}
+            {(() => {
+              const activeRolePerms = permissionsMatrix[selectedPermissionRole] || DEFAULT_ROLE_TAB_PERMISSIONS[selectedPermissionRole] || [];
+              const categories = ['Screen & Tab Access', 'Commercial & Deals', 'Corridor Operations', 'Finance & Accounting', 'Administration'] as const;
+
+              return (
+                <div className="space-y-6">
+                  {categories.map((cat) => {
+                    const items = UNIFIED_PERMISSION_LIST.filter((p) => p.category === cat);
+                    if (items.length === 0) return null;
 
                     return (
-                      <div key={mod.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">{getModuleIcon(mod.icon)}</div>
-                            <div>
-                              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide font-mono">{mod.name}</h4>
-                              <span className="text-[10px] text-slate-400 font-medium">{mod.description}</span>
-                            </div>
-                          </div>
-
-                          {!isSuperAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleModuleAll(selectedPermissionRole, modPermIds, !allGranted)}
-                              className="text-[10px] font-bold text-slate-700 hover:underline cursor-pointer"
-                            >
-                              {allGranted ? 'Revoke Module' : 'Grant Module'}
-                            </button>
-                          )}
+                      <div key={cat} className="space-y-3">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                          <span className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">
+                            {cat}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">({items.length})</span>
                         </div>
 
-                        <div className="p-4 divide-y divide-slate-100 space-y-3 flex-1">
-                          {mod.actions.map((act) => {
-                            const isChecked = isSuperAdmin || activePerms.includes(act.key);
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {items.map((item) => {
+                            const isGranted = activeRolePerms.includes(item.key);
 
                             return (
-                              <div key={act.key} className="pt-2 flex justify-between items-start gap-3">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-slate-900">{act.label}</span>
-                                    <code className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                      {act.key}
-                                    </code>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 mt-0.5">{act.description}</p>
-                                </div>
-
+                              <div
+                                key={item.key}
+                                onClick={() => handleTogglePermission(item.key)}
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
+                                  isGranted
+                                    ? 'bg-emerald-50/40 border-emerald-300 shadow-2xs'
+                                    : 'bg-slate-50/60 border-slate-200 hover:border-slate-300 opacity-75'
+                                }`}
+                              >
                                 <input
                                   type="checkbox"
-                                  checked={isChecked}
-                                  disabled={isSuperAdmin}
-                                  onChange={() => !isSuperAdmin && handleToggleGranularPermission(selectedPermissionRole, act.key)}
-                                  className={`w-4 h-4 rounded focus:ring-slate-900 mt-0.5 ${
-                                    isSuperAdmin
-                                      ? 'text-purple-500 cursor-not-allowed opacity-70'
-                                      : 'text-slate-700 cursor-pointer'
-                                  }`}
+                                  checked={isGranted}
+                                  onChange={() => {}} // Handled by parent div
+                                  className="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
                                 />
+                                <div className="space-y-0.5 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h5 className={`text-xs font-bold leading-tight ${isGranted ? 'text-slate-900 font-black' : 'text-slate-600'}`}>
+                                      {item.label}
+                                    </h5>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 leading-snug line-clamp-2">
+                                    {item.description}
+                                  </p>
+                                  <code className="text-[9px] font-mono text-slate-400 block pt-0.5">
+                                    {item.key}
+                                  </code>
+                                </div>
                               </div>
                             );
                           })}
@@ -6637,196 +6574,25 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     );
                   })}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {/* 2. HIGH-LEVEL PORTAL SCREEN ACCESS GRID */}
-            {permissionsSubTab === 'matrix' && (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-100 border-b border-slate-200">
-                      <th className="p-3 font-mono font-extrabold text-[10px] uppercase text-slate-500 whitespace-nowrap sticky left-0 bg-slate-100 z-10 border-r border-slate-200">
-                        Role Classification
-                      </th>
-                      {TAB_REGISTRY.map((tab) => (
-                        <th
-                          key={tab.key}
-                          className="p-3 text-center font-mono font-bold text-[10px] uppercase text-slate-700 whitespace-nowrap bg-slate-100 border-r border-slate-200"
-                        >
-                          <div>{tab.label}</div>
-                          <div className="text-[9px] text-slate-400 font-normal mt-0.5">{tab.category}</div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { key: 'ADMIN',              label: 'Admin Officer (ADMIN)',       badge: 'bg-purple-100 text-purple-800' },
-                      { key: 'CEO',                label: 'Managing Director / CEO',     badge: 'bg-blue-100 text-blue-800' },
-                      { key: 'HEAD_OF_OPERATIONS', label: 'Head of Operations',          badge: 'bg-indigo-100 text-indigo-800' },
-                      { key: 'HEAD_OF_FINANCE',    label: 'Head of Finance',             badge: 'bg-teal-100 text-teal-800' },
-                      { key: 'CARGO_OFFICER',      label: 'Cargo Officer (Field)',       badge: 'bg-amber-100 text-amber-800' },
-                      { key: 'CUSTOMER',           label: 'Industrial Consignee Client', badge: 'bg-emerald-100 text-emerald-800' },
-                    ].map(({ key, label, badge }) => {
-                      const rawPerms = permissionsMatrix?.[key];
-                      const rolePerms: string[] = Array.isArray(rawPerms) ? rawPerms : (DEFAULT_ROLE_TAB_PERMISSIONS[key] ?? []);
-                      const isSuperAdmin = key === 'ADMIN' || key === 'CEO' || key === 'MD';
-
-                      return (
-                        <tr key={key} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3 whitespace-nowrap sticky left-0 bg-white border-r border-slate-200 z-10">
-                            <span className={`inline-block px-2 py-1 rounded-lg text-[10px] font-extrabold font-mono ${badge}`}>
-                              {label}
-                            </span>
-                            {isSuperAdmin && (
-                              <span className="ml-1.5 text-[9px] text-slate-400 font-mono">FULL ACCESS</span>
-                            )}
-                          </td>
-
-                          {TAB_REGISTRY.map((tab) => {
-                            const isChecked = isSuperAdmin || rolePerms.includes(tab.key);
-
-                            return (
-                              <td
-                                key={tab.key}
-                                className="p-3 text-center border-r border-slate-200"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  disabled={isSuperAdmin}
-                                  onChange={() => !isSuperAdmin && handleTogglePermission(key, tab.key)}
-                                  title={isSuperAdmin ? 'Super-admins always have full access' : `Toggle ${tab.label} for ${label}`}
-                                  className={`w-4 h-4 rounded focus:ring-slate-900 ${
-                                    isSuperAdmin
-                                      ? 'text-purple-500 cursor-not-allowed opacity-70'
-                                      : 'text-slate-700 cursor-pointer'
-                                  }`}
-                                />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* 3. PER-USER CAPABILITY INSPECTOR */}
-            {permissionsSubTab === 'inspector' && (
-              <div className="space-y-6">
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <h4 className="text-xs font-black uppercase text-slate-900 font-mono">Employee RBAC Capability Audit</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Select an employee or client account to inspect their live permissions and portal access entitlements.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500">Select User:</label>
-                    <select
-                      value={selectedPermissionUser || usersList[0]?.id}
-                      onChange={(e) => setSelectedPermissionUser(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
-                    >
-                      {usersList.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.fullName || u.name} ({u.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {(() => {
-                  const targetUser = usersList.find((u) => u.id === (selectedPermissionUser || usersList[0]?.id)) || usersList[0];
-                  if (!targetUser) return null;
-
-                  const userRole = targetUser.role;
-                  const isSuperAdmin = userRole === 'ADMIN' || userRole === 'CEO' || userRole === 'MD';
-                  const activePerms = isSuperAdmin
-                    ? GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions.map((p) => p.key))
-                    : (granularPermissions[userRole] ?? DEFAULT_GRANULAR_ROLE_PERMISSIONS[userRole] ?? []);
-
-                  return (
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-6">
-                      <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-100 pb-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-base font-black text-slate-900">{targetUser.fullName || targetUser.name}</h3>
-                            <span className="bg-slate-100 text-slate-700 font-mono font-bold text-xs px-2 py-0.5 rounded-md">
-                              {targetUser.role}
-                            </span>
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                              {targetUser.status || 'ACTIVE'}
-                            </span>
-                          </div>
-                          <span className="text-xs text-slate-500 font-mono">{targetUser.email}</span>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">Granted Capabilities</span>
-                          <span className="text-base font-black font-mono text-slate-700">{activePerms.length} Active</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {GRANULAR_MODULE_PERMISSIONS.flatMap((m) => m.actions).map((act) => {
-                          const hasPerm = activePerms.includes(act.key);
-
-                          return (
-                            <div
-                              key={act.key}
-                              className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
-                                hasPerm
-                                  ? 'bg-emerald-50/40 border-emerald-200 text-emerald-900'
-                                  : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
-                              }`}
-                            >
-                              <div>
-                                <span className="font-bold block">{act.label}</span>
-                                <code className="text-[9px] font-mono">{act.key}</code>
-                              </div>
-                              <span className="font-mono font-bold text-xs">{hasPerm ? 'Active' : 'Disabled'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* ACTION FOOTER BAR */}
+            {/* ENFORCEMENT FOOTER */}
             <div className="bg-slate-900 text-white p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
               <div>
-                <h4 className="text-xs font-black uppercase text-emerald-400 font-mono">Enterprise Database Enforcement</h4>
+                <h4 className="text-xs font-black uppercase text-emerald-400 font-mono">SQL Database Direct Persistence</h4>
                 <p className="text-[11px] text-slate-300 mt-0.5 font-medium">
-                  Clicking Save commits these exact role permissions to the SQL database table (<code className="text-emerald-300">bueno_role_permissions</code>). All active user portals, field devices, and clients immediately enforce updated access rules.
+                  Clicking "Save Permissions to SQL Database" writes the full matrix directly to the <code className="text-emerald-300">bueno_role_permissions</code> table in MySQL. The permissions immediately apply across all active user desks and device sessions.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleSavePermissionsMatrix}
                 disabled={isSavingPermissions}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
               >
-                {isSavingPermissions ? 'Saving to Database...' : 'Save & Enforce Permissions'}
+                {isSavingPermissions ? 'Saving...' : 'Save & Enforce in Database'}
               </button>
-            </div>
-
-            <div className="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Ticking any box immediately applies live to the role across all devices & SQL database
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded bg-purple-100 border border-purple-300" /> Role capabilities and screen access matrices dynamically enforced in real-time.
-              </span>
             </div>
           </div>
         )}

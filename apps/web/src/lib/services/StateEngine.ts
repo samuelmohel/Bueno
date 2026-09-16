@@ -1227,21 +1227,36 @@ class StateEngineService {
     return true;
   }
 
+  async resetPermissionsToDefaultsAsync(): Promise<Record<string, string[]>> {
+    const defaults = JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
+    this.writeStorage('bueno_role_permissions', defaults);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bueno_permissions_updated'));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+      try {
+        await fetch('/api/permissions.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'RESET_DEFAULTS' }),
+        });
+      } catch {}
+    }
+    return defaults;
+  }
+
   canUserAccessTab(user: any, tabId: string): boolean {
     if (!user) return false;
     const role = typeof user === 'string' ? user : (user.role || 'GUEST');
 
     const matrix = this.getRolePermissions();
-    const rolePerms = matrix[role];
+    const rolePerms = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role];
 
+    const capability = TAB_TO_CAPABILITY[tabId] || tabId;
     if (Array.isArray(rolePerms)) {
-      const capability = TAB_TO_CAPABILITY[tabId] || tabId;
       return rolePerms.includes(capability);
     }
 
-    // Super-admins default to full access if unconfigured
     if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
-
     return false;
   }
 
@@ -1342,14 +1357,10 @@ class StateEngineService {
   hasGranularPermission(user: any, actionKey: string): boolean {
     if (!user) return false;
     const role = typeof user === 'string' ? user : (user.role || 'GUEST');
-    const matrix = this.getGranularPermissions();
-    const userPerms = matrix[role];
+    const matrix = this.getRolePermissions();
+    const userPerms = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role];
     if (Array.isArray(userPerms)) {
       return userPerms.includes(actionKey);
-    }
-    const defaultPerms = DEFAULT_GRANULAR_ROLE_PERMISSIONS[role];
-    if (Array.isArray(defaultPerms)) {
-      return defaultPerms.includes(actionKey);
     }
     if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
     return false;
@@ -1376,7 +1387,7 @@ export const TAB_TO_CAPABILITY: Record<string, string> = {
   telemetry:         'telemetry',
   manifest:          'manifest',
   history:           'manifest',
-  terminal_info:     'manifest',
+  terminal_info:     'terminal_info',
   moniya:            'moniya',
   billing:           'billing',
   users:             'users',
@@ -1515,33 +1526,88 @@ export const TAB_REGISTRY: TabRegistryEntry[] = [
   { key: 'permissions',       label: 'Permissions Matrix',        category: 'Administration' },
 ];
 
+export interface PermissionDefinition {
+  key: string;
+  label: string;
+  description: string;
+  category: 'Screen & Tab Access' | 'Commercial & Deals' | 'Corridor Operations' | 'Finance & Accounting' | 'Administration';
+}
+
+export const UNIFIED_PERMISSION_LIST: PermissionDefinition[] = [
+  // Screen & Tab Access
+  { key: 'analytics', label: 'Executive Reports & Analytics', description: 'Access executive KPI dashboards, corridor audit trails, and revenue statistics', category: 'Screen & Tab Access' },
+  { key: 'deals', label: 'Commercial Deals Desk', description: 'Access active contracts, spot deals, and freight tranche dispatches', category: 'Screen & Tab Access' },
+  { key: 'negotiations', label: 'Client Negotiations Chat', description: 'Access live contract negotiation channel with consignee clients', category: 'Screen & Tab Access' },
+  { key: 'fund_requisitions', label: 'Fund Requisitions & Expenses', description: 'Access field operational expense requests and approval queues', category: 'Screen & Tab Access' },
+  { key: 'fleet', label: 'Fleet & Rolling Stock Management', description: 'Access 46 PXG covered hopper wagons and mainline locomotives registry', category: 'Screen & Tab Access' },
+  { key: 'terminal_info', label: 'Terminal Information Ledger', description: 'Access station sidings ledger (EWK, PAPA, MNY, APT)', category: 'Screen & Tab Access' },
+  { key: 'moniya', label: 'Moniya Container Terminal (MICT)', description: 'Access 3D container stacking yard and gate entry tariff control', category: 'Screen & Tab Access' },
+  { key: 'telemetry', label: 'Fleet Telemetry & Live GPS', description: 'Access live corridor satellite GPS tracking and train radar', category: 'Screen & Tab Access' },
+  { key: 'manifest', label: 'Cargo Manifests & Waybills', description: 'Access official train consist manifests and NRC waybills', category: 'Screen & Tab Access' },
+  { key: 'billing', label: 'Commercial Invoices & Ledger', description: 'Access accounts receivable, VAT/WHT invoices, and general ledger', category: 'Screen & Tab Access' },
+  { key: 'users', label: 'User Directory & Provisioning', description: 'Access staff directory, roles, and security credentials', category: 'Screen & Tab Access' },
+  { key: 'permissions', label: 'Enterprise Permissions Matrix', description: 'Access system security governance and role permissions editor', category: 'Screen & Tab Access' },
+
+  // Operational Actions & Authorizations
+  { key: 'deals.create', label: 'Create Commercial Deals', description: 'Create spot-run or master multi-trip freight contracts', category: 'Commercial & Deals' },
+  { key: 'deals.approve', label: 'Approve Deals for Railway Loading', description: 'Authorize client deals to proceed to loading sidings', category: 'Commercial & Deals' },
+  { key: 'deals.delete', label: 'Delete / Purge Commercial Deals', description: 'Permanently archive or remove commercial deals', category: 'Commercial & Deals' },
+
+  { key: 'ops.dispatch', label: 'Dispatch Locomotives & Tranches', description: 'Clear train departure onto the NRC mainline corridor', category: 'Corridor Operations' },
+  { key: 'ops.loading_update', label: 'Siding Loading & Seal Logging', description: 'Record wagon bag counts, feeder trucks, and tamper seal numbers', category: 'Corridor Operations' },
+  { key: 'ops.unloading_confirm', label: 'Confirm Yard Arrival & Unload', description: 'Sign off train arrival at Moniya yard and authorize cargo discharge', category: 'Corridor Operations' },
+  { key: 'ops.damage_audit', label: 'Audit Cargo Damages & Burst Bags', description: 'Record burst bags and calculate consignee deduction compensation', category: 'Corridor Operations' },
+
+  { key: 'finance.requisitions_approve', label: 'Approve Station Fund Expenses', description: 'Sign off operational fund requests for diesel, escorts, and stevedoring', category: 'Finance & Accounting' },
+  { key: 'finance.invoices_issue', label: 'Issue Invoices & Debit Notes', description: 'Generate official VAT/WHT-compliant freight tax invoices', category: 'Finance & Accounting' },
+  { key: 'finance.payments_record', label: 'Record Customer Settlements', description: 'Log bank receipts against outstanding freight billings', category: 'Finance & Accounting' },
+
+  { key: 'system.permissions_edit', label: 'Modify Permissions Matrix', description: 'Customize role capabilities across all user levels', category: 'Administration' },
+];
+
 export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
   ADMIN: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
+    'deals.create', 'deals.approve', 'deals.delete',
+    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
+    'system.permissions_edit'
   ],
   CEO: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
+    'deals.create', 'deals.approve', 'deals.delete',
+    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
+    'system.permissions_edit'
   ],
   MD: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya', 'billing', 'users', 'permissions',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
+    'deals.create', 'deals.approve', 'deals.delete',
+    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
+    'system.permissions_edit'
   ],
   HEAD_OF_OPERATIONS: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'telemetry', 'manifest', 'moniya',
+    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest',
+    'deals.approve', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'finance.requisitions_approve'
   ],
   HEAD_OF_FINANCE: [
     'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
   ],
   ACCOUNTANT: [
     'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
+    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
   ],
   CARGO_OFFICER: [
-    'deals', 'fleet', 'telemetry', 'manifest', 'fund_requisitions', 'moniya',
+    'deals', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'fund_requisitions',
+    'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit'
   ],
   CUSTOMER: [
-    'negotiations', 'telemetry', 'manifest', 'billing',
+    'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
   ],
   CONSIGNEE: [
-    'negotiations', 'telemetry', 'manifest', 'billing',
+    'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
   ],
 };
 
