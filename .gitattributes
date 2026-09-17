@@ -1,0 +1,44 @@
+# Normalise line endings.
+#
+# The cPanel host is Linux. A shell script checked out with CRLF endings fails
+# there with "bad interpreter: /usr/bin/env bash^M", and PHP deployed with CRLF
+# can emit stray bytes before headers. Development happens on Windows, so these
+# must be pinned rather than left to core.autocrlf.
+
+* text=auto eol=lf
+
+# Server-side and deployed sources — always LF.
+*.php    text eol=lf
+*.sh     text eol=lf
+*.sql    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+.htaccess text eol=lf
+.cpanel.yml text eol=lf
+
+# Source.
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.js     text eol=lf
+*.jsx    text eol=lf
+*.json   text eol=lf
+*.css    text eol=lf
+*.md     text eol=lf
+
+# Windows-only helpers keep CRLF.
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+# Binary — never touched.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tar    binary
+*.sqlite binary
+*.db     binary
