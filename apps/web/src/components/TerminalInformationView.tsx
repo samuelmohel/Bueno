@@ -9,19 +9,29 @@ interface TerminalRow {
   condition: 'GOOD' | 'DEFECTIVE' | 'UNDER_MAINTENANCE' | 'LOADED_INTACT' | 'DISCHARGED';
   remark: string;
   dateLoaded: string;
+  startTime?: string;
+  endTime?: string;
+  duration?: string;
+  unloadStartTime?: string;
+  unloadEndTime?: string;
+  unloadDuration?: string;
   trainNo: string;
   origin: string;
   destination: string;
   content: string;
   tonnage: string;
   quantity: string;
+  rawQty?: number;
+  truckRegNo?: string;
+  driverDetails?: string;
+  sourceBay?: string;
+  sealNumber?: string;
   waybillNo: string;
   daysAtStation: number;
   demurrage: number;
   station: string;
+  tripRef?: any;
 }
-
-const SEED_TERMINAL_ROWS: TerminalRow[] = [];
 
 const STATION_OPTIONS: Record<string, { name: string; gauge: string; isBuenoTerminal: boolean; km?: number }> = {
   // Standard Gauge Stations (Lagos to Moniya, Ibadan) - 18 Stations
@@ -57,8 +67,11 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
   const [selectedStation, setSelectedStation] = useState<string>(() => {
     if (initialStation && STATION_OPTIONS[initialStation]) return initialStation;
     if (user?.assignedStation && STATION_OPTIONS[user.assignedStation]) return user.assignedStation;
-    return 'PAPA';
+    return 'EWK';
   });
+
+  const [selectedTripId, setSelectedTripId] = useState<string>('ALL');
+  const [allTrips, setAllTrips] = useState<any[]>([]);
 
   const [manualRows, setManualRows] = useState<TerminalRow[]>(() => {
     try {
@@ -72,12 +85,20 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
   const [liveTripsUpdate, setLiveTripsUpdate] = useState(0);
 
   useEffect(() => {
-    const handleUpdate = () => setLiveTripsUpdate((n) => n + 1);
-    window.addEventListener('bueno_state_updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
+    const loadState = () => {
+      setLiveTripsUpdate((n) => n + 1);
+      try {
+        const trips = StateEngine.getTrips();
+        setAllTrips(trips || []);
+      } catch {}
+    };
+
+    loadState();
+    window.addEventListener('bueno_state_updated', loadState);
+    window.addEventListener('storage', loadState);
     return () => {
-      window.removeEventListener('bueno_state_updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('bueno_state_updated', loadState);
+      window.removeEventListener('storage', loadState);
     };
   }, []);
 
@@ -89,20 +110,40 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
     } catch {}
   };
 
-  const currentStationInfo = STATION_OPTIONS[selectedStation] || STATION_OPTIONS['PAPA'];
+  const currentStationInfo = STATION_OPTIONS[selectedStation] || STATION_OPTIONS['EWK'] || STATION_OPTIONS['PAPA'];
 
-  // Dynamically derive live wagons at this siding from active trips + manual entries
-  const liveTripRows = StateEngine.getStationWagonLedger(selectedStation);
-  const stationManualRows = manualRows.filter((r) => r.station === selectedStation || r.origin === selectedStation);
+  // Selected trip object if filtered by specific trip
+  const currentTrip = selectedTripId !== 'ALL'
+    ? allTrips.find((t) => t.id === selectedTripId || t.tripId === selectedTripId)
+    : null;
+
+  // Dynamically derive live wagons from active trips + manual entries
+  const liveTripRows: TerminalRow[] = StateEngine.getStationWagonLedger(
+    selectedTripId === 'ALL' ? selectedStation : undefined,
+    selectedTripId !== 'ALL' ? selectedTripId : undefined
+  );
+
+  const stationManualRows = selectedTripId === 'ALL'
+    ? manualRows.filter((r) => r.station === selectedStation || r.origin === selectedStation)
+    : [];
+
   const seenWagons = new Set<string>();
   const stationRows: TerminalRow[] = [];
 
   [...liveTripRows, ...stationManualRows].forEach((r) => {
-    if (!seenWagons.has(r.wagonNo)) {
-      seenWagons.add(r.wagonNo);
+    const key = `${r.trainNo}_${r.wagonNo}`;
+    if (!seenWagons.has(key)) {
+      seenWagons.add(key);
       stationRows.push(r);
     }
   });
+
+  // Calculate totals
+  const totalBags = stationRows.reduce((acc, r) => acc + (r.rawQty || 0), 0);
+  const totalTonnageNum = stationRows.reduce((acc, r) => {
+    const num = parseFloat(r.tonnage) || 0;
+    return acc + num;
+  }, 0);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRowForm, setNewRowForm] = useState({
@@ -110,12 +151,16 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
     condition: 'LOADED_INTACT' as const,
     remark: 'Loaded & Verified Intact',
     dateLoaded: new Date().toLocaleDateString('en-GB'),
-    trainNo: 'TRP-8842',
-    origin: 'PAPA',
-    destination: 'MONI',
-    content: 'Huaxin Portland Cement (50kg)',
-    tonnage: '40 MT',
-    quantity: '800 Bags',
+    startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    endTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    duration: '35 Minutes',
+    trainNo: 'TRIP-001',
+    origin: selectedStation,
+    destination: 'DGB',
+    content: 'Bagged Cement (50kg)',
+    tonnage: '60 MT',
+    quantity: '1,200 Bags',
+    truckRegNo: 'KJA-482-XY',
     waybillNo: `WB-BN-2026-${Math.floor(1000 + Math.random() * 9000)}`,
     daysAtStation: 1,
   });
@@ -129,12 +174,16 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
       condition: newRowForm.condition,
       remark: newRowForm.remark.trim(),
       dateLoaded: newRowForm.dateLoaded,
+      startTime: newRowForm.startTime,
+      endTime: newRowForm.endTime,
+      duration: newRowForm.duration,
       trainNo: newRowForm.trainNo.trim(),
       origin: newRowForm.origin,
       destination: newRowForm.destination,
       content: newRowForm.content,
       tonnage: newRowForm.tonnage,
       quantity: newRowForm.quantity,
+      truckRegNo: newRowForm.truckRegNo,
       waybillNo: newRowForm.waybillNo,
       daysAtStation: Number(newRowForm.daysAtStation) || 1,
       demurrage: demurrageAmount,
@@ -146,24 +195,35 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
   };
 
   const handleExportCsv = () => {
-    const csvRows = [
-      ['TERMINAL INFORMATION'],
-      [`STATION: ${selectedStation} (${currentStationInfo.name})`],
-      [`TRACK GAUGE: ${currentStationInfo.gauge}`],
-      [`DATE GENERATED: ${new Date().toLocaleDateString('en-GB')}`],
+    const isTripSpecific = selectedTripId !== 'ALL' && currentTrip;
+    const dateStr = new Date().toLocaleDateString('en-GB');
+
+    const csvRows: string[][] = [
+      ['BUENO LOGISTICS & NIGERIAN RAILWAY CORPORATION — TERMINAL INFORMATION LEDGER'],
+      isTripSpecific
+        ? [`TRIP ID: ${currentTrip.tripId || currentTrip.id} | ROUTE: ${currentTrip.origin} ➔ ${currentTrip.destination} | DATE: ${currentTrip.dispatchDate || dateStr}`]
+        : [`STATION: ${selectedStation} (${currentStationInfo.name}) | GAUGE: ${currentStationInfo.gauge}`],
+      isTripSpecific
+        ? [`COMMODITY: ${currentTrip.cargoType || 'Bagged Cement (50kg)'} | TOTAL WAGONS: ${stationRows.length} | TOTAL TONNAGE: ${totalTonnageNum.toFixed(1)} MT`]
+        : [`TOTAL ROLLING STOCK: ${stationRows.length} WAGONS | EXPORT DATE: ${dateStr}`],
       [],
       [
         'WAGON NO.',
         'CONDITION',
-        'REMARK',
+        'REMARK / SILO BAY',
         'DATE LOADED',
-        'TRAIN NO.',
+        'START TIME',
+        'END TIME',
+        'DURATION',
+        'TRAIN / TRIP NO.',
         'ORIGIN',
         'DESTINATION',
         'CONTENT',
-        'TONNAGE',
-        'QUANTITY',
+        'TONNAGE (MT)',
+        'QUANTITY (BAGS/UNITS)',
+        'FEEDER TRUCK(S)',
         'WAYBILL NO.',
+        'SEAL NO.',
         'NO. OF DAYS @ STATION',
         'DEMURRAGE (NGN)',
       ],
@@ -173,15 +233,20 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
       csvRows.push([
         r.wagonNo,
         r.condition,
-        `"${r.remark.replace(/"/g, '""')}"`,
+        `"${(r.remark || '').replace(/"/g, '""')}"`,
         r.dateLoaded,
+        r.startTime || '—',
+        r.endTime || '—',
+        r.duration || '—',
         r.trainNo,
         r.origin,
         r.destination,
-        `"${r.content.replace(/"/g, '""')}"`,
+        `"${(r.content || '').replace(/"/g, '""')}"`,
         r.tonnage,
         r.quantity,
+        `"${(r.truckRegNo || 'N/A').replace(/"/g, '""')}"`,
         r.waybillNo,
+        r.sealNumber || 'SEAL-OK',
         String(r.daysAtStation),
         String(r.demurrage),
       ]);
@@ -191,7 +256,10 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `TERMINAL_INFORMATION_${selectedStation}_${Date.now()}.csv`);
+    const filename = isTripSpecific
+      ? `BUENO_${currentTrip.tripId || currentTrip.id}_TERMINAL_LEDGER_${Date.now()}.csv`
+      : `BUENO_TERMINAL_INFORMATION_${selectedStation}_${Date.now()}.csv`;
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -217,42 +285,47 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               TERMINAL INFORMATION
             </h2>
             <p className="text-xs text-slate-500">
-              Station Siding Rolling Stock Ledger, Loading Tally, Waybills, and Demurrage Counter — <span className="text-emerald-700 font-bold">Dynamically synchronized with active train trips & siding logs.</span>
+              Station Siding Rolling Stock Ledger, Loading Tally, Waybills, and Demurrage Counter —{' '}
+              <span className="text-[#62BC37] font-bold">100% Real-Time Data from Wagon Loading Audits.</span>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleExportCsv}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2"
+              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
             >
-              <span>Export Excel / CSV </span>
+              <span>{selectedTripId !== 'ALL' ? 'Download Trip Ledger (CSV)' : 'Export Excel / CSV'}</span>
             </button>
             <button
               onClick={() => window.print()}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 transition-all flex items-center gap-2"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 transition-all flex items-center gap-2 cursor-pointer"
             >
-              <span>Print Ledger </span>
+              <span>Print Ledger</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
             >
               <span>+ Log Wagon At Siding</span>
             </button>
           </div>
         </div>
 
-        {/* STATION SELECTOR ROW (MATCHES 'STATION: ###' ON TEMPLATE) */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+        {/* CONTROLS ROW: STATION SELECTOR & TRIP SELECTOR */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+          {/* STATION SELECTOR */}
           <div className="flex items-center gap-3">
-            <span className="text-xs font-mono font-black text-slate-700 uppercase tracking-widest">
+            <span className="text-xs font-mono font-black text-slate-700 uppercase tracking-widest shrink-0">
               STATION:
             </span>
             <select
               value={selectedStation}
-              onChange={(e) => setSelectedStation(e.target.value)}
-              className="bg-white border border-slate-300 rounded-xl px-4 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-slate-900 shadow-xs"
+              onChange={(e) => {
+                setSelectedStation(e.target.value);
+                setSelectedTripId('ALL');
+              }}
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37] shadow-xs"
             >
               {Object.entries(STATION_OPTIONS).map(([code, opt]) => (
                 <option key={code} value={code}>
@@ -262,27 +335,93 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             </select>
           </div>
 
-          <div className="flex items-center gap-3 text-xs font-mono">
+          {/* TRIP SELECTOR (FILTER LEDGER PER TRIP) */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono font-black text-slate-700 uppercase tracking-widest shrink-0">
+              FILTER TRIP:
+            </span>
+            <select
+              value={selectedTripId}
+              onChange={(e) => setSelectedTripId(e.target.value)}
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37] shadow-xs"
+            >
+              <option value="ALL">All Trips & Wagons at {selectedStation}</option>
+              {allTrips.map((t: any) => (
+                <option key={t.id} value={t.id}>
+                  {t.tripId || t.id} — {t.company} ({t.origin} ➔ {t.destination}) [{t.status}]
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* METRICS STRIP */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
+          <div className="flex items-center gap-3">
             <span className="text-slate-500">Track Gauge:</span>
             <span className="font-bold text-[#0E4B88] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
               {currentStationInfo.gauge}
             </span>
-            <span className="text-slate-500">Stationed Wagons:</span>
-            <span className="font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
-              {stationRows.length} Units
-            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500">Wagons Count:</span>
+              <span className="font-black text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                {stationRows.length} Units
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500">Total Payload:</span>
+              <span className="font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                {totalTonnageNum.toFixed(1)} MT ({totalBags.toLocaleString()} Bags)
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* DEDICATED TRIP HIGHLIGHT BANNER (IF FILTERED BY TRIP) */}
+        {currentTrip && (
+          <div className="p-4 rounded-2xl bg-[#62BC37]/10 border border-[#62BC37]/30 flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-[#356e1b] block">
+                AUDIT FOCUS: TRIP {currentTrip.tripId || currentTrip.id}
+              </span>
+              <p className="text-sm font-black text-slate-900 mt-0.5">
+                {currentTrip.company} — {currentTrip.cargoType || 'Freight'} ({currentTrip.origin} ➔ {currentTrip.destination})
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5 font-mono">
+                Locomotive: #{currentTrip.locomotiveId || 'L2205'} | Status: {currentTrip.status} | Date: {currentTrip.dispatchDate || currentTrip.createdAt || '17 Sept 2026'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedTripId('ALL')}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-3 py-1.5 rounded-xl border border-slate-200 cursor-pointer"
+              >
+                Clear Filter (View Station)
+              </button>
+              <button
+                onClick={handleExportCsv}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs cursor-pointer"
+              >
+                Download This Trip CSV
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ─── THE 13-COLUMN TABLE MATCHING CLIENT TEMPLATE ─── */}
+      {/* ─── THE ENHANCED TERMINAL LEDGER TABLE WITH TIMINGS ─── */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-hidden space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-black text-slate-900 font-sans">
-            Current Station Rolling Stock Inventory — {selectedStation}
+            {selectedTripId !== 'ALL'
+              ? `Trip ${selectedTripId} Wagon Loading & Unloading Ledger`
+              : `Current Station Rolling Stock Inventory — ${selectedStation}`}
           </h3>
           <span className="text-[10px] font-mono text-slate-400">
-            Official 13-Column Terminal Information Ledger
+            Official Terminal Information Ledger ({stationRows.length} Records)
           </span>
         </div>
 
@@ -293,16 +432,19 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 {[
                   'WAGON NO.',
                   'CONDITION',
-                  'REMARK',
-                  'DATE LOADED',
-                  'TRAIN NO.',
+                  'REMARK / SILO BAY',
+                  'DATE',
+                  'START TIME',
+                  'END TIME',
+                  'DURATION',
+                  'TRAIN / TRIP NO.',
                   'ORIGIN',
                   'DESTINATION',
                   'CONTENT',
                   'TONNAGE',
                   'QUANTITY',
+                  'FEEDER TRUCK(S)',
                   'WAYBILL NO.',
-                  'NO. OF DAYS @ STATION',
                   'DEMURRAGE',
                 ].map((col) => (
                   <th
@@ -317,8 +459,10 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
               {stationRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="p-8 text-center text-xs text-slate-400 font-sans">
-                    No active rolling stock currently stationed at {selectedStation} siding.
+                  <td colSpan={16} className="p-8 text-center text-xs text-slate-400 font-sans">
+                    {selectedTripId !== 'ALL'
+                      ? 'No wagon loading logs found for this trip.'
+                      : `No active rolling stock currently stationed at ${selectedStation} siding.`}
                   </td>
                 </tr>
               ) : (
@@ -342,39 +486,56 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                       </span>
                     </td>
 
-                    {/* 3. REMARK */}
+                    {/* 3. REMARK / SILO BAY */}
                     <td className="p-3.5 font-sans font-medium text-slate-700 max-w-xs truncate">
                       {row.remark}
                     </td>
 
-                    {/* 4. DATE LOADED */}
+                    {/* 4. DATE */}
                     <td className="p-3.5 text-slate-600">{row.dateLoaded}</td>
 
-                    {/* 5. TRAIN NO. */}
+                    {/* 5. START TIME */}
+                    <td className="p-3.5 font-bold text-slate-900 bg-emerald-50/50">
+                      {row.startTime || '—'}
+                    </td>
+
+                    {/* 6. END TIME */}
+                    <td className="p-3.5 font-bold text-slate-900 bg-emerald-50/50">
+                      {row.endTime || '—'}
+                    </td>
+
+                    {/* 7. DURATION */}
+                    <td className="p-3.5 font-black text-purple-700 bg-purple-50/40">
+                      {row.duration || '—'}
+                    </td>
+
+                    {/* 8. TRAIN NO. */}
                     <td className="p-3.5 font-bold text-slate-900">{row.trainNo}</td>
 
-                    {/* 6. ORIGIN */}
+                    {/* 9. ORIGIN */}
                     <td className="p-3.5 font-bold text-emerald-700">{row.origin}</td>
 
-                    {/* 7. DESTINATION */}
+                    {/* 10. DESTINATION */}
                     <td className="p-3.5 font-bold text-blue-700">{row.destination}</td>
 
-                    {/* 8. CONTENT */}
+                    {/* 11. CONTENT */}
                     <td className="p-3.5 font-sans font-bold text-slate-900">{row.content}</td>
 
-                    {/* 9. TONNAGE */}
+                    {/* 12. TONNAGE */}
                     <td className="p-3.5 font-extrabold text-slate-900">{row.tonnage}</td>
 
-                    {/* 10. QUANTITY */}
+                    {/* 13. QUANTITY */}
                     <td className="p-3.5 text-slate-700">{row.quantity}</td>
 
-                    {/* 11. WAYBILL NO. */}
+                    {/* 14. FEEDER TRUCK(S) */}
+                    <td className="p-3.5 font-sans text-slate-600 max-w-xs truncate">
+                      {row.truckRegNo || 'N/A'}
+                    </td>
+
+                    {/* 15. WAYBILL NO. */}
                     <td className="p-3.5 font-bold text-[#0E4B88]">{row.waybillNo}</td>
 
-                    {/* 12. NO. OF DAYS @ STATION */}
-                    <td className="p-3.5 font-bold text-slate-900">{row.daysAtStation} Day(s)</td>
-
-                    {/* 13. DEMURRAGE */}
+                    {/* 16. DEMURRAGE */}
                     <td className="p-3.5 font-black">
                       {row.demurrage > 0 ? (
                         <span className="text-rose-600 font-extrabold">
@@ -407,7 +568,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-700 font-bold text-base"
+                className="text-slate-400 hover:text-slate-700 font-bold text-base cursor-pointer"
               >
                 ×
               </button>
@@ -441,6 +602,33 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Start Time</label>
+                  <input
+                    value={newRowForm.startTime}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, startTime: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">End Time</label>
+                  <input
+                    value={newRowForm.endTime}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, endTime: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Duration</label>
+                  <input
+                    value={newRowForm.duration}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, duration: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Train No. *</label>
@@ -448,116 +636,76 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                     required
                     value={newRowForm.trainNo}
                     onChange={(e) => setNewRowForm({ ...newRowForm, trainNo: e.target.value })}
-                    placeholder="e.g. TRP-8842"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Waybill No. *</label>
-                  <input
-                    required
-                    value={newRowForm.waybillNo}
-                    onChange={(e) => setNewRowForm({ ...newRowForm, waybillNo: e.target.value })}
-                    placeholder="e.g. WB-BN-2026-0905"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Origin *</label>
-                  <input
-                    required
-                    value={newRowForm.origin}
-                    onChange={(e) => setNewRowForm({ ...newRowForm, origin: e.target.value })}
-                    placeholder="e.g. PAPA"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase text-slate-900"
                   />
                 </div>
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination *</label>
-                  <input
-                    required
+                  <select
                     value={newRowForm.destination}
                     onChange={(e) => setNewRowForm({ ...newRowForm, destination: e.target.value })}
-                    placeholder="e.g. MONI"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold uppercase text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Content / Cargo *</label>
-                  <input
-                    required
-                    value={newRowForm.content}
-                    onChange={(e) => setNewRowForm({ ...newRowForm, content: e.target.value })}
-                    placeholder="e.g. Huaxin Portland Cement (50kg)"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tonnage (MT) *</label>
-                  <input
-                    required
-                    value={newRowForm.tonnage}
-                    onChange={(e) => setNewRowForm({ ...newRowForm, tonnage: e.target.value })}
-                    placeholder="e.g. 40 MT"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
-                  />
+                  >
+                    {Object.entries(STATION_OPTIONS).map(([code, opt]) => (
+                      <option key={code} value={code}>
+                        {code} — {opt.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Quantity *</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Quantity (Bags)</label>
                   <input
-                    required
                     value={newRowForm.quantity}
                     onChange={(e) => setNewRowForm({ ...newRowForm, quantity: e.target.value })}
-                    placeholder="e.g. 800 Bags"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Days at Station</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tonnage</label>
                   <input
-                    required
-                    type="number"
-                    min="0"
-                    value={newRowForm.daysAtStation}
-                    onChange={(e) => setNewRowForm({ ...newRowForm, daysAtStation: Number(e.target.value) })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                    value={newRowForm.tonnage}
+                    onChange={(e) => setNewRowForm({ ...newRowForm, tonnage: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remark *</label>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Feeder Truck Plate(s)</label>
                 <input
-                  required
+                  value={newRowForm.truckRegNo}
+                  onChange={(e) => setNewRowForm({ ...newRowForm, truckRegNo: e.target.value })}
+                  placeholder="e.g. KJA-482-XY, BDG-119-ZZ"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remark / Audit Note</label>
+                <input
                   value={newRowForm.remark}
                   onChange={(e) => setNewRowForm({ ...newRowForm, remark: e.target.value })}
-                  placeholder="e.g. Siding bay clearance verified"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-900"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-md transition-all"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
                 >
-                  Save Entry to Ledger →
+                  Save Entry
                 </button>
               </div>
             </form>

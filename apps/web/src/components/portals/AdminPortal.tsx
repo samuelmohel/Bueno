@@ -6196,20 +6196,23 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         )}
 
         {/* ─── TAB: FLEET & ROLLING STOCK MANAGEMENT ─── */}
-        {activeTab === 'fleet' && (
+        {activeTab === 'fleet' && (() => {
+          const dynamicFleet = StateEngine.getDynamicWagonFleet(trips);
+          const displayWagons = dynamicFleet.wagons;
+          return (
           <div className="space-y-6 font-sans">
             {/* KPI OVERVIEW CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Rolling Stock Fleet</span>
-                <p className="text-2xl font-black text-slate-900 font-mono">{wagons.length} Wagons</p>
-                <span className="text-[10px] text-emerald-700 font-bold">Standard & Narrow Gauge</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{dynamicFleet.totalCount} Wagons</p>
+                <span className="text-[10px] text-emerald-700 font-bold">46 Official PXG Hoppers</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Available for Loading</span>
-                <p className="text-2xl font-black text-slate-700 font-mono">
-                  {wagons.filter(w => w.status === 'AVAILABLE').length} Wagons
+                <p className="text-2xl font-black text-emerald-700 font-mono">
+                  {dynamicFleet.availableCount} Wagons
                 </p>
                 <span className="text-[10px] text-emerald-700 font-bold">Ready at Sidings</span>
               </div>
@@ -6217,15 +6220,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Loaded / In Transit</span>
                 <p className="text-2xl font-black text-amber-600 font-mono">
-                  {wagons.filter(w => w.status === 'LOADED' || w.status === 'IN_TRANSIT').length} Wagons
+                  {dynamicFleet.inUseCount} Wagons
                 </p>
-                <span className="text-[10px] text-slate-500 font-bold">En-Route Corridor</span>
+                <span className="text-[10px] text-amber-700 font-bold">Coupled on Active Trips</span>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Freight Tonnage Payload</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400">Total Fleet Tonnage Capacity</span>
                 <p className="text-2xl font-black text-emerald-700 font-mono">
-                  {wagons.reduce((acc, w) => acc + (Number(w.payloadCapacity?.replace(/\D/g, '')) || 60), 0).toLocaleString()} MT
+                  {(dynamicFleet.totalCount * 60).toLocaleString()} MT
                 </p>
                 <span className="text-[10px] text-slate-500 font-bold">Cumulative Fleet Capacity</span>
               </div>
@@ -6261,24 +6264,26 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {wagons.map((w: any, idx: number) => (
+                    {displayWagons.map((w: any, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-3 font-bold text-amber-800">{w.id}</td>
                         <td className="p-3 font-sans font-bold text-slate-900">{w.wagonType || 'Covered Hopper Wagon'}</td>
-                        <td className="p-3 font-extrabold text-emerald-700">{w.payloadCapacity || '60 MT'}</td>
-                        <td className="p-3 text-slate-600">{w.gauge || 'STANDARD_GAUGE'}</td>
+                        <td className="p-3 font-extrabold text-emerald-700">{w.payloadCapacity || '60 MT (1,200 Bags)'}</td>
+                        <td className="p-3 text-slate-600">{w.gauge || 'NARROW_GAUGE'}</td>
                         <td className="p-3 font-bold text-slate-700">
-                          {w.currentStation === 'EWK' ? 'Ewekoro Siding (EWK)' : w.currentStation === 'MNY' ? 'Moniya Yard (MNY)' : 'Apapa Port (APT)'}
+                          {w.currentStation === 'EWK' ? 'Ewekoro Siding (EWK)' : w.currentStation === 'DGB' ? 'Dugbe Station (DGB)' : w.currentStation === 'MNY' ? 'Moniya Yard (MNY)' : (w.currentStation || 'Ewekoro Siding (EWK)')}
                         </td>
                         <td className="p-3 text-right">
-                          <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded uppercase ${
+                          <span className={`text-[9px] font-extrabold px-2.5 py-1 rounded uppercase ${
                             w.status === 'AVAILABLE'
                               ? 'bg-emerald-100 text-emerald-800'
-                              : w.status === 'LOADED' || w.status === 'IN_TRANSIT'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-700'
+                              : w.status === 'RETURNING_EMPTY'
+                              ? 'bg-blue-100 text-blue-800'
+                              : w.status === 'UNLOADING'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-amber-100 text-amber-800'
                           }`}>
-                            {w.status || 'AVAILABLE'}
+                            {w.activeTripId ? `${w.status} (${w.activeTripId})` : w.status}
                           </span>
                         </td>
                       </tr>
@@ -6288,7 +6293,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
             </div>
           </div>
-        )}
+        );
+      })()}
 
         {/* ─── REGISTER NEW WAGON MODAL ─── */}
         {registerWagonModal && (

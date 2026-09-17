@@ -305,15 +305,16 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     };
   }, []);
 
-  // Fleet calculation — ensures 46 wagons are ALWAYS ready and available
-  const fleetWagons = wagons && wagons.length > 0 ? wagons : SEED_WAGONS;
+  // Fleet calculation — dynamically computes live availability from active trips
+  const dynamicFleet = StateEngine.getDynamicWagonFleet(trips);
+  const fleetWagons = dynamicFleet.wagons;
 
   // Inclusive deal and trip views — ensures NO deal created from Admin is ever hidden
   const myDeals = deals.filter((d) => d.status !== 'COMPLETED' && d.status !== 'CANCELLED');
   const myTrips = trips.filter((t) => t.status === 'LOADING' || t.status === 'PENDING_DISPATCH');
-  const myInTransit = trips.filter((t) => t.status === 'IN_TRANSIT');
+  const myInTransit = trips.filter((t) => t.status === 'IN_TRANSIT' || t.status === 'RETURNING_EMPTY');
   const myIncomingUnload = trips.filter(
-    (t) => t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'ARRIVED' || t.destination === station
+    (t) => (t.status === 'IN_TRANSIT' || t.status === 'UNLOADING' || t.status === 'ARRIVED' || t.destination === station) && !t.isReturnLeg
   );
 
   const saveTrips = (updated: any[]) => {
@@ -942,8 +943,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               {/* VIEW 6: WAGON FLEET INVENTORY */}
               {view === 'wagons' && (
                 <Section
-                  title="Wagon Fleet Inventory (46 Registered Wagons)"
-                  subtitle="Enterprise rolling stock fleet — official PXG covered hoppers ready for service"
+                  title={`Wagon Fleet Inventory (${dynamicFleet.totalCount} Registered Wagons)`}
+                  subtitle="Enterprise rolling stock fleet — official PXG covered hoppers dynamically synchronized with active corridor trips"
                   action={
                     <button
                       onClick={() => setAddWagonModal(true)}
@@ -954,35 +955,112 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     </button>
                   }
                 >
+                  {/* DYNAMIC FLEET KPI CARDS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 shadow-xs">
+                      <span className="text-[10px] font-mono font-bold text-emerald-800 uppercase tracking-wider block">
+                        Available for Loading
+                      </span>
+                      <p className="text-2xl font-black text-emerald-900 mt-1 font-mono">
+                        {dynamicFleet.availableCount}{' '}
+                        <span className="text-xs font-bold text-emerald-700 font-sans">Wagons Ready</span>
+                      </p>
+                    </div>
+                    <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 shadow-xs">
+                      <span className="text-[10px] font-mono font-bold text-amber-800 uppercase tracking-wider block">
+                        Coupled / In-Use on Trips
+                      </span>
+                      <p className="text-2xl font-black text-amber-900 mt-1 font-mono">
+                        {dynamicFleet.inUseCount}{' '}
+                        <span className="text-xs font-bold text-amber-700 font-sans">Wagons Engaged</span>
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-xs">
+                      <span className="text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider block">
+                        Total Fleet Inventory
+                      </span>
+                      <p className="text-2xl font-black text-slate-900 mt-1 font-mono">
+                        {dynamicFleet.totalCount}{' '}
+                        <span className="text-xs font-bold text-slate-600 font-sans">Covered Hoppers</span>
+                      </p>
+                    </div>
+                  </div>
+
                   <TableWrap
-                    headers={['Wagon ID', 'Carriage Spec', 'Capacity (Bags / MT)', 'Live Status', 'Current Station', 'Added By']}
-                    mobileCard={(w: any) => (
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
-                          <Badge text="AVAILABLE" color="green" />
+                    headers={['Wagon ID', 'Carriage Spec', 'Capacity (Bags / MT)', 'Live Status', 'Active Corridor Assignment', 'Current Station', 'Added By']}
+                    mobileCard={(w: any) => {
+                      const isAvail = w.status === 'AVAILABLE';
+                      const badgeColor = isAvail
+                        ? 'green'
+                        : w.status === 'RETURNING_EMPTY'
+                        ? 'blue'
+                        : w.status === 'UNLOADING'
+                        ? 'purple'
+                        : 'amber';
+                      const badgeText = isAvail
+                        ? 'AVAILABLE'
+                        : w.activeTripId
+                        ? `${w.status} (${w.activeTripId})`
+                        : w.status;
+
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono font-black text-slate-900 text-sm">{w.id}</span>
+                            <Badge text={badgeText} color={badgeColor as any} />
+                          </div>
+                          <p className="text-xs text-slate-600">
+                            Capacity: {w.capacity || 1200} Bags (60 MT) | Station: {sName(w.currentStation || station)}
+                          </p>
+                          {w.activeTripId && (
+                            <p className="text-[11px] font-mono text-amber-800 font-bold bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+                              Trip {w.activeTripId}: {w.activeRoute} ({w.activeCargo})
+                            </p>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-600">
-                          Capacity: {w.capacity || 1200} Bags (60 MT) | Station: {sName(w.currentStation || station)}
-                        </p>
-                      </div>
-                    )}
+                      );
+                    }}
                     data={fleetWagons}
                   >
-                    {fleetWagons.map((w: any) => (
-                      <tr key={w.id} className="hover:bg-slate-50 text-xs">
-                        <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
-                        <td className="p-4 text-slate-700 font-semibold">{w.wagonType || 'Covered Hopper'}</td>
-                        <td className="p-4 font-mono font-bold text-slate-700">
-                          {Number(w.capacity || 1200).toLocaleString()} Bags (60 MT)
-                        </td>
-                        <td className="p-4">
-                          <Badge text="AVAILABLE" color="green" />
-                        </td>
-                        <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
-                        <td className="p-4 text-slate-500">{w.addedBy || 'System Registry'}</td>
-                      </tr>
-                    ))}
+                    {fleetWagons.map((w: any) => {
+                      const isAvail = w.status === 'AVAILABLE';
+                      const badgeColor = isAvail
+                        ? 'green'
+                        : w.status === 'RETURNING_EMPTY'
+                        ? 'blue'
+                        : w.status === 'UNLOADING'
+                        ? 'purple'
+                        : 'amber';
+                      const badgeText = isAvail
+                        ? 'AVAILABLE'
+                        : w.activeTripId
+                        ? `${w.status} (${w.activeTripId})`
+                        : w.status;
+
+                      return (
+                        <tr key={w.id} className="hover:bg-slate-50 text-xs">
+                          <td className="p-4 font-mono font-black text-slate-900 text-sm">{w.id}</td>
+                          <td className="p-4 text-slate-700 font-semibold">{w.wagonType || 'Covered Hopper'}</td>
+                          <td className="p-4 font-mono font-bold text-slate-700">
+                            {Number(w.capacity || 1200).toLocaleString()} Bags (60 MT)
+                          </td>
+                          <td className="p-4">
+                            <Badge text={badgeText} color={badgeColor as any} />
+                          </td>
+                          <td className="p-4 font-mono">
+                            {w.activeTripId ? (
+                              <span className="text-[11px] font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 block">
+                                {w.activeTripId} • {w.activeRoute}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">Standing at Siding (Uncoupled)</span>
+                            )}
+                          </td>
+                          <td className="p-4 font-semibold text-slate-800">{sName(w.currentStation || station)}</td>
+                          <td className="p-4 text-slate-500">{w.addedBy || 'System Registry'}</td>
+                        </tr>
+                      );
+                    })}
                   </TableWrap>
                 </Section>
               )}
@@ -2539,9 +2617,94 @@ function TripUnloadWagonView({
         wagonIdsInTrip.has(w.id) ? { ...w, status: 'AVAILABLE', currentStation: trip.destination } : w
       );
       localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
+      window.dispatchEvent(new Event('bueno_state_updated'));
     } catch {}
 
     onBack();
+  };
+
+  const dispatchEmptyReturnRun = () => {
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const completedTimestamp = `${formattedDate}, ${formattedTime}`;
+    const returnTripId = `${trip.tripId || trip.id}-RET`;
+
+    const totalDamagedUnits = logs.reduce((acc: number, w: any) => acc + (Number(w.damageQty) || 0), 0);
+    const totalBurstBags = logs.reduce((acc: number, w: any) => acc + (Number(w.burstBags) || 0), 0);
+    const allComplaintNotes = Array.from(new Set(logs.map((w: any) => w.complaintNotes).filter(Boolean)));
+
+    const completedLadenTrip = {
+      ...trip,
+      status: 'COMPLETED',
+      completedAt: completedTimestamp,
+      unloadingOfficerName: user?.fullName || 'Destination Officer',
+      wagonLogs: logs,
+      damages: {
+        damagedUnits: totalDamagedUnits,
+        burstBags: totalBurstBags,
+        complaintNotes: allComplaintNotes.join('; '),
+      },
+    };
+
+    // Build empty return trip navigating back to origin base
+    const emptyReturnTrip = {
+      id: returnTripId,
+      tripId: returnTripId,
+      tripSequenceNumber: trips.length + 1,
+      dealId: `EMPTY-BACKHAUL-${trip.id}`,
+      dealNumber: `EMPTY-BACKHAUL-${trip.dealNumber || trip.id}`,
+      locomotiveId: trip.locomotiveId || 'L2205',
+      driverName: trip.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
+      crewMembers: trip.crewMembers || 'Sani Bello, Timothy Danjuma',
+      monitoringOfficer: user?.fullName || 'Ade Bello',
+      cargoOfficerName: user?.fullName || 'Ade Bello',
+      company: 'Bueno Rolling Stock (Empty Repositioning)',
+      origin: trip.destination,
+      destination: trip.origin,
+      cargoType: 'Empty Rolling Stock (Repositioning)',
+      quantity: 0,
+      targetWagonsCount: logs.length,
+      status: 'RETURNING_EMPTY',
+      isReturnLeg: true,
+      parentTripId: trip.id,
+      dispatchDate: formattedDate,
+      dispatchTime: formattedTime,
+      createdAt: completedTimestamp,
+      wagonLogs: logs.map((w: any) => ({
+        ...w,
+        status: 'EMPTY',
+        unloadStatus: 'UNLOADED',
+        qty: 0,
+        bagsCount: 0,
+      })),
+      speed: 55,
+      progressPercent: 10,
+    };
+
+    const updated = trips.map((t: any) => (t.id === trip.id ? completedLadenTrip : t));
+    const allWithReturn = [emptyReturnTrip, ...updated];
+    onSaveTrips(allWithReturn);
+
+    // Update wagons to RETURNING_EMPTY
+    try {
+      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
+      const loadedWagonIds = new Set(logs.map((w: any) => w.wagonId));
+      const updatedWagons = storedWagons.map((w: any) => {
+        if (loadedWagonIds.has(w.id)) {
+          return { ...w, status: 'RETURNING_EMPTY', currentStation: `${trip.destination} ➔ ${trip.origin}` };
+        }
+        return w;
+      });
+      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
+      window.dispatchEvent(new Event('bueno_state_updated'));
+    } catch {}
+
+    setCustomAlert({
+      title: 'Empty Return Run Dispatched 🔄',
+      message: `Consignment ${trip.tripId || trip.id} successfully COMPLETED!\n\nEmpty Return Trip ${returnTripId} dispatched from ${sName(trip.destination)} back to ${sName(trip.origin)}.\n\nLocomotive #${emptyReturnTrip.locomotiveId} is now tracked on live GPS heading back to base for the next loading batch!`,
+    });
+    setTimeout(() => onBack(), 2200);
   };
 
   return (
@@ -2636,13 +2799,21 @@ function TripUnloadWagonView({
             </p>
           </div>
           {allUnloaded && (
-            <button
-              onClick={completeTrip}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>Finalize Offload & Mark Trip Completed</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={completeTrip}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Complete Consignment & Keep in Yard</span>
+              </button>
+              <button
+                onClick={dispatchEmptyReturnRun}
+                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
+              >
+                <span>🔄 Dispatch Empty Return Run (Back to Base)</span>
+              </button>
+            </div>
           )}
         </div>
 

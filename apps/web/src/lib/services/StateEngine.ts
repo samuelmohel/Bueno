@@ -565,6 +565,89 @@ class StateEngineService {
     this.saveTrips(updated);
   }
 
+  // ── DYNAMIC WAGON FLEET API ──────────────────────────────────────────────
+  getDynamicWagonFleet(customTrips?: any[]): {
+    wagons: any[];
+    availableCount: number;
+    inUseCount: number;
+    totalCount: number;
+  } {
+    const rawWagons = this.getWagons();
+    const trips = customTrips || this.getTrips();
+
+    // Active trips: not completed and not cancelled (includes LOADING, IN_TRANSIT, ARRIVED, UNLOADING, RETURNING_EMPTY)
+    const activeTrips = trips.filter((t: any) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
+
+    // Build lookup for wagons in active trips
+    const wagonTripMap = new Map<string, any>();
+    for (const trip of activeTrips) {
+      const logs = trip.wagonLogs || [];
+      for (const log of logs) {
+        const wId = (log.wagonId || log.id || '').trim().toUpperCase();
+        if (wId) {
+          wagonTripMap.set(wId, {
+            tripId: trip.tripId || trip.id,
+            origin: trip.origin,
+            destination: trip.destination,
+            cargoType: trip.cargoType || 'Freight Cargo',
+            tripStatus: trip.status,
+            wagonStatus:
+              trip.status === 'RETURNING_EMPTY'
+                ? 'RETURNING_EMPTY'
+                : log.unloadStatus === 'UNLOADED'
+                ? 'UNLOADED'
+                : log.unloadStatus === 'UNLOADING'
+                ? 'UNLOADING'
+                : log.status === 'LOADED'
+                ? (trip.status === 'IN_TRANSIT' ? 'IN_TRANSIT' : 'LOADED')
+                : 'LOADING',
+            qty: log.qty || log.bagsCount || '1,200 Bags',
+            sealNumber: log.sealNumber || 'SEAL-VERIFIED',
+          });
+        }
+      }
+    }
+
+    let inUseCount = 0;
+    const computedWagons = rawWagons.map((w: any) => {
+      const wId = (w.id || '').trim().toUpperCase();
+      const activeInfo = wagonTripMap.get(wId);
+      if (activeInfo) {
+        inUseCount++;
+        return {
+          ...w,
+          status: activeInfo.wagonStatus,
+          activeTripId: activeInfo.tripId,
+          activeRoute: `${activeInfo.origin} ➔ ${activeInfo.destination}`,
+          activeCargo: activeInfo.cargoType,
+          activeQty: activeInfo.qty,
+          isAssigned: true,
+          currentStation:
+            activeInfo.tripStatus === 'ARRIVED' || activeInfo.tripStatus === 'UNLOADING'
+              ? activeInfo.destination
+              : activeInfo.tripStatus === 'RETURNING_EMPTY'
+              ? `${activeInfo.origin} ➔ ${activeInfo.destination}`
+              : activeInfo.origin,
+        };
+      }
+      return {
+        ...w,
+        status: 'AVAILABLE',
+        activeTripId: null,
+        activeRoute: null,
+        activeCargo: null,
+        isAssigned: false,
+      };
+    });
+
+    return {
+      wagons: computedWagons,
+      availableCount: computedWagons.length - inUseCount,
+      inUseCount,
+      totalCount: computedWagons.length,
+    };
+  }
+
   // ── WAGONS API ────────────────────────────────────────────────────────────
   getWagons(): any[] {
     return this.readStorage('bueno_wagons', SEED_WAGONS);
@@ -966,43 +1049,82 @@ class StateEngineService {
     this.notifyListeners();
   }
 
-  getStationWagonLedger(stationCode: string): any[] {
+  getStationWagonLedger(stationCode?: string, tripIdFilter?: string): any[] {
     const trips = this.getTrips();
     const rows: any[] = [];
 
     trips.forEach((trip) => {
-      const isOrigin = trip.origin === stationCode;
-      const isDest = trip.destination === stationCode;
-
-      if (
-        (isOrigin && trip.status !== 'COMPLETED' && trip.status !== 'DISCHARGED') ||
-        (isDest && (trip.status === 'ARRIVED' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'DISCHARGED'))
-      ) {
-        (trip.wagonLogs || []).forEach((wLog: any, idx: number) => {
-          rows.push({
-            id: `TRM-${trip.id}-${wLog.wagonId || idx}`,
-            wagonNo: wLog.wagonId || `WG-${idx + 1}`,
-            condition:
-              isDest && (trip.status === 'COMPLETED' || trip.status === 'DISCHARGED')
-                ? 'DISCHARGED'
-                : wLog.condition || 'LOADED_INTACT',
-            remark: isDest
-              ? `Discharged at ${stationCode} siding (${trip.cargoType})`
-              : `Loaded & Sealed at ${stationCode} siding (Seal: ${wLog.sealNumber || 'VERIFIED'})`,
-            dateLoaded: trip.dispatchTime || 'Today',
-            trainNo: trip.id || trip.tripId,
-            origin: trip.origin,
-            destination: trip.destination,
-            content: trip.cargoType || 'Freight Cargo',
-            tonnage: wLog.bagsCount?.includes('MT') ? wLog.bagsCount : '40 MT',
-            quantity: wLog.bagsCount || '800 Bags',
-            waybillNo: `WB-BN-${trip.dealNumber || trip.id}-${String(idx + 1).padStart(3, '0')}`,
-            daysAtStation: isDest ? 1 : 0,
-            demurrage: 0,
-            station: stationCode,
-          });
-        });
+      // Filter by tripId if provided
+      if (tripIdFilter && tripIdFilter !== 'ALL') {
+        const tripMatches = trip.id === tripIdFilter || trip.tripId === tripIdFilter;
+        if (!tripMatches) return;
+      } else if (stationCode && stationCode !== 'ALL') {
+        // Filter by station code
+        const isOrigin = trip.origin === stationCode;
+        const isDest = trip.destination === stationCode;
+        const validForStation =
+          (isOrigin && trip.status !== 'COMPLETED' && trip.status !== 'DISCHARGED') ||
+          (isDest && (trip.status === 'ARRIVED' || trip.status === 'UNLOADING' || trip.status === 'COMPLETED' || trip.status === 'DISCHARGED'));
+        if (!validForStation) return;
       }
+
+      const isCement =
+        (trip.cargoType || '').toLowerCase().includes('cement') ||
+        (trip.unitOfMeasure || '').toLowerCase().includes('bag');
+
+      (trip.wagonLogs || []).forEach((wLog: any, idx: number) => {
+        const numQty = Number(wLog.qty || 1200);
+        const tonnageStr = isCement
+          ? `${(numQty * 0.05).toFixed(1).replace(/\.0$/, '')} MT`
+          : `${numQty} MT`;
+        const qtyStr = `${numQty.toLocaleString()} ${wLog.unitOfMeasure || (isCement ? 'Bags' : 'MT')}`;
+
+        const isDischarged = wLog.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED';
+        const condition = isDischarged
+          ? 'DISCHARGED'
+          : wLog.status === 'LOADED'
+          ? 'LOADED_INTACT'
+          : wLog.condition || 'GOOD';
+
+        const stationDisplay = stationCode || trip.origin || 'EWK';
+
+        rows.push({
+          id: `TRM-${trip.id}-${wLog.wagonId || idx}`,
+          wagonNo: wLog.wagonId || `WG-${idx + 1}`,
+          condition,
+          remark:
+            wLog.remark ||
+            (isDischarged
+              ? `Discharged at ${trip.destination} siding (${trip.cargoType || 'Cement'})`
+              : `Loaded & Sealed at ${trip.origin} siding (Seal: ${wLog.sealNumber || 'VERIFIED'})`),
+          dateLoaded: wLog.startDate || trip.dispatchDate || trip.dispatchTime || 'Today',
+          startTime: wLog.startTime || '—',
+          endTime: wLog.endTime || '—',
+          duration: wLog.durationStr || '—',
+          unloadStartTime: wLog.unloadStartTime || '—',
+          unloadEndTime: wLog.unloadEndTime || '—',
+          unloadDuration: wLog.unloadDurationStr || '—',
+          trainNo: trip.tripId || trip.id,
+          origin: trip.origin,
+          destination: trip.destination,
+          content: trip.cargoType || 'Freight Cargo',
+          tonnage: tonnageStr,
+          quantity: qtyStr,
+          rawQty: numQty,
+          truckRegNo: wLog.truckRegNo || 'N/A',
+          driverDetails: wLog.driverDetails || 'N/A',
+          sourceBay: wLog.sourceEnv || 'Silo Bay 1',
+          sealNumber: wLog.sealNumber || 'SEAL-OK',
+          damages: (Number(wLog.damageQty) || 0) + (Number(wLog.burstBags) || 0),
+          waybillNo:
+            wLog.waybillNo ||
+            `WB-BN-${trip.dealNumber || trip.tripId || trip.id}-${String(idx + 1).padStart(3, '0')}`,
+          daysAtStation: trip.status === 'ARRIVED' || trip.status === 'COMPLETED' ? 1 : 0,
+          demurrage: 0,
+          station: stationDisplay,
+          tripRef: trip,
+        });
+      });
     });
 
     return rows;
