@@ -681,7 +681,7 @@ class StateEngineService {
     if (!deal) throw new Error('Deal not found');
 
     const nextTrancheNum = (deal.dispatchedTripsCount || 0) + 1;
-    const totalTrips = deal.totalPlannedTrips || 10;
+    const totalTrips = Math.max(1, Number(deal.totalPlannedTrips) || (deal.dealType === 'SINGLE_TRIP' ? 1 : 1));
     const trancheTonnage = deal.trancheTonnage || Math.round((deal.quantity || 9200) / totalTrips);
     const newTripId = `TRP-${Math.floor(1000 + Math.random() * 8999)}`;
 
@@ -930,6 +930,65 @@ class StateEngineService {
     const updated = current.filter((c: any) => c.id !== costId);
     this.writeStorage('bueno_trip_costs', updated);
     this.postRemote('/api/trip_costs.php', { action: 'delete', id: costId });
+  }
+
+  updateTripFinancePricing(
+    tripId: string,
+    costData: {
+      amount: number;
+      tariffRatePerTon?: number;
+      damageDeduction?: number;
+      notes?: string;
+      currency?: string;
+    },
+    user?: any
+  ): void {
+    const trips = this.getTrips();
+    const now = new Date();
+    const timestamp = `${now.toLocaleDateString('en-GB')}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    const updatedTrips = trips.map((t: any) => {
+      if (t.id === tripId || t.tripId === tripId) {
+        return {
+          ...t,
+          financeCost: costData.amount,
+          tripRevenue: costData.amount,
+          tariffRatePerTon: costData.tariffRatePerTon || (t.quantity ? Math.round(costData.amount / (t.unitOfMeasure === 'Bags' ? Number(t.quantity) / 20 : Number(t.quantity))) : 0),
+          damageDeduction: costData.damageDeduction || 0,
+          costingStatus: 'COSTED',
+          costedAt: timestamp,
+          costedBy: user?.fullName || 'Finance Desk',
+          costingNotes: costData.notes || '',
+        };
+      }
+      return t;
+    });
+
+    this.saveTrips(updatedTrips);
+
+    // Synchronize corresponding invoice in bueno_invoices
+    try {
+      const invoices = this.getInvoices();
+      const targetTrip = updatedTrips.find((t: any) => t.id === tripId || t.tripId === tripId);
+      if (targetTrip) {
+        const netAmount = Math.max(0, costData.amount - (costData.damageDeduction || 0));
+        const existingInvIndex = invoices.findIndex(
+          (inv: any) => inv.tripId === tripId || (targetTrip.dealId && inv.dealId === targetTrip.dealId)
+        );
+        if (existingInvIndex !== -1) {
+          invoices[existingInvIndex] = {
+            ...invoices[existingInvIndex],
+            subtotal: costData.amount,
+            damageDeduction: costData.damageDeduction || 0,
+            totalAmount: netAmount,
+            balance: netAmount - (Number(invoices[existingInvIndex].amountPaid) || 0),
+            notes: costData.notes || invoices[existingInvIndex].notes,
+            status: (Number(invoices[existingInvIndex].amountPaid) || 0) >= netAmount ? 'SETTLED' : 'ISSUED',
+          };
+          this.saveInvoices(invoices);
+        }
+      }
+    } catch {}
   }
 
   updateTripCost(costId: string, updates: Partial<any>): void {

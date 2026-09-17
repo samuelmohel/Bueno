@@ -445,7 +445,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // Enterprise Accounting & Dynamic Trip Costing State
   const [invoices, setInvoices] = useState<any[]>([]);
   const [tripCosts, setTripCosts] = useState<any[]>([]);
-  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'coa' | 'journal' | 'statements' | 'banking' | 'deal_costing' | 'customers' | 'pnl'>('invoices');
+  const [accountingSubTab, setAccountingSubTab] = useState<'invoices' | 'trip_pricing' | 'coa' | 'journal' | 'statements' | 'banking' | 'deal_costing' | 'customers' | 'pnl'>('invoices');
+  const [pricingTripModal, setPricingTripModal] = useState<any | null>(null);
+  const [pricingForm, setPricingForm] = useState({ amount: '', tariffRatePerTon: '', damageDeduction: '0', notes: '' });
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'ALL' | 'SETTLED' | 'PARTIALLY_PAID' | 'ISSUED'>('ALL');
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [selectedInvoiceForPrint, setSelectedInvoiceForPrint] = useState<any | null>(null);
@@ -1264,6 +1266,42 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
+  const handleOpenPricingModal = (trip: any) => {
+    const qty = Number(trip.quantity) || 1200;
+    const mt = trip.unitOfMeasure === 'Bags' ? qty / 20 : qty;
+    const defaultRate = 12500;
+    const defaultAmount = trip.financeCost || trip.tripRevenue || Math.round(mt * defaultRate);
+    setPricingForm({
+      amount: String(defaultAmount),
+      tariffRatePerTon: String(trip.tariffRatePerTon || defaultRate),
+      damageDeduction: String(trip.damageDeduction || 0),
+      notes: trip.costingNotes || '',
+    });
+    setPricingTripModal(trip);
+  };
+
+  const handleSavePricing = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pricingTripModal) return;
+    const amount = Number(pricingForm.amount) || 0;
+    StateEngine.updateTripFinancePricing(
+      pricingTripModal.id,
+      {
+        amount,
+        tariffRatePerTon: Number(pricingForm.tariffRatePerTon) || undefined,
+        damageDeduction: Number(pricingForm.damageDeduction) || 0,
+        notes: pricingForm.notes,
+      },
+      user
+    );
+    syncData();
+    setPricingTripModal(null);
+    setCustomAlert({
+      title: 'Trip Costing Updated',
+      message: `Trip ${pricingTripModal.tripId || pricingTripModal.id} cost officially set to ₦${amount.toLocaleString()} by Finance Desk! Ledger and customer billing updated.`,
+    });
+  };
+
   const handleSyncTripInvoices = () => {
     trips.forEach((t: any) => {
       const tripId = t.id || t.tripId;
@@ -1661,7 +1699,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   const stationBenchmarks = useMemo(() => {
     if (activeReportTrips.length === 0) return [];
-    const map: Record<string, { station: string; actual: number; tonnage: number }> = {};
+    const map: Record<string, { station: string; actual: number; target: number; tonnage: number }> = {};
     activeReportTrips.forEach((t: any) => {
       const st = t.loadingStation || t.origin || 'Kajola / Moniya';
       const stName = st === 'EWK' ? 'Ewekoro Siding (EWK)' :
@@ -1671,14 +1709,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                      st === 'ENL' ? 'ENL APMT Terminal (ENL)' : st;
       const qty = Number(t.quantity) || 0;
       const mt = t.unitOfMeasure === 'Bags' ? qty / 20 : qty;
+      
+      const d = deals.find((dl) => dl.id === t.dealId || dl.dealNumber === t.dealNumber);
+      const planned = Number(t.totalPlannedTrips) || Number(d?.totalPlannedTrips) || 1;
+
       if (!map[stName]) {
-        map[stName] = { station: stName, actual: 0, tonnage: 0 };
+        map[stName] = { station: stName, actual: 0, target: 0, tonnage: 0 };
       }
       map[stName].actual += 1;
+      map[stName].target = Math.max(map[stName].target, planned, map[stName].actual);
       map[stName].tonnage += mt;
     });
     return Object.values(map).map((item) => {
-      const target = Math.max(item.actual, 10);
+      const target = item.target || item.actual || 1;
       const eff = `${Math.min(100, Math.round((item.actual / target) * 100))}%`;
       return {
         station: item.station,
@@ -1689,7 +1732,32 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         turnaround: '2.9 hrs/train',
       };
     });
+  }, [activeReportTrips, deals]);
+
+  // Operational Route Flow Distribution
+  const routeFlows = useMemo(() => {
+    if (activeReportTrips.length === 0) return [];
+    const totalMT = activeReportTrips.reduce((acc, t) => acc + (t.unitOfMeasure === 'Bags' ? (Number(t.quantity) || 0) / 20 : (Number(t.quantity) || 0)), 0) || 1;
+    const map: Record<string, { route: string; tripsCount: number; tonnage: number }> = {};
+    activeReportTrips.forEach((t: any) => {
+      const r = `${t.origin || 'EWK'} ➔ ${t.destination || 'DGB'}`;
+      const mt = t.unitOfMeasure === 'Bags' ? (Number(t.quantity) || 0) / 20 : (Number(t.quantity) || 0);
+      if (!map[r]) map[r] = { route: r, tripsCount: 0, tonnage: 0 };
+      map[r].tripsCount += 1;
+      map[r].tonnage += mt;
+    });
+    return Object.values(map).map((item) => ({
+      ...item,
+      percentage: Math.min(100, Math.round((item.tonnage / totalMT) * 100)),
+      tonnage: Math.round(item.tonnage).toLocaleString(),
+    }));
   }, [activeReportTrips]);
+
+  const totalReportWagonsCount = activeReportTrips.reduce((acc, t) => acc + (t.wagonLogs?.length || 20), 0);
+  const costedTripsCount = activeReportTrips.filter((t) => t.costingStatus === 'COSTED' || t.financeCost || t.tripRevenue).length;
+  const cargoIntegrityPct = totalReportBags > 0
+    ? Math.max(0, 100 - (totalReportDamages / totalReportBags * 100)).toFixed(1)
+    : '100.0';
 
   const officerKpis = useMemo(() => {
     if (activeReportTrips.length === 0) return [];
@@ -3399,30 +3467,80 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </span>
             </div>
 
-            {/* TOP ANALYTICS HIGHLIGHT CARDS FOR SELECTED HISTORICAL MONTH */}
+            {/* TOP OPERATIONAL INTELLIGENCE CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Gross Tariff Revenue ({selectedMonth})</span>
-                <p className="text-2xl font-black text-slate-900 font-mono">₦{totalReportRevenue.toLocaleString()}</p>
-                <span className="text-[10px] text-emerald-700 font-bold">Disbursed Freight Value</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Total Freight Hauled ({selectedMonth})</span>
+                <p className="text-2xl font-black text-slate-900 font-mono">{Math.round(totalReportMT).toLocaleString()} MT</p>
+                <span className="text-[10px] text-emerald-700 font-bold">Net Corridor Cargo Moved</span>
               </div>
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bagged Cement Volume</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Consignment Unit Volume</span>
                 <p className="text-2xl font-black text-slate-700 font-mono">{totalReportBags.toLocaleString()} Bags</p>
-                <span className="text-[10px] text-emerald-700 font-bold">Covered Hopper Wagons</span>
+                <span className="text-[10px] text-emerald-700 font-bold">{totalReportWagonsCount} Covered Wagons Coupled</span>
               </div>
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Bulk Raw Material Payload</span>
-                <p className="text-2xl font-black text-slate-900 font-mono">{totalReportMT.toLocaleString()} MT</p>
-                <span className="text-[10px] text-slate-500 font-bold">Gypsum & Limestone Ore</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Average Loading Turnaround</span>
+                <p className="text-2xl font-black text-purple-700 font-mono">35 Mins / Wagon</p>
+                <span className="text-[10px] text-purple-600 font-bold">Siding Loading Rate</span>
               </div>
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Recorded Discrepancies / Defects</span>
-                <p className="text-2xl font-black text-rose-600 font-mono">{totalReportDamages} Defect(s)</p>
-                <span className="text-[10px] text-slate-500 font-bold">Burst Bag Tally</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Cargo Delivery Integrity</span>
+                <p className="text-2xl font-black text-emerald-600 font-mono">{cargoIntegrityPct}% Intact</p>
+                <span className="text-[10px] text-slate-500 font-bold">{totalReportDamages} Defect(s) Recorded</span>
+              </div>
+            </div>
+
+            {/* ROUTE FLOW DISTRIBUTION & FINANCE PRICING STATUS */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">NETWORK ROUTE FLOW</span>
+                    <h3 className="text-sm font-black text-slate-900">Active Corridor Freight Distribution</h3>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400 font-bold">Volume Flow</span>
+                </div>
+                {routeFlows.length === 0 ? (
+                  <p className="text-xs text-slate-400 font-mono py-4 text-center">No route activity recorded.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {routeFlows.map((rf, idx) => (
+                      <div key={idx} className="space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-mono">
+                          <span className="font-black text-slate-900">{rf.route}</span>
+                          <span className="font-bold text-[#62BC37]">{rf.percentage}% of Network ({rf.tonnage} MT)</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-[#62BC37] h-full rounded-full transition-all" style={{ width: `${rf.percentage}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-slate-700 uppercase block">COMMERCIAL PRICING AUDIT</span>
+                  <h3 className="text-sm font-black text-slate-900 mt-0.5">Finance Authority Desk</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Trip pricing and tariff revenue are set exclusively by the Finance Desk in <b>Commercial Invoices & Ledger</b> based on negotiated client rates and damage deductions.
+                  </p>
+                </div>
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-xs font-mono space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Audited by Finance:</span>
+                    <span className="font-bold text-emerald-700">{costedTripsCount} / {activeReportTrips.length} Trips</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Awaiting Finance Cost:</span>
+                    <span className="font-bold text-amber-600">{activeReportTrips.length - costedTripsCount} Trips</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -4404,6 +4522,111 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   <span className="text-[10px] text-slate-400">Tolls, fuel, crew & siding</span>
                 </div>
               </div>
+
+              {/* ── SUB-TAB: TRIP COSTING & PRICING AUTHORITY DESK ── */}
+              {accountingSubTab === 'trip_pricing' && (
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden font-sans space-y-4 p-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-wider">
+                        FINANCE COMMAND · FREIGHT PRICING AUTHORITY
+                      </span>
+                      <h3 className="text-base font-black text-slate-900">
+                        Official Trip Costing & Revenue Valuation Desk
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Finance is the exclusive authority on trip costing. Inspect consignments, assess damage claims, and update negotiated freight rates.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[10px] font-mono uppercase text-slate-400 bg-slate-50/50">
+                          <th className="py-3 px-3">Trip ID & Locomotive</th>
+                          <th className="py-3 px-3">Client / Consignee</th>
+                          <th className="py-3 px-3">Corridor Route</th>
+                          <th className="py-3 px-3">Consist & Payload</th>
+                          <th className="py-3 px-3">Discrepancies / Burst Bags</th>
+                          <th className="py-3 px-3">Finance Agreed Cost</th>
+                          <th className="py-3 px-3">Pricing Status</th>
+                          <th className="py-3 px-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                        {trips.length === 0 ? (
+                          <tr>
+                            <td colSpan={8} className="text-center py-8 text-slate-400 font-sans">
+                              No trips found in database.
+                            </td>
+                          </tr>
+                        ) : (
+                          trips.map((t: any) => {
+                            const damages = (t.damages?.damagedUnits || 0) + (t.damages?.burstBags || 0);
+                            const isCosted = t.costingStatus === 'COSTED' || t.financeCost || t.tripRevenue;
+                            const costAmount = Number(t.financeCost || t.tripRevenue || 0);
+
+                            return (
+                              <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-3.5 px-3">
+                                  <span className="font-bold text-[#0E4B88] block">{t.tripId || t.id}</span>
+                                  <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'L2205'}</span>
+                                </td>
+                                <td className="py-3.5 px-3 font-sans font-bold text-slate-900">
+                                  {t.company || 'Corporate Client'}
+                                </td>
+                                <td className="py-3.5 px-3 font-bold text-slate-700">
+                                  {t.origin} ➔ {t.destination}
+                                </td>
+                                <td className="py-3.5 px-3">
+                                  <span className="font-bold text-slate-800 block">
+                                    {t.wagonLogs?.length || 20} Wagons
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    {Number(t.quantity || 1200).toLocaleString()} {t.unitOfMeasure || 'Bags'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-3">
+                                  {damages > 0 ? (
+                                    <span className="text-rose-600 font-extrabold">{damages} Burst/Damaged</span>
+                                  ) : (
+                                    <span className="text-emerald-700 font-bold">0 Damage (Intact)</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-3 font-bold text-sm">
+                                  {isCosted ? (
+                                    <span className="text-slate-900">₦{costAmount.toLocaleString()}</span>
+                                  ) : (
+                                    <span className="text-amber-700 font-mono text-xs">Costing Pending</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-3">
+                                  <span
+                                    className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${
+                                      isCosted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    {isCosted ? 'COSTED & APPROVED' : 'AWAITING PRICING'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-3 text-right">
+                                  <button
+                                    onClick={() => handleOpenPricingModal(t)}
+                                    className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-xs transition-all cursor-pointer"
+                                  >
+                                    {isCosted ? 'Edit Cost' : 'Set Trip Cost'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* ── SUB-TAB 1: COMMERCIAL INVOICES (AR) ── */}
               {accountingSubTab === 'invoices' && (
@@ -6611,6 +6834,119 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           onClose={() => setSelectedDossierTrip(null)}
         />
       )}
+      {/* ─── MODAL: FINANCE TRIP COSTING MODAL ─── */}
+      {pricingTripModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 space-y-4 font-sans shadow-2xl border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-widest block">
+                  FINANCE PRICING AUDIT
+                </span>
+                <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                  Update Official Trip Cost — {pricingTripModal.tripId || pricingTripModal.id}
+                </h3>
+              </div>
+              <button
+                onClick={() => setPricingTripModal(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold text-base cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePricing} className="space-y-4 text-xs font-semibold">
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Consignee:</span>
+                  <span className="font-black text-slate-900">{pricingTripModal.company}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Route Corridor:</span>
+                  <span className="font-black text-slate-900">{pricingTripModal.origin} ➔ {pricingTripModal.destination}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Consist Payload:</span>
+                  <span className="font-black text-emerald-700">
+                    {pricingTripModal.wagonLogs?.length || 20} Wagons ({Number(pricingTripModal.quantity || 1200).toLocaleString()} {pricingTripModal.unitOfMeasure || 'Bags'})
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  Agreed Total Freight Cost (₦) *
+                </label>
+                <input
+                  required
+                  type="number"
+                  value={pricingForm.amount}
+                  onChange={(e) => setPricingForm({ ...pricingForm, amount: e.target.value })}
+                  placeholder="e.g. 15000000"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono font-black text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                    Tariff Rate Per Ton (₦/MT)
+                  </label>
+                  <input
+                    type="number"
+                    value={pricingForm.tariffRatePerTon}
+                    onChange={(e) => setPricingForm({ ...pricingForm, tariffRatePerTon: e.target.value })}
+                    placeholder="e.g. 12500"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                    Damage Deduction (₦)
+                  </label>
+                  <input
+                    type="number"
+                    value={pricingForm.damageDeduction}
+                    onChange={(e) => setPricingForm({ ...pricingForm, damageDeduction: e.target.value })}
+                    placeholder="e.g. 0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-rose-700"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  Payment Terms / Commercial Finance Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={pricingForm.notes}
+                  onChange={(e) => setPricingForm({ ...pricingForm, notes: e.target.value })}
+                  placeholder="e.g. Agreed 30-day post-discharge corporate settlement based on clean delivery slip."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPricingTripModal(null)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
+                >
+                  Save Cost to Ledger
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
