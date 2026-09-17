@@ -1,6 +1,62 @@
 ---
+# cPanel Git Version Control deployment.
+#
+# Runs on the server whenever you click "Deploy HEAD Commit" (or push to the
+# tracked branch, if automatic deployment is enabled).
+#
+# Two things changed from the previous version:
+#
+#   1. It applies database migrations. The schema used to be created by DDL
+#      that ran inside every HTTP request; that is gone, so nothing would
+#      create or update tables if the deploy did not do it here.
+#
+#   2. It refuses to deploy if .env is missing. Without APP_SECRET the API
+#      cannot sign sessions and every request would fail — better to stop the
+#      deploy with a clear message than to publish a broken site.
+#
+# One-time setup on the server, before the first deploy of this version:
+#
+#   cd /home/speckles
+#   php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'      # generate a secret
+#   nano .env                                              # see DEPLOYMENT.md
+#   chmod 600 .env
+#
+# .env lives at /home/speckles/.env — ABOVE the document root, so it can never
+# be served over HTTP even if .htaccess is ignored.
+
 deployment:
   tasks:
     - export DEPLOYPATH=/home/speckles/360.specklessinnovations.com
+    - export ENVFILE=/home/speckles/.env
+
+    # ── Stop early if the environment is not configured ──────────────────
+    - >-
+      if [ ! -f "$ENVFILE" ]; then
+        echo "DEPLOY ABORTED: $ENVFILE is missing.";
+        echo "Create it before deploying — see DEPLOYMENT.md. The API cannot";
+        echo "sign sessions without APP_SECRET and would reject every request.";
+        exit 1;
+      fi
+
+    # ── Publish the built site ───────────────────────────────────────────
+    # `out/*` does not match the top-level dotfile, so .htaccess is copied
+    # explicitly. Dotfiles inside subdirectories (api/.htaccess and friends)
+    # are carried by the recursive copy.
     - /bin/cp -R apps/web/out/* $DEPLOYPATH/
     - /bin/cp -f apps/web/out/.htaccess $DEPLOYPATH/
+
+    # ── Apply database migrations ────────────────────────────────────────
+    # Idempotent: already-applied migrations are skipped via the ledger table.
+    - >-
+      cd $DEPLOYPATH && php api/_lib/migrate.php up
+      || { echo "DEPLOY FAILED: database migration did not complete."; exit 1; }
+
+    - cd $DEPLOYPATH && php api/_lib/migrate.php status
+
+    # ── Confirm the protections actually landed ──────────────────────────
+    - >-
+      for f in api/.htaccess api/_lib/.htaccess api/migrations/.htaccess; do
+        [ -f "$DEPLOYPATH/$f" ] || { echo "DEPLOY FAILED: missing $f"; exit 1; };
+      done; echo "Access protections in place."
+
+    - echo "Deployment complete."

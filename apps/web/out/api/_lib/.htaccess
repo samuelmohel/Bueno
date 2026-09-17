@@ -1,0 +1,14 @@
+# Internal library — never served over HTTP.
+# These files define classes and are included by the endpoints; requesting one
+# directly should 403, not execute or disclose source.
+
+# Apache 2.4+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+# Apache 2.2 fallback (still common on cPanel)
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -1,51 +1,103 @@
-﻿'use client';
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { StateEngine } from '@/lib/services/StateEngine';
+import {
+  loadSession,
+  signOut,
+  installSessionExpiryHandler,
+  type SessionUser,
+} from '@/lib/auth/session';
 import { CustomerPortal } from '@/components/portals/CustomerPortal';
 import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
 import { AdminPortal } from '@/components/portals/AdminPortal';
 
+/**
+ * Portal shell.
+ *
+ * Identity comes from the server. Previously this read the user object out of
+ * localStorage, which meant editing one value in devtools was enough to open
+ * the executive portal.
+ */
 export default function Dashboard() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [message, setMessage] = useState('');
+
+  const goToLogin = useCallback(() => router.replace('/auth/login'), [router]);
 
   useEffect(() => {
-    // ── AUTOMATIC HBM REBRANDING MIGRATION & PRODUCTION SEEDING ───────────
-    StateEngine.cleanseLafargeAndMigrateHbm();
-    StateEngine.seedInitialProductionState();
+    let cancelled = false;
 
-    // ── PERMISSION SCHEMA MIGRATION ─────────────────────────────────────────
-    StateEngine.seedPermissionsIfVersionMismatch();
+    // If the server rejects our session mid-use — the account was deactivated,
+    // its password was reset, or the session expired — return to sign-in
+    // rather than leaving a dead screen.
+    const uninstall = installSessionExpiryHandler(goToLogin);
 
-    try {
-      const raw = localStorage.getItem('bueno_user');
-      if (!raw) {
-        router.push('/auth/login');
-        return;
+    (async () => {
+      try {
+        const session = await loadSession(true);
+        if (cancelled) return;
+
+        if (!session.authenticated || !session.user) {
+          goToLogin();
+          return;
+        }
+
+        if (session.user.mustChangeCredentials) {
+          router.replace('/auth/change-password?reason=first-sign-in');
+          return;
+        }
+
+        setUser(session.user);
+        setState('ready');
+
+        // First data pull; portals refresh themselves thereafter.
+        void StateEngine.syncRemote();
+      } catch (err) {
+        if (cancelled) return;
+        setMessage(err instanceof Error ? err.message : 'Could not load your workspace.');
+        setState('error');
       }
-      setUser(JSON.parse(raw));
-    } catch {
-      router.push('/auth/login');
-    }
-    setReady(true);
-  }, [router]);
+    })();
 
-  const signOut = () => {
-    localStorage.removeItem('bueno_token');
-    localStorage.removeItem('bueno_user');
-    document.cookie = 'bueno_token=; path=/; max-age=0';
-    router.push('/auth/login');
-  };
+    return () => {
+      cancelled = true;
+      uninstall();
+    };
+  }, [router, goToLogin]);
 
-  if (!ready || !user) {
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    StateEngine.clearLocalCaches();
+    goToLogin();
+  }, [goToLogin]);
+
+  if (state === 'loading' || !user) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center text-slate-900 space-y-3">
-          <div className="w-10 h-10 border-3 border-slate-300 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-bold text-slate-500">Loading your workspace...</p>
+          <div className="w-10 h-10 border-[3px] border-slate-300 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-500">Loading your workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-6">
+        <div className="max-w-md text-center space-y-4">
+          <h2 className="text-lg font-black text-slate-900">Could not load your workspace</h2>
+          <p className="text-xs text-slate-500">{message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 bg-[#62BC37] text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+          >
+            Try again
+          </button>
         </div>
       </div>
     );
@@ -54,13 +106,15 @@ export default function Dashboard() {
   const role = user.role;
 
   if (role === 'CARGO_OFFICER') {
-    return <CargoOfficerPortal user={user} onSignOut={signOut} />;
+    return <CargoOfficerPortal user={user} onSignOut={handleSignOut} />;
   }
 
   if (role === 'CUSTOMER' || role === 'CONSIGNEE') {
-    return <CustomerPortal user={user} onSignOut={signOut} />;
+    return <CustomerPortal user={user} onSignOut={handleSignOut} />;
   }
 
-  // ALL COMMAND & HQ DESKS (CEO, HEAD OF OPERATIONS, HEAD OF FINANCE, ADMIN) SHARE MASTER ADMIN PORTAL
-  return <AdminPortal user={user} onSignOut={signOut} />;
+  // CEO, MD, Head of Operations, Head of Finance, Accountant and Admin share
+  // the executive portal; which tabs they see is decided by their
+  // server-issued capabilities, not by the role name.
+  return <AdminPortal user={user} onSignOut={handleSignOut} />;
 }

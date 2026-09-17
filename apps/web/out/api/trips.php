@@ -1,189 +1,99 @@
 <?php
-require_once __DIR__ . '/db.php';
+/**
+ * Bueno Freight OS — Freight haulage trips
+ *
+ *   GET  /api/trips.php[?id=|since=|limit=|offset=]
+ *   POST /api/trips.php {action:"upsert", record:{...}}
+ *   POST /api/trips.php {action:"delete", id:"..."}
+ *   POST /api/trips.php {action:"purge_all", confirm:"bueno_trips"}
+ *
+ * Replaces a version that answered an unauthenticated GET with every trip,
+ * accepted an unauthenticated PURGE_ALL, wrote the whole collection on each
+ * save, and mirrored everything into a world-readable JSON file next to
+ * itself. It also had a real defect in the list mapper: `unset($row[...])`
+ * inside a closure over `$r`, so the raw *Text columns were never stripped.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
-$storeFile = __DIR__ . '/bueno_trips_store.json';
+declare(strict_types=1);
 
-function getTripsFromFile($file) {
-    if (file_exists($file) && is_readable($file)) {
-        $content = file_get_contents($file);
-        $decoded = json_decode($content, true);
-        if (is_array($decoded)) return $decoded;
-    }
-    return [];
-}
+require_once __DIR__ . '/_lib/collection.php';
 
-function saveTripsToFile($file, $trips) {
-    try {
-        file_put_contents($file, json_encode(array_values($trips), JSON_PRETTY_PRINT));
-    } catch (Exception $e) {}
-}
+const TRIP_STATUSES = [
+    'LOADING', 'PENDING_DISPATCH', 'IN_TRANSIT', 'ARRIVED',
+    'UNLOADING', 'COMPLETED', 'RETURNING_EMPTY', 'CANCELLED',
+];
 
-if ($method === 'GET') {
-    $tripId = $_GET['id'] ?? $_GET['tripId'] ?? '';
-    $result = [];
-    $hasDb = false;
+Collection::handle([
+    'table'  => 'bueno_trips',
+    'entity' => 'trip',
 
-    if ($pdo) {
-        try {
-            $hasDb = true;
-            if ($tripId !== '') {
-                $stmt = $pdo->prepare("SELECT * FROM bueno_trips WHERE id = ? OR tripId = ? LIMIT 1");
-                $stmt->execute([$tripId, $tripId]);
-                $row = $stmt->fetch();
-                if ($row) {
-                    $row['wagonLogs'] = json_decode($row['wagonLogsText'] ?? '[]', true);
-                    $row['feederTrucks'] = json_decode($row['feederTrucksText'] ?? '[]', true);
-                    $row['damages'] = json_decode($row['damagesText'] ?? '{}', true);
-                    $row['unloadLogs'] = json_decode($row['unloadLogsText'] ?? '[]', true);
-                    unset($row['wagonLogsText'], $row['feederTrucksText'], $row['damagesText'], $row['unloadLogsText']);
-                    echo json_encode(['status' => 'success', 'trip' => $row]);
-                    exit();
-                }
-            } else {
-                $stmt = $pdo->query("SELECT * FROM bueno_trips ORDER BY id DESC");
-                $raw = $stmt->fetchAll();
-                $result = array_map(function($r) {
-                    $r['wagonLogs'] = json_decode($r['wagonLogsText'] ?? '[]', true);
-                    $r['feederTrucks'] = json_decode($r['feederTrucksText'] ?? '[]', true);
-                    $r['damages'] = json_decode($r['damagesText'] ?? '{}', true);
-                    $r['unloadLogs'] = json_decode($r['unloadLogsText'] ?? '[]', true);
-                    unset($row['wagonLogsText'], $row['feederTrucksText'], $row['damagesText'], $row['unloadLogsText']);
-                    return $r;
-                }, $raw);
-            }
-        } catch (Exception $e) {}
-    }
+    'capabilities' => [
+        // Staff reach trips through the deals desk; a consignee tracking their
+        // own consignment holds deals.view without the desk itself.
+        'read'   => ['deals', 'deals.view'],
+        'write'  => 'ops.loading_update',
+        'delete' => 'deals.delete',
+        'purge'  => 'system.purge_data',
+    ],
 
-    // Only fallback to file storage if database failed to connect
-    if (!$hasDb) {
-        $fileTrips = getTripsFromFile($storeFile);
-        if ($tripId !== '') {
-            foreach ($fileTrips as $ft) {
-                if (($ft['id'] ?? '') === $tripId || ($ft['tripId'] ?? '') === $tripId) {
-                    echo json_encode(['status' => 'success', 'trip' => $ft]);
-                    exit();
-                }
-            }
+    // A consignee sees only their own company's trips; a cargo officer sees
+    // trips touching their station at either end.
+    'scope' => [
+        'company' => 'company',
+        'station' => ['origin', 'destination'],
+    ],
+
+    'orderBy'   => '`updated_at` DESC, `id` DESC',
+    'versioned' => true,
+
+    'jsonColumns' => [
+        'wagonLogs'    => 'wagonLogsText',
+        'feederTrucks' => 'feederTrucksText',
+        'damages'      => 'damagesText',
+        'unloadLogs'   => 'unloadLogsText',
+    ],
+
+    'validate' => static function (array $input, array $actor): array {
+        $v = Validator::for($input)
+            ->identifier('tripId', false, 100)
+            ->identifier('dealNumber', false, 100)
+            ->identifier('locomotiveId', false, 100)
+            ->string('cargoOfficerName', false, 191)
+            ->string('unloadingOfficerName', false, 191)
+            ->string('escortOfficerName', false, 191)
+            ->string('escortPhone', false, 32)
+            ->identifier('escortWagonId', false, 100)
+            ->string('company', true, 191)
+            ->email('clientEmail', false)
+            ->string('cargoType', false, 191)
+            ->string('unitOfMeasure', false, 50)
+            ->string('wagonType', false, 100)
+            ->string('quantity', false, 100)
+            ->identifier('origin', false, 16)
+            ->identifier('destination', false, 16)
+            ->enum('status', TRIP_STATUSES, false, 'LOADING')
+            // Coordinates are bounded: an out-of-range value silently breaks
+            // the tracking map rather than failing visibly.
+            ->number('curLat', false, -90, 90)
+            ->number('curLng', false, -180, 180)
+            ->integer('speed', false, 0, 400)
+            ->string('departedAt', false, 64)
+            ->string('completedAt', false, 64)
+            ->string('dispatchTime', false, 64)
+            ->number('tripRevenue', false, 0)
+            ->number('tripCost', false, 0)
+            ->string('createdAt', false, 64);
+
+        $clean = $v->validated();
+
+        // Money is a finance decision, not an operations one. A cargo officer
+        // may log bags and seals but must not be able to set what the trip
+        // earned or cost by including the field in their payload.
+        if (!Rbac::can($actor, 'finance.deal_costing')) {
+            unset($clean['tripRevenue'], $clean['tripCost']);
         }
-        $result = $fileTrips;
-    }
 
-    echo json_encode([
-        'status' => 'success',
-        'data' => array_values($result),
-        'serverTime' => gmdate('Y-m-d\\TH:i:s\\Z'),
-        'count' => count($result)
-    ]);
-    exit();
-}
-
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
-
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid trip data']);
-        exit();
-    }
-
-    // Purge all trips
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        @unlink($storeFile);
-        if ($pdo) {
-            try {
-                $pdo->exec("DELETE FROM bueno_trips");
-            } catch (Exception $e) {}
-        }
-        echo json_encode(['status' => 'success', 'message' => 'All trips purged successfully', 'data' => []]);
-        exit();
-    }
-
-    // Single delete
-    if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
-        $existing = getTripsFromFile($storeFile);
-        $filtered = array_filter($existing, function($t) use ($data) {
-            return ($t['id'] ?? '') !== $data['id'] && ($t['tripId'] ?? '') !== $data['id'];
-        });
-        saveTripsToFile($storeFile, $filtered);
-
-        if ($pdo) {
-            try {
-                $stmt = $pdo->prepare("DELETE FROM bueno_trips WHERE id = ? OR tripId = ?");
-                $stmt->execute([$data['id'], $data['id']]);
-            } catch (Exception $e) {}
-        }
-        echo json_encode(['status' => 'success', 'message' => 'Trip deleted successfully']);
-        exit();
-    }
-
-    $trips = isset($data[0]) ? $data : [$data];
-
-    // Save exact array to file store
-    saveTripsToFile($storeFile, $trips);
-
-    // Persist to SQL database
-    if ($pdo) {
-        try {
-            $stmt = $pdo->prepare("REPLACE INTO bueno_trips (
-                id, tripId, dealNumber, locomotiveId, cargoOfficerName, unloadingOfficerName,
-                escortOfficerName, escortPhone, escortWagonId, company, clientEmail, cargoType,
-                unitOfMeasure, wagonType, quantity, origin, destination, status, curLat, curLng,
-                speed, departedAt, completedAt, dispatchTime, tripRevenue, tripCost,
-                wagonLogsText, feederTrucksText, damagesText, unloadLogsText, createdAt
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?
-            )");
-
-            foreach ($trips as $t) {
-                $id = $t['id'] ?? ('trip_' . time() . '_' . rand(100, 999));
-                $tripId = $t['tripId'] ?? $id;
-                $dealNumber = $t['dealNumber'] ?? '';
-                $locomotiveId = $t['locomotiveId'] ?? 'L2205';
-                $cargoOfficerName = $t['cargoOfficerName'] ?? 'Ade Bello (EWK-01)';
-                $unloadingOfficerName = $t['unloadingOfficerName'] ?? 'Musa Ibrahim (MNY-01)';
-                $escortOfficerName = $t['escortOfficerName'] ?? 'Officer Segun Alabi';
-                $escortPhone = $t['escortPhone'] ?? '08031112233';
-                $escortWagonId = $t['escortWagonId'] ?? 'BV 01';
-                $company = $t['company'] ?? 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
-                $clientEmail = $t['clientEmail'] ?? ($t['email'] ?? 'logistics@hbm.ng');
-                $cargoType = $t['cargoType'] ?? 'Huaxin Portland Cement (50kg bags)';
-                $unitOfMeasure = $t['unitOfMeasure'] ?? (stripos($cargoType, 'Gypsum') !== false || stripos($cargoType, 'Limestone') !== false || stripos($cargoType, 'MT') !== false ? 'Metric Tonnes (MT)' : 'Bags');
-                $wagonType = $t['wagonType'] ?? ($unitOfMeasure === 'Metric Tonnes (MT)' ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon');
-                $quantity = strval($t['quantity'] ?? '1600');
-                $origin = $t['origin'] ?? 'EWK';
-                $destination = $t['destination'] ?? 'MNY';
-                $status = $t['status'] ?? 'LOADING';
-                $curLat = floatval($t['curLat'] ?? 6.8974);
-                $curLng = floatval($t['curLng'] ?? 3.2141);
-                $speed = intval($t['speed'] ?? 0);
-                $departedAt = $t['departedAt'] ?? '';
-                $completedAt = $t['completedAt'] ?? '';
-                $dispatchTime = $t['dispatchTime'] ?? ($departedAt ?: ($t['createdAt'] ?? date('d/m/Y, H:i')));
-                $tripRevenue = isset($t['tripRevenue']) && $t['tripRevenue'] !== '' && floatval($t['tripRevenue']) > 0 ? floatval($t['tripRevenue']) : null;
-                $tripCost = isset($t['tripCost']) && $t['tripCost'] !== '' && floatval($t['tripCost']) > 0 ? floatval($t['tripCost']) : null;
-                $wagonLogsText = json_encode($t['wagonLogs'] ?? []);
-                $feederTrucksText = json_encode($t['feederTrucks'] ?? []);
-                $damagesText = json_encode($t['damages'] ?? []);
-                $unloadLogsText = json_encode($t['unloadLogs'] ?? []);
-                $createdAt = $t['createdAt'] ?? date('d/m/Y');
-
-                $stmt->execute([
-                    $id, $tripId, $dealNumber, $locomotiveId, $cargoOfficerName, $unloadingOfficerName,
-                    $escortOfficerName, $escortPhone, $escortWagonId, $company, $clientEmail, $cargoType,
-                    $unitOfMeasure, $wagonType, $quantity, $origin, $destination, $status, $curLat, $curLng,
-                    $speed, $departedAt, $completedAt, $dispatchTime, $tripRevenue, $tripCost,
-                    $wagonLogsText, $feederTrucksText, $damagesText, $unloadLogsText, $createdAt
-                ]);
-            }
-        } catch (Exception $e) {}
-    }
-
-    echo json_encode(['status' => 'success', 'message' => 'Trips updated successfully', 'count' => count($trips)]);
-    exit();
-}
+        // Drop nulls so an upsert never blanks a column the caller omitted.
+        return array_filter($clean, static fn($value) => $value !== null);
+    },
+]);

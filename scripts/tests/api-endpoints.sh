@@ -179,5 +179,22 @@ else
 fi
 
 echo
+echo "=== 15. Public tracking is public, but discloses little ==="
+r=$(req GET "/api/public_track.php?ref=$TRIP_ID")
+check "anonymous lookup of a real reference succeeds" 200 "$(code_of "$r")"
+check_contains "shows movement status" "tripStatus" "$(body_of "$r")"
+check_not_contains "does NOT expose trip revenue"    "tripRevenue"       "$(body_of "$r")"
+check_not_contains "does NOT expose trip cost"       "tripCost"          "$(body_of "$r")"
+check_not_contains "does NOT expose consignee email" "clientEmail"       "$(body_of "$r")"
+check_not_contains "does NOT expose escort phone"    "escortPhone"       "$(body_of "$r")"
+check_not_contains "does NOT expose officer names"   "cargoOfficerName"  "$(body_of "$r")"
+
+r=$(req GET "/api/public_track.php?ref=NOPE-does-not-exist")
+check "unknown reference gives a plain 404" 404 "$(code_of "$r")"
+
+r=$(req GET "/api/public_track.php")
+check "no reference is rejected (there is no listing mode)" 422 "$(code_of "$r")"
+
+echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

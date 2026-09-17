@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { getUser } from '@/lib/auth/session';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
@@ -829,31 +830,26 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const can = (actionKey: string) => StateEngine.hasGranularPermission(currentUser || user, actionKey);
 
   useEffect(() => {
+    // Identity comes from the session the server issued. Reading it out of
+    // localStorage, as this previously did, meant a user could edit one value
+    // in devtools and have the portal treat them as somebody else.
     const syncUser = () => {
-      const activeStr = typeof window !== 'undefined' ? localStorage.getItem('bueno_user') : null;
-      if (activeStr) {
-        try {
-          const parsed = JSON.parse(activeStr);
-          const liveUsers = StateEngine.getUsers();
-          const matched = liveUsers.find((u: any) => u.id === parsed.id || u.email === parsed.email);
-          if (matched) {
-            setCurrentUser({ ...parsed, ...matched });
-          } else {
-            setCurrentUser(parsed);
-          }
-        } catch {}
-      }
+      const sessionUser = getUser();
+      if (sessionUser) setCurrentUser(sessionUser);
     };
 
     syncData();
     syncUser();
 
     StateEngine.syncRemote();
+    // 12s rather than 4s: reads are ETagged now, so an unchanged collection
+    // costs a 304 with no body, and the portal also refreshes on demand
+    // whenever a write reports a change.
     const interval = setInterval(() => {
       StateEngine.syncRemote();
       syncData();
       syncUser();
-    }, 4000);
+    }, 12000);
 
     const handleAllUpdates = () => {
       syncData();
@@ -862,12 +858,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     window.addEventListener('storage', handleAllUpdates);
     window.addEventListener('bueno_state_updated', handleAllUpdates);
-    window.addEventListener('bueno_user_updated', syncUser);
+    window.addEventListener('bueno_session_updated', syncUser);
     return () => {
       clearInterval(interval);
       window.removeEventListener('storage', handleAllUpdates);
       window.removeEventListener('bueno_state_updated', handleAllUpdates);
-      window.removeEventListener('bueno_user_updated', syncUser);
+      window.removeEventListener('bueno_session_updated', syncUser);
     };
   }, []);
 

@@ -1,5 +1,11 @@
 name: CI
 
+# Validates what actually ships: the static Next.js export and the PHP API.
+#
+# The previous workflow typechecked a NestJS backend that was never deployed
+# and never looked at the PHP that serves every request — so a syntax error in
+# the real backend reached production with nothing to catch it.
+
 on:
   push:
     branches: [main, develop]
@@ -10,40 +16,108 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  npm_config_fetch_retries: '5'
-  npm_config_fetch_retry_mintimeout: '20000'
-  npm_config_fetch_retry_maxtimeout: '120000'
-
 jobs:
-  lint-build:
+  web:
+    name: Web app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Build web application
-        run: npm run build
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
-          NEXT_PUBLIC_WS_URL: http://localhost:3001
 
-  api-typecheck:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
-      - name: TypeScript check
-        run: npx tsc --noEmit
+
+      - name: Capability registry is valid and the PHP mirror is in sync
+        # Guards the defect that made the old permission matrix unreliable:
+        # the TypeScript registry and the PHP the server enforces drifting
+        # apart without anything noticing.
+        run: npm run rbac:check
+
+      - name: Capability invariants
+        run: npx tsx --test scripts/tests/rbac.test.ts
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/web/tsconfig.json
+
+      - name: Build static export
+        run: npx next build
+        working-directory: apps/web
+
+      - name: Deploy artifact contains the API
+        # The cPanel deploy copies apps/web/out wholesale. If the PHP layer or
+        # its .htaccess protections are missing from the export, the site goes
+        # up with an unprotected or non-functional backend.
+        run: |
+          set -e
+          for required in \
+            out/api/auth.php \
+            out/api/_lib/bootstrap.php \
+            out/api/_lib/capabilities.php \
+            out/api/migrations/001_baseline.sql \
+            out/api/.htaccess \
+            out/api/_lib/.htaccess \
+            out/api/migrations/.htaccess \
+            out/.htaccess
+          do
+            if [ ! -f "$required" ]; then
+              echo "::error::missing from the deploy artifact: $required"
+              exit 1
+            fi
+          done
+          echo "deploy artifact complete"
+        working-directory: apps/web
+
+  api:
+    name: PHP API
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 8.1 is the floor cPanel commonly offers; 8.3 is the target.
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_sqlite, pdo_mysql, mbstring, json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Lint every PHP file
+        run: npm run php:lint
+
+      - name: Migrations apply cleanly from empty
+        run: |
+          set -e
+          cat > apps/web/public/.env <<EOF
+          APP_ENV=development
+          APP_SECRET=$(php -r 'echo bin2hex(random_bytes(32));')
+          SQLITE_PATH=${{ runner.temp }}/ci.sqlite
+          EOF
+          php apps/web/public/api/_lib/migrate.php up
+          php apps/web/public/api/_lib/migrate.php status
+
+      - name: Migrations are idempotent
+        run: |
+          php apps/web/public/api/_lib/migrate.php up | tee /tmp/second-run.txt
+          grep -q "Already up to date" /tmp/second-run.txt
+
+      - name: Credential migration preserves existing logins
+        run: |
+          rm -f "${{ runner.temp }}/ci.sqlite"
+          php scripts/tests/credential-migration.php
+
+      - name: API integration and endpoint suites
+        run: |
+          rm -f apps/web/public/.env
+          bash scripts/tests/run-all.sh

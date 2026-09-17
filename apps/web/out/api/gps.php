@@ -1,106 +1,142 @@
-﻿<?php
-require_once __DIR__ . '/db.php';
+<?php
+/**
+ * Bueno Freight OS — Corridor GPS telemetry
+ *
+ *   GET  /api/gps.php?tripId=…        latest fix + breadcrumb trail
+ *   GET  /api/gps.php?locomotiveId=…  same, by locomotive
+ *   POST /api/gps.php {tripId, lat, lng, …}   record a position
+ *
+ * Append-only, so it does not use the generic collection handler.
+ *
+ * Position reports come from an escort officer's phone in the field, over a
+ * mobile connection, every few seconds. That shapes two decisions: the write
+ * is rate limited per trip rather than rejected outright when it arrives
+ * faster than expected, and a consignee can read the trail for their own
+ * consignment but not anyone else's.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
+declare(strict_types=1);
 
-// Ensure bueno_gps_logs table exists
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS bueno_gps_logs (
-        id VARCHAR(100) PRIMARY KEY,
-        tripId VARCHAR(100),
-        locomotiveId VARCHAR(100),
-        lat REAL,
-        lng REAL,
-        speed INT DEFAULT 0,
-        heading REAL DEFAULT 0,
-        accuracy REAL DEFAULT 3,
-        batteryLevel INT DEFAULT 100,
-        officerPhone VARCHAR(50),
-        signalQuality VARCHAR(50) DEFAULT 'MOBILE_PHONE_GPS_LIVE',
-        timestamp VARCHAR(100)
-    )");
-} catch (Exception $e) {}
+require_once __DIR__ . '/_lib/bootstrap.php';
 
+$method = Http::method();
+
+// ── Read ────────────────────────────────────────────────────────────────────
 if ($method === 'GET') {
-    $locoId = $_GET['locomotiveId'] ?? $_GET['locoId'] ?? '';
-    $tripId = $_GET['tripId'] ?? '';
+    $user = Rbac::require('ops.gps_telemetry');
 
-    if ($locoId !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM bueno_gps_logs WHERE locomotiveId = ? ORDER BY id DESC LIMIT 50");
-        $stmt->execute([$locoId]);
-        $logs = $stmt->fetchAll();
-        $latest = $logs[0] ?? null;
-        echo json_encode(['status' => 'success', 'latest' => $latest, 'breadcrumbs' => array_reverse($logs)]);
-        exit();
+    $tripId = (string) ($_GET['tripId'] ?? '');
+    $locoId = (string) ($_GET['locomotiveId'] ?? $_GET['locoId'] ?? '');
+
+    // Knowing where a train is reveals whose cargo is where, so a consignee
+    // is confined to trips carrying their own freight.
+    $scope = Rbac::scopeFor($user);
+    if ($scope['scope'] === 'company') {
+        if ($tripId === '') {
+            Response::error('Specify the trip you want to track.', 422);
+        }
+        $check = Db::conn()->prepare('SELECT company FROM bueno_trips WHERE id = ? OR tripId = ? LIMIT 1');
+        $check->execute([$tripId, $tripId]);
+        $trip = $check->fetch();
+
+        if ($trip === false || (string) $trip['company'] !== $scope['company']) {
+            // Same answer whether the trip is someone else's or does not
+            // exist, so this cannot be used to enumerate trips.
+            Response::error('Trip not found.', 404);
+        }
     }
+
+    $limit = min(max((int) ($_GET['limit'] ?? 50), 1), 500);
 
     if ($tripId !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM bueno_gps_logs WHERE tripId = ? ORDER BY id DESC LIMIT 50");
+        $stmt = Db::conn()->prepare(
+            "SELECT * FROM bueno_gps_logs WHERE tripId = ? ORDER BY timestamp DESC LIMIT $limit"
+        );
         $stmt->execute([$tripId]);
-        $logs = $stmt->fetchAll();
-        $latest = $logs[0] ?? null;
-        echo json_encode(['status' => 'success', 'latest' => $latest, 'breadcrumbs' => array_reverse($logs)]);
-        exit();
+    } elseif ($locoId !== '') {
+        $stmt = Db::conn()->prepare(
+            "SELECT * FROM bueno_gps_logs WHERE locomotiveId = ? ORDER BY timestamp DESC LIMIT $limit"
+        );
+        $stmt->execute([$locoId]);
+    } else {
+        $stmt = Db::conn()->query("SELECT * FROM bueno_gps_logs ORDER BY timestamp DESC LIMIT $limit");
     }
 
-    $stmt = $pdo->query("SELECT * FROM bueno_gps_logs ORDER BY id DESC LIMIT 100");
     $logs = $stmt->fetchAll();
-    echo json_encode(['status' => 'success', 'data' => $logs]);
-    exit();
+
+    Response::json([
+        'status'      => 'success',
+        'latest'      => $logs[0] ?? null,
+        'breadcrumbs' => array_reverse($logs),
+        'count'       => count($logs),
+        'serverTime'  => gmdate('Y-m-d\TH:i:s\Z'),
+    ], 200);
 }
 
-if ($method === 'POST') {
-    $raw = file_get_contents('php://input');
-    $data = json_decode($raw, true);
+if ($method !== 'POST') {
+    Response::error('Method not allowed.', 405);
+}
 
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid GPS telemetry payload']);
-        exit();
-    }
+// ── Record a position ───────────────────────────────────────────────────────
+$actor = Rbac::require('ops.loading_update');
+$body  = Http::jsonBody();
 
-    $id = 'gps_' . time() . '_' . rand(100, 999);
-    $locomotiveId = $data['locomotiveId'] ?? $_GET['locomotiveId'] ?? 'L2205';
-    $tripId = $data['tripId'] ?? '';
-    $lat = floatval($data['lat'] ?? 6.8974);
-    $lng = floatval($data['lng'] ?? 3.2141);
-    $speed = intval($data['speed'] ?? 68);
-    $heading = floatval($data['heading'] ?? 45);
-    $accuracy = floatval($data['accuracy'] ?? 2.8);
-    $battery = intval($data['batteryLevel'] ?? 92);
-    $officerPhone = $data['officerPhone'] ?? '';
-    $signal = $data['signalQuality'] ?? 'MOBILE_PHONE_GPS_LIVE';
-    $timeStr = date('H:i:s');
+$data = Validator::for($body)
+    ->identifier('tripId', true, 100)
+    ->identifier('locomotiveId', false, 100)
+    ->number('lat', true, -90, 90)
+    ->number('lng', true, -180, 180)
+    ->integer('speed', false, 0, 400)
+    ->number('heading', false, 0, 360)
+    ->number('accuracy', false, 0, 10000)
+    ->integer('batteryLevel', false, 0, 100)
+    ->string('officerPhone', false, 32)
+    ->string('signalQuality', false, 50)
+    ->validated();
 
-    // 1. Insert into telemetry log
-    try {
-        $stmt = $pdo->prepare("INSERT INTO bueno_gps_logs (id, tripId, locomotiveId, lat, lng, speed, heading, accuracy, batteryLevel, officerPhone, signalQuality, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$id, $tripId, $locomotiveId, $lat, $lng, $speed, $heading, $accuracy, $battery, $officerPhone, $signal, $timeStr]);
-    } catch (Exception $e) {}
+// One fix per trip every couple of seconds is plenty; this bounds how fast
+// the table can grow if a handset gets stuck in a retry loop.
+RateLimit::enforce('gps:' . $data['tripId'], Config::int('GPS_RATE', 60), 60);
 
-    // 2. Update current position in active trip
-    try {
-        if ($tripId !== '') {
-            $stmt = $pdo->prepare("UPDATE bueno_trips SET curLat = ?, curLng = ? WHERE id = ? OR tripId = ?");
-            $stmt->execute([$lat, $lng, $tripId, $tripId]);
-        } else {
-            $stmt = $pdo->prepare("UPDATE bueno_trips SET curLat = ?, curLng = ? WHERE locomotiveId = ? AND status = 'IN_TRANSIT'");
-            $stmt->execute([$lat, $lng, $locomotiveId]);
-        }
-    } catch (Exception $e) {}
+Db::transaction(static function (PDO $pdo) use ($data): void {
+    $now = gmdate('Y-m-d\TH:i:s\Z');
 
-    echo json_encode([
-        'status' => 'success',
-        'message' => 'GPS ping ingested successfully',
-        'ping' => [
-            'locomotiveId' => $locomotiveId,
-            'lat' => $lat,
-            'lng' => $lng,
-            'speed' => $speed,
-            'battery' => $battery,
-            'timestamp' => $timeStr
-        ]
+    $pdo->prepare(
+        'INSERT INTO bueno_gps_logs
+            (id, tripId, locomotiveId, lat, lng, speed, heading, accuracy,
+             batteryLevel, officerPhone, signalQuality, timestamp)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([
+        'gps_' . bin2hex(random_bytes(10)),
+        $data['tripId'],
+        $data['locomotiveId'],
+        $data['lat'],
+        $data['lng'],
+        $data['speed'] ?? 0,
+        $data['heading'] ?? 0,
+        $data['accuracy'] ?? 3,
+        $data['batteryLevel'] ?? 100,
+        $data['officerPhone'],
+        $data['signalQuality'] ?? 'MOBILE_PHONE_GPS_LIVE',
+        $now,
     ]);
-    exit();
-}
+
+    // Keep the trip's own last-known position in step, so the tracking list
+    // does not need a correlated subquery per row.
+    $pdo->prepare(
+        'UPDATE bueno_trips SET curLat = ?, curLng = ?, speed = ?, updated_at = ?
+          WHERE id = ? OR tripId = ?'
+    )->execute([
+        $data['lat'],
+        $data['lng'],
+        $data['speed'] ?? 0,
+        $now,
+        $data['tripId'],
+        $data['tripId'],
+    ]);
+});
+
+// Deliberately not audited: a position report every few seconds would drown
+// the audit log without telling anyone anything they cannot read from the
+// breadcrumb trail itself.
+Response::ok(['recorded' => true, 'serverTime' => gmdate('Y-m-d\TH:i:s\Z')]);

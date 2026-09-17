@@ -1,8 +1,22 @@
 {
-  "extends": "expo/tsconfig.base",
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "extends uses an explicit relative path rather than the bare 'expo/tsconfig.base'",
+    "specifier. This is an npm workspace, so expo is hoisted to the repository root",
+    "and apps/mobile has no node_modules of its own. The CLI resolves the bare",
+    "specifier by walking up, but the editor's TypeScript server does not always",
+    "do the same, which is what produced the red underline here."
+  ],
+  "extends": "../../node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": false,
+    "strictNullChecks": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] }
-  }
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["react", "react-native", "node"]
+  },
+  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "*.ts", "*.tsx"],
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js"]
 }

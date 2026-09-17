@@ -9,14 +9,18 @@ interface Props extends TextInputProps {
 
 export function Input({ label, error, containerStyle, ...props }: Props) {
   return (
+    // Ternaries rather than `&&`: an empty-string label or error would
+    // otherwise render a bare "" child, which React Native rejects with
+    // "Text strings must be rendered within a <Text> component", and would
+    // pass "" where a style object is expected.
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
         {...props}
-        style={[styles.input, error && styles.inputError, props.style]}
+        style={[styles.input, error ? styles.inputError : null, props.style]}
         placeholderTextColor="#9ca3af"
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error ? <Text style={styles.error}>{error}</Text> : null}
     </View>
   );
 }

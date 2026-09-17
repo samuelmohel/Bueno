@@ -3,26 +3,21 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { authApi } from '@/lib/api';
-import { StateEngine } from '@/lib/services/StateEngine';
+import { signIn } from '@/lib/auth/session';
+import { ApiError } from '@/lib/apiClient';
 
-function setAuthCookieAndStorage(token: string, user: any) {
-  localStorage.setItem('bueno_token', token);
-  localStorage.setItem('bueno_user', JSON.stringify(user));
-  document.cookie = `bueno_token=${token}; path=/; max-age=2592000; SameSite=Lax`;
-}
-
-const STATIONS: Record<string, string> = {
-  EWK: 'Ewekoro Terminal (HBM Siding)',
-  MNY: 'Moniya Yard (Ibadan Destination)',
-  APT: 'Apapa Maritime Port (Lagos)',
-  HQ: 'Corporate Command HQ',
-};
-
+/**
+ * Sign-in.
+ *
+ * Authentication happens on the server now. The previous implementation
+ * matched a user out of a localStorage list in the browser, accepted any of a
+ * hardcoded set of PINs ('demo1234', '1111', '9999', …) for *any* account, and
+ * minted its own token — so anyone who knew a colleague's email could sign in
+ * as them, including as the CEO.
+ */
 function LoginForm() {
   const router = useRouter();
 
-  // Form State
   const [emailOrId, setEmailOrId] = useState('');
   const [passwordOrPin, setPasswordOrPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,106 +26,96 @@ function LoginForm() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
 
-  // UI State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
 
+  // If a valid session already exists, don't make the user sign in again.
   useEffect(() => {
-    // Cleanse cache and verify state
-    StateEngine.cleanseLafargeAndMigrateHbm();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      const { loadSession } = await import('@/lib/auth/session');
+      const s = await loadSession(true);
+      if (!cancelled && s.authenticated) {
+        router.replace('/dashboard');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setRetryAfter(null);
 
-    const input = emailOrId.trim().toLowerCase();
-    const pin = passwordOrPin.trim();
+    const identifier = emailOrId.trim();
+    const secret = passwordOrPin;
 
-    if (!input) {
-      setError('Please enter your work email, username, or staff ID.');
-      setLoading(false);
+    if (!identifier) {
+      setError('Please enter your work email, staff ID, or phone number.');
       return;
     }
-
-    if (!pin) {
+    if (!secret) {
       setError('Please enter your password or security PIN.');
-      setLoading(false);
       return;
     }
 
-    // Refresh users list
-    const latestUsers = StateEngine.getUsers();
-    const foundUser = latestUsers.find(u => {
-      const matchEmail = u.email && u.email.toLowerCase() === input;
-      const matchPhone = u.phone && u.phone.includes(input);
-      const matchStaffId = u.staffId && u.staffId.toLowerCase() === input;
-      const matchName = u.fullName && u.fullName.toLowerCase().includes(input);
-      const matchCompany = u.companyName && u.companyName.toLowerCase().includes(input);
-      return matchEmail || matchPhone || matchStaffId || matchName || matchCompany;
-    });
-
-    if (!foundUser) {
-      setError(`Authentication failed: No active enterprise account found matching "${emailOrId}". Please verify your credentials or contact system administrator.`);
-      setLoading(false);
-      return;
-    }
-
-    // Verify Password or PIN
-    const expectedPin = foundUser.pin || '1111';
-    const isPasswordMatch = pin === expectedPin || pin === 'demo1234' || pin === '1234' || pin === '1111' || pin === '6666' || pin === '7777' || pin === '8888' || pin === '9999';
-
-    if (!isPasswordMatch) {
-      setError('Invalid password or security PIN. Please verify and try again.');
-      setLoading(false);
-      return;
-    }
-
-    // Call authentication API with fallback
-    let token = `token_${foundUser.id || Date.now()}`;
+    setLoading(true);
     try {
-      const authPromise = authApi.login(foundUser.email || 'admin@bueno.ng', 'demo1234');
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 400));
-      const res: any = await Promise.race([authPromise, timeoutPromise]);
-      if (res && res.data?.accessToken) {
-        token = res.data.accessToken;
+      const session = await signIn(identifier, secret);
+
+      // Accounts still on a default credential must set a real one before
+      // they can use the platform.
+      if (session.user?.mustChangeCredentials) {
+        router.push('/auth/change-password?reason=first-sign-in');
+        return;
       }
-    } catch {
-      // Local persistent fallback
-    }
 
-    // Construct authoritative user profile
-    const roleLabel = foundUser.roleLabel || (
-      foundUser.role === 'CARGO_OFFICER' ? `Cargo Officer — ${STATIONS[foundUser.assignedStation] || foundUser.assignedStation || 'Ewekoro'}` :
-      foundUser.role === 'CEO' ? 'Managing Director / CEO' :
-      foundUser.role === 'HEAD_OF_OPERATIONS' ? 'Head of Operations' :
-      foundUser.role === 'HEAD_OF_FINANCE' ? 'Head of Finance / Treasurer' :
-      foundUser.role === 'ADMIN' ? 'Administrator' :
-      `Industrial Consignee — ${foundUser.companyName || foundUser.fullName}`
-    );
-
-    const userProfile = {
-      ...foundUser,
-      roleLabel,
-      lastLogin: new Date().toISOString(),
-    };
-
-    setAuthCookieAndStorage(token, userProfile);
-
-    setTimeout(() => {
-      if (foundUser.role === 'HEAD_OF_FINANCE') {
+      if (session.user?.role === 'HEAD_OF_FINANCE' || session.user?.role === 'ACCOUNTANT') {
         router.push('/dashboard?tab=billing');
       } else {
         router.push('/dashboard');
       }
-    }, 200);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 423) {
+          setError(
+            'This account is temporarily locked after repeated failed sign-in attempts. ' +
+              'Please try again shortly or contact an administrator.'
+          );
+        } else if (err.status === 429) {
+          const wait = Number(err.body?.retryAfter) || 60;
+          setRetryAfter(wait);
+          setError(`Too many sign-in attempts. Please wait ${wait} seconds and try again.`);
+        } else if (err.status === 0) {
+          setError('Cannot reach the server. Check your connection and try again.');
+        } else {
+          // The server deliberately does not say whether the account exists.
+          setError(err.message || 'Invalid credentials.');
+        }
+      } else {
+        setError('Something went wrong signing in. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  /**
+   * Self-service reset is not implemented server-side, so this says what
+   * actually happens rather than claiming a token was dispatched. The previous
+   * version told the user a reset email had been sent; nothing was ever sent.
+   */
   const handleForgotPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
-    setForgotMessage(`A secure credential reset authorization token has been dispatched to ${forgotEmail}. Please check your corporate inbox.`);
+    setForgotMessage(
+      'Password resets are performed by an administrator. Please contact your ' +
+        'systems administrator or the operations desk, who can issue you a new ' +
+        'one-time password for this account.'
+    );
   };
 
   return (

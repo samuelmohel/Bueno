@@ -1,75 +1,125 @@
 <?php
-require_once __DIR__ . '/db.php';
+/**
+ * Bueno Freight OS — Client rate negotiations
+ *
+ *   GET  /api/negotiations.php[?since=]
+ *   POST /api/negotiations.php {action:"upsert",  record:{...}}
+ *   POST /api/negotiations.php {action:"message", id:"...", text:"..."}
+ *   POST /api/negotiations.php {action:"lock",    id:"..."}
+ *
+ * A consignee sees and posts to their own threads only; staff need the
+ * negotiation capabilities. Previously every thread, including other
+ * customers' rate discussions, was readable by anyone.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
+declare(strict_types=1);
 
-if ($method === 'GET') {
-    if (!$pdo) {
-        echo json_encode(['status' => 'success', 'data' => []]);
-        exit();
+require_once __DIR__ . '/_lib/collection.php';
+
+$method = Http::method();
+$body   = $method === 'POST' ? Http::jsonBody() : [];
+$action = strtoupper((string) ($body['action'] ?? ''));
+
+/** @return array<string,mixed> */
+function load_thread(string $id): array
+{
+    $stmt = Db::conn()->prepare('SELECT * FROM bueno_negotiations WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        Response::error('Negotiation thread not found.', 404);
     }
-    try {
-        $stmt = $pdo->query("SELECT * FROM bueno_negotiations ORDER BY id DESC");
-        $raw = $stmt->fetchAll();
-        $result = array_map(function($r) {
-            $r['messages'] = json_decode($r['messagesText'] ?? '[]', true);
-            unset($r['messagesText']);
-            return $r;
-        }, $raw);
-        echo json_encode(['status' => 'success', 'data' => $result]);
-    } catch (Exception $e) {
-        echo json_encode(['status' => 'success', 'data' => []]);
-    }
-    exit();
+    return $row;
 }
 
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
+// ── Post a message into a thread ────────────────────────────────────────────
+if ($action === 'MESSAGE') {
+    $actor = Rbac::require('negotiation.message');
 
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid negotiation data']);
-        exit();
+    $data = Validator::for($body)
+        ->identifier('id', true, 100)
+        ->string('text', true, 4000, 1)
+        ->validated();
+
+    $thread = load_thread($data['id']);
+
+    // A consignee may only post into their own organisation's thread.
+    Rbac::assertCanTouchRow($actor, $thread, 'companyName');
+
+    if ((string) ($thread['status'] ?? '') === 'LOCKED') {
+        Response::error('This negotiation has been concluded and is locked.', 409);
     }
 
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        if ($pdo) {
-            try { $pdo->exec("DELETE FROM bueno_negotiations"); } catch (Exception $e) {}
+    $messages   = json_decode((string) ($thread['messagesText'] ?? '[]'), true);
+    $messages   = is_array($messages) ? $messages : [];
+    $messages[] = [
+        'text'     => $data['text'],
+        'senderId' => (string) $actor['id'],
+        'sender'   => (string) ($actor['fullName'] ?? $actor['id']),
+        'role'     => (string) ($actor['role'] ?? ''),
+        'at'       => gmdate('Y-m-d\TH:i:s\Z'),
+    ];
+
+    Db::conn()->prepare(
+        'UPDATE bueno_negotiations SET messagesText = ?, updated_at = ? WHERE id = ?'
+    )->execute([json_encode($messages), gmdate('Y-m-d\TH:i:s\Z'), $thread['id']]);
+
+    Audit::record('negotiation.message', 'negotiation', (string) $thread['id'], Audit::SUCCESS, null, $actor);
+    Response::ok(['messages' => $messages]);
+}
+
+// ── Conclude a negotiation ──────────────────────────────────────────────────
+if ($action === 'LOCK') {
+    $actor  = Rbac::require('negotiation.lock');
+    $data   = Validator::for($body)->identifier('id', true, 100)->validated();
+    $thread = load_thread($data['id']);
+
+    Db::conn()->prepare(
+        'UPDATE bueno_negotiations SET status = ?, updated_at = ? WHERE id = ?'
+    )->execute(['LOCKED', gmdate('Y-m-d\TH:i:s\Z'), $thread['id']]);
+
+    Audit::record('negotiation.lock', 'negotiation', (string) $thread['id'], Audit::SUCCESS, null, $actor);
+    Response::ok(['message' => 'Negotiation locked at the agreed rate.']);
+}
+
+Collection::handle([
+    'table'  => 'bueno_negotiations',
+    'entity' => 'negotiation',
+
+    'capabilities' => [
+        'read'   => 'negotiation.view',
+        'write'  => 'negotiation.message',
+        'delete' => 'system.purge_data',
+        'purge'  => 'system.purge_data',
+    ],
+
+    'scope'   => ['company' => 'companyName'],
+    'orderBy' => '`updated_at` DESC, `id` DESC',
+
+    'jsonColumns' => ['messages' => 'messagesText'],
+
+    'validate' => static function (array $input, array $actor): array {
+        $clean = Validator::for($input)
+            ->string('companyName', true, 191)
+            ->string('contactName', false, 191)
+            ->email('email', false)
+            ->identifier('loadingStation', false, 50)
+            ->identifier('destination', false, 50)
+            ->string('cargoType', false, 191)
+            ->string('quantity', false, 100)
+            ->string('targetDate', false, 64)
+            ->enum('status', ['UNDER_NEGOTIATION', 'LOCKED', 'DECLINED'], false, 'UNDER_NEGOTIATION')
+            ->string('createdAt', false, 64)
+            ->validated();
+
+        // A consignee cannot open a thread in another company's name.
+        if (Capabilities::isExternalRole((string) ($actor['role'] ?? ''))) {
+            $clean['companyName'] = (string) ($actor['companyName'] ?? '');
         }
-        echo json_encode(['status' => 'success', 'message' => 'All negotiations purged']);
-        exit();
-    }
 
-    $items = isset($data[0]) ? $data : [$data];
+        // Locking is its own audited action with its own capability.
+        unset($clean['status']);
 
-    if ($pdo) {
-        try {
-            $stmt = $pdo->prepare("REPLACE INTO bueno_negotiations (id, companyName, contactName, email, loadingStation, destination, cargoType, quantity, targetDate, status, messagesText, createdAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-            foreach ($items as $item) {
-                if (!isset($item['id'])) continue;
-                $id = htmlspecialchars($item['id']);
-                $companyName = htmlspecialchars($item['companyName'] ?? ($item['company'] ?? ''));
-                $contactName = htmlspecialchars($item['contactName'] ?? '');
-                $email = htmlspecialchars(strtolower($item['email'] ?? ''));
-                $loadingStation = htmlspecialchars($item['loadingStation'] ?? 'EWK');
-                $destination = htmlspecialchars($item['destination'] ?? 'MNY');
-                $cargoType = htmlspecialchars($item['cargoType'] ?? '');
-                $quantity = htmlspecialchars($item['quantity'] ?? '5000');
-                $targetDate = htmlspecialchars($item['targetDate'] ?? '');
-                $status = htmlspecialchars($item['status'] ?? 'UNDER_NEGOTIATION');
-                $messagesText = json_encode($item['messages'] ?? []);
-                $createdAt = $item['createdAt'] ?? date('d/m/Y');
-
-                $stmt->execute([
-                    $id, $companyName, $contactName, $email, $loadingStation, $destination, $cargoType, $quantity, $targetDate, $status, $messagesText, $createdAt
-                ]);
-            }
-        } catch (Exception $e) {}
-    }
-
-    echo json_encode(['status' => 'success', 'message' => 'Negotiations updated']);
-    exit();
-}
+        return array_filter($clean, static fn($v) => $v !== null);
+    },
+]);

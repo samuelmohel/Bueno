@@ -109,6 +109,8 @@ export default function BuenoLogisticsHomePage() {
   const [requestModal, setRequestModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [provisionResult, setProvisionResult] = useState<any | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState({
     companyName: '',
     product: 'CEMENT',
@@ -121,19 +123,55 @@ export default function BuenoLogisticsHomePage() {
     notes: '',
   });
 
-  const handleSubmitRequest = (e: React.FormEvent) => {
+  /**
+   * Send a freight enquiry.
+   *
+   * This used to provision a live CUSTOMER account with a hardcoded PIN of
+   * 1111 and display it on screen. Combined with a login that accepted 1111
+   * for any account, filling in this public form granted an immediate working
+   * login to the platform. It now records an enquiry and nothing else;
+   * accounts are provisioned deliberately by staff.
+   */
+  const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.companyName.trim() || !form.email.trim()) return;
 
-    const result = StateEngine.provisionClientFromRequest(form);
-    setProvisionResult(result);
-    setSubmitted(true);
-  };
+    setSubmitting(true);
+    setSubmitError('');
 
-  const handleLaunchWorkspace = () => {
-    if (provisionResult?.user) {
-      localStorage.setItem('bueno_user', JSON.stringify(provisionResult.user));
-      window.location.href = '/dashboard';
+    try {
+      const res = await fetch('/api/client_requests.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit',
+          companyName: form.companyName,
+          industry: form.product,
+          contactName: form.contactName || form.companyName + ' Logistics Desk',
+          email: form.email,
+          phone: form.phone,
+          volume: form.volume,
+          route: form.route,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+
+      if (res.status === 429) {
+        setSubmitError('Too many enquiries from this connection. Please try again later.');
+        return;
+      }
+      if (!res.ok) {
+        setSubmitError((payload && payload.message) || 'Could not send your enquiry. Please try again.');
+        return;
+      }
+
+      setProvisionResult({ reqId: (payload && payload.id) || '', request: { ...form } });
+      setSubmitted(true);
+    } catch {
+      setSubmitError('Cannot reach the server. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -486,76 +524,65 @@ export default function BuenoLogisticsHomePage() {
               <div className="space-y-5 text-left font-sans">
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-5 rounded-2xl space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center text-lg font-black shadow-sm">
-                      
+                    <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center shadow-sm">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
                     </div>
                     <div>
-                      <span className="text-[10px] font-mono font-black text-emerald-800 uppercase">Docket: {provisionResult.reqId}</span>
-                      <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>Requisition Transmitted & Account Active</h3>
+                      {provisionResult.reqId ? (
+                        <span className="text-[10px] font-mono font-black text-emerald-800 uppercase">
+                          Reference: {provisionResult.reqId}
+                        </span>
+                      ) : null}
+                      <h3 className="text-base font-black text-slate-900">Enquiry received</h3>
                     </div>
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Your freight corridor requisition for <b>{provisionResult.request.companyName}</b> has been received and registered at the Command Center.
+                    Thank you. Your freight enquiry for <b>{provisionResult.request.companyName}</b> has
+                    reached our commercial desk.
                   </p>
                 </div>
 
-                {/* UNIQUE CLIENT CREDENTIALS CARD */}
-                <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 space-y-3 shadow-md">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-[10px] font-mono font-black text-[#62BC37] uppercase">Unique Client Credentials</span>
-                    <span className="text-[9px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800">ACTIVE SESSION</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Client Email</span>
-                      <span className="font-mono font-bold text-slate-200 truncate block">{provisionResult.user.email}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Staff / Client ID</span>
-                      <span className="font-mono font-bold text-amber-400 block">{provisionResult.staffId}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Temporary PIN</span>
-                      <span className="font-mono font-bold text-emerald-400 block">{provisionResult.pin}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase text-slate-400 block font-bold">Target Route</span>
-                      <span className="font-bold text-slate-300 truncate block">{provisionResult.request.route.split(' ')[0]}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-slate-400 bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center gap-2">
-                    
-                    <span>Transactional Email with PDF receipt dispatched to <b>{provisionResult.user.email}</b></span>
-                  </div>
+                <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">What happens next</h4>
+                  <ol className="space-y-2.5 text-xs text-slate-600">
+                    <li className="flex gap-2.5">
+                      <span className="font-mono font-black text-[#62BC37] shrink-0">1.</span>
+                      <span>Our commercial desk reviews your corridor, volume and cargo type.</span>
+                    </li>
+                    <li className="flex gap-2.5">
+                      <span className="font-mono font-black text-[#62BC37] shrink-0">2.</span>
+                      <span>
+                        We contact you on <b className="font-mono">{provisionResult.request.email}</b> to
+                        agree a freight rate.
+                      </span>
+                    </li>
+                    <li className="flex gap-2.5">
+                      <span className="font-mono font-black text-[#62BC37] shrink-0">3.</span>
+                      <span>
+                        Once terms are agreed we provision your consignee portal account and send your
+                        sign-in details securely.
+                      </span>
+                    </li>
+                  </ol>
+                  <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200">
+                    Portal accounts are created by our team rather than issued automatically, so your
+                    commercial data stays reachable only by people you have been introduced to.
+                  </p>
                 </div>
 
-                {/* ACTION BUTTONS */}
                 <div className="space-y-2 pt-1">
                   <button
-                    onClick={handleLaunchWorkspace}
-                    className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setRequestModal(false);
+                      setProvisionResult(null);
+                    }}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-all cursor-pointer"
                   >
-                    <span>Launch Industrial Client Workspace Now</span>
-                    <span>→</span>
+                    Close
                   </button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => window.print()}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition-all border border-slate-300"
-                    >
-                       Print PDF Receipt
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSubmitted(false);
-                        setRequestModal(false);
-                        setForm({ companyName: '', product: 'CEMENT', contactName: '', email: '', phone: '', volume: '500 - 1,000 Metric Tonnes (T)', trackGauge: 'STANDARD_GAUGE', route: 'PAPA → MONI (Papalanto to Moniya - Standard Gauge)', notes: '' });
-                      }}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 rounded-xl transition-all"
-                    >
-                      Close Window
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : (
@@ -686,11 +713,25 @@ export default function BuenoLogisticsHomePage() {
                   />
                 </div>
 
+                {submitError ? (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-2xl text-xs font-semibold">
+                    {submitError}
+                  </div>
+                ) : null}
+
                 <button
                   type="submit"
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1"
+                  disabled={submitting}
+                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  Submit Freight Requisition →
+                  {submitting ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Sending…</span>
+                    </>
+                  ) : (
+                    <span>Submit Freight Requisition →</span>
+                  )}
                 </button>
               </form>
             )}

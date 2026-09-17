@@ -1,56 +1,66 @@
 <?php
-require_once __DIR__ . '/db.php';
+/**
+ * Bueno Freight OS — In-app notifications
+ *
+ *   GET  /api/notifications.php[?since=]
+ *   POST /api/notifications.php {action:"upsert",   record:{...}}
+ *   POST /api/notifications.php {action:"mark_read", id:"..."}
+ *   POST /api/notifications.php {action:"mark_all_read"}
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
+declare(strict_types=1);
 
-if ($method === 'GET') {
-    $stmt = $pdo->query("SELECT * FROM bueno_notifications ORDER BY id DESC");
-    $raw = $stmt->fetchAll();
-    $result = array_map(function($r) {
-        $r['read'] = (bool)$r['readInt'];
-        unset($r['readInt']);
-        return $r;
-    }, $raw);
-    echo json_encode(['status' => 'success', 'data' => $result]);
-    exit();
+require_once __DIR__ . '/_lib/collection.php';
+
+$method = Http::method();
+$body   = $method === 'POST' ? Http::jsonBody() : [];
+$action = strtoupper((string) ($body['action'] ?? ''));
+
+if ($action === 'MARK_READ' || $action === 'MARK_ALL_READ') {
+    $actor = Auth::require();
+    $now   = gmdate('Y-m-d\TH:i:s\Z');
+
+    if ($action === 'MARK_ALL_READ') {
+        Db::conn()->prepare('UPDATE bueno_notifications SET readInt = 1, updated_at = ?')->execute([$now]);
+        Response::ok(['message' => 'All notifications marked read.']);
+    }
+
+    $data = Validator::for($body)->identifier('id', true, 100)->validated();
+    $stmt = Db::conn()->prepare('UPDATE bueno_notifications SET readInt = 1, updated_at = ? WHERE id = ?');
+    $stmt->execute([$now, $data['id']]);
+
+    if ($stmt->rowCount() === 0) {
+        Response::error('Notification not found.', 404);
+    }
+    Response::ok(['message' => 'Marked read.']);
 }
 
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
+Collection::handle([
+    'table'  => 'bueno_notifications',
+    'entity' => 'notification',
 
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        $pdo->exec("DELETE FROM bueno_notifications");
-        echo json_encode(['status' => 'success', 'message' => 'All notifications purged successfully']);
-        exit();
-    }
+    'capabilities' => [
+        // Any signed-in user may read their notification feed; 'account' is
+        // held by every role including consignees.
+        'read'   => 'account',
+        'write'  => 'analytics',
+        'delete' => 'system.purge_data',
+        'purge'  => 'system.purge_data',
+    ],
 
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid notification data']);
-        exit();
-    }
+    'orderBy' => '`id` DESC',
 
-    $notifs = isset($data[0]) ? $data : [$data];
+    'validate' => static function (array $input, array $actor): array {
+        $clean = Validator::for($input)
+            ->string('title', true, 191, 2)
+            ->string('body', false, 2000)
+            ->string('time', false, 64)
+            ->identifier('type', false, 64)
+            ->identifier('targetId', false, 191)
+            ->identifier('targetTab', false, 64)
+            ->integer('readInt', false, 0, 1)
+            ->validated();
 
-    $stmt = $pdo->prepare("REPLACE INTO bueno_notifications (id, title, body, time, type, targetId, targetTab, readInt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-
-    foreach ($notifs as $n) {
-        $id = $n['id'] ?? ('notif_' . time() . '_' . rand(100, 999));
-        $title = htmlspecialchars($n['title'] ?? 'Notification');
-        $body = htmlspecialchars($n['body'] ?? $n['message'] ?? '');
-        $timeStr = htmlspecialchars($n['time'] ?? $n['createdAt'] ?? 'Just now');
-        $type = htmlspecialchars($n['type'] ?? 'GENERAL');
-        $targetId = htmlspecialchars($n['targetId'] ?? '');
-        $targetTab = htmlspecialchars($n['targetTab'] ?? '');
-        $readInt = !empty($n['read']) ? 1 : 0;
-
-        $stmt->execute([
-            $id, $title, $body, $timeStr, $type, $targetId, $targetTab, $readInt
-        ]);
-    }
-
-    echo json_encode(['status' => 'success', 'message' => 'Notifications saved to database']);
-    exit();
-}
+        return array_filter($clean, static fn($v) => $v !== null);
+    },
+]);

@@ -1,135 +1,167 @@
 <?php
-require_once __DIR__ . '/db.php';
+/**
+ * Bueno Freight OS — Commercial freight invoices
+ *
+ *   GET  /api/invoices.php[?id=|tripId=|since=]
+ *   POST /api/invoices.php {action:"upsert", record:{...}}
+ *   POST /api/invoices.php {action:"record_payment", id:"...", amount:n, reference:"..."}
+ *   POST /api/invoices.php {action:"delete", id:"..."}
+ *
+ * Read access is capability-gated two ways: staff with the billing capability
+ * see everything, while a consignee holds only finance.invoices_view_own and
+ * is scoped in SQL to their own organisation. Previously any caller could read
+ * every invoice, and both old permission matrices granted customers
+ * finance.invoices_issue — the right to generate invoices against themselves.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
+declare(strict_types=1);
 
-if ($method === 'GET') {
-    $tripId = $_GET['tripId'] ?? '';
-    $id = $_GET['id'] ?? '';
-    $company = $_GET['company'] ?? '';
+require_once __DIR__ . '/_lib/collection.php';
 
-    if ($id !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM bueno_invoices WHERE id = ? OR invoiceNumber = ? LIMIT 1");
-        $stmt->execute([$id, $id]);
-        $row = $stmt->fetch();
-        if ($row) {
-            $row['damageDetails'] = json_decode($row['damageDetailsJson'] ?? '[]', true);
-            $row['paymentHistory'] = json_decode($row['paymentHistoryJson'] ?? '[]', true);
-            $row['items'] = json_decode($row['itemsText'] ?? '[]', true);
-            unset($row['damageDetailsJson'], $row['paymentHistoryJson'], $row['itemsText']);
-            echo json_encode(['status' => 'success', 'data' => $row]);
-            exit();
+$method = Http::method();
+$body   = $method === 'POST' ? Http::jsonBody() : [];
+$action = strtoupper((string) ($body['action'] ?? ''));
+
+// ── Record a payment against an invoice ─────────────────────────────────────
+//
+// Money movement is its own capability and its own audited action; it is not
+// an ordinary field update, so it does not go through the generic upsert.
+if ($action === 'RECORD_PAYMENT') {
+    $actor = Rbac::require('finance.payments_record');
+
+    $data = Validator::for($body)
+        ->identifier('id', true, 100)
+        ->number('amount', true, 0.01)
+        ->string('reference', false, 128)
+        ->validated();
+
+    $result = Db::transaction(static function (PDO $pdo) use ($data, $actor): array {
+        $stmt = $pdo->prepare('SELECT * FROM bueno_invoices WHERE id = ? OR invoiceNumber = ? LIMIT 1');
+        $stmt->execute([$data['id'], $data['id']]);
+        $invoice = $stmt->fetch();
+
+        if ($invoice === false) {
+            Response::error('Invoice not found.', 404);
         }
-    }
 
-    if ($tripId !== '') {
-        $stmt = $pdo->prepare("SELECT * FROM bueno_invoices WHERE tripId = ? LIMIT 1");
-        $stmt->execute([$tripId]);
-        $row = $stmt->fetch();
-        if ($row) {
-            $row['damageDetails'] = json_decode($row['damageDetailsJson'] ?? '[]', true);
-            $row['paymentHistory'] = json_decode($row['paymentHistoryJson'] ?? '[]', true);
-            $row['items'] = json_decode($row['itemsText'] ?? '[]', true);
-            unset($row['damageDetailsJson'], $row['paymentHistoryJson'], $row['itemsText']);
-            echo json_encode(['status' => 'success', 'data' => $row]);
-            exit();
+        $total    = (float) ($invoice['totalAmount'] ?? 0);
+        $paidSoFar = (float) ($invoice['amountPaid'] ?? 0);
+        $newPaid  = $paidSoFar + (float) $data['amount'];
+
+        // Overpayment is nearly always a keying error, and silently accepting
+        // it produces a negative balance that reconciliation has to chase.
+        if ($newPaid > $total + 0.01) {
+            Response::error(
+                sprintf(
+                    'Payment of %.2f exceeds the outstanding balance of %.2f.',
+                    $data['amount'],
+                    $total - $paidSoFar
+                ),
+                422
+            );
         }
-    }
 
-    $sql = "SELECT * FROM bueno_invoices";
-    $params = [];
-    if ($company !== '') {
-        $sql .= " WHERE companyName LIKE ?";
-        $params[] = "%$company%";
-    }
-    $sql .= " ORDER BY id DESC";
+        $balance = round($total - $newPaid, 2);
+        $status  = $balance <= 0.01 ? 'PAID' : 'PART_PAID';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $raw = $stmt->fetchAll();
+        $history   = json_decode((string) ($invoice['paymentHistoryJson'] ?? '[]'), true);
+        $history   = is_array($history) ? $history : [];
+        $history[] = [
+            'amount'     => (float) $data['amount'],
+            'reference'  => $data['reference'] ?? null,
+            'recordedBy' => (string) ($actor['fullName'] ?? $actor['id']),
+            'recordedAt' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
 
-    $result = array_map(function($r) {
-        $r['damageDetails'] = json_decode($r['damageDetailsJson'] ?? '[]', true);
-        $r['paymentHistory'] = json_decode($r['paymentHistoryJson'] ?? '[]', true);
-        $r['items'] = json_decode($r['itemsText'] ?? '[]', true);
-        unset($r['damageDetailsJson'], $r['paymentHistoryJson'], $r['itemsText']);
-        return $r;
-    }, $raw);
-
-    echo json_encode(['status' => 'success', 'data' => $result]);
-    exit();
-}
-
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
-
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid invoice payload']);
-        exit();
-    }
-
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        if ($pdo) { try { $pdo->exec('DELETE FROM bueno_invoices'); } catch (Exception $e) {} }
-        echo json_encode(['status' => 'success', 'message' => 'All invoices purged', 'data' => []]);
-        exit();
-    }
-
-    $invoices = isset($data[0]) ? $data : [$data];
-
-    $stmt = $pdo->prepare("REPLACE INTO bueno_invoices (
-        id, invoiceNumber, tripId, dealId, companyName, clientEmail, cargoType, route,
-        totalBags, totalTonnes, ratePerTonne, subtotal, damageUnits, damageDeduction, tax,
-        totalAmount, amountPaid, balance, status, paymentRef, damageDetailsJson, paymentHistoryJson,
-        itemsText, issueDate, dueDate, createdAt
-    ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?
-    )");
-
-    foreach ($invoices as $inv) {
-        $id = $inv['id'] ?? ('INV-' . time());
-        $invNo = $inv['invoiceNumber'] ?? $id;
-        $tripId = $inv['tripId'] ?? '';
-        $dealId = $inv['dealId'] ?? '';
-        $companyName = htmlspecialchars($inv['companyName'] ?? $inv['company'] ?? 'Client');
-        $clientEmail = htmlspecialchars($inv['clientEmail'] ?? '');
-        $cargoType = htmlspecialchars($inv['cargoType'] ?? 'Bagged Cement (50kg)');
-        $route = htmlspecialchars($inv['route'] ?? 'Ewekoro ➔ Moniya Siding');
-        $totalBags = intval($inv['totalBags'] ?? $inv['quantity'] ?? 1600);
-        $totalTonnes = floatval($inv['totalTonnes'] ?? ($totalBags * 0.05));
-        $ratePerTonne = floatval($inv['ratePerTonne'] ?? 160000);
-        $subtotal = floatval($inv['subtotal'] ?? $inv['grossAmount'] ?? ($totalBags * 8000));
-        $damageUnits = intval($inv['damageUnits'] ?? 0);
-        $damageDeduction = floatval($inv['damageDeduction'] ?? ($damageUnits * 8000));
-        $tax = floatval($inv['tax'] ?? 0);
-        $totalAmount = floatval($inv['totalAmount'] ?? $inv['netAmount'] ?? ($subtotal - $damageDeduction + $tax));
-        $amountPaid = floatval($inv['amountPaid'] ?? $inv['paidAmount'] ?? 0);
-        $balance = max(0, $totalAmount - $amountPaid);
-
-        $status = $inv['status'] ?? (
-            $balance <= 0 ? 'SETTLED' : ($amountPaid > 0 ? 'PARTIALLY_PAID' : 'ISSUED')
-        );
-
-        $paymentRef = htmlspecialchars($inv['paymentRef'] ?? '');
-        $damageDetailsJson = json_encode($inv['damageDetails'] ?? []);
-        $paymentHistoryJson = json_encode($inv['paymentHistory'] ?? []);
-        $itemsText = json_encode($inv['items'] ?? []);
-        $issueDate = htmlspecialchars($inv['issueDate'] ?? date('d/m/Y'));
-        $dueDate = htmlspecialchars($inv['dueDate'] ?? date('d/m/Y', strtotime('+14 days')));
-        $createdAt = htmlspecialchars($inv['createdAt'] ?? date('d/m/Y H:i'));
-
-        $stmt->execute([
-            $id, $invNo, $tripId, $dealId, $companyName, $clientEmail, $cargoType, $route,
-            $totalBags, $totalTonnes, $ratePerTonne, $subtotal, $damageUnits, $damageDeduction, $tax,
-            $totalAmount, $amountPaid, $balance, $status, $paymentRef, $damageDetailsJson, $paymentHistoryJson,
-            $itemsText, $issueDate, $dueDate, $createdAt
+        $pdo->prepare(
+            'UPDATE bueno_invoices
+                SET amountPaid = ?, balance = ?, status = ?, paymentRef = ?,
+                    paymentHistoryJson = ?, updated_at = ?, version = version + 1
+              WHERE id = ?'
+        )->execute([
+            $newPaid,
+            $balance,
+            $status,
+            $data['reference'] ?? ($invoice['paymentRef'] ?? null),
+            json_encode($history),
+            gmdate('Y-m-d\TH:i:s\Z'),
+            $invoice['id'],
         ]);
-    }
 
-    echo json_encode(['status' => 'success', 'message' => 'Commercial invoices saved successfully']);
-    exit();
+        return ['id' => $invoice['id'], 'amountPaid' => $newPaid, 'balance' => $balance, 'status' => $status];
+    });
+
+    Audit::record('invoice.payment', 'invoice', (string) $result['id'], Audit::SUCCESS, [
+        'amount'    => $data['amount'],
+        'reference' => $data['reference'] ?? null,
+        'balance'   => $result['balance'],
+    ], $actor);
+
+    Response::ok($result);
 }
+
+// ── Standard collection handling ────────────────────────────────────────────
+Collection::handle([
+    'table'  => 'bueno_invoices',
+    'entity' => 'invoice',
+
+    'capabilities' => [
+        // Staff reach the invoice ledger through 'billing'; a consignee
+        // reaches only their own through finance.invoices_view_own, and the
+        // scope clause below confines them to their organisation.
+        'read'   => ['billing', 'finance.invoices_view_own'],
+        'write'  => 'finance.invoices_issue',
+        'delete' => 'finance.invoices_issue',
+        'purge'  => 'system.purge_data',
+    ],
+
+    'scope'     => ['company' => 'companyName'],
+    'orderBy'   => '`updated_at` DESC, `id` DESC',
+    'versioned' => true,
+
+    'jsonColumns' => [
+        'damageDetails'  => 'damageDetailsJson',
+        'paymentHistory' => 'paymentHistoryJson',
+        'items'          => 'itemsText',
+    ],
+
+    'validate' => static function (array $input, array $actor): array {
+        // Reading an invoice is not issuing one. The generic handler already
+        // required the write capability to get here, but be explicit: a
+        // consignee must never reach this path.
+        if (Capabilities::isExternalRole((string) ($actor['role'] ?? ''))) {
+            Response::error('Consignee accounts cannot issue or modify invoices.', 403);
+        }
+
+        $clean = Validator::for($input)
+            ->identifier('invoiceNumber', false, 100)
+            ->identifier('tripId', false, 100)
+            ->identifier('dealId', false, 100)
+            ->string('companyName', true, 191)
+            ->email('clientEmail', false)
+            ->string('cargoType', false, 191)
+            ->string('route', false, 191)
+            ->integer('totalBags', false, 0)
+            ->number('totalTonnes', false, 0)
+            ->number('ratePerTonne', false, 0)
+            ->number('subtotal', false, 0)
+            ->integer('damageUnits', false, 0)
+            ->number('damageDeduction', false, 0)
+            ->number('tax', false, 0)
+            ->number('totalAmount', false, 0)
+            ->number('amountPaid', false, 0)
+            ->number('balance', false)
+            ->enum('status', ['UNPAID', 'PART_PAID', 'PAID', 'CANCELLED'], false, 'UNPAID')
+            ->string('paymentRef', false, 100)
+            ->string('issueDate', false, 64)
+            ->string('dueDate', false, 64)
+            ->validated();
+
+        // amountPaid is only ever moved by record_payment, which audits it and
+        // checks it against the balance. Accepting it here would let an
+        // invoice be marked paid with no payment record behind it.
+        unset($clean['amountPaid']);
+
+        return array_filter($clean, static fn($v) => $v !== null);
+    },
+]);

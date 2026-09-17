@@ -22,7 +22,16 @@ function TrackingContent() {
   const [error, setError] = useState<string | null>(null);
   const [trackingData, setTrackingData] = useState<any>(null);
 
-  const handleSearch = (codeToSearch: string) => {
+  /**
+   * Look up a consignment.
+   *
+   * Queries the public tracking endpoint. The previous implementation read
+   * localStorage — which is empty for an anonymous visitor, the only kind of
+   * person who uses this page — and otherwise matched three hardcoded demo
+   * references, so the advertised tracking feature never actually worked for a
+   * real customer.
+   */
+  const handleSearch = async (codeToSearch: string) => {
     const term = codeToSearch.trim().toUpperCase();
     if (!term) return;
 
@@ -30,127 +39,65 @@ function TrackingContent() {
     setError(null);
 
     try {
-      // 1. Check localStorage for trips/deals created in the application
-      let foundTrip: any = null;
-      let foundDeal: any = null;
+      const res = await fetch(`/api/public_track.php?ref=${encodeURIComponent(term)}`, {
+        cache: 'no-store',
+      });
 
-      try {
-        const storedTrips = localStorage.getItem('bueno_trips');
-        if (storedTrips) {
-          const trips: any[] = JSON.parse(storedTrips);
-          foundTrip = trips.find(
-            (t) =>
-              t.trackingId?.toUpperCase() === term ||
-              t.dealId?.toUpperCase() === term ||
-              t.trainNumber?.toUpperCase() === term ||
-              t.id?.toUpperCase() === term
-          );
-        }
-
-        const storedDeals = localStorage.getItem('bueno_deals');
-        if (storedDeals) {
-          const deals: any[] = JSON.parse(storedDeals);
-          foundDeal = deals.find(
-            (d) =>
-              d.trackingId?.toUpperCase() === term ||
-              d.id?.toUpperCase() === term
-          );
-        }
-      } catch {}
-
-      // Fallback default items tied strictly to canonical trips
-      if (!foundTrip && !foundDeal) {
-        if (term === 'BU-TRK-8839' || term === 'CN-2026-0451' || term === 'TRP-8841') {
-          foundTrip = {
-            id: 'TRP-8841',
-            trainNumber: 'TRP-8841',
-            dealId: 'CN-2026-0451',
-            trackingId: 'BU-TRK-8839',
-            clientName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)',
-            origin: 'PAPA',
-            destination: 'MONI',
-            status: 'IN_TRANSIT',
-            loco: 'NRC-2201 (Standard Gauge 1,435mm)',
-            wagons: ['PXG-4401', 'PXG-4402', 'PXG-4403'],
-            loadedQty: 18400,
-            cargoType: 'Huaxin Portland Cement (50kg bags)',
-          };
-        } else if (term === 'BU-TRK-9921' || term === 'CN-2026-0490' || term === 'TRP-9921') {
-          foundTrip = {
-            id: 'TRP-9921',
-            trainNumber: 'TRP-9921',
-            dealId: 'CN-2026-0490',
-            trackingId: 'BU-TRK-9921',
-            clientName: 'APM Terminals Ltd (APMT)',
-            origin: 'APT',
-            destination: 'MONI',
-            status: 'ARRIVED',
-            loco: 'NRC-2204 (Standard Gauge 1,435mm)',
-            wagons: ['CBX-8101', 'CBX-8102', 'CBX-8103'],
-            loadedQty: 350,
-            cargoType: 'CONTAINERS-IMPORT (40ft HC)',
-          };
-        } else if (term === 'BU-TRK-7712' || term === 'CN-2026-0438') {
-          foundDeal = {
-            id: 'CN-2026-0438',
-            trackingId: 'BU-TRK-7712',
-            clientName: 'DASCO Industries Ltd',
-            cargoType: 'WIRE COILS & STEEL PIPES',
-            quantity: '950',
-            originStation: 'IDD',
-            destStation: 'ILR',
-            status: 'DEAL_REGISTERED',
-          };
-        }
-      }
-
-      if (foundTrip) {
-        const originName = TERMINAL_NAMES[foundTrip.origin] || foundTrip.origin;
-        const destName = TERMINAL_NAMES[foundTrip.destination] || foundTrip.destination;
-
-        setTrackingData({
-          bookingCode: foundTrip.trackingId || foundTrip.dealId,
-          dealId: foundTrip.dealId,
-          trainNumber: foundTrip.trainNumber,
-          clientName: foundTrip.clientName,
-          status: foundTrip.status,
-          origin: originName,
-          destination: destName,
-          speed: foundTrip.status === 'IN_TRANSIT' ? 74 : 0,
-          signalQuality: 'GPS',
-          cargoTypeName: foundTrip.cargoType || 'Industrial Cargo Payload',
-          cargoWeightTonnes: foundTrip.loadedQty ? Math.round(foundTrip.loadedQty * 0.05) : 80,
-          loadedQty: foundTrip.loadedQty,
-          unloadedQty: foundTrip.unloadedQty,
-          loadDuration: foundTrip.loadDuration,
-          unloadDuration: foundTrip.unloadDuration,
-          discrepancy: foundTrip.discrepancy,
-          loco: foundTrip.loco,
-          wagons: foundTrip.wagons,
-        });
-      } else if (foundDeal) {
-        const originName = TERMINAL_NAMES[foundDeal.originStation] || foundDeal.originStation;
-        const destName = TERMINAL_NAMES[foundDeal.destStation] || foundDeal.destStation;
-
-        setTrackingData({
-          bookingCode: foundDeal.trackingId || foundDeal.id,
-          dealId: foundDeal.id,
-          clientName: foundDeal.clientName,
-          status: foundDeal.status,
-          origin: originName,
-          destination: destName,
-          speed: 0,
-          signalQuality: 'TERMINAL_BEACON',
-          cargoTypeName: foundDeal.cargoType || 'Industrial Freight',
-          cargoWeightTonnes: parseInt(foundDeal.quantity) ? Math.round(parseInt(foundDeal.quantity) * 0.05) : 80,
-          notes: foundDeal.notes,
-        });
-      } else {
-        setError(`No registered deal, train, or shipment found matching reference "${term}". Please check the Deal ID or Tracking ID.`);
+      if (res.status === 404) {
+        setError(
+          `No consignment found for reference "${term}". Please check the trip, ` +
+            'deal or tracking reference on your dispatch notice.'
+        );
         setTrackingData(null);
+        return;
       }
+
+      if (res.status === 429) {
+        setError('Too many lookups from this connection. Please wait a moment and try again.');
+        setTrackingData(null);
+        return;
+      }
+
+      if (!res.ok) {
+        setError('Tracking is temporarily unavailable. Please try again shortly.');
+        setTrackingData(null);
+        return;
+      }
+
+      const payload = await res.json();
+      const d = payload?.data;
+      if (!d) {
+        setError(`No consignment found for reference "${term}".`);
+        setTrackingData(null);
+        return;
+      }
+
+      const quantity = Number(d.quantity) || 0;
+      const isBags = String(d.unit ?? '').toLowerCase().includes('bag');
+
+      setTrackingData({
+        bookingCode: d.reference,
+        dealId: d.dealNumber,
+        trainNumber: d.reference,
+        clientName: d.consignee,
+        status: d.tripStatus,
+        origin: d.origin,
+        destination: d.destination,
+        speed: d.position?.speed ?? 0,
+        signalQuality: d.position?.lat ? 'GPS' : 'TERMINAL_BEACON',
+        cargoTypeName: d.cargoType || 'Industrial cargo',
+        // A 50kg bag is 0.05 tonnes; tonnage values pass through unchanged.
+        cargoWeightTonnes: isBags ? Math.round(quantity * 0.05) : quantity,
+        loadedQty: quantity,
+        curLat: d.position?.lat ?? null,
+        curLng: d.position?.lng ?? null,
+        breadcrumbs: d.breadcrumbs ?? [],
+        departedAt: d.departedAt,
+        completedAt: d.completedAt,
+        lastUpdated: d.lastUpdated,
+      });
     } catch {
-      setError(`Error fetching telemetry for reference "${term}".`);
+      setError('Cannot reach the tracking service. Please check your connection.');
       setTrackingData(null);
     } finally {
       setLoading(false);
@@ -266,29 +213,22 @@ function TrackingContent() {
           </div>
         )}
 
-        {!trackingData && !loading && (
+        {!trackingData && !loading && !error && (
           <div className="bg-white rounded-3xl border border-slate-200 p-8 text-center max-w-xl mx-auto shadow-sm">
-            <h3 className="text-sm font-black text-slate-800 mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}>Quick Demo Search References</h3>
-            <p className="text-xs text-slate-500 mb-4">Click any reference code below to test instant live corridor tracking:</p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                { code: 'TRP-8841', label: 'Train Number (HBM Cement)' },
-                { code: 'TRP-9921', label: 'Train Number (APMT Containers)' },
-                { code: 'BU-TRK-8839', label: 'Tracking ID (HBM)' },
-                { code: 'CN-2026-0451', label: 'Deal ID (HBM)' },
-              ].map(({ code, label }) => (
-                <button
-                  key={code}
-                  onClick={() => {
-                    setInputCode(code);
-                    handleSearch(code);
-                  }}
-                  className="bg-slate-100 hover:bg-amber-100 hover:border-amber-300 border border-slate-200 text-slate-900 font-mono font-bold text-xs px-3.5 py-2 rounded-xl transition-all"
-                >
-                  {code} <span className="text-[10px] font-sans font-medium text-slate-500">({label})</span>
-                </button>
-              ))}
-            </div>
+            <h3 className="text-sm font-black text-slate-800 mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              Where to find your reference
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Your trip reference appears on the dispatch notice emailed when your
+              consignment departs, and on the waybill issued at the loading siding.
+              It looks like <span className="font-mono font-bold text-slate-800">TRP-8841</span>.
+            </p>
+            <p className="text-xs text-slate-400 mt-3">
+              Consignees with a portal account can see full consignment history after{' '}
+              <Link href="/auth/login" className="text-[#0E4B88] font-semibold hover:underline">
+                signing in
+              </Link>.
+            </p>
           </div>
         )}
       </div>

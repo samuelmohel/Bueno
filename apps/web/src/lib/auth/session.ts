@@ -17,6 +17,8 @@ import {
   type Session,
   type SessionUser,
 } from '@/lib/apiClient';
+
+export type { Session, SessionUser };
 import { resolveTabCapability } from '@/lib/rbac/capabilities';
 
 const EMPTY: Session = { authenticated: false, user: null, capabilities: [], scope: null };
