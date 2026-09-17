@@ -4,16 +4,19 @@
   "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "npx turbo run dev",
-    "build": "npx turbo run build",
-    "db:init": "cd apps/api && node prisma/init-db.js",
-    "db:seed": "cd apps/api && npx ts-node prisma/seed.ts",
-    "db:reset": "npm run db:init && npm run db:seed",
-    "db:studio": "cd apps/api && npx prisma studio"
+    "build": "npm run rbac:check && npx turbo run build",
+    "rbac:generate": "tsx scripts/generate-rbac.ts write",
+    "rbac:check": "tsx scripts/generate-rbac.ts check",
+    "db:migrate": "php apps/web/public/api/_lib/migrate.php up",
+    "db:status": "php apps/web/public/api/_lib/migrate.php status",
+    "php:lint": "tsx scripts/php-lint.ts",
+    "test": "tsx --test scripts/tests/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.13",
     "turbo": "^2.0.0",
     "typescript": "^5.9.3"
   },

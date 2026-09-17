@@ -1,0 +1,43 @@
+# API surface hardening.
+
+# Never serve raw data files that live alongside the endpoints: the SQLite
+# fallback database, the legacy JSON stores, and any .env that gets deployed
+# here by mistake. Previously bueno.sqlite and bueno_trips_store.json sat in a
+# web-served directory and could be downloaded whole.
+<FilesMatch "\.(sqlite|sqlite3|db|json|env|sql|log|md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block dotfiles.
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Some cPanel/CGI configurations drop the Authorization header before PHP sees
+# it, which would silently break bearer-token auth. Re-expose it.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} ^(.+)$
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%1]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>
+
+# Directory listings off.
+Options -Indexes
