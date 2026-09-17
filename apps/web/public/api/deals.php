@@ -1,134 +1,65 @@
 <?php
-require_once __DIR__ . '/db.php';
+/**
+ * Bueno Freight OS — Commercial freight deals
+ *
+ *   GET  /api/deals.php[?id=|since=]
+ *   POST /api/deals.php {action:"upsert", record:{...}}
+ *   POST /api/deals.php {action:"delete", id:"..."}
+ *   POST /api/deals.php {action:"purge_all", confirm:"bueno_deals"}
+ *
+ * The previous version returned every consignee's contracts to anyone, and
+ * rewrote company and cargo names on every read through a chain of
+ * rebranding rules that contradicted the ones in db.php. That rewriting is now
+ * a one-off data migration, not a per-request transform.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
-$storeFile = __DIR__ . '/bueno_deals_store.json';
+declare(strict_types=1);
 
-function getDealsFromFile($file) {
-    if (file_exists($file) && is_readable($file)) {
-        $content = file_get_contents($file);
-        $decoded = json_decode($content, true);
-        if (is_array($decoded)) return $decoded;
-    }
-    return [];
-}
+require_once __DIR__ . '/_lib/collection.php';
 
-function saveDealsToFile($file, $deals) {
-    try {
-        file_put_contents($file, json_encode(array_values($deals), JSON_PRETTY_PRINT));
-    } catch (Exception $e) {}
-}
+Collection::handle([
+    'table'  => 'bueno_deals',
+    'entity' => 'deal',
 
-if ($method === 'GET') {
-    $result = [];
-    $hasDb = false;
+    'capabilities' => [
+        'read'   => 'deals.view',
+        'write'  => 'deals.create',
+        'delete' => 'deals.delete',
+        'purge'  => 'system.purge_data',
+    ],
 
-    if ($pdo) {
-        try {
-            $stmt = $pdo->query("SELECT * FROM bueno_deals ORDER BY id DESC");
-            $result = $stmt->fetchAll();
-            $hasDb = true;
-        } catch (Exception $e) {}
-    }
+    'scope'     => ['company' => 'company'],
+    'orderBy'   => '`updated_at` DESC, `id` DESC',
+    'versioned' => true,
 
-    // Only fallback to file store if database connection failed entirely
-    if (!$hasDb) {
-        $result = getDealsFromFile($storeFile);
-    }
+    'validate' => static function (array $input, array $actor): array {
+        $clean = Validator::for($input)
+            ->identifier('dealNumber', false, 100)
+            ->string('company', true, 191)
+            ->identifier('loadingStation', false, 50)
+            ->identifier('destination', false, 50)
+            ->string('cargoType', false, 191)
+            ->string('quantity', false, 100)
+            ->enum('status', ['ACTIVE', 'PARTIALLY_DISPATCHED', 'COMPLETED', 'CANCELLED'], false, 'ACTIVE')
+            ->identifier('tripId', false, 100)
+            ->string('createdBy', false, 191)
+            ->string('createdAt', false, 64)
+            ->validated();
 
-    $sanitized = array_map(function($d) {
-        if (isset($d['company']) && stripos($d['company'], 'Lafarge') !== false) {
-            $d['company'] = 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)';
-        }
-        if (isset($d['company']) && stripos($d['company'], 'Dangote') !== false) {
-            $d['company'] = 'Purechem Cement Industries Ltd';
-        }
-        if (isset($d['cargoType']) && stripos($d['cargoType'], 'Elephant') !== false) {
-            $d['cargoType'] = 'Huaxin Portland Cement (50kg)';
-        }
-        return $d;
-    }, $result);
-
-    echo json_encode([
-        'status' => 'success',
-        'data' => array_values($sanitized),
-        'serverTime' => gmdate('Y-m-d\\TH:i:s\\Z'),
-        'count' => count($sanitized)
-    ]);
-    exit();
-}
-
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
-
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid deal data']);
-        exit();
-    }
-
-    // Purge all deals
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        @unlink($storeFile);
-        if ($pdo) {
-            try {
-                $pdo->exec("DELETE FROM bueno_deals");
-            } catch (Exception $e) {}
-        }
-        echo json_encode(['status' => 'success', 'message' => 'All deals purged successfully', 'data' => []]);
-        exit();
-    }
-
-    // Delete single deal
-    if (isset($data['action']) && $data['action'] === 'DELETE' && isset($data['id'])) {
-        $existing = getDealsFromFile($storeFile);
-        $filtered = array_filter($existing, function($d) use ($data) {
-            return ($d['id'] ?? '') !== $data['id'] && ($d['dealNumber'] ?? '') !== $data['id'];
-        });
-        saveDealsToFile($storeFile, $filtered);
-
-        if ($pdo) {
-            try {
-                $stmt = $pdo->prepare("DELETE FROM bueno_deals WHERE id = ? OR dealNumber = ?");
-                $stmt->execute([$data['id'], $data['id']]);
-            } catch (Exception $e) {}
-        }
-        echo json_encode(['status' => 'success', 'message' => 'Deal deleted successfully']);
-        exit();
-    }
-
-    $deals = isset($data[0]) ? $data : [$data];
-
-    // Save authoritative array to JSON file store
-    saveDealsToFile($storeFile, $deals);
-
-    // Save to SQL Database
-    if ($pdo) {
-        try {
-            $stmt = $pdo->prepare("REPLACE INTO bueno_deals (id, dealNumber, company, loadingStation, destination, cargoType, quantity, status, tripId, createdBy, createdAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-            foreach ($deals as $d) {
-                $id = $d['id'] ?? ('DEAL-' . rand(100, 999));
-                $dealNumber = htmlspecialchars($d['dealNumber'] ?? $id);
-                $company = htmlspecialchars($d['company'] ?? $d['companyName'] ?? 'Client');
-                $loadingStation = htmlspecialchars($d['loadingStation'] ?? 'EWK');
-                $destination = htmlspecialchars($d['destination'] ?? 'MNY');
-                $cargoType = htmlspecialchars($d['cargoType'] ?? 'Cement');
-                $quantity = htmlspecialchars($d['quantity'] ?? '1610');
-                $status = htmlspecialchars($d['status'] ?? 'ACTIVE');
-                $tripId = isset($d['tripId']) ? htmlspecialchars($d['tripId']) : null;
-                $createdBy = htmlspecialchars($d['createdBy'] ?? 'Admin');
-                $createdAt = htmlspecialchars($d['createdAt'] ?? date('d/m/Y H:i'));
-
-                $stmt->execute([
-                    $id, $dealNumber, $company, $loadingStation, $destination, $cargoType, $quantity, $status, $tripId, $createdBy, $createdAt
-                ]);
+        // Moving a deal to ACTIVE is the authorization to start loading it, so
+        // it needs the approval capability rather than plain create rights.
+        if (($clean['status'] ?? null) === 'ACTIVE' && !Rbac::can($actor, 'deals.approve')) {
+            $existingStatus = $input['__existingStatus'] ?? null;
+            if ($existingStatus !== 'ACTIVE') {
+                Response::error('Approving a deal for loading requires the deals.approve capability.', 403);
             }
-        } catch (Exception $e) {}
-    }
+        }
 
-    echo json_encode(['status' => 'success', 'message' => 'Deals updated successfully', 'count' => count($deals)]);
-    exit();
-}
+        // Record who raised it, from the session rather than the payload.
+        if (($clean['createdBy'] ?? null) === null) {
+            $clean['createdBy'] = (string) ($actor['fullName'] ?? $actor['id'] ?? 'system');
+        }
+
+        return array_filter($clean, static fn($v) => $v !== null);
+    },
+]);

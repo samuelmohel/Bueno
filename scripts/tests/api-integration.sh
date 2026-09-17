@@ -110,6 +110,11 @@ r=$(req POST /api/permissions.php '{"matrix":{"ADMIN":["analytics"],"CEO":["anal
 check "matrix change that would lock everyone out is refused" 422 "$(code_of "$r")"
 check_contains "refusal explains the lockout" "locking everyone out" "$(body_of "$r")"
 
+# The matrix is persistent server state and the assertions above deliberately
+# rewrote it. Restore defaults so later suites are not silently affected.
+r=$(req POST /api/permissions.php '{"action":"RESET_DEFAULTS"}' "$ADMIN_TOKEN")
+check "matrix restored to defaults" 200 "$(code_of "$r")"
+
 echo
 echo "=== 6. Logout revokes immediately ==="
 r=$(req POST /api/auth.php '{"action":"logout"}' "$CUST_TOKEN")

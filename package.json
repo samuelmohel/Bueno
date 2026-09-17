@@ -10,7 +10,8 @@
     "db:migrate": "php apps/web/public/api/_lib/migrate.php up",
     "db:status": "php apps/web/public/api/_lib/migrate.php status",
     "php:lint": "tsx scripts/php-lint.ts",
-    "test": "tsx --test scripts/tests/*.test.ts"
+    "test": "bash scripts/tests/run-all.sh",
+    "test:rbac": "tsx --test scripts/tests/rbac.test.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

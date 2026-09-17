@@ -208,7 +208,7 @@ const EXECUTIVE_GRANT = ALL_CAPABILITY_KEYS.filter(
 
 const OPERATIONS_GRANT = [
   'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet',
-  'terminal_info', 'moniya', 'telemetry', 'manifest',
+  'terminal_info', 'moniya', 'telemetry', 'manifest', 'account',
   'deals.view', 'deals.edit', 'deals.approve', 'deals.export',
   'negotiation.view', 'negotiation.message', 'negotiation.lock',
   'ops.manifest_view', 'ops.dispatch', 'ops.loading_update',
@@ -220,7 +220,7 @@ const OPERATIONS_GRANT = [
 ];
 
 const FINANCE_GRANT = [
-  'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing', 'manifest',
+  'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing', 'manifest', 'account',
   'deals.view', 'deals.export',
   'negotiation.view',
   'ops.manifest_view', 'ops.damage_audit',
@@ -237,7 +237,7 @@ const ACCOUNTANT_GRANT = FINANCE_GRANT.filter(
 );
 
 const CARGO_OFFICER_GRANT = [
-  'deals', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'fund_requisitions',
+  'deals', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'fund_requisitions', 'account',
   'deals.view',
   'ops.manifest_view', 'ops.loading_update', 'ops.unloading_confirm',
   'ops.damage_audit', 'ops.gps_telemetry',

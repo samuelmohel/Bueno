@@ -1,57 +1,127 @@
-﻿<?php
-require_once __DIR__ . '/db.php';
+<?php
+/**
+ * Bueno Freight OS — Inbound freight enquiries
+ *
+ *   GET  /api/client_requests.php            staff only
+ *   POST /api/client_requests.php {action:"submit", ...}   PUBLIC
+ *   POST /api/client_requests.php {action:"update_status", id, status}
+ *
+ * The submit action is deliberately unauthenticated: it is the public "request
+ * a quote" form, and a prospective customer has no account yet. That makes it
+ * the one genuinely open write on the platform, so it is rate limited per
+ * address, size capped, and cannot set its own status.
+ */
 
-$pdo = getDbConnection();
-$method = $_SERVER['REQUEST_METHOD'];
+declare(strict_types=1);
 
-if ($method === 'GET') {
-    try {
-        $stmt = $pdo->query("SELECT * FROM bueno_client_requests ORDER BY id DESC");
-        $raw = $stmt->fetchAll();
-        echo json_encode(['status' => 'success', 'data' => $raw]);
-    } catch (Exception $e) {
-        echo json_encode(['status' => 'success', 'data' => []]);
-    }
-    exit();
+require_once __DIR__ . '/_lib/collection.php';
+
+$method = Http::method();
+$body   = $method === 'POST' ? Http::jsonBody() : [];
+$action = strtoupper((string) ($body['action'] ?? ''));
+
+// ── Public enquiry submission ───────────────────────────────────────────────
+if ($action === 'SUBMIT') {
+    // Without this, the endpoint is a free-form insert into your database for
+    // anyone with curl.
+    RateLimit::enforce('enquiry:' . Http::clientIp(), Config::int('ENQUIRY_RATE', 5), 3600);
+
+    $data = Validator::for($body)
+        ->string('companyName', true, 191, 2)
+        ->string('industry', false, 100)
+        ->string('contactName', true, 191, 2)
+        ->email('email', true)
+        ->string('phone', false, 32)
+        ->string('volume', false, 100)
+        ->string('route', false, 191)
+        ->validated();
+
+    $id  = 'creq_' . bin2hex(random_bytes(8));
+    $now = gmdate('Y-m-d\TH:i:s\Z');
+
+    Db::conn()->prepare(
+        'INSERT INTO bueno_client_requests
+            (id, companyName, industry, contactName, email, phone, volume, route, status, createdAt, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([
+        $id,
+        $data['companyName'],
+        $data['industry'],
+        $data['contactName'],
+        $data['email'],
+        $data['phone'],
+        $data['volume'],
+        $data['route'],
+        'PENDING',   // never taken from the payload
+        $now,
+        $now,
+    ]);
+
+    Audit::record('enquiry.submit', 'client_request', $id, Audit::SUCCESS, [
+        'company' => $data['companyName'],
+    ], null);
+
+    // No account is provisioned here. The previous flow generated a staff ID
+    // and PIN on submission and emailed them, which meant anyone could mint a
+    // working login for an arbitrary address. Provisioning is now a deliberate
+    // act performed through users.php by someone holding users.create.
+    Response::json([
+        'status'  => 'success',
+        'id'      => $id,
+        'message' => 'Thank you. Our commercial desk will be in touch shortly.',
+    ], 201);
 }
 
-if ($method === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $data = json_decode($rawInput, true);
+// ── Staff: triage an enquiry ────────────────────────────────────────────────
+if ($action === 'UPDATE_STATUS') {
+    $actor = Rbac::require('negotiation.view');
 
-    if (isset($data['action']) && $data['action'] === 'PURGE_ALL') {
-        $pdo->exec("DELETE FROM bueno_client_requests");
-        echo json_encode(['status' => 'success', 'message' => 'All client requests purged successfully']);
-        exit();
+    $data = Validator::for($body)
+        ->identifier('id', true, 100)
+        ->enum('status', ['PENDING', 'CONTACTED', 'CONVERTED', 'DECLINED'], true)
+        ->validated();
+
+    $stmt = Db::conn()->prepare(
+        'UPDATE bueno_client_requests SET status = ?, updated_at = ? WHERE id = ?'
+    );
+    $stmt->execute([$data['status'], gmdate('Y-m-d\TH:i:s\Z'), $data['id']]);
+
+    if ($stmt->rowCount() === 0) {
+        Response::error('Enquiry not found.', 404);
     }
 
-    if (!$data) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid client request data']);
-        exit();
-    }
+    Audit::record('enquiry.triage', 'client_request', $data['id'], Audit::SUCCESS, [
+        'status' => $data['status'],
+    ], $actor);
 
-    $requests = isset($data[0]) ? $data : [$data];
-
-    $stmt = $pdo->prepare("REPLACE INTO bueno_client_requests (id, companyName, industry, contactName, email, phone, volume, route, status, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-    foreach ($requests as $r) {
-        $id = $r['id'] ?? ('CRQ-' . time() . '-' . rand(100, 999));
-        $companyName = htmlspecialchars($r['companyName'] ?? $r['company'] ?? 'Industrial Consignee Client');
-        $industry = htmlspecialchars($r['industry'] ?? 'Manufacturing & Construction');
-        $contactName = htmlspecialchars($r['contactName'] ?? 'Logistics Manager');
-        $email = htmlspecialchars($r['email'] ?? '');
-        $phone = htmlspecialchars($r['phone'] ?? '');
-        $volume = htmlspecialchars($r['volume'] ?? ($r['quantity'] ?? '2,000 Bags'));
-        $route = htmlspecialchars($r['route'] ?? 'Ewekoro ➔ Moniya Siding');
-        $status = htmlspecialchars($r['status'] ?? 'PENDING');
-        $createdAt = htmlspecialchars($r['createdAt'] ?? date('d/m/Y, H:i'));
-
-        $stmt->execute([
-            $id, $companyName, $industry, $contactName, $email, $phone, $volume, $route, $status, $createdAt
-        ]);
-    }
-
-    echo json_encode(['status' => 'success', 'message' => 'Client request saved to SQL database']);
-    exit();
+    Response::ok(['message' => 'Enquiry updated.']);
 }
+
+Collection::handle([
+    'table'  => 'bueno_client_requests',
+    'entity' => 'enquiry',
+
+    'capabilities' => [
+        'read'   => 'negotiation.view',
+        'write'  => 'negotiation.view',
+        'delete' => 'system.purge_data',
+        'purge'  => 'system.purge_data',
+    ],
+
+    'orderBy' => '`createdAt` DESC, `id` DESC',
+
+    'validate' => static function (array $input, array $actor): array {
+        $clean = Validator::for($input)
+            ->string('companyName', true, 191, 2)
+            ->string('industry', false, 100)
+            ->string('contactName', false, 191)
+            ->email('email', false)
+            ->string('phone', false, 32)
+            ->string('volume', false, 100)
+            ->string('route', false, 191)
+            ->enum('status', ['PENDING', 'CONTACTED', 'CONVERTED', 'DECLINED'], false, 'PENDING')
+            ->validated();
+
+        return array_filter($clean, static fn($v) => $v !== null);
+    },
+]);
