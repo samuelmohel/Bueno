@@ -13,3 +13,6 @@ ios/
 
 # Claude Code personal settings (machine-local, not for the team)
 .claude/settings.local.json
+
+# TypeScript incremental build cache (caches stale diagnostics if committed)
+*.tsbuildinfo

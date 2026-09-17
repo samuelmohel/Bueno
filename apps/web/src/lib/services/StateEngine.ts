@@ -1,9 +1,29 @@
 /**
- * BUENO FREIGHT OS — CENTRALIZED ENTERPRISE STATE ENGINE
- * Authoritative Data Repository & Real-time State Synchronization Layer
+ * BUENO FREIGHT OS — STATE ENGINE
+ *
+ * Application data layer. The public surface is unchanged so the portals keep
+ * working, but what sits underneath is different in one important way: the
+ * server is now the source of truth.
+ *
+ * Previously localStorage *was* the database. Reads returned whatever the
+ * browser happened to hold, writes pushed whole collections at the server
+ * fire-and-forget, permissions were computed from a client-side matrix a user
+ * could simply edit, and every open tab re-fetched all seven collections every
+ * five seconds.
+ *
+ * Now: reads come from server-synced caches, writes are per-record with
+ * conflict detection, and capability checks ask the session — the same
+ * authority the API enforces — so the UI cannot claim a permission the server
+ * will refuse.
+ *
+ * localStorage survives only as an offline read-through, so a dropped
+ * connection shows the last known data instead of a blank screen.
  */
 
-import { bookingsApi, usersApi } from '@/lib/api';
+import { CollectionStore, notifyStateChanged, type Row } from '@/lib/services/dataStore';
+import { api, ApiError } from '@/lib/apiClient';
+import * as session from '@/lib/auth/session';
+import { resolveTabCapability, normalizeMatrix } from '@/lib/rbac/capabilities';
 
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
 export const OFFICIAL_PXG_CODES = [
@@ -275,270 +295,246 @@ export const SEED_BANK_ACCOUNTS: BankAccount[] = [
 ];
 
 // ─── STATE ENGINE SERVICE ───────────────────────────────────────────────────
+
+/**
+ * Server-backed collections.
+ *
+ * Each maps a legacy localStorage key onto an API endpoint, so the existing
+ * getters and setters keep their signatures while the data behind them becomes
+ * authoritative.
+ */
+const STORES: Record<string, CollectionStore> = {
+  bueno_trips: new CollectionStore({ endpoint: 'trips.php', cacheKey: 'bueno_trips' }),
+  bueno_deals: new CollectionStore({ endpoint: 'deals.php', cacheKey: 'bueno_deals' }),
+  bueno_wagons: new CollectionStore({ endpoint: 'wagons.php', cacheKey: 'bueno_wagons' }),
+  bueno_requests: new CollectionStore({ endpoint: 'requests.php', cacheKey: 'bueno_requests' }),
+  bueno_invoices: new CollectionStore({ endpoint: 'invoices.php', cacheKey: 'bueno_invoices' }),
+  bueno_trip_costs: new CollectionStore({ endpoint: 'trip_costs.php', cacheKey: 'bueno_trip_costs' }),
+  bueno_custom_deal_negotiations: new CollectionStore({
+    endpoint: 'negotiations.php',
+    cacheKey: 'bueno_custom_deal_negotiations',
+  }),
+  bueno_client_requests: new CollectionStore({
+    endpoint: 'client_requests.php',
+    cacheKey: 'bueno_client_requests',
+  }),
+  bueno_notifications: new CollectionStore({
+    endpoint: 'notifications.php',
+    cacheKey: 'bueno_notifications',
+  }),
+  bueno_users: new CollectionStore({ endpoint: 'users.php', cacheKey: 'bueno_users' }),
+};
+
+/**
+ * Collections with no server endpoint yet, which remain browser-local.
+ *
+ * Stated explicitly rather than left looking server-backed: the container
+ * yard, gate log and accounting ledgers live per-browser until endpoints exist
+ * for them, so they do not follow a user to another device and are not shared
+ * between colleagues.
+ */
+/** Reverse lookup used by the postRemote compatibility shim. */
+const ENDPOINT_TO_KEY: Record<string, string> = {
+  'trips.php': 'bueno_trips',
+  'deals.php': 'bueno_deals',
+  'wagons.php': 'bueno_wagons',
+  'requests.php': 'bueno_requests',
+  'invoices.php': 'bueno_invoices',
+  'trip_costs.php': 'bueno_trip_costs',
+  'negotiations.php': 'bueno_custom_deal_negotiations',
+  'client_requests.php': 'bueno_client_requests',
+  'notifications.php': 'bueno_notifications',
+  'users.php': 'bueno_users',
+};
+
+const LOCAL_ONLY_KEYS = new Set([
+  'bueno_containers',
+  'bueno_gate_logs',
+  'bueno_chart_of_accounts',
+  'bueno_journal_entries',
+  'bueno_bank_accounts',
+  'bueno_system_settings',
+]);
+
+/** Surfaces a failed background write instead of losing it silently. */
+function reportWriteFailure(key: string, err: ApiError): void {
+  console.error(`[StateEngine] could not save ${key}: ${err.message}`);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('bueno_write_failed', {
+        detail: { collection: key, message: err.message, status: err.status },
+      })
+    );
+  }
+}
+
 class StateEngineService {
   private notifyListeners() {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_state_updated'));
-    }
+    notifyStateChanged();
   }
 
+  /**
+   * Compatibility shim for call sites that still speak the old
+   * "POST this at that endpoint" style.
+   *
+   * Routes to the matching store so the write goes through per-record upsert
+   * with its conflict check, rather than the old fire-and-forget whole-array
+   * POST that discarded both errors and other people's edits.
+   */
+  private postRemote(url: string, data: any): void {
+    const key = ENDPOINT_TO_KEY[url.replace(/^\/api\//, '').replace(/^\//, '')];
+    const store = key ? STORES[key] : undefined;
+    if (!store) {
+      console.warn(`[StateEngine] no store for ${url}; write ignored`);
+      return;
+    }
+
+    const onError = (err: unknown) => {
+      if (err instanceof ApiError) reportWriteFailure(key!, err);
+      else console.error(`[StateEngine] write failed for ${url}`, err);
+    };
+
+    if (data && data.action === 'delete' && data.id) {
+      void store.remove(data.id).catch(onError);
+      return;
+    }
+    if (Array.isArray(data)) {
+      void store.saveAll(data).catch(onError);
+      return;
+    }
+    void store.upsert(data).catch(onError);
+  }
+
+
+  /**
+   * Read a collection.
+   *
+   * Server-backed keys come from their store; everything else falls back to
+   * localStorage. Synchronous, because portals read during render.
+   */
   private readStorage<T>(key: string, fallback: T): T {
+    const store = STORES[key];
+    if (store) {
+      const rows = store.all();
+      // Before the first sync lands, show static reference data (the wagon
+      // registry) rather than an empty screen. Operational collections seed
+      // empty, so this does not invent trips or deals.
+      if (rows.length === 0 && Array.isArray(fallback) && fallback.length > 0) {
+        return fallback;
+      }
+      return rows as unknown as T;
+    }
+
     if (typeof window === 'undefined') return fallback;
     try {
-      let item = localStorage.getItem(key);
-      if (item && (item.includes('Lafarge Africa') || item.includes('logistics@lafarge.ng') || item.includes('Elephant Cement') || item.includes('freight@dangotecement.ng') || item.includes('Dangote Cement Industry') || item.includes('Purechem Cement') || item.includes('logistics@buacement.ng'))) {
-        item = item
-          .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-          .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
-          .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
-          .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
-          .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
-          .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
-          .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
-          .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
-          .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
-          .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
-          .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
-          .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
-          .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
-          .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-          .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-          .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
-          .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng');
-        localStorage.setItem(key, item);
-      }
-      return item ? JSON.parse(item) : fallback;
+      const item = localStorage.getItem(key);
+      return item ? (JSON.parse(item) as T) : fallback;
     } catch {
       return fallback;
     }
   }
 
-  private writeStorage(key: string, value: any) {
+  /**
+   * Write a collection.
+   *
+   * For server-backed keys this diffs against the last known server state and
+   * sends only the records that changed. The previous implementation pushed
+   * the whole collection on every save, so two people editing different
+   * records silently overwrote one another.
+   */
+  private writeStorage(key: string, value: any): void {
+    const store = STORES[key];
+    if (store && Array.isArray(value)) {
+      void store.saveAll(value).catch((err) => {
+        if (err instanceof ApiError) {
+          reportWriteFailure(key, err);
+        } else {
+          console.error(`[StateEngine] save failed for ${key}`, err);
+        }
+      });
+      return;
+    }
+
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(key, JSON.stringify(value));
       this.notifyListeners();
-    } catch {}
-  }
-
-  private postRemote(url: string, data: any) {
-    if (typeof window === 'undefined') return;
-    try {
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        keepalive: true,
-      }).catch(() => {});
-    } catch {}
-  }
-
-  private _isSyncing = false;
-  async syncRemote(): Promise<void> {
-    if (typeof window === 'undefined' || this._isSyncing) return;
-    this._isSyncing = true;
-    try {
-      // 1. Authoritative REST Sync with cPanel Deals Endpoint
-      try {
-        const dealsRes = await fetch('/api/deals.php', { cache: 'no-store' });
-        if (dealsRes.ok) {
-          const json = await dealsRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_deals', json.data);
-          }
-        }
-      } catch {}
-
-      // 2. Authoritative REST Sync with cPanel Trips Endpoint
-      try {
-        const tripsRes = await fetch('/api/trips.php', { cache: 'no-store' });
-        if (tripsRes.ok) {
-          const json = await tripsRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_trips', json.data);
-          }
-        }
-      } catch {}
-
-      // 3. Sync Invoices from cPanel
-      try {
-        const invRes = await fetch('/api/invoices.php', { cache: 'no-store' });
-        if (invRes.ok) {
-          const json = await invRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_invoices', json.data);
-          }
-        }
-      } catch {}
-
-      // 4. Sync Trip Costs from cPanel
-      try {
-        const costsRes = await fetch('/api/trip_costs.php', { cache: 'no-store' });
-        if (costsRes.ok) {
-          const json = await costsRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_trip_costs', json.data);
-          }
-        }
-      } catch {}
-
-      // 5. Sync Fund Requests from cPanel
-      try {
-        const reqRes = await fetch('/api/requests.php', { cache: 'no-store' });
-        if (reqRes.ok) {
-          const json = await reqRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_requests', json.data);
-          }
-        }
-      } catch {}
-
-      // 6. Sync Client Requests from cPanel
-      try {
-        const clRes = await fetch('/api/client_requests.php', { cache: 'no-store' });
-        if (clRes.ok) {
-          const json = await clRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_client_requests', json.data);
-          }
-        }
-      } catch {}
-
-      // 7. Sync Notifications from cPanel
-      try {
-        const notifRes = await fetch('/api/notifications.php', { cache: 'no-store' });
-        if (notifRes.ok) {
-          const json = await notifRes.json();
-          if (json && json.status === 'success' && Array.isArray(json.data)) {
-            this.writeStorage('bueno_notifications', json.data);
-          }
-        }
-      } catch {}
-
-      // 4. Sync Permissions & System Settings
-      try {
-        const permsRes = await fetch('/api/permissions.php', { cache: 'no-store' });
-        if (permsRes.ok) {
-          const json = await permsRes.json();
-          if (json && json.status === 'success') {
-            if (json.matrix) this.writeStorage('bueno_role_permissions', json.matrix);
-            if (json.settings) this.writeStorage('bueno_system_settings', json.settings);
-          }
-        }
-      } catch {}
-
-      this.notifyListeners();
-    } catch {} finally {
-      this._isSyncing = false;
+    } catch {
+      /* storage full or unavailable */
     }
   }
 
-
-  cleanseLafargeAndMigrateHbm(): void {
+  /** Refresh every server-backed collection. */
+  async syncRemote(): Promise<void> {
     if (typeof window === 'undefined') return;
-    try {
-      const keys = [
-        'bueno_user',
-        'bueno_users',
-        'bueno_deals',
-        'bueno_custom_deal_negotiations',
-        'bueno_trips',
-        'bueno_invoices',
-        'bueno_requests',
-        'bueno_notifications',
-        'bueno_containers',
-      ];
-      let changed = false;
-      keys.forEach((k) => {
-        const val = localStorage.getItem(k);
-        if (val && (val.includes('Lafarge Africa') || val.includes('logistics@lafarge.ng') || val.includes('Elephant Cement') || val.includes('freight@dangotecement.ng') || val.includes('Dangote Cement Industry') || val.includes('Purechem Cement') || val.includes('logistics@buacement.ng'))) {
-          const sanitized = val
-            .replace(/Lafarge Africa Plc/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-            .replace(/Lafarge Africa/gi, 'HBM (Huaxin Building Materials Nig Plc)')
-            .replace(/Lafarge Logistics Desk/gi, 'Huaxin Logistics Desk')
-            .replace(/logistics@lafarge\.ng/gi, 'logistics@hbm.ng')
-            .replace(/Elephant Cement \(50kg bags\)/gi, 'Huaxin Portland Cement (50kg bags)')
-            .replace(/Elephant Cement \(50kg Bags\)/gi, 'Huaxin Portland Cement (50kg Bags)')
-            .replace(/Elephant Cement/gi, 'Huaxin Portland Cement')
-            .replace(/Purechem Cement Industries Ltd/gi, 'APM Terminals Ltd (APMT)')
-            .replace(/Purechem Logistics Team/gi, 'APMT Rail Terminal Desk')
-            .replace(/logistics@purechem\.ng/gi, 'rail@apmt.com')
-            .replace(/BUA Cement Industries/gi, 'DASCO Industries Ltd')
-            .replace(/BUA Logistics Desk/gi, 'DASCO Industrial Haulage')
-            .replace(/logistics@buacement\.ng/gi, 'logistics@dasco.ng')
-            .replace(/Dangote Cement Industries/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-            .replace(/Dangote Cement Industry/gi, 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)')
-            .replace(/Dangote Freight Team/gi, 'Huaxin Logistics Desk')
-            .replace(/freight@dangotecement\.ng/gi, 'logistics@hbm.ng');
-          localStorage.setItem(k, sanitized);
-          changed = true;
-        }
-      });
-      if (changed) {
-        this.notifyListeners();
-      }
-    } catch {}
+    if (!session.isAuthenticated()) return;
+
+    // Tolerate individual failures: one forbidden collection must not stop
+    // the others from refreshing.
+    await Promise.allSettled(Object.values(STORES).map((s) => s.sync()));
+    this.notifyListeners();
   }
 
-  // ── PRODUCTION CLEAN SLATE / PURGE DEMO DATA ──────────────────────────────
+  /** Drop every browser-held cache. Called on sign-out. */
+  clearLocalCaches(): void {
+    Object.values(STORES).forEach((s) => s.clearLocal());
+    if (typeof window === 'undefined') return;
+    try {
+      LOCAL_ONLY_KEYS.forEach((k) => localStorage.removeItem(k));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Retained as no-ops so existing call sites keep compiling.
+   *
+   * The legacy-name rewriting these performed on every single read is now a
+   * one-off database migration (005), and production seeding is handled by the
+   * migration runner rather than by the browser.
+   */
+  cleanseLafargeAndMigrateHbm(): void {}
+  seedInitialProductionState(): void {}
+
+  /**
+   * Purging production data is a server-side, audited, capability-gated
+   * action. It used to be a client-side loop that emptied localStorage and
+   * fired unauthenticated PURGE_ALL requests at every endpoint — which meant
+   * anyone who could reach the site could erase operations.
+   */
+  async cleanProductionPurge(confirmed = false): Promise<void> {
+    if (!confirmed) {
+      throw new Error(
+        'Purging production data requires explicit confirmation. ' +
+          'Call cleanProductionPurge(true) from a deliberate administrator action.'
+      );
+    }
+    if (!session.can('system.purge_data')) {
+      throw new Error('You do not have permission to purge production data.');
+    }
+
+    const targets: Array<[string, string]> = [
+      ['trips.php', 'bueno_trips'],
+      ['deals.php', 'bueno_deals'],
+      ['invoices.php', 'bueno_invoices'],
+      ['requests.php', 'bueno_fund_requests'],
+      ['trip_costs.php', 'bueno_trip_costs'],
+      ['negotiations.php', 'bueno_negotiations'],
+      ['client_requests.php', 'bueno_client_requests'],
+      ['notifications.php', 'bueno_notifications'],
+    ];
+
+    for (const [endpoint, table] of targets) {
+      await api.post(endpoint, { action: 'PURGE_ALL', confirm: table });
+    }
+
+    this.clearLocalCaches();
+    await this.syncRemote();
+  }
+
+  /** @deprecated Use cleanProductionPurge(true). */
   purgeDemoData(): void {
-    this.cleanProductionPurge();
-  }
-
-  cleanProductionPurge(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      this.writeStorage('bueno_trips', []);
-      this.writeStorage('bueno_trip_costs', []);
-      this.writeStorage('bueno_invoices', []);
-      this.writeStorage('bueno_requests', []);
-      this.cleanseLafargeAndMigrateHbm();
-      this.writeStorage('bueno_deals', []);
-      this.writeStorage('bueno_custom_deal_negotiations', []);
-      this.writeStorage('bueno_client_requests', []);
-      this.writeStorage('bueno_notifications', []);
-      this.writeStorage('bueno_users', SEED_USERS);
-      this.writeStorage('bueno_wagons', SEED_WAGONS);
-      localStorage.setItem('bueno_prod_purge_clean_v15', 'purged');
-      this.postRemote('/api/trips.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/trip_costs.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/invoices.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/requests.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/client_requests.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/negotiations.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/notifications.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/deals.php', { action: 'PURGE_ALL' });
-      this.postRemote('/api/users.php', SEED_USERS);
-      this.postRemote('/api/wagons.php', SEED_WAGONS);
-      this.notifyListeners();
-    } catch {}
-  }
-
-  private _initialRemoteSynced = false;
-  seedInitialProductionState(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      const PROD_RELEASE_KEY = 'bueno_prod_v35_clean_slate_live';
-      if (localStorage.getItem('bueno_cache_version') !== PROD_RELEASE_KEY) {
-        localStorage.setItem('bueno_cache_version', PROD_RELEASE_KEY);
-        this.cleanProductionPurge();
-      }
-
-      // Always cleanse any stray legacy mock entries in browser storage
-      this.cleanseLafargeAndMigrateHbm();
-
-      // Cleanse and deduplicate wagons fleet to strictly 46 official dedicated hoppers
-      const storedWagons = this.readStorage<any[]>('bueno_wagons', SEED_WAGONS);
-      if (!Array.isArray(storedWagons) || storedWagons.length !== 46 || storedWagons.some((w: any) => w.id?.startsWith('PXG 00') || w.id?.startsWith('WG') || w.id?.startsWith('CBX'))) {
-        this.writeStorage('bueno_wagons', SEED_WAGONS);
-      }
-
-      // Initial background sync from cPanel server
-      if (!this._initialRemoteSynced) {
-        this._initialRemoteSynced = true;
-        this.syncRemote();
-      }
-    } catch {}
+    void this.cleanProductionPurge(true);
   }
 
   // ── TRIPS API ─────────────────────────────────────────────────────────────
@@ -550,7 +546,6 @@ class StateEngineService {
   saveTrips(trips: any[]): void {
     this.writeStorage('bueno_trips', trips);
     this.postRemote('/api/trips.php', trips);
-    bookingsApi.list().catch(() => {});
   }
 
   createTrip(trip: any): void {
@@ -1078,7 +1073,6 @@ class StateEngineService {
   saveUsers(users: any[]): void {
     this.writeStorage('bueno_users', users);
     this.postRemote('/api/users.php', users);
-    usersApi.getAll().catch(() => {});
   }
 
   getSignatory(role: string, fallbackName: string = 'Executive Signatory'): string {
@@ -1189,14 +1183,6 @@ class StateEngineService {
     return rows;
   }
 
-  // ── LEGACY PERMISSIONS API (kept for backward compat) ─────────────────────
-  getPermissions(): Record<string, string[]> {
-    return this.getRolePermissions();
-  }
-
-  savePermissions(matrix: Record<string, string[]>): void {
-    this.saveRolePermissions(matrix);
-  }
 
   // ── ENTERPRISE CLIENT ONBOARDING & DUAL PROVISIONING ──────────────────────
   provisionClientFromRequest(form: any): { reqId: string; staffId: string; pin: string; user: any; request: any } {
@@ -1338,108 +1324,110 @@ class StateEngineService {
   }
 
   // ─── PERMISSIONS MATRIX & TAB ACCESS API ─────────────────────────────────
+  // ─── PERMISSIONS ──────────────────────────────────────────────────────────
+  //
+  // These now delegate to the session, which carries the capability set the
+  // server computed. Previously they evaluated a localStorage matrix in the
+  // browser, which meant the UI's idea of a permission and the API's could
+  // differ — and a user could grant themselves anything by editing storage.
+  //
+  // Two defects lived here specifically:
+  //   - hasGranularPermission() read the coarse tab matrix, where 23 of the 34
+  //     granular keys do not exist, so it returned false for every role
+  //     including ADMIN. The only two can() gates in the app were dead.
+  //   - saveGranularPermissions() POSTed {granularMatrix}, a field the server
+  //     never read, so granular edits never persisted anywhere.
 
-  seedPermissionsIfVersionMismatch(): void {
-    if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('bueno_role_permissions');
-    if (!stored) {
-      localStorage.setItem('bueno_role_permissions', JSON.stringify(
-        JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS))
-      ));
-      localStorage.setItem('bueno_permissions_version', PERMISSIONS_SCHEMA_VERSION);
-    }
-    // Asynchronously fetch latest permissions from SQL API to ensure instant synchronization
-    fetch('/api/permissions.php')
-      .then((res) => res.json())
-      .then((json) => {
-        if (json && json.status === 'success' && json.matrix && typeof json.matrix === 'object') {
-          const current = localStorage.getItem('bueno_role_permissions');
-          if (JSON.stringify(json.matrix) !== current) {
-            localStorage.setItem('bueno_role_permissions', JSON.stringify(json.matrix));
-            window.dispatchEvent(new Event('bueno_permissions_updated'));
-            window.dispatchEvent(new Event('bueno_state_updated'));
-          }
-        }
-      })
-      .catch(() => {});
+  /** No longer needed: the server owns the matrix and its schema. */
+  seedPermissionsIfVersionMismatch(): void {}
+
+  /** The full role-to-capability matrix, for the permissions editor. */
+  async fetchRolePermissions(): Promise<Record<string, string[]>> {
+    const { data } = await api.get('permissions.php');
+    return normalizeMatrix(data?.matrix);
   }
 
+  /**
+   * Cached matrix for synchronous render paths.
+   *
+   * Note this is for *displaying* the editor. Authorization decisions use
+   * can()/canUserAccessTab(), which read the caller's own server-issued
+   * capabilities rather than this table.
+   */
   getRolePermissions(): Record<string, string[]> {
-    const stored = this.readStorage<Record<string, string[]> | null>('bueno_role_permissions', null);
-    if (!stored || typeof stored !== 'object') {
-      return JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
-    }
-    const merged: Record<string, string[]> = {};
-    Object.keys(DEFAULT_ROLE_TAB_PERMISSIONS).forEach((roleKey) => {
-      merged[roleKey] = Array.isArray(stored[roleKey]) ? stored[roleKey] : [...DEFAULT_ROLE_TAB_PERMISSIONS[roleKey]];
-    });
-    return merged;
+    return normalizeMatrix(this.readStorage<Record<string, string[]> | null>('bueno_role_permissions', null));
   }
 
-  saveRolePermissions(matrix: Record<string, string[]>): void {
-    this.writeStorage('bueno_role_permissions', matrix);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_permissions_updated'));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-      fetch('/api/permissions.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matrix }),
-      }).catch(() => {});
-    }
+  /** One matrix now, so the granular view is the same data. */
+  getGranularPermissions(): Record<string, string[]> {
+    return this.getRolePermissions();
   }
 
   async saveRolePermissionsAsync(matrix: Record<string, string[]>): Promise<boolean> {
-    this.writeStorage('bueno_role_permissions', matrix);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_permissions_updated'));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-      try {
-        const res = await fetch('/api/permissions.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matrix }),
-        });
-        return res.ok;
-      } catch {
-        return false;
+    try {
+      const { data } = await api.post('permissions.php', { matrix });
+      const saved = normalizeMatrix(data?.matrix ?? matrix);
+      this.writeStorage('bueno_role_permissions', saved);
+      // The caller's own capabilities may have just changed.
+      await session.loadSession(true);
+      this.notifyListeners();
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        console.error(`[StateEngine] permissions not saved: ${err.message}`);
+        throw err;
       }
+      return false;
     }
-    return true;
+  }
+
+  saveRolePermissions(matrix: Record<string, string[]>): void {
+    void this.saveRolePermissionsAsync(matrix).catch(() => {});
+  }
+
+  /** Both names write the same single matrix. */
+  saveGranularPermissions(matrix: Record<string, string[]>): void {
+    this.saveRolePermissions(matrix);
   }
 
   async resetPermissionsToDefaultsAsync(): Promise<Record<string, string[]>> {
-    const defaults = JSON.parse(JSON.stringify(DEFAULT_ROLE_TAB_PERMISSIONS));
+    const { data } = await api.post('permissions.php', { action: 'RESET_DEFAULTS' });
+    const defaults = normalizeMatrix(data?.matrix);
     this.writeStorage('bueno_role_permissions', defaults);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_permissions_updated'));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-      try {
-        await fetch('/api/permissions.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'RESET_DEFAULTS' }),
-        });
-      } catch {}
-    }
+    await session.loadSession(true);
+    this.notifyListeners();
     return defaults;
   }
 
-  canUserAccessTab(user: any, tabId: string): boolean {
-    if (!user) return false;
-    const role = typeof user === 'string' ? user : (user.role || 'GUEST');
-
-    const matrix = this.getRolePermissions();
-    const rolePerms = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role];
-
-    const capability = TAB_TO_CAPABILITY[tabId] || tabId;
-    if (Array.isArray(rolePerms)) {
-      return rolePerms.includes(capability);
-    }
-
-    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
-    return false;
+  /**
+   * May the signed-in user open this tab?
+   *
+   * The `user` argument is accepted for call-site compatibility but ignored:
+   * the answer is about the *current session*, and trusting a caller-supplied
+   * user object is how a client-side check becomes meaningless.
+   */
+  canUserAccessTab(_user: any, tabId: string): boolean {
+    return session.can(resolveTabCapability(tabId));
   }
+
+  /** Does the signed-in user hold this capability? */
+  hasGranularPermission(_user: any, capabilityKey: string): boolean {
+    return session.can(capabilityKey);
+  }
+
+  /** Direct capability check, preferred for new code. */
+  can(capabilityKey: string): boolean {
+    return session.can(capabilityKey);
+  }
+
+  getPermissions(): Record<string, string[]> {
+    return this.getRolePermissions();
+  }
+
+  savePermissions(matrix: Record<string, string[]>): void {
+    this.saveRolePermissions(matrix);
+  }
+
 
   // ─── DOUBLE-ENTRY CHART OF ACCOUNTS & GENERAL JOURNAL API ─────────────────
 
@@ -1508,73 +1496,7 @@ class StateEngineService {
     this.saveBankAccounts(updated);
   }
 
-  // ─── GRANULAR PERMISSIONS MATRIX API ──────────────────────────────────────
-
-  getGranularPermissions(): Record<string, string[]> {
-    const stored = this.readStorage<Record<string, string[]> | null>('bueno_granular_permissions', null);
-    if (!stored || typeof stored !== 'object') {
-      return JSON.parse(JSON.stringify(DEFAULT_GRANULAR_ROLE_PERMISSIONS));
-    }
-    const merged: Record<string, string[]> = {};
-    Object.keys(DEFAULT_GRANULAR_ROLE_PERMISSIONS).forEach((roleKey) => {
-      merged[roleKey] = Array.isArray(stored[roleKey]) ? stored[roleKey] : [...DEFAULT_GRANULAR_ROLE_PERMISSIONS[roleKey]];
-    });
-    return merged;
-  }
-
-  saveGranularPermissions(matrix: Record<string, string[]>): void {
-    this.writeStorage('bueno_granular_permissions', matrix);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_permissions_updated'));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-      fetch('/api/permissions.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ granularMatrix: matrix }),
-      }).catch(() => {});
-    }
-  }
-
-  hasGranularPermission(user: any, actionKey: string): boolean {
-    if (!user) return false;
-    const role = typeof user === 'string' ? user : (user.role || 'GUEST');
-    const matrix = this.getRolePermissions();
-    const userPerms = matrix[role] || DEFAULT_ROLE_TAB_PERMISSIONS[role];
-    if (Array.isArray(userPerms)) {
-      return userPerms.includes(actionKey);
-    }
-    if (role === 'ADMIN' || role === 'CEO' || role === 'MD') return true;
-    return false;
-  }
 }
-
-export const PERMISSIONS_SCHEMA_VERSION = 'v5';
-
-export const TAB_TO_CAPABILITY: Record<string, string> = {
-  analytics:         'analytics',
-  deals:             'deals',
-  loading:           'deals',
-  trips:             'deals',
-  in_transit:        'deals',
-  incoming_unload:   'deals',
-  unloading:         'deals',
-  dispatch:          'deals',
-  negotiations:      'negotiations',
-  fund_requisitions: 'fund_requisitions',
-  funds:             'fund_requisitions',
-  requisitions:      'fund_requisitions',
-  fleet:             'fleet',
-  wagons:            'fleet',
-  telemetry:         'telemetry',
-  manifest:          'manifest',
-  history:           'manifest',
-  terminal_info:     'terminal_info',
-  moniya:            'moniya',
-  billing:           'billing',
-  users:             'users',
-  permissions:       'permissions',
-  account:           'negotiations',
-};
 
 export interface CanonicalCorridor {
   id: string;
@@ -1662,319 +1584,45 @@ export const CANONICAL_CORRIDORS: CanonicalCorridor[] = [
   },
 ];
 
-export const TAB_ALIASES: Record<string, string[]> = {
-  analytics:         ['analytics'],
-  deals:             ['deals'],
-  loading:           ['deals'],
-  trips:             ['deals'],
-  in_transit:        ['deals'],
-  incoming_unload:   ['deals'],
-  unloading:         ['deals'],
-  dispatch:          ['deals'],
-  negotiations:      ['negotiations'],
-  fund_requisitions: ['fund_requisitions'],
-  funds:             ['fund_requisitions'],
-  requisitions:      ['fund_requisitions'],
-  fleet:             ['fleet'],
-  wagons:            ['fleet'],
-  telemetry:         ['telemetry'],
-  manifest:          ['manifest'],
-  history:           ['manifest'],
-  moniya:            ['moniya'],
-  billing:           ['billing'],
-  users:             ['users'],
-  permissions:       ['permissions'],
-  account:           ['account', 'negotiations', 'telemetry', 'manifest', 'billing'],
-};
 
-export interface TabRegistryEntry {
-  key: string;
-  label: string;
-  category: string;
-}
+/**
+ * Permission shapes are re-exported from the canonical registry.
+ *
+ * They used to be defined here as six separate constants that had already
+ * drifted apart from each other and from the PHP copy. There is now one
+ * definition, in apps/web/src/lib/rbac/capabilities.ts, from which the PHP
+ * mirror is generated.
+ */
+export {
+  TAB_REGISTRY,
+  UNIFIED_PERMISSION_LIST,
+  PERMISSION_CATEGORIES,
+  GRANULAR_MODULE_PERMISSIONS,
+  DEFAULT_ROLE_TAB_PERMISSIONS,
+  DEFAULT_GRANULAR_ROLE_PERMISSIONS,
+  TAB_ALIASES,
+  type TabRegistryEntry,
+  type PermissionDefinition,
+  type GranularPermissionAction,
+  type GranularPermissionModule,
+} from '@/lib/rbac/views';
 
-export const TAB_REGISTRY: TabRegistryEntry[] = [
-  { key: 'analytics',         label: 'Reports & Analytics',       category: 'Executive' },
-  { key: 'deals',             label: 'Commercial Deals Desk',     category: 'Operations' },
-  { key: 'negotiations',      label: 'Client Negotiations Chat',  category: 'Commercial' },
-  { key: 'fund_requisitions', label: 'Fund Requisitions',         category: 'Finance' },
-  { key: 'fleet',             label: 'Fleet & Wagon Management',  category: 'Operations' },
-  { key: 'telemetry',         label: 'Fleet Telemetry & Live GPS', category: 'Operations' },
-  { key: 'manifest',          label: 'Cargo Manifests & Waybills', category: 'Operations' },
-  { key: 'moniya',            label: 'Moniya Container Terminal', category: 'Operations' },
-  { key: 'billing',           label: 'Invoices & Ledger',         category: 'Finance' },
-  { key: 'users',             label: 'User Directory',            category: 'Administration' },
-  { key: 'permissions',       label: 'Permissions Matrix',        category: 'Administration' },
-];
+export {
+  CAPABILITIES,
+  CAPABILITY_KEYS,
+  ROLES,
+  ROLE_LABELS,
+  DEFAULT_ROLE_CAPABILITIES,
+  MODULES,
+  SENSITIVE_CAPABILITIES,
+  resolveTabCapability,
+  isKnownCapability,
+  normalizeMatrix,
+  type Capability,
+  type Role,
+} from '@/lib/rbac/capabilities';
 
-export interface PermissionDefinition {
-  key: string;
-  label: string;
-  description: string;
-  category: 'Screen & Tab Access' | 'Commercial & Deals' | 'Corridor Operations' | 'Finance & Accounting' | 'Administration';
-}
-
-export const UNIFIED_PERMISSION_LIST: PermissionDefinition[] = [
-  // Screen & Tab Access
-  { key: 'analytics', label: 'Executive Reports & Analytics', description: 'Access executive KPI dashboards, corridor audit trails, and revenue statistics', category: 'Screen & Tab Access' },
-  { key: 'deals', label: 'Commercial Deals Desk', description: 'Access active contracts, spot deals, and freight tranche dispatches', category: 'Screen & Tab Access' },
-  { key: 'negotiations', label: 'Client Negotiations Chat', description: 'Access live contract negotiation channel with consignee clients', category: 'Screen & Tab Access' },
-  { key: 'fund_requisitions', label: 'Fund Requisitions & Expenses', description: 'Access field operational expense requests and approval queues', category: 'Screen & Tab Access' },
-  { key: 'fleet', label: 'Fleet & Rolling Stock Management', description: 'Access 46 PXG covered hopper wagons and mainline locomotives registry', category: 'Screen & Tab Access' },
-  { key: 'terminal_info', label: 'Terminal Information Ledger', description: 'Access station sidings ledger (EWK, PAPA, MNY, APT)', category: 'Screen & Tab Access' },
-  { key: 'moniya', label: 'Moniya Container Terminal (MICT)', description: 'Access 3D container stacking yard and gate entry tariff control', category: 'Screen & Tab Access' },
-  { key: 'telemetry', label: 'Fleet Telemetry & Live GPS', description: 'Access live corridor satellite GPS tracking and train radar', category: 'Screen & Tab Access' },
-  { key: 'manifest', label: 'Cargo Manifests & Waybills', description: 'Access official train consist manifests and NRC waybills', category: 'Screen & Tab Access' },
-  { key: 'billing', label: 'Commercial Invoices & Ledger', description: 'Access accounts receivable, VAT/WHT invoices, and general ledger', category: 'Screen & Tab Access' },
-  { key: 'users', label: 'User Directory & Provisioning', description: 'Access staff directory, roles, and security credentials', category: 'Screen & Tab Access' },
-  { key: 'permissions', label: 'Enterprise Permissions Matrix', description: 'Access system security governance and role permissions editor', category: 'Screen & Tab Access' },
-
-  // Operational Actions & Authorizations
-  { key: 'deals.create', label: 'Create Commercial Deals', description: 'Create spot-run or master multi-trip freight contracts', category: 'Commercial & Deals' },
-  { key: 'deals.approve', label: 'Approve Deals for Railway Loading', description: 'Authorize client deals to proceed to loading sidings', category: 'Commercial & Deals' },
-  { key: 'deals.delete', label: 'Delete / Purge Commercial Deals', description: 'Permanently archive or remove commercial deals', category: 'Commercial & Deals' },
-
-  { key: 'ops.dispatch', label: 'Dispatch Locomotives & Tranches', description: 'Clear train departure onto the NRC mainline corridor', category: 'Corridor Operations' },
-  { key: 'ops.loading_update', label: 'Siding Loading & Seal Logging', description: 'Record wagon bag counts, feeder trucks, and tamper seal numbers', category: 'Corridor Operations' },
-  { key: 'ops.unloading_confirm', label: 'Confirm Yard Arrival & Unload', description: 'Sign off train arrival at Moniya yard and authorize cargo discharge', category: 'Corridor Operations' },
-  { key: 'ops.damage_audit', label: 'Audit Cargo Damages & Burst Bags', description: 'Record burst bags and calculate consignee deduction compensation', category: 'Corridor Operations' },
-
-  { key: 'finance.requisitions_approve', label: 'Approve Station Fund Expenses', description: 'Sign off operational fund requests for diesel, escorts, and stevedoring', category: 'Finance & Accounting' },
-  { key: 'finance.invoices_issue', label: 'Issue Invoices & Debit Notes', description: 'Generate official VAT/WHT-compliant freight tax invoices', category: 'Finance & Accounting' },
-  { key: 'finance.payments_record', label: 'Record Customer Settlements', description: 'Log bank receipts against outstanding freight billings', category: 'Finance & Accounting' },
-
-  { key: 'system.permissions_edit', label: 'Modify Permissions Matrix', description: 'Customize role capabilities across all user levels', category: 'Administration' },
-];
-
-export const DEFAULT_ROLE_TAB_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
-    'deals.create', 'deals.approve', 'deals.delete',
-    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
-    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
-    'system.permissions_edit'
-  ],
-  CEO: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
-    'deals.create', 'deals.approve', 'deals.delete',
-    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
-    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
-    'system.permissions_edit'
-  ],
-  MD: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'billing', 'users', 'permissions',
-    'deals.create', 'deals.approve', 'deals.delete',
-    'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit',
-    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record',
-    'system.permissions_edit'
-  ],
-  HEAD_OF_OPERATIONS: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest',
-    'deals.approve', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'finance.requisitions_approve'
-  ],
-  HEAD_OF_FINANCE: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
-    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
-  ],
-  ACCOUNTANT: [
-    'analytics', 'deals', 'negotiations', 'fund_requisitions', 'billing',
-    'finance.requisitions_approve', 'finance.invoices_issue', 'finance.payments_record'
-  ],
-  CARGO_OFFICER: [
-    'deals', 'fleet', 'terminal_info', 'moniya', 'telemetry', 'manifest', 'fund_requisitions',
-    'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit'
-  ],
-  CUSTOMER: [
-    'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
-  ],
-  CONSIGNEE: [
-    'negotiations', 'telemetry', 'manifest', 'billing', 'finance.invoices_issue'
-  ],
-};
-
-// ─── GRANULAR ROLE-BASED ACCESS CONTROL (RBAC) SCHEMA ───────────────────────
-export interface GranularPermissionAction {
-  key: string;
-  label: string;
-  description: string;
-}
-
-export interface GranularPermissionModule {
-  id: string;
-  name: string;
-  title: string;
-  icon: string;
-  description: string;
-  actions: GranularPermissionAction[];
-}
-
-export const GRANULAR_MODULE_PERMISSIONS: GranularPermissionModule[] = [
-  {
-    id: 'commercial',
-    name: 'Commercial & Deals Desk',
-    title: 'Commercial & Deals Desk',
-    icon: 'commercial',
-    description: 'Single-trip and monthly consignment contracts, spot rates, and customer agreements',
-    actions: [
-      { key: 'deals.view', label: 'View Deals', description: 'Inspect active commercial contracts and backlog' },
-      { key: 'deals.create', label: 'Create Deals', description: 'Create spot-run or master multi-trip contracts' },
-      { key: 'deals.edit', label: 'Edit Deals', description: 'Modify contract volumes, pricing, or consignee notes' },
-      { key: 'deals.approve', label: 'Approve Deals', description: 'Authorize deals for corridor terminal loading' },
-      { key: 'deals.delete', label: 'Purge Deals', description: 'Archive or permanently delete deals' },
-      { key: 'deals.export', label: 'Export Data', description: 'Export commercial agreements to CSV / briefing' },
-    ]
-  },
-  {
-    id: 'negotiation',
-    name: 'Negotiation & Live Chat',
-    title: 'Negotiation & Live Chat',
-    icon: 'negotiation',
-    description: 'Direct rate bargaining, counter-offers, and client logistics communication',
-    actions: [
-      { key: 'negotiation.view', label: 'View Discussions', description: 'Read negotiation threads with industrial consignees' },
-      { key: 'negotiation.message', label: 'Send Counter-Offers', description: 'Post freight rates and tariff proposals' },
-      { key: 'negotiation.lock', label: 'Lock Negotiation', description: 'Freeze agreed rate and conclude negotiations' },
-    ]
-  },
-  {
-    id: 'operations',
-    name: 'Corridor Siding & Train Dispatches',
-    title: 'Corridor Siding & Train Dispatches',
-    icon: 'operations',
-    description: 'Field loading at Ewekoro, locomotive consist dispatches, and Moniya destination yard',
-    actions: [
-      { key: 'ops.manifest_view', label: 'View Manifests', description: 'Access train consist sheets and waybills' },
-      { key: 'ops.dispatch', label: 'Dispatch Locomotives', description: 'Clear train departure onto NRC mainline' },
-      { key: 'ops.loading_update', label: 'Update Loading', description: 'Log wagon bag counts and seal verification' },
-      { key: 'ops.unloading_confirm', label: 'Confirm Yard Arrival', description: 'Sign off train arrival at Moniya yard' },
-      { key: 'ops.damage_audit', label: 'Audit Damages', description: 'Record burst bags and calculate consignee deduction' },
-      { key: 'ops.gps_telemetry', label: 'Live GPS Telemetry', description: 'Track speed, geofence, and corridor progress' },
-    ]
-  },
-  {
-    id: 'fleet',
-    name: 'Rolling Stock & Siding Fleet',
-    title: 'Rolling Stock & Siding Fleet',
-    icon: 'fleet',
-    description: '46 Dedicated PXG Covered Hopper Wagons and mainline diesel locomotives',
-    actions: [
-      { key: 'fleet.view', label: 'View 46 Hopper Fleet', description: 'Check wagon availability, payload, and station' },
-      { key: 'fleet.assign', label: 'Assign Wagons', description: 'Allocate specific wagons to a train consist' },
-      { key: 'fleet.maintenance', label: 'Log Maintenance', description: 'Report wheel, bogie, or brake inspection flags' },
-    ]
-  },
-  {
-    id: 'finance',
-    name: 'Double-Entry Accounting & Financial Suite',
-    title: 'Double-Entry Accounting & Financial Suite',
-    icon: 'finance',
-    description: 'General Ledger, Chart of Accounts, Journal Entries, P&L, Balance Sheet, and Requisitions',
-    actions: [
-      { key: 'finance.coa_view', label: 'View Chart of Accounts', description: 'Inspect 5-tier Assets, Liabilities, Equity, Revenue, OpEx' },
-      { key: 'finance.coa_manage', label: 'Manage Accounts', description: 'Add new ledger accounts or modify codes' },
-      { key: 'finance.journal_create', label: 'Post Journal Entries', description: 'Create balanced double-entry debits and credits' },
-      { key: 'finance.deal_costing', label: 'Write Deal Tariffs', description: 'Set freight tariffs (₦/MT) and OpEx budgets' },
-      { key: 'finance.invoices_issue', label: 'Issue Invoices & Debit Notes', description: 'Generate official freight invoices' },
-      { key: 'finance.payments_record', label: 'Record Payments', description: 'Log bank receipts against invoices' },
-      { key: 'finance.requisitions_approve', label: 'Approve Requisitions', description: 'Sign off operational fund expense requests' },
-      { key: 'finance.statements_view', label: 'Financial Statements', description: 'Generate Trial Balance, P&L, and Balance Sheet' },
-      { key: 'finance.bank_reconciliation', label: 'Bank Reconciliation', description: 'Reconcile bank accounts with general ledger' },
-    ]
-  },
-  {
-    id: 'users',
-    name: 'Identity & Access Administration',
-    title: 'Identity & Access Administration',
-    icon: 'users',
-    description: 'Corporate staff directory, client accounts, role assignment, and security credentials',
-    actions: [
-      { key: 'users.view', label: 'View Directory', description: 'Browse corporate staff and consignee directory' },
-      { key: 'users.create', label: 'Provision Users', description: 'Onboard new cargo officers, executives, and clients' },
-      { key: 'users.edit', label: 'Edit Profiles', description: 'Update contact details, station, or phone' },
-      { key: 'users.reset_pin', label: 'Reset Credentials', description: 'Regenerate security PIN or password' },
-      { key: 'users.deactivate', label: 'Deactivate Account', description: 'Revoke access permissions for a user' },
-    ]
-  },
-  {
-    id: 'system',
-    name: 'Security & System Governance',
-    title: 'Security & System Governance',
-    icon: 'system',
-    description: 'Permissions matrix, audit logs, and production clean resets',
-    actions: [
-      { key: 'system.permissions_edit', label: 'Edit Permissions Matrix', description: 'Customize granular permissions across all roles' },
-      { key: 'system.purge_data', label: 'Production Reset / Purge', description: 'Wipe mock test data for live operation' },
-    ]
-  }
-];
-
-export const DEFAULT_GRANULAR_ROLE_PERMISSIONS: Record<string, string[]> = {
-  ADMIN: [
-    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.delete', 'deals.export',
-    'negotiation.view', 'negotiation.message', 'negotiation.lock',
-    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
-    'fleet.view', 'fleet.assign', 'fleet.maintenance',
-    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
-    'users.view', 'users.create', 'users.edit', 'users.reset_pin', 'users.deactivate',
-    'system.permissions_edit', 'system.purge_data',
-  ],
-  CEO: [
-    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.export',
-    'negotiation.view', 'negotiation.message', 'negotiation.lock',
-    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
-    'fleet.view', 'fleet.assign', 'fleet.maintenance',
-    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
-    'users.view', 'users.create', 'users.edit',
-    'system.permissions_edit',
-  ],
-  MD: [
-    'deals.view', 'deals.create', 'deals.edit', 'deals.approve', 'deals.export',
-    'negotiation.view', 'negotiation.message', 'negotiation.lock',
-    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
-    'fleet.view', 'fleet.assign', 'fleet.maintenance',
-    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
-    'users.view', 'users.create', 'users.edit',
-    'system.permissions_edit',
-  ],
-  HEAD_OF_OPERATIONS: [
-    'deals.view', 'deals.edit', 'deals.approve', 'deals.export',
-    'negotiation.view', 'negotiation.message', 'negotiation.lock',
-    'ops.manifest_view', 'ops.dispatch', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
-    'fleet.view', 'fleet.assign', 'fleet.maintenance',
-    'finance.requisitions_approve', 'finance.invoices_issue',
-    'users.view',
-  ],
-  HEAD_OF_FINANCE: [
-    'deals.view', 'deals.export',
-    'negotiation.view',
-    'ops.manifest_view', 'ops.damage_audit',
-    'finance.coa_view', 'finance.coa_manage', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
-    'users.view',
-  ],
-  ACCOUNTANT: [
-    'deals.view', 'deals.export',
-    'ops.manifest_view', 'ops.damage_audit',
-    'finance.coa_view', 'finance.journal_create', 'finance.deal_costing', 'finance.invoices_issue', 'finance.payments_record', 'finance.requisitions_approve', 'finance.statements_view', 'finance.bank_reconciliation',
-    'users.view',
-  ],
-  CARGO_OFFICER: [
-    'deals.view',
-    'ops.manifest_view', 'ops.loading_update', 'ops.unloading_confirm', 'ops.damage_audit', 'ops.gps_telemetry',
-    'fleet.view', 'fleet.assign',
-  ],
-  CUSTOMER: [
-    'deals.view',
-    'negotiation.view', 'negotiation.message',
-    'ops.manifest_view', 'ops.gps_telemetry',
-    'finance.invoices_issue',
-  ],
-  CONSIGNEE: [
-    'deals.view',
-    'negotiation.view', 'negotiation.message',
-    'ops.manifest_view', 'ops.gps_telemetry',
-    'finance.invoices_issue',
-  ],
-};
+/** @deprecated Tab ids resolve through resolveTabCapability(). */
+export const TAB_TO_CAPABILITY: Record<string, string> = {};
 
 export const StateEngine = new StateEngineService();
-

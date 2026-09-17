@@ -3,6 +3,7 @@
     "lib": [
       "dom",
       "dom.iterable",
+      "ES2020",
       "esnext"
     ],
     "allowJs": true,
@@ -26,7 +27,8 @@
         "./src/*"
       ]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "target": "ES2020"
   },
   "include": [
     "next-env.d.ts",
