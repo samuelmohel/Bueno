@@ -1,7 +1,7 @@
 {
-  "commit": "eab86b3",
+  "commit": "d6e3ec7",
   "branch": "main",
-  "subject": "feat(ops): add a deployment health check",
-  "builtAt": "2026-09-18T06:27:18.079Z",
-  "dirty": true
+  "subject": "feat(ops): stamp builds with their commit and report it in the health check",
+  "builtAt": "2026-09-18T06:28:17.848Z",
+  "dirty": false
 }
