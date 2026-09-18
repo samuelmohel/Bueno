@@ -67,6 +67,55 @@ chmod 600 /home/speckles/.env
 predictable signing key would let anyone mint an administrator session, so the
 API refuses to start without one.
 
+### 2b. If this deployment was running without MySQL
+
+Check `360.specklessinnovations.com/api/` in File Manager. If you see any of:
+
+- `bueno.sqlite`
+- `bueno_trips_store.json`, `bueno_deals_store.json`
+
+…then the previous version never had MySQL configured and fell back to writing
+into those files. Two consequences:
+
+- **They were downloadable over HTTP.** Anyone could have fetched
+  `…/api/bueno_trips_store.json` and read every trip and customer. The new
+  `.htaccess` blocks this, but treat the data as having been exposed.
+- **Your records will not move themselves.** Pointing the platform at MySQL
+  gives you an empty database unless you import first.
+
+**Download all of those files** — that is your backup — then import them:
+
+```bash
+# On the server, after the first deploy has created the schema:
+cd ~/360.specklessinnovations.com
+
+# Preview what would be imported; writes nothing.
+php ~/path/to/repo/scripts/import-legacy-data.php --from=./api
+
+# Do it.
+php ~/path/to/repo/scripts/import-legacy-data.php --from=./api --apply
+```
+
+If you do not have the repository checked out on the server, run it locally
+instead: download the `api` folder, point `--from` at it, and set your live
+MySQL credentials in a local `.env`.
+
+The import is **idempotent** — a record whose id already exists is skipped
+rather than overwritten, so an interrupted run can simply be repeated. It also
+hashes any plaintext PINs it finds, so imported accounts sign in with the
+credential they already had.
+
+**Once you have confirmed the data is present in the app, delete the legacy
+files from the live server:**
+
+```bash
+rm ~/360.specklessinnovations.com/api/bueno.sqlite
+rm ~/360.specklessinnovations.com/api/bueno_*_store.json
+```
+
+Nothing reads them any more, and leaving them is an unnecessary copy of your
+operational data sitting in a web-served directory.
+
 ### 3. Check the PHP version
 
 cPanel → **MultiPHP Manager**. The domain needs **PHP 8.1 or newer**, with
