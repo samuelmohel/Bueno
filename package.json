@@ -4,7 +4,7 @@
   "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "npx turbo run dev",
-    "build": "npm run rbac:check && npx turbo run build",
+    "build": "npm run rbac:check && tsx scripts/write-build-info.ts && npx turbo run build",
     "rbac:generate": "tsx scripts/generate-rbac.ts write",
     "rbac:check": "tsx scripts/generate-rbac.ts check",
     "db:migrate": "php apps/web/public/api/_lib/migrate.php up",

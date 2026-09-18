@@ -31,6 +31,21 @@ $checks   = [];
 $problems = [];
 $isDev    = false;
 
+// ── Which build is actually live? ───────────────────────────────────────────
+//
+// The deploy artifact is committed, so the published site can lag the code —
+// a forgotten rebuild, or a pull that never ran the deployment tasks. Showing
+// the commit makes that visible instead of a mystery.
+$buildInfo = ['commit' => 'unknown', 'builtAt' => null];
+$buildPath = __DIR__ . '/build-info.json';
+if (is_file($buildPath)) {
+    $decoded = json_decode((string) file_get_contents($buildPath), true);
+    if (is_array($decoded)) {
+        $buildInfo = $decoded;
+    }
+}
+$checks['build'] = $buildInfo;
+
 try {
     $isDev = !Config::isProduction();
 } catch (Throwable $e) {
