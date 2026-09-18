@@ -1,7 +1,7 @@
 {
-  "commit": "313ebd4",
+  "commit": "42afae2",
   "branch": "main",
-  "subject": "feat(ops): run setup from a browser when the host has no shell",
-  "builtAt": "2026-09-18T09:59:24.084Z",
+  "subject": "fix(security): make APP_SECRET actually required, and key sessions with it",
+  "builtAt": "2026-09-18T10:53:50.626Z",
   "dirty": true
 }
