@@ -1,24 +1,18 @@
 ---
 # cPanel Git Version Control deployment.
 #
-# Runs on the server whenever you click "Deploy HEAD Commit" (or push to the
-# tracked branch, if automatic deployment is enabled).
+# Runs on the server when you click "Deploy HEAD Commit" in
+# cPanel → Git Version Control.
 #
-# Two things changed from the previous version:
+# It publishes the built site, applies database migrations, and refuses to
+# proceed if the environment is not ready — a half-deployed site that cannot
+# sign sessions is worse than a deploy that stops with a clear message.
 #
-#   1. It applies database migrations. The schema used to be created by DDL
-#      that ran inside every HTTP request; that is gone, so nothing would
-#      create or update tables if the deploy did not do it here.
-#
-#   2. It refuses to deploy if .env is missing. Without APP_SECRET the API
-#      cannot sign sessions and every request would fail — better to stop the
-#      deploy with a clear message than to publish a broken site.
-#
-# One-time setup on the server, before the first deploy of this version:
+# One-time setup before the first deploy of this version:
 #
 #   cd /home/speckles
-#   php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'      # generate a secret
-#   nano .env                                              # see DEPLOYMENT.md
+#   php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'   # generate APP_SECRET
+#   nano .env                                           # see .env.example
 #   chmod 600 .env
 #
 # .env lives at /home/speckles/.env — ABOVE the document root, so it can never
@@ -28,6 +22,25 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/speckles/360.specklessinnovations.com
     - export ENVFILE=/home/speckles/.env
+
+    # ── Locate a PHP the application can actually run on ──────────────────
+    #
+    # The deploy shell's default `php` is frequently the old system binary,
+    # not the version the domain is configured to use in MultiPHP Manager.
+    # The application needs 8.1+, so pick the first binary that satisfies
+    # that rather than failing later with confusing syntax errors.
+    # NOTE: every line below sits at the same indentation on purpose. A YAML
+    # folded scalar keeps more-indented lines literal instead of folding them,
+    # which would split this loop across newlines and break the shell.
+    - >-
+      PHPBIN="";
+      for c in /opt/cpanel/ea-php84/root/usr/bin/php /opt/cpanel/ea-php83/root/usr/bin/php /opt/cpanel/ea-php82/root/usr/bin/php /opt/cpanel/ea-php81/root/usr/bin/php /usr/local/bin/php /usr/bin/php; do
+      if [ -x "$c" ]; then v=$("$c" -r 'echo PHP_MAJOR_VERSION * 100 + PHP_MINOR_VERSION;' 2>/dev/null);
+      if [ -n "$v" ] && [ "$v" -ge 801 ]; then PHPBIN="$c"; break; fi; fi; done;
+      if [ -z "$PHPBIN" ]; then echo "DEPLOY ABORTED: no PHP 8.1+ binary found on this server.";
+      echo "Set the domain to PHP 8.1 or newer in cPanel > MultiPHP Manager."; exit 1; fi;
+      export PHPBIN;
+      echo "Using PHP: $PHPBIN ($($PHPBIN -r 'echo PHP_VERSION;'))"
 
     # ── Stop early if the environment is not configured ──────────────────
     - >-
@@ -45,15 +58,17 @@ deployment:
     - /bin/cp -R apps/web/out/* $DEPLOYPATH/
     - /bin/cp -f apps/web/out/.htaccess $DEPLOYPATH/
 
-    # ── Apply database migrations ────────────────────────────────────────
-    # Idempotent: already-applied migrations are skipped via the ledger table.
+    # ── Create or update the database schema ─────────────────────────────
+    # Idempotent: already-applied migrations are skipped via a ledger table.
+    # This is the only thing that creates tables — the previous version built
+    # them with DDL inside every HTTP request, which no longer happens.
     - >-
-      cd $DEPLOYPATH && php api/_lib/migrate.php up
+      cd $DEPLOYPATH && $PHPBIN api/_lib/migrate.php up
       || { echo "DEPLOY FAILED: database migration did not complete."; exit 1; }
 
-    - cd $DEPLOYPATH && php api/_lib/migrate.php status
+    - cd $DEPLOYPATH && $PHPBIN api/_lib/migrate.php status
 
-    # ── Confirm the protections actually landed ──────────────────────────
+    # ── Confirm the access protections actually landed ───────────────────
     - >-
       for f in api/.htaccess api/_lib/.htaccess api/migrations/.htaccess; do
         [ -f "$DEPLOYPATH/$f" ] || { echo "DEPLOY FAILED: missing $f"; exit 1; };
