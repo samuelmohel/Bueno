@@ -1,7 +1,7 @@
 {
-  "commit": "a907e85",
+  "commit": "d56890e",
   "branch": "main",
-  "subject": "fix(deploy): keep .cpanel.yml minimal so cPanel will accept it",
-  "builtAt": "2026-09-18T11:04:12.783Z",
+  "subject": "fix(deploy): ignore PHP's error_log, and deny it over HTTP",
+  "builtAt": "2026-09-18T22:25:38.768Z",
   "dirty": true
 }

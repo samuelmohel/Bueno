@@ -63,6 +63,30 @@ if [ ! -f "$ENVFILE" ]; then
   exit 1
 fi
 
+# A present-but-unconfigured .env is the more common mistake, and publishing
+# against one puts up a site that returns 503 to every request.
+SECRET_LEN=$(grep -E '^APP_SECRET=' "$ENVFILE" | head -1 | cut -d= -f2- | tr -d '"'"'"' \r\n' | wc -c)
+if [ "${SECRET_LEN:-0}" -lt 33 ]; then
+  echo "DEPLOY FAILED: APP_SECRET in $ENVFILE is missing or shorter than 32 characters." >&2
+  echo "Sessions are keyed with it, so the API returns 503 until it is set." >&2
+  echo "Generate one with:" >&2
+  echo "  $PHPBIN -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'" >&2
+  exit 1
+fi
+say "env    : APP_SECRET present"
+
+# A PHP that prints startup warnings will prepend them to every API response,
+# ahead of the JSON, because they are emitted before any application code runs
+# and therefore before display_errors can be turned off. The result is an API
+# that returns unparseable responses for no visible reason.
+STARTUP_NOISE=$("$PHPBIN" -r 'echo "OK";' 2>/dev/null)
+if [ "$STARTUP_NOISE" != "OK" ]; then
+  echo "WARNING: this PHP emits output at startup, before any script runs:" >&2
+  echo "  ${STARTUP_NOISE%OK}" >&2
+  echo "  That text will be prepended to API responses and break JSON parsing." >&2
+  echo "  Fix it in cPanel > MultiPHP INI Editor, or set display_errors = Off." >&2
+fi
+
 # ── Publish ─────────────────────────────────────────────────────────────────
 #
 # `out/*` does not match the top-level dotfile, so .htaccess is copied
