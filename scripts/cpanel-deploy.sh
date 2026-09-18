@@ -109,8 +109,25 @@ say "published site files"
 cd "$DEPLOYPATH" || fail "cannot enter $DEPLOYPATH"
 
 echo "-- migrations --"
-"$PHPBIN" api/_lib/migrate.php up || fail "database migration did not complete."
-"$PHPBIN" api/_lib/migrate.php status
+"$PHPBIN" api/_lib/migrate.php up || fail "database migration did not complete. See the error above."
+
+# Do not rely on the exit code alone. Confirm from the reported status that
+# the schema is genuinely current — an earlier version of this script printed
+# "Deployment complete" over a migration that had failed, because the runner
+# exited 0 after emitting an error.
+STATUS_OUT=$("$PHPBIN" api/_lib/migrate.php status 2>&1) || fail "could not read migration status."
+echo "$STATUS_OUT"
+
+echo "$STATUS_OUT" | grep -q 'pending: (none)' \
+  || fail "migrations are still pending — the schema is not up to date."
+
+if echo "$STATUS_OUT" | grep -q 'driver:  *sqlite'; then
+  echo "" >&2
+  echo "WARNING: the API is using SQLite, not MySQL." >&2
+  echo "  Tables were created in a local file, NOT in your cPanel database, and" >&2
+  echo "  will not appear in phpMyAdmin. Set DB_NAME, DB_USER and DB_PASS in" >&2
+  echo "  $ENVFILE, and add the user to the database in cPanel > MySQL Databases." >&2
+fi
 
 # ── Confirm the protections landed ──────────────────────────────────────────
 

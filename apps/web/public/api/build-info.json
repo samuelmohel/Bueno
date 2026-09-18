@@ -1,7 +1,7 @@
 {
-  "commit": "d56890e",
+  "commit": "07307d8",
   "branch": "main",
-  "subject": "fix(deploy): ignore PHP's error_log, and deny it over HTTP",
-  "builtAt": "2026-09-18T22:25:38.768Z",
+  "subject": "fix(deploy): stop before publishing against an unconfigured environment",
+  "builtAt": "2026-09-18T22:38:33.225Z",
   "dirty": true
 }

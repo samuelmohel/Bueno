@@ -59,6 +59,25 @@ final class Db
                 // ago — data loss that looks like the app "forgetting" records.
                 // If MySQL was configured, a connection failure is fatal.
                 error_log('[bueno] MySQL connection failed: ' . $e->getMessage());
+
+                // On the command line — migrations, the importer, cron — the
+                // operator needs the actual reason. Hiding it behind a generic
+                // HTTP message leaves them with no way to diagnose a failed
+                // deploy.
+                if (PHP_SAPI === 'cli') {
+                    throw new RuntimeException(
+                        'Cannot connect to MySQL as "' . $user . '" to database "' . $name . '" on ' . $host . '.'
+                        . PHP_EOL . '  Driver said: ' . $e->getMessage()
+                        . PHP_EOL . '  Check in cPanel > MySQL Databases that:'
+                        . PHP_EOL . '    - the database and user both exist, with their account prefix'
+                        . PHP_EOL . '    - the user is ADDED TO the database, with ALL PRIVILEGES'
+                        . PHP_EOL . '    - DB_PASS in .env matches the current password',
+                        0,
+                        $e
+                    );
+                }
+
+                // Over HTTP, say nothing useful to a stranger.
                 if (Config::isProduction()) {
                     Response::error('Database temporarily unavailable.', 503);
                 }

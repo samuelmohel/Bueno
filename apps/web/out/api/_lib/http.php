@@ -145,6 +145,22 @@ final class Response
      */
     public static function json(array $payload, int $status = 200): never
     {
+        // On the command line there is no HTTP response to send, and exiting 0
+        // after an error makes a failed migration look like a success to the
+        // calling shell — which is exactly how a broken deploy reported
+        // "Deployment complete".
+        if (PHP_SAPI === 'cli') {
+            $message = (string) ($payload['message'] ?? '');
+            if ($status >= 400) {
+                fwrite(STDERR, 'ERROR: ' . ($message !== '' ? $message : 'request failed') . PHP_EOL);
+                exit(1);
+            }
+            if ($message !== '') {
+                echo $message . PHP_EOL;
+            }
+            exit(0);
+        }
+
         Http::cors();
         Http::securityHeaders();
         header('Content-Type: application/json; charset=utf-8');
