@@ -1,7 +1,7 @@
 {
-  "commit": "a1e0710",
+  "commit": "313ebd4",
   "branch": "main",
-  "subject": "chore: restamp build against the committed tree",
-  "builtAt": "2026-09-18T09:02:00.612Z",
+  "subject": "feat(ops): run setup from a browser when the host has no shell",
+  "builtAt": "2026-09-18T09:59:24.084Z",
   "dirty": true
 }

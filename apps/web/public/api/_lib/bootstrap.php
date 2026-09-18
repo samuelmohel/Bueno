@@ -77,6 +77,30 @@ Http::handlePreflight();
 Http::cors();
 
 /**
+ * Refuse to serve without a signing secret.
+ *
+ * Sessions are keyed with APP_SECRET. Running without one would mean anyone
+ * able to write a row into the sessions table could mint an administrator
+ * session, so this fails loudly at the first request rather than appearing to
+ * work. The health check reports the same condition with instructions.
+ */
+try {
+    Config::appSecret();
+} catch (Throwable $e) {
+    error_log('[bueno][boot] ' . $e->getMessage());
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(503);
+    }
+    echo json_encode([
+        'status'  => 'error',
+        'message' => 'The server is not configured. APP_SECRET is missing from .env. '
+                   . 'See /api/health.php for details.',
+    ]);
+    exit;
+}
+
+/**
  * Opportunistic housekeeping.
  *
  * Expired sessions and stale rate-limit rows need periodic removal, and

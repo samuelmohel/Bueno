@@ -7,9 +7,10 @@
  * hardcoded set of PINs, then minted its own token string. Identity is now
  * established and held by the server.
  *
- * Sessions are opaque random tokens. Only a SHA-256 hash is stored, so leaking
- * the session table does not hand out usable logins, and keeping them
- * server-side is what makes immediate revocation possible.
+ * Sessions are opaque random tokens. Only a keyed hash is stored, so leaking
+ * the session table does not hand out usable logins and writing to it does
+ * not let anyone mint one; keeping sessions server-side is what makes
+ * immediate revocation possible.
  */
 
 declare(strict_types=1);
@@ -50,6 +51,23 @@ final class Auth
     private static function at(int $ts): string
     {
         return gmdate('Y-m-d\TH:i:s\Z', $ts);
+    }
+
+    /**
+     * Derive the stored form of a session token.
+     *
+     * Keyed with APP_SECRET rather than a bare hash. A plain SHA-256 of a
+     * random token is already irreversible, so this is not about protecting
+     * the token from a database *read* — it is about a database *write*. An
+     * attacker who can insert a row into bueno_sessions (through an injection
+     * flaw, a compromised backup restore, or shared-hosting neighbour access)
+     * could otherwise mint themselves a valid administrator session by
+     * inserting the hash of a token they chose. Without the secret they
+     * cannot compute one.
+     */
+    private static function hashToken(string $token): string
+    {
+        return hash_hmac('sha256', $token, Config::appSecret());
     }
 
     // ── Credential verification ─────────────────────────────────────────────
@@ -200,7 +218,7 @@ final class Auth
                 (token_hash, user_id, issued_at, expires_at, last_seen, ip, user_agent)
              VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            hash('sha256', $token),
+            self::hashToken($token),
             $userId,
             self::now(),
             $expiresAt,
@@ -244,7 +262,7 @@ final class Auth
                   WHERE s.token_hash = ?
                   LIMIT 1'
             );
-            $stmt->execute([hash('sha256', $token)]);
+            $stmt->execute([self::hashToken($token)]);
             $row = $stmt->fetch();
 
             if ($row === false) {
@@ -317,7 +335,7 @@ final class Auth
 
         Db::conn()
             ->prepare('UPDATE bueno_sessions SET revoked_at = ? WHERE token_hash = ?')
-            ->execute([self::now(), hash('sha256', $token)]);
+            ->execute([self::now(), self::hashToken($token)]);
 
         if ($user !== null) {
             Audit::record('auth.logout', 'user', (string) $user['id'], Audit::SUCCESS, null, $user);
