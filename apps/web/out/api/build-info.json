@@ -1,7 +1,7 @@
 {
-  "commit": "42afae2",
+  "commit": "a907e85",
   "branch": "main",
-  "subject": "fix(security): make APP_SECRET actually required, and key sessions with it",
-  "builtAt": "2026-09-18T10:53:50.626Z",
+  "subject": "fix(deploy): keep .cpanel.yml minimal so cPanel will accept it",
+  "builtAt": "2026-09-18T11:04:12.783Z",
   "dirty": true
 }

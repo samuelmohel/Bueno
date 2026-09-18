@@ -24,6 +24,19 @@
   RewriteRule ^ index.html [L]
 </IfModule>
 
+# PHP writes an 'error_log' file into the directory it runs from. It can
+# contain file paths, SQL fragments and occasionally request data, so it must
+# never be downloadable.
+<FilesMatch "(^error_log$|\.(log|env|sqlite|sql)$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
 # Security Headers & MIME types
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"

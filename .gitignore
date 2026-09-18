@@ -16,3 +16,9 @@ ios/
 
 # TypeScript incremental build cache (caches stale diagnostics if committed)
 *.tsbuildinfo
+
+# PHP writes an 'error_log' file into whatever directory it runs from.
+# Left untracked it blocks cPanel deployment, which refuses to deploy a
+# checkout with any uncommitted change.
+error_log
+*.error_log
