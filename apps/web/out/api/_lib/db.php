@@ -110,6 +110,34 @@ final class Db
     }
 
     /**
+     * Does this server accept the row-alias form of an upsert?
+     *
+     * MySQL 8.0.19 introduced `... AS new ON DUPLICATE KEY UPDATE c = new.c`
+     * and 8.0.20 deprecated the older VALUES() form. MariaDB reports high
+     * version numbers but does not implement the alias, so it is excluded by
+     * name rather than by number.
+     */
+    private static function supportsUpsertAlias(): bool
+    {
+        static $supported = null;
+        if ($supported !== null) {
+            return $supported;
+        }
+
+        try {
+            $version = (string) self::conn()->getAttribute(PDO::ATTR_SERVER_VERSION);
+        } catch (Throwable $e) {
+            return $supported = false;
+        }
+
+        if (stripos($version, 'mariadb') !== false) {
+            return $supported = false;
+        }
+
+        return $supported = version_compare($version, '8.0.19', '>=');
+    }
+
+    /**
      * Run a callable inside a transaction, rolling back on any throw.
      *
      * @template T
@@ -168,6 +196,20 @@ final class Db
         }
 
         if (self::isMysql()) {
+            // VALUES() inside ON DUPLICATE KEY UPDATE was deprecated in MySQL
+            // 8.0.20 and is rejected by newer servers. The replacement is a
+            // row alias, available from 8.0.19. Older servers and MariaDB do
+            // not understand the alias, so pick by version rather than
+            // assuming either form works everywhere.
+            if (self::supportsUpsertAlias()) {
+                $assign = implode(', ', array_map(
+                    static fn($c) => "`$c` = `new`.`$c`",
+                    $updatable
+                ));
+                return "INSERT INTO `$table` ($cols) VALUES ($placeholders) AS `new` "
+                     . "ON DUPLICATE KEY UPDATE $assign";
+            }
+
             $assign = implode(', ', array_map(
                 static fn($c) => "`$c` = VALUES(`$c`)",
                 $updatable

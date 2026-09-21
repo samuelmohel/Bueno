@@ -1,7 +1,7 @@
 {
-  "commit": "030e2a4",
+  "commit": "ba780b7",
   "branch": "main",
-  "subject": "fix: let command-line tools be pointed at an explicit .env",
-  "builtAt": "2026-09-21T08:43:13.852Z",
+  "subject": "feat(ops): add a post-deployment verification script",
+  "builtAt": "2026-09-21T09:40:09.786Z",
   "dirty": true
 }

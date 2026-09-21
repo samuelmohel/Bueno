@@ -161,6 +161,13 @@ final class Response
             exit(0);
         }
 
+        // Drop anything the runtime printed before us — a startup warning from
+        // the host's php.ini would otherwise sit in front of the JSON and make
+        // the response unparseable.
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
         Http::cors();
         Http::securityHeaders();
         header('Content-Type: application/json; charset=utf-8');
