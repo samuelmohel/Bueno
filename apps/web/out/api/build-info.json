@@ -1,7 +1,7 @@
 {
-  "commit": "07307d8",
+  "commit": "873793d",
   "branch": "main",
-  "subject": "fix(deploy): stop before publishing against an unconfigured environment",
-  "builtAt": "2026-09-18T22:38:33.225Z",
+  "subject": "fix: report command-line failures instead of swallowing them",
+  "builtAt": "2026-09-21T07:40:47.223Z",
   "dirty": true
 }

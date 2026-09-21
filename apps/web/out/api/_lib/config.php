@@ -38,12 +38,26 @@ final class Config
         }
 
         $env = [];
-        $candidates = [
+
+        // An explicit path always wins. Command-line tools are often run from
+        // the repository checkout rather than the document root, and from
+        // there the walk-up below never reaches the server's .env — so the
+        // tool would silently fall back to SQLite and write to the wrong
+        // database.
+        //
+        //   BUENO_ENV_FILE=/home/user/.env php scripts/import-legacy-data.php …
+        $explicit = getenv('BUENO_ENV_FILE');
+        $candidates = [];
+        if (is_string($explicit) && $explicit !== '') {
+            $candidates[] = $explicit;
+        }
+
+        $candidates = array_merge($candidates, [
             __DIR__ . '/../.env',
             __DIR__ . '/../../.env',
             __DIR__ . '/../../../.env',
             __DIR__ . '/../../../../.env',
-        ];
+        ]);
 
         foreach ($candidates as $path) {
             if (!is_file($path) || !is_readable($path)) {
