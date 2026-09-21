@@ -1,7 +1,7 @@
 {
-  "commit": "206f487",
+  "commit": "697f979",
   "branch": "main",
-  "subject": "fix: stop using an upsert syntax modern MySQL rejects, and stop 500ing on notices",
-  "builtAt": "2026-09-21T09:57:43.875Z",
-  "dirty": true
+  "subject": "fix: make the health check survive the failure it exists to diagnose",
+  "builtAt": "2026-09-21T10:41:57.968Z",
+  "dirty": false
 }
