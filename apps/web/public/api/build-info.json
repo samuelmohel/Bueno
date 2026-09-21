@@ -1,7 +1,7 @@
 {
-  "commit": "e009b20",
+  "commit": "0e37fee",
   "branch": "main",
-  "subject": "fix(security): stop shipping account credentials in the public bundle",
-  "builtAt": "2026-09-21T14:55:40.799Z",
-  "dirty": false
+  "subject": "chore: stamp the artifact with the commit it was built from",
+  "builtAt": "2026-09-21T14:57:39.869Z",
+  "dirty": true
 }

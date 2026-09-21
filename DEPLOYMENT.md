@@ -118,8 +118,25 @@ operational data sitting in a web-served directory.
 
 ### 3. Check the PHP version
 
-cPanel → **MultiPHP Manager**. The domain needs **PHP 8.1 or newer**, with
-`pdo_mysql` and `mbstring` enabled (**MultiPHP INI Editor** → *Extensions*).
+cPanel → **MultiPHP Manager**. On CloudLinux hosts the same page is called
+**Select PHP Version**; if neither exists, your host controls the version and
+you will need to raise a ticket.
+
+The domain needs **PHP 8.1 or newer**, with `pdo_mysql` and `mbstring` enabled
+(**MultiPHP INI Editor** → *Extensions*, or the *Extensions* tab of *Select PHP
+Version*). Switching version resets the extension list to that version's
+defaults, so check them again afterwards.
+
+> **This is two settings, not one.** The version a domain serves web requests
+> with is separate from the version cron jobs and the deploy script use. The
+> deploy script picks the newest PHP it can find, so migrations can report
+> success against 8.4 while every page on the site returns a blank HTTP 500
+> from 7.4. That failure writes nothing to the application log, because the
+> interpreter dies before any application code runs.
+>
+> `/api/health.php` reports the version the *web server* is using, and is
+> written in syntax old enough to answer even when the rest of the application
+> cannot load. Open it in a browser — it is a URL, not a shell command.
 
 ### 4. Deploy
 
@@ -171,6 +188,40 @@ release, because `GET /api/users.php` returned them.
 **Treat every one of those credentials as compromised.** Have each person set a
 new password promptly, and reset any account nobody claims.
 
+There were two separate disclosures, both now closed:
+
+1. `GET /api/users.php` returned every user row, PIN included, to anyone who
+   asked. Closed by capability-gating the endpoint and never selecting the
+   credential columns.
+2. The published JavaScript bundle contained a `SEED_USERS` array with sixteen
+   accounts and their plaintext PINs — `ceo@bueno.ng` / `9999`,
+   `admin@bueno.ng` / `7777`, every consignee on `1111`. It was compiled in
+   because the constant was exported from a client component. Anyone who
+   opened the site could read it. Removed in `e009b20`.
+
+The second one also disclosed the list of valid sign-in addresses, which is
+worth assuming an attacker now has even after the passwords change.
+
+### 7. Duplicate sign-in addresses
+
+Migration 005 rewrote both `%lafarge%` and `%dangote%` onto
+`logistics@hbm.ng`, so two accounts share one address. Sign-in takes the first
+matching row, so one of those people cannot get in at all.
+
+Migration 006 repairs this automatically: the account with a usable credential
+keeps the address, and the other is renamed to `logistics+duplicate2@hbm.ng`
+and **suspended**. It is not deleted — it owns trips and audit history.
+
+After deploying, check whether any account was moved aside:
+
+```sql
+SELECT id, fullName, email, status FROM bueno_users WHERE email LIKE '%+duplicate%';
+```
+
+Work out who each one is, give them their own address, and set the status back
+to `ACTIVE`. Until you do, that person cannot sign in — which was already true
+before the migration, just invisibly.
+
 ---
 
 ## Routine deployments
@@ -183,12 +234,30 @@ Node. **Rebuild before committing whenever you change anything under
 `apps/web/src/`:**
 
 ```bash
-cd apps/web && npx next build       # regenerates out/
-cd ../.. && git add apps/web/out && git commit
+npm run verify                      # types, lint, PHP lint, 130 assertions
+npm run build                       # stamps build-info and regenerates out/
+git add -A && git commit
 ```
 
 If you forget, the server keeps serving the previous front end while the PHP
 updates — which produces confusing "my change did nothing" reports.
+`/api/health.php` reports the commit the published artifact was built from,
+which is the quickest way to tell whether a fix is actually live.
+
+`npm run verify` is what CI would run. It fails on a type error, an
+accessibility regression (an unlabelled form control, a `<div>` with a click
+handler), a hard-coded brand hex, a `window.alert`, a PHP syntax error, or any
+failing assertion.
+
+### Rebuilding on Windows
+
+`next build` occasionally dies with `kill EPERM` or a V8 out-of-memory error
+when run through turbo. Running it directly, with a larger heap, is reliable:
+
+```bash
+cd apps/web && NODE_OPTIONS=--max-old-space-size=6144 npx next build
+cd ../.. && npx tsx scripts/write-build-info.ts   # re-stamps out/ as well
+```
 
 ---
 
@@ -289,3 +358,33 @@ npm test
 
 CI fails if the mirror drifts, which is what stops the client and server from
 disagreeing about who may do what.
+
+---
+
+## Outstanding operational tasks
+
+These need a person with cPanel access; none of them can be done from the
+repository.
+
+| # | Task | Why |
+|---|---|---|
+| 1 | **Rotate the MySQL password** and update `/home/speckles/.env` | The current password was pasted into a support conversation, so it must be assumed disclosed. cPanel → MySQL Databases → *Current Users* → Change Password, then edit `.env` and redeploy. |
+| 2 | **Delete the leftover cron jobs** | Several were added while diagnosing the PHP version problem and some run every minute. cPanel → Cron Jobs → delete everything that is not deliberately scheduled. |
+| 3 | **Delete the legacy data files** | `bueno.sqlite`, `bueno_trips_store.json` and `bueno_deals_store.json` in `.../360.specklessinnovations.com/api/` were downloadable over HTTP before the `.htaccess` rules landed. Nothing reads them now. Confirm the data is in MySQL (`scripts/verify-deployment.php`), then delete them. |
+| 4 | **Fix the PHP warnings** | MultiPHP INI Editor: `session.gc_divisor` → `1000`, `display_errors` → `Off`. Startup warnings are printed before any script runs, so they land *in front of* JSON responses and make them unparseable. |
+| 5 | **Review suspended duplicate accounts** | See step 7 above. |
+| 6 | **Watch the CSP report-only violations** | Open the browser console on each portal for a release cycle. If nothing is reported, rename `Content-Security-Policy-Report-Only` to `Content-Security-Policy` in `apps/web/public/.htaccess` to start enforcing it. |
+
+### Known, deliberately not changed
+
+- **Green text on white.** `#62BC37` on white is roughly 2.6:1, below the 4.5:1
+  WCAG AA requires for body text. `text-brand-text` (a darker green) exists for
+  this, but swapping it blindly would break the places where the same colour
+  sits on a dark surface — it needs someone looking at the screens.
+- **`AdminPortal.tsx` is one 6,500-line component** with 61 `useState` hooks.
+  The routes are now code-split so nobody downloads it unnecessarily, but
+  splitting the component itself into per-tab modules is a separate piece of
+  work with real regression risk.
+- **245 `: any` annotations.** TypeScript compiles but is not meaningfully
+  protecting the domain model. Introducing real types for `Trip`, `Deal`,
+  `Invoice` and `User` is the highest-value follow-up.

@@ -1,7 +1,7 @@
 {
-  "commit": "0efa821",
+  "commit": "0e37fee",
   "branch": "main",
-  "subject": "feat(web): bring the frontend up to the standard of the API",
-  "builtAt": "2026-09-21T14:28:05.728Z",
+  "subject": "chore: stamp the artifact with the commit it was built from",
+  "builtAt": "2026-09-21T14:57:39.869Z",
   "dirty": true
 }

@@ -14,12 +14,21 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const TARGET = resolve(REPO, 'apps/web/public/api/build-info.json');
+
+// public/ is the source copy the next build carries into out/. out/ is written
+// too when it already exists, so re-stamping after a build — rather than
+// rebuilding just to correct the recorded commit — updates what is actually
+// published. Without this the deployed health check reports the commit before
+// the one that was deployed, which is worse than useless when diagnosing
+// whether a fix is live.
+const SOURCE_STAMP = resolve(REPO, 'apps/web/public/api/build-info.json');
+const BUILD_DIR = resolve(REPO, 'apps/web/out');
+const BUILT_STAMP = resolve(BUILD_DIR, 'api/build-info.json');
 
 function git(...args: string[]): string {
   try {
@@ -45,9 +54,20 @@ const info = {
   dirty,
 };
 
-mkdirSync(dirname(TARGET), { recursive: true });
-writeFileSync(TARGET, JSON.stringify(info, null, 2) + '\n', 'utf8');
+function stamp(target: string): void {
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, JSON.stringify(info, null, 2) + '\n', 'utf8');
+}
+
+stamp(SOURCE_STAMP);
+
+// Only when a build is already present. During a normal `npm run build` this
+// runs first and out/ does not exist yet — the build copies public/ across.
+if (existsSync(BUILD_DIR)) {
+  stamp(BUILT_STAMP);
+}
 
 console.log(
   `✓ build stamped ${info.commit}${dirty ? ' (dirty tree)' : ''} on ${info.branch}`
+  + (existsSync(BUILD_DIR) ? ' (source and build artifact)' : '')
 );
