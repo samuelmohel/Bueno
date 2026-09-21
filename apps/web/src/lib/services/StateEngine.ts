@@ -59,41 +59,41 @@ export const SEED_DEALS: any[] = [];
 
 export const SEED_REQUESTS: any[] = [];
 
-export const SEED_CONTAINERS = [
-  { id: 'MSKU-948210-4', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-10', bay: 'Bay A', row: 'Row 1', col: 'Col 1', tier: 3, dwellDays: 16, gateStatus: 'IN_YARD' },
-  { id: 'APMT-310492-1', agent: 'APMT', size: '20ft STD', type: 'CONTAINERS-EXPORT', arrivalDate: '2026-08-20', bay: 'Bay B', row: 'Row 2', col: 'Col 3', tier: 2, dwellDays: 6, gateStatus: 'IN_YARD' },
-  { id: 'MSCU-884019-3', agent: 'MAERSKLINES', size: '40ft HC', type: 'CONTAINERS-IMPORT', arrivalDate: '2026-08-22', bay: 'Bay A', row: 'Row 3', col: 'Col 2', tier: 1, dwellDays: 4, gateStatus: 'IN_YARD' },
-  { id: 'CMAU-102938-7', agent: 'APMT', size: '40ft HC', type: 'EMPTY', arrivalDate: '2026-08-05', bay: 'Bay C', row: 'Row 1', col: 'Col 4', tier: 4, dwellDays: 21, gateStatus: 'IN_YARD' },
-];
+/**
+ * Demonstration containers and gate movements, previously shipped as the
+ * fallback for the Moniya yard view.
+ *
+ * They carried named drivers with phone numbers and shipping-line container
+ * numbers that read as real operational records. A yard view that invents four
+ * containers and two gate movements when the API returns nothing is worse than
+ * one that shows an empty yard: demurrage is billed off this screen.
+ *
+ * There is no containers or gate-log endpoint yet, so these remain
+ * browser-local until one exists — but they start empty rather than
+ * pre-populated with fiction.
+ */
+export const SEED_CONTAINERS: any[] = [];
 
-export const SEED_GATE_LOGS = [
-  { id: 'GT-88401', truckRegNo: 'KJA-482-XY', driverName: 'Ibrahim Garba', driverPhone: '08031112233', transporter: 'Mainstream Haulage Ltd', containerId: 'MSKU-948210-4', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 08:15 AM' },
-  { id: 'GT-88402', truckRegNo: 'LSD-901-AB', driverName: 'Suleiman Bello', driverPhone: '08023334455', transporter: 'APMT Logistics Fleet', containerId: 'APMT-310492-1', action: 'INBOUND_RECEIVE', feePaid: 2000, timestamp: '26 Aug 2026, 09:30 AM' },
-];
+export const SEED_GATE_LOGS: any[] = [];
 
-export const SEED_USERS = [
-  // Cargo Officers
-  { id: 'usr_1', fullName: 'Ade Bello', email: 'ade.bello@bueno.ng', phone: '08031112233', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-01', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_2', fullName: 'Samuel Okafor', email: 'samuel.okafor@bueno.ng', phone: '08032223344', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-02', pin: '2222', status: 'ACTIVE' },
-  { id: 'usr_3', fullName: 'Tunde Bakare', email: 'tunde.bakare@bueno.ng', phone: '08033334455', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'EWK', stationName: 'Ewekoro Terminal', staffId: 'EWK-03', pin: '3333', status: 'ACTIVE' },
-  { id: 'usr_4', fullName: 'Musa Ibrahim', email: 'musa.ibrahim@bueno.ng', phone: '08034445566', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'MNY', stationName: 'Moniya Yard (Ibadan)', staffId: 'MNY-01', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_5', fullName: 'Kassim Ahmed', email: 'kassim.ahmed@bueno.ng', phone: '08035556677', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'MNY', stationName: 'Moniya Yard (Ibadan)', staffId: 'MNY-02', pin: '2222', status: 'ACTIVE' },
-  { id: 'usr_6', fullName: 'Ngozi Eze', email: 'ngozi.eze@bueno.ng', phone: '08036667788', role: 'CARGO_OFFICER', userType: 'STAFF', assignedStation: 'APT', stationName: 'Apapa Maritime Port', staffId: 'APT-01', pin: '1111', status: 'ACTIVE' },
-
-  // Executives
-  { id: 'usr_7', fullName: 'Alhaji Bashir Umar', email: 'ceo@bueno.ng', phone: '08030000001', role: 'CEO', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Bueno HQ Command', staffId: 'EXEC-01', pin: '9999', status: 'ACTIVE' },
-  { id: 'usr_8', fullName: 'Babajide Sanwo', email: 'ops.command@bueno.ng', phone: '08030000002', role: 'HEAD_OF_OPERATIONS', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Dispatch HQ', staffId: 'EXEC-02', pin: '8888', status: 'ACTIVE' },
-  { id: 'usr_9', fullName: 'Folake Adeyemi', email: 'admin@bueno.ng', phone: '08030000003', role: 'ADMIN', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Admin HQ', staffId: 'EXEC-03', pin: '7777', status: 'ACTIVE' },
-  { id: 'usr_10', fullName: 'Chinenye Nnamdi', email: 'finance@bueno.ng', phone: '08030000004', role: 'HEAD_OF_FINANCE', userType: 'STAFF', assignedStation: 'HQ', stationName: 'Finance HQ', staffId: 'EXEC-04', pin: '6666', status: 'ACTIVE' },
-
-  // Approved Industrial Customers (HBM is sole cement client, plus APMT, MAERSK, BAT, DHL, DASCO)
-  { id: 'usr_11', fullName: 'Huaxin Logistics Desk', companyName: 'HUAXIN BUILDING MATERIALS NIG PLC (HBM)', email: 'logistics@hbm.ng', phone: '08037778899', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_12', fullName: 'APMT Rail Terminal Desk', companyName: 'APM Terminals Ltd (APMT)', email: 'rail@apmt.com', phone: '08038889900', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_13', fullName: 'Maersk Freight Operations', companyName: 'MAERSKLINES Nigeria', email: 'cargo@maersk.com', phone: '08039990011', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_14', fullName: 'BAT Supply Chain Desk', companyName: 'British American Tobacco (BAT)', email: 'supplychain@bat.ng', phone: '08039990022', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_15', fullName: 'DHL Intermodal Rail Team', companyName: 'DHL Global Forwarding', email: 'freight@dhl.com', phone: '08039990033', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-  { id: 'usr_16', fullName: 'DASCO Industrial Haulage', companyName: 'DASCO Industries Ltd', email: 'logistics@dasco.ng', phone: '08039990044', role: 'CUSTOMER', userType: 'CUSTOMER', pin: '1111', status: 'ACTIVE' },
-];
+/**
+ * There is deliberately no seed user list.
+ *
+ * This constant previously held sixteen accounts, each with its plaintext PIN —
+ * ceo@bueno.ng / 9999, admin@bueno.ng / 7777, and every consignee on 1111. It
+ * was a module-level export in a client component, so it was compiled into the
+ * public JavaScript bundle and served to anyone who opened the site. It handed
+ * out a directory of valid sign-in addresses and the credential originally
+ * issued to each one.
+ *
+ * It was also used as the fallback whenever the API returned no users, which
+ * meant a permissions failure or a dropped connection made the administrator
+ * portal render sixteen people who do not exist.
+ *
+ * Accounts come from the server or the list is empty. An empty list is a true
+ * statement about what the client knows; a fabricated one is not.
+ */
+export const SEED_USERS: any[] = [];
 
 export const SEED_INVOICES: any[] = [];
 

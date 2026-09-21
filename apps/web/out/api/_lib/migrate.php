@@ -120,16 +120,44 @@ final class Migrator
     }
 
     /**
-     * Apply all pending migrations.
+     * Apply pending migrations.
+     *
+     * @param string|null $upTo Stop after this migration, inclusive. Accepts
+     *                          either the bare version ("005") or the full
+     *                          "005_email_log_and_rebrand_cleanup" as printed
+     *                          by `status`. Omitted, every pending migration
+     *                          is applied.
+     *
+     *                          A bounded run has two uses: staging a migration
+     *                          that needs checking before the next one lands,
+     *                          and letting a test reproduce the exact state a
+     *                          production database was in at some earlier
+     *                          release — which is the only honest way to test
+     *                          a migration that repairs historical damage.
      *
      * @return string[] versions applied
      */
-    public function up(): array
+    public function up(?string $upTo = null): array
     {
         $this->ensureLedger();
-        $done = [];
+        $done    = [];
+        $pending = $this->pending();
 
-        foreach ($this->pending() as $migration) {
+        // Normalise "005_email_log_and_rebrand_cleanup" down to "005".
+        $stopAt = null;
+        if ($upTo !== null) {
+            $stopAt = preg_match('/^(\d+)/', $upTo, $m) === 1 ? $m[1] : $upTo;
+
+            $known = array_column($pending, 'version');
+            if (!in_array($stopAt, $known, true)) {
+                throw new RuntimeException(
+                    'Cannot migrate up to "' . $upTo . '": it is not pending. Pending versions: '
+                    . ($known === [] ? '(none)' : implode(', ', $known))
+                );
+            }
+        }
+
+        foreach ($pending as $migration) {
             $contents = file_get_contents($migration['path']);
             if ($contents === false) {
                 throw new RuntimeException('Cannot read migration ' . $migration['path']);
@@ -178,6 +206,10 @@ final class Migrator
                     $this->pdo->commit();
                 }
                 $done[] = $migration['version'] . '_' . $migration['name'];
+
+                if ($stopAt !== null && $migration['version'] === $stopAt) {
+                    return $done;
+                }
             } catch (Throwable $e) {
                 if ($useTx && $this->pdo->inTransaction()) {
                     $this->pdo->rollBack();

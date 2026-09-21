@@ -37,9 +37,78 @@
   </IfModule>
 </FilesMatch>
 
-# Security Headers & MIME types
+# ── Security headers ────────────────────────────────────────────────────────
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
-  Header set X-XSS-Protection "1; mode=block"
+
+  # Do not leak the internal path of an operational page to an external site.
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # One header, because a second `Header set Permissions-Policy` replaces the
+  # first rather than adding to it. Everything this application does not use is
+  # denied outright, so a compromised dependency cannot reach for it either.
+  # geolocation stays available to this origin alone — the GPS console needs
+  # it, an embedded third party never does.
+  Header set Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), accelerometer=(), interest-cohort=()"
+
+  # Force HTTPS for a year. The site is already HTTPS-only; this stops the
+  # first request of a session going out in the clear where a session token
+  # could be read off the wire.
+  #
+  # Deliberately without includeSubDomains or preload: other subdomains of
+  # specklessinnovations.com are outside this deployment, and preload is very
+  # hard to undo. Add them once every subdomain is known to be HTTPS.
+  <If "%{HTTPS} == 'on'">
+    Header always set Strict-Transport-Security "max-age=31536000"
+  </If>
+
+  # X-XSS-Protection is deliberately absent. The legacy filter it enables was
+  # removed from Chrome and Edge and could itself be abused to selectively
+  # disable scripts on a page; Content-Security-Policy below is the replacement.
+
+  # ── Content Security Policy — report-only, for now ────────────────────────
+  #
+  # Report-Only so it cannot break the live site: the browser evaluates the
+  # policy and reports what would have been blocked, but blocks nothing. The
+  # allowances below are the ones this application genuinely needs:
+  #
+  #   'unsafe-inline' for scripts  — Next.js inlines its hydration bootstrap
+  #   'unsafe-inline' for styles   — inline style attributes throughout the UI
+  #   tile.openstreetmap.org       — map tiles in the GPS and tracking views
+  #   openstreetmap.org (frame)    — the embedded fallback map
+  #
+  # Fonts and Leaflet's assets are now served from this origin, so no external
+  # font or script host appears here. Once the browser console shows no
+  # violations for a full release cycle, rename this header to
+  # Content-Security-Policy to start enforcing it.
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org; font-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.openstreetmap.org; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+</IfModule>
+
+# ── Caching ─────────────────────────────────────────────────────────────────
+#
+# Next.js fingerprints every asset under /_next/static with a content hash, so
+# those URLs can never change meaning and are safe to cache indefinitely. This
+# matters more than usual here: the API and the site share one shared-hosting
+# CPU allowance, so every asset served from cache is capacity returned to
+# actual requests.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2|woff|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$">
+    <If "%{REQUEST_URI} =~ m#^/_next/static/#">
+      Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+    <Else>
+      Header set Cache-Control "public, max-age=86400"
+    </Else>
+  </FilesMatch>
+
+  # HTML must always be revalidated, or a deployment does not reach anyone
+  # still holding a cached copy.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>

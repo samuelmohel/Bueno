@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { getUser } from '@/lib/auth/session';
 import { notify, confirmAction } from '@/lib/notify';
+import { generateTemporaryCredential } from '@/lib/utils';
 import { BRAND } from '@/lib/theme';
 import {
   StateEngine,
@@ -649,7 +650,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     role: 'CARGO_OFFICER',
     assignedStation: 'EWK',
     companyName: '',
-    pin: '1111',
+    // Generated per account rather than a fixed '1111'. The server hashes it
+    // and forces a change at first sign-in, but a predictable default is
+    // usable by anyone who knows the address until that sign-in happens.
+    pin: generateTemporaryCredential(),
   });
 
   // Granular Permissions Matrix State
@@ -1532,7 +1536,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       role: 'CARGO_OFFICER',
       assignedStation: 'EWK',
       companyName: '',
-      pin: '1111',
+      pin: generateTemporaryCredential(),
     });
   };
 

@@ -93,6 +93,33 @@ run_suite() {
   BASE="$BASE" bash "$script" || TOTAL_FAIL=$((TOTAL_FAIL+1))
 }
 
+native() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) cygpath -m "$1" 2>/dev/null || echo "$1" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+# A migration test needs a database at a known starting point, so each gets its
+# own empty one rather than the shared server database, which is already fully
+# migrated and seeded.
+run_migration_test() {
+  local name="$1" script="$2"
+  local slug; slug="$(basename "$script" .php)"
+  local mdb="$WORKDIR/mig-$slug.sqlite"
+  local menv="$WORKDIR/mig-$slug.env"
+
+  cat > "$menv" <<EOF
+APP_ENV=development
+APP_SECRET=$("$PHP" -r "echo bin2hex(random_bytes(32));")
+SQLITE_PATH=$(native "$mdb")
+EOF
+
+  echo
+  echo "══ $name ═══════════════════════════════════════════════════════════"
+  BUENO_ENV_FILE="$(native "$menv")" "$PHP" "$script" || TOTAL_FAIL=$((TOTAL_FAIL+1))
+}
+
 echo
 echo "══ capability registry (unit) ═════════════════════════════════════════"
 npx tsx --test scripts/tests/rbac.test.ts 2>&1 | grep -E '^# (tests|pass|fail)' || TOTAL_FAIL=$((TOTAL_FAIL+1))
@@ -103,6 +130,11 @@ npx tsx scripts/generate-rbac.ts check || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
 run_suite "authentication and RBAC" scripts/tests/api-integration.sh
 run_suite "endpoint hardening"      scripts/tests/api-endpoints.sh
+
+# Migrations that change how people sign in, or repair damage an earlier
+# migration caused, are the ones most likely to cause a production incident.
+run_migration_test "migration 003 — credential hashing"  scripts/tests/credential-migration.php
+run_migration_test "migration 006 — email uniqueness"    scripts/tests/email-uniqueness-migration.php
 
 echo
 if [ "$TOTAL_FAIL" -eq 0 ]; then

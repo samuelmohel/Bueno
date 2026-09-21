@@ -1,7 +1,7 @@
 {
-  "commit": "c7b267f",
+  "commit": "0efa821",
   "branch": "main",
-  "subject": "chore: rebuild the deploy artifact with the hardened health check",
-  "builtAt": "2026-09-21T14:11:40.011Z",
+  "subject": "feat(web): bring the frontend up to the standard of the API",
+  "builtAt": "2026-09-21T14:28:05.728Z",
   "dirty": true
 }
