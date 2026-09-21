@@ -1,7 +1,7 @@
 {
-  "commit": "ba780b7",
+  "commit": "206f487",
   "branch": "main",
-  "subject": "feat(ops): add a post-deployment verification script",
-  "builtAt": "2026-09-21T09:40:09.786Z",
+  "subject": "fix: stop using an upsert syntax modern MySQL rejects, and stop 500ing on notices",
+  "builtAt": "2026-09-21T09:57:43.875Z",
   "dirty": true
 }

@@ -154,13 +154,45 @@ try {
     }
 }
 
+// ── Can the application actually write? ─────────────────────────────────────
+//
+// Connecting and reading is not enough. Sign-in begins by recording a
+// rate-limit hit, which is an upsert — and an upsert syntax the server rejects
+// fails there, before anything is audited, producing a 500 with no trace. This
+// exercises that exact path against a throwaway row.
+
+$writeOk    = false;
+$writeError = null;
+
+if ($dbConnected && $schemaReady) {
+    try {
+        $probe = 'healthcheck:' . bin2hex(random_bytes(6));
+        $sql   = Db::upsertSql('bueno_rate_limits', ['bucket', 'hits', 'window_start'], ['bucket']);
+
+        $pdo->prepare($sql)->execute([$probe, 1, (string) time()]);
+        // Run it twice: the second pass is the branch that actually exercises
+        // the conflict clause.
+        $pdo->prepare($sql)->execute([$probe, 2, (string) time()]);
+        $pdo->prepare('DELETE FROM bueno_rate_limits WHERE bucket = ?')->execute([$probe]);
+
+        $writeOk = true;
+    } catch (Throwable $e) {
+        $writeError = $e->getMessage();
+        $problems[] = 'The database accepts reads but rejects writes. Sign-in cannot work '
+            . 'until this is fixed. The server said: ' . $e->getMessage();
+    }
+}
+
 $checks['database'] = [
-    'connected'         => $dbConnected,
-    'driver'            => $driver,
-    'core_tables_found' => $tableCount,
-    'core_tables_total' => 5,
-    'schema_ready'      => $schemaReady,
+    'connected'          => $dbConnected,
+    'driver'             => $driver,
+    'server_version'     => $dbConnected ? (string) $pdo->getAttribute(PDO::ATTR_SERVER_VERSION) : null,
+    'core_tables_found'  => $tableCount,
+    'core_tables_total'  => 5,
+    'schema_ready'       => $schemaReady,
     'migrations_applied' => $applied,
+    'writable'           => $writeOk,
+    'write_error'        => $writeError,
 ];
 
 // Using SQLite in production almost always means the MySQL credentials did not

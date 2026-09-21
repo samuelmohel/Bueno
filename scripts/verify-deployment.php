@@ -79,6 +79,7 @@ $tables = [
     'bueno_users', 'bueno_trips', 'bueno_deals', 'bueno_wagons',
     'bueno_invoices', 'bueno_fund_requests', 'bueno_trip_costs',
     'bueno_negotiations', 'bueno_sessions', 'bueno_audit_log',
+    'bueno_rate_limits', 'bueno_migrations',
 ];
 
 foreach ($tables as $table) {
