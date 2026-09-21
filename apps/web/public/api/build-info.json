@@ -1,7 +1,7 @@
 {
-  "commit": "0efa821",
+  "commit": "e009b20",
   "branch": "main",
-  "subject": "feat(web): bring the frontend up to the standard of the API",
-  "builtAt": "2026-09-21T14:54:59.693Z",
-  "dirty": true
+  "subject": "fix(security): stop shipping account credentials in the public bundle",
+  "builtAt": "2026-09-21T14:55:40.799Z",
+  "dirty": false
 }
