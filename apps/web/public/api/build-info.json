@@ -1,7 +1,7 @@
 {
-  "commit": "873793d",
+  "commit": "030e2a4",
   "branch": "main",
-  "subject": "fix: report command-line failures instead of swallowing them",
-  "builtAt": "2026-09-21T07:40:47.223Z",
+  "subject": "fix: let command-line tools be pointed at an explicit .env",
+  "builtAt": "2026-09-21T08:43:13.852Z",
   "dirty": true
 }
