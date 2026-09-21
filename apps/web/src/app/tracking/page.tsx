@@ -111,7 +111,7 @@ function TrackingContent() {
   }, [initialCode]);
 
   return (
-    <main className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 font-sans">
+    <main id="main-content" className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 font-sans">
       <div className="max-w-5xl mx-auto">
         {/* Navigation header */}
         <div className="flex items-center justify-between mb-8">
@@ -225,7 +225,7 @@ function TrackingContent() {
             </p>
             <p className="text-xs text-slate-400 mt-3">
               Consignees with a portal account can see full consignment history after{' '}
-              <Link href="/auth/login" className="text-[#0E4B88] font-semibold hover:underline">
+              <Link href="/auth/login" className="text-navy font-semibold hover:underline">
                 signing in
               </Link>.
             </p>

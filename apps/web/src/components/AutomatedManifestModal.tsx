@@ -104,7 +104,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
           <div className="border-b-2 border-slate-900 pb-4 space-y-3">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#0E4B88] p-2 shadow-md flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-navy p-2 shadow-md flex items-center justify-center">
                   <img src="/bueno_logo.png" alt="Bueno Logistics" className="w-full h-full object-contain" />
                 </div>
                 <div>
@@ -117,7 +117,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                 </div>
               </div>
               <div className="text-right font-mono">
-                <span className="text-xs font-black text-[#0E4B88] block">OFFICIAL FREIGHT MANIFEST</span>
+                <span className="text-xs font-black text-navy block">OFFICIAL FREIGHT MANIFEST</span>
                 <span className="text-lg font-black text-slate-900 block">{manifestNo}</span>
                 <span className="text-[10px] text-slate-500">Date: {new Date().toLocaleDateString('en-GB')}</span>
               </div>
@@ -140,7 +140,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">VESSEL IMPORT REF</span>
-              <span className="font-black text-[#0E4B88]">{vesselRef}</span>
+              <span className="font-black text-navy">{vesselRef}</span>
             </div>
           </div>
 
@@ -190,7 +190,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                     const sealNo = `SEAL-BN-${9800 + idx}`;
                     return (
                       <tr key={w.wagonId || idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-black text-[#0E4B88]">{w.wagonId}</td>
+                        <td className="p-3 font-black text-navy">{w.wagonId}</td>
                         <td className="p-3 text-slate-600 font-bold">{sealNo}</td>
                         <td className="p-3 text-slate-800">{trip.cargoType || 'Huaxin Portland Cement (50kg)'}</td>
                         <td className="p-3 font-bold text-slate-900">{bags.toLocaleString()}</td>

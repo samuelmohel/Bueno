@@ -1,5 +1,6 @@
 'use client';
 
+import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 
 interface TrackingData {
@@ -117,8 +118,9 @@ export default function PublicTrackingMap({ data }: { data: TrackingData }) {
     import('leaflet').then((L) => {
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconUrl: '/vendor/leaflet/marker-icon.png',
+        iconRetinaUrl: '/vendor/leaflet/marker-icon-2x.png',
+        shadowUrl: '/vendor/leaflet/marker-shadow.png',
       });
 
       const trainPos: [number, number] = [currentLat, currentLng];
@@ -215,7 +217,6 @@ export default function PublicTrackingMap({ data }: { data: TrackingData }) {
 
       {/* Interactive Map */}
       <div className="relative h-[420px] bg-slate-100">
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <div ref={mapRef} className="w-full h-full" />
       </div>
 

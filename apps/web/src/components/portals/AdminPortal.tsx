@@ -1,7 +1,11 @@
 'use client';
 
+import { shouldPoll, onReturnToForeground } from '@/lib/polling';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { getUser } from '@/lib/auth/session';
+import { notify, confirmAction } from '@/lib/notify';
+import { BRAND } from '@/lib/theme';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
@@ -15,11 +19,42 @@ import {
   GRANULAR_MODULE_PERMISSIONS,
   DEFAULT_GRANULAR_ROLE_PERMISSIONS,
 } from '@/lib/services/StateEngine';
-import { LiveGpsMap } from '@/components/LiveGpsMap';
-import { TripDossierModal } from '@/components/TripDossierModal';
-import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
-import { MoniyaContainerView } from '@/components/MoniyaContainerView';
-import { TerminalInformationView } from '@/components/TerminalInformationView';
+/*
+ * The heavy views load on demand.
+ *
+ * These five components are ~3,400 lines between them and the map pulls in
+ * Leaflet, yet an administrator may never open the GPS or terminal tabs in a
+ * given session. Importing them statically put all of it in the dashboard's
+ * first payload — the route shipped 115 kB of JavaScript before rendering a
+ * single row. `ssr: false` on the map is required as well as desirable: it
+ * touches `window` during initialisation.
+ */
+const ViewLoading = () => (
+  <div className="flex h-48 items-center justify-center" role="status" aria-live="polite">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-brand" />
+    <span className="sr-only">Loading view…</span>
+  </div>
+);
+
+const LiveGpsMap = dynamic(
+  () => import('@/components/LiveGpsMap').then((m) => m.LiveGpsMap),
+  { ssr: false, loading: ViewLoading }
+);
+const TripDossierModal = dynamic(
+  () => import('@/components/TripDossierModal').then((m) => m.TripDossierModal),
+  { loading: ViewLoading }
+);
+const OfficialInvoiceModal = dynamic(() => import('@/components/OfficialInvoiceModal'), {
+  loading: ViewLoading,
+});
+const MoniyaContainerView = dynamic(
+  () => import('@/components/MoniyaContainerView').then((m) => m.MoniyaContainerView),
+  { loading: ViewLoading }
+);
+const TerminalInformationView = dynamic(
+  () => import('@/components/TerminalInformationView').then((m) => m.TerminalInformationView),
+  { loading: ViewLoading }
+);
 import {
   BarChart3,
   FileSpreadsheet,
@@ -88,10 +123,48 @@ export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string;
   'AGO Diesel / Liquid Bulk': { unit: 'Liters (L)', wagonType: 'Tanker Wagon', auditMetric: 'Ullage Loss (L)' },
 };
 
-// HISTORICAL MONTHLY ARCHIVES (Dynamically derived from live StateEngine)
-const HISTORICAL_MONTHLY_ARCHIVES: Record<string, any[]> = {
-  '2026-09': StateEngine.getTrips(),
-};
+/**
+ * Groups trips into monthly buckets for the archive view.
+ *
+ * This replaces a module-level constant that read `StateEngine.getTrips()` at
+ * import time — before any data had been fetched, so it was always empty — and
+ * was then mutated in place from inside the component under a hard-coded
+ * '2026-09' key. Every month after September 2026 would have been filed under
+ * September, and September itself would never have changed again.
+ *
+ * Buckets are derived from each trip's own date, so the archive is correct in
+ * any month without anybody editing a string.
+ */
+function monthKeyOf(trip: any): string {
+  // Same field precedence the report's date filter already uses, so a trip
+  // cannot be filed under one month here and treated as another there.
+  const raw = trip?.dispatchTime || trip?.createdAt || trip?.departedAt;
+  const when = raw ? new Date(raw) : null;
+  // An unparseable or missing date must not silently land in the current month
+  // and quietly distort the figures.
+  if (!when || Number.isNaN(when.getTime())) return 'undated';
+  return `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function groupTripsByMonth(trips: any[]): Record<string, any[]> {
+  const buckets: Record<string, any[]> = {};
+  for (const trip of trips) {
+    (buckets[monthKeyOf(trip)] ??= []).push(trip);
+  }
+  return buckets;
+}
+
+/** '2026-09' → 'September 2026'. 'ALL'/'undated' pass through as labels. */
+function monthLabel(key: string): string {
+  if (key === 'ALL') return 'All periods';
+  if (key === 'undated') return 'Undated records';
+  const [year, month] = key.split('-').map(Number);
+  if (!year || !month) return key;
+  return new Date(year, month - 1, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
 
 /* ─────────────────────────────────────────────────────────
    PER-TRIP COMPREHENSIVE PERFORMANCE & FINANCIAL AUDIT MODAL
@@ -430,7 +503,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
 
   // Historical Report State
-  const [selectedMonth, setSelectedMonth] = useState('2026-09');
+  // 'ALL' rather than a hard-coded month: the picker previously offered four
+  // fixed months ending September 2026 and, since nothing consumed the value,
+  // filtered nothing at all.
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
   const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'monthly' | 'quarterly' | 'annually'>('monthly');
 
   // Dynamic Repository State
@@ -622,8 +698,6 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setBankAccounts(StateEngine.getBankAccounts());
     setGranularPermissions(StateEngine.getGranularPermissions());
 
-    // Update current month historical archives
-    HISTORICAL_MONTHLY_ARCHIVES['2026-09'] = liveTrips;
 
     // BUILD MASTER CLIENT NEGOTIATION THREADS FOR ALL REGISTERED CLIENTS (KEYED BY EMAIL)
     const clientUsers = liveUsers.filter(
@@ -845,11 +919,21 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     // 12s rather than 4s: reads are ETagged now, so an unchanged collection
     // costs a 304 with no body, and the portal also refreshes on demand
     // whenever a write reports a change.
-    const interval = setInterval(() => {
+    const refresh = () => {
       StateEngine.syncRemote();
       syncData();
       syncUser();
+    };
+
+    // Skipped while the tab is hidden or the browser is offline; see lib/polling.
+    const interval = setInterval(() => {
+      if (!shouldPoll()) return;
+      refresh();
     }, 12000);
+
+    // …and refreshed the moment the tab is looked at again, so returning to it
+    // never shows data up to twelve seconds stale.
+    const stopForegroundWatch = onReturnToForeground(refresh);
 
     const handleAllUpdates = () => {
       syncData();
@@ -861,6 +945,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     window.addEventListener('bueno_session_updated', syncUser);
     return () => {
       clearInterval(interval);
+      stopForegroundWatch();
       window.removeEventListener('storage', handleAllUpdates);
       window.removeEventListener('bueno_state_updated', handleAllUpdates);
       window.removeEventListener('bueno_session_updated', syncUser);
@@ -1150,7 +1235,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         message: `${nextTrip.trancheLabel} (Train #${nextTrip.id}) created and dispatched to ${nextTrip.origin} Siding loading queue! Assigned Loco #${nextTrip.locomotiveId}.`,
       });
     } catch (err: any) {
-      alert(err?.message || 'Error dispatching tranche');
+      notify.error(err?.message || 'Error dispatching tranche');
     }
   };
 
@@ -1161,7 +1246,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     const pAmount = Number(paymentForm.amount);
     if (!pAmount || pAmount <= 0) {
-      alert('Please enter a valid remittance amount.');
+      notify.error('Please enter a valid remittance amount.');
       return;
     }
 
@@ -1191,7 +1276,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     e.preventDefault();
     const cAmount = Number(newCostForm.amount);
     if (!cAmount || cAmount <= 0) {
-      alert('Please enter a valid cost voucher amount.');
+      notify.error('Please enter a valid cost voucher amount.');
       return;
     }
 
@@ -1228,10 +1313,18 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
-  const handleDeleteTripCost = (costId: string) => {
-    if (!confirm('Are you sure you want to reverse / delete this corridor cost voucher?')) return;
+  const handleDeleteTripCost = async (costId: string) => {
+    const ok = await confirmAction({
+      title: 'Reverse this cost voucher?',
+      body: 'The voucher will be removed from the corridor cost ledger and the trip’s '
+        + 'profitability will be recalculated. This cannot be undone.',
+      confirmLabel: 'Reverse voucher',
+      destructive: true,
+    });
+    if (!ok) return;
     StateEngine.deleteTripCost(costId);
     syncData();
+    notify.success('Cost voucher reversed.');
   };
 
   const handleUpdateTripCost = (e: React.FormEvent) => {
@@ -1240,7 +1333,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     const amount = Number(editingTripCost.amount);
     if (!amount || amount <= 0) {
-      alert('Please enter a valid expense voucher amount.');
+      notify.error('Please enter a valid expense voucher amount.');
       return;
     }
 
@@ -1487,13 +1580,22 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   const handleResetPermissionsDefaults = async () => {
-    if (confirm('Reset all role permissions to standard factory defaults in MySQL database?')) {
+    const ok = await confirmAction({
+      title: 'Reset every role to factory defaults?',
+      body: 'All customisations to the permission matrix will be discarded and replaced with '
+        + 'the shipped defaults for all nine roles. Users signed in right now will pick up '
+        + 'the change on their next action.',
+      confirmLabel: 'Reset permissions',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
       const defaults = await StateEngine.resetPermissionsToDefaultsAsync();
       setPermissionsMatrix(defaults);
-      setCustomAlert({
-        title: 'Permissions Reset to Defaults',
-        message: 'All role permissions have been reset to factory defaults and saved to the SQL database.',
-      });
+      notify.success('Permissions reset to factory defaults.');
+    } catch (err: any) {
+      notify.error(err?.message || 'Could not reset permissions.');
     }
   };
 
@@ -1674,7 +1776,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
   // DYNAMIC HISTORICAL REPORT AUDIT DATA SELECTION
   const [reportDateFilter, setReportDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH'>('TODAY');
-  const activeReportTrips = trips.filter((t: any) => {
+  // Months offered by the archive picker, derived from the trips that exist
+  // rather than from a hand-written list that goes stale every month.
+  const tripsByMonth = useMemo(() => groupTripsByMonth(trips), [trips]);
+  const availableMonths = useMemo(
+    () => Object.keys(tripsByMonth).filter((k) => k !== 'undated').sort().reverse(),
+    [tripsByMonth]
+  );
+
+  const monthScopedTrips = useMemo(
+    () => (selectedMonth === 'ALL' ? trips : tripsByMonth[selectedMonth] ?? []),
+    [selectedMonth, trips, tripsByMonth]
+  );
+
+  const activeReportTrips = monthScopedTrips.filter((t: any) => {
     if (reportDateFilter === 'ALL') return true;
     const cat = StateEngine.getDateCategory(t.dispatchTime || t.createdAt || t.departedAt);
     if (reportDateFilter === 'TODAY') return cat === 'TODAY';
@@ -1831,8 +1946,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
             <form onSubmit={handleSaveUserEdit} className="space-y-3 text-xs font-semibold">
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Full Name *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-full-name-1">Full Name *</label>
+                <input id="admin-portal-full-name-1"
                   required
                   value={editingUser.fullName}
                   onChange={(e) => setEditingUser({ ...editingUser, fullName: e.target.value })}
@@ -1842,8 +1957,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Email Address *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-email-address-2">Email Address *</label>
+                  <input id="admin-portal-email-address-2"
                     required
                     type="email"
                     value={editingUser.email}
@@ -1852,8 +1967,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Mobile Phone *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-mobile-phone-3">Mobile Phone *</label>
+                  <input id="admin-portal-mobile-phone-3"
                     required
                     value={editingUser.phone}
                     onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
@@ -1864,8 +1979,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Role Classification</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-role-classification-4">Role Classification</label>
+                  <select id="admin-portal-role-classification-4"
                     value={editingUser.role}
                     onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -1880,8 +1995,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-assigned-station-5">Assigned Station</label>
+                  <select id="admin-portal-assigned-station-5"
                     value={editingUser.assignedStation || 'EWK'}
                     onChange={(e) => setEditingUser({ ...editingUser, assignedStation: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -1896,8 +2011,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Security PIN</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-security-pin-6">Security PIN</label>
+                  <input id="admin-portal-security-pin-6"
                     value={editingUser.pin || '1111'}
                     onChange={(e) => setEditingUser({ ...editingUser, pin: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
@@ -1905,8 +2020,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Status</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-account-status-7">Account Status</label>
+                  <select id="admin-portal-account-status-7"
                     value={editingUser.status || 'ACTIVE'}
                     onChange={(e) => setEditingUser({ ...editingUser, status: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -1955,8 +2070,14 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handleCreateNewDeal} className="space-y-3 text-xs font-semibold">
               {/* Contract Operational Scope / Type Selector */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Operational Scope *</label>
-                <div className="grid grid-cols-2 gap-2">
+                {/*
+                  A <label> cannot describe a group of buttons — it can only
+                  point at one form control. The correct construct is a labelled
+                  group, so assistive technology announces "Contract Operational
+                  Scope, group" before reading the options.
+                */}
+                <span id="deal-scope-label" className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Operational Scope *</span>
+                <div role="group" aria-labelledby="deal-scope-label" className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setNewDealForm({ ...newDealForm, dealType: 'SINGLE_TRIP', totalPlannedTrips: 1 })}
@@ -2010,8 +2131,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Planned Trips</label>
-                      <input
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5" htmlFor="admin-portal-planned-trips-8">Planned Trips</label>
+                      <input id="admin-portal-planned-trips-8"
                         type="number"
                         min="2"
                         max="60"
@@ -2030,8 +2151,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </div>
 
                     <div>
-                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Tranche Vol. ({currentCargoConfig.unit})</label>
-                      <input
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5" htmlFor="admin-portal-tranche-vol-9">Tranche Vol. ({currentCargoConfig.unit})</label>
+                      <input id="admin-portal-tranche-vol-9"
                         type="number"
                         value={newDealForm.trancheTonnage}
                         onChange={(e) => setNewDealForm({ ...newDealForm, trancheTonnage: Number(e.target.value) || 0 })}
@@ -2040,8 +2161,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </div>
 
                     <div>
-                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Contract Month</label>
-                      <input
+                      <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5" htmlFor="admin-portal-contract-month-10">Contract Month</label>
+                      <input id="admin-portal-contract-month-10"
                         type="month"
                         value={newDealForm.contractMonth}
                         onChange={(e) => setNewDealForm({ ...newDealForm, contractMonth: e.target.value })}
@@ -2051,8 +2172,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </div>
 
                   <div>
-                    <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5">Dispatch Cadence</label>
-                    <select
+                    <label className="block text-[9px] uppercase font-bold text-slate-600 mb-0.5" htmlFor="admin-portal-dispatch-cadence-11">Dispatch Cadence</label>
+                    <select id="admin-portal-dispatch-cadence-11"
                       value={newDealForm.cadence}
                       onChange={(e) => setNewDealForm({ ...newDealForm, cadence: e.target.value })}
                       className="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold"
@@ -2106,8 +2227,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
               )}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Industrial Consignee Client *</label>
-                <select
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-industrial-consignee-client-12">Industrial Consignee Client *</label>
+                <select id="admin-portal-industrial-consignee-client-12"
                   value={newDealForm.companyName}
                   onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2127,10 +2248,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-canonical-corridor-preset-official-13">
                   Canonical Corridor Preset (Official Documented Operations)
                 </label>
-                <select
+                <select id="admin-portal-canonical-corridor-preset-official-13"
                   onChange={(e) => {
                     const preset = CANONICAL_CORRIDORS.find((c) => c.id === e.target.value);
                     if (preset) {
@@ -2166,8 +2287,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Loading Station (Gauge)</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-loading-station-gauge-14">Loading Station (Gauge)</label>
+                  <select id="admin-portal-loading-station-gauge-14"
                     value={newDealForm.loadingStation}
                     onChange={(e) => {
                       const origin = e.target.value;
@@ -2198,8 +2319,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination Yard (Gauge)</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-destination-yard-gauge-15">Destination Yard (Gauge)</label>
+                  <select id="admin-portal-destination-yard-gauge-15"
                     value={newDealForm.destination}
                     onChange={(e) => setNewDealForm({ ...newDealForm, destination: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2223,8 +2344,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Cargo Commodity *</label>
-                <select
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-cargo-commodity-16">Cargo Commodity *</label>
+                <select id="admin-portal-cargo-commodity-16"
                   value={newDealForm.cargoType}
                   onChange={(e) => setNewDealForm({ ...newDealForm, cargoType: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2240,10 +2361,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-quantity-17">
                     Quantity ({currentCargoConfig.unit}) *
                   </label>
-                  <input
+                  <input id="admin-portal-quantity-17"
                     required
                     type="number"
                     value={newDealForm.quantity}
@@ -2262,8 +2383,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Target Date</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-target-date-18">Target Date</label>
+                  <input id="admin-portal-target-date-18"
                     type="date"
                     value={newDealForm.targetDate}
                     onChange={(e) => setNewDealForm({ ...newDealForm, targetDate: e.target.value })}
@@ -2314,8 +2435,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handleSaveCosting} className="space-y-4 text-xs font-semibold">
               {/* Deal Contract Type */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Structure *</label>
-                <div className="grid grid-cols-2 gap-2">
+                <span id="costing-structure-label" className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contract Structure *</span>
+                <div role="group" aria-labelledby="costing-structure-label" className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setCostingForm({ ...costingForm, dealType: 'MONTHLY_CONTRACT', totalPlannedTrips: 10 })}
@@ -2347,8 +2468,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               {costingForm.dealType === 'MONTHLY_CONTRACT' && (
                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Total Trips in Schedule</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-total-trips-in-schedule-19">Total Trips in Schedule</label>
+                    <input id="admin-portal-total-trips-in-schedule-19"
                       type="number"
                       value={costingForm.totalPlannedTrips}
                       onChange={(e) => {
@@ -2365,8 +2486,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tranche Tonnage / Trip (MT)</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-tranche-tonnage-trip-mt-20">Tranche Tonnage / Trip (MT)</label>
+                    <input id="admin-portal-tranche-tonnage-trip-mt-20"
                       type="number"
                       value={costingForm.trancheTonnage}
                       onChange={(e) => setCostingForm({ ...costingForm, trancheTonnage: Number(e.target.value) || 920 })}
@@ -2379,8 +2500,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               {/* Commercial Pricing */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Freight Tariff Rate (₦/MT or Unit) *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-freight-tariff-rate-mt-21">Freight Tariff Rate (₦/MT or Unit) *</label>
+                  <input id="admin-portal-freight-tariff-rate-mt-21"
                     type="number"
                     value={costingForm.tariffRatePerTon}
                     onChange={(e) => {
@@ -2397,8 +2518,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Total Contract Value (₦)</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-total-contract-value-22">Total Contract Value (₦)</label>
+                  <input id="admin-portal-total-contract-value-22"
                     type="number"
                     value={costingForm.totalContractValue}
                     onChange={(e) => setCostingForm({ ...costingForm, totalContractValue: Number(e.target.value) || 0 })}
@@ -2410,8 +2531,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               {/* Operating Budget & Margin */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">OpEx Fuel/Toll Budget (₦/Trip)</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-opex-fuel-toll-budget-23">OpEx Fuel/Toll Budget (₦/Trip)</label>
+                  <input id="admin-portal-opex-fuel-toll-budget-23"
                     type="number"
                     value={costingForm.budgetExpensePerTrip}
                     onChange={(e) => setCostingForm({ ...costingForm, budgetExpensePerTrip: Number(e.target.value) || 0 })}
@@ -2420,8 +2541,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Commercial Payment Terms</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-commercial-payment-terms-24">Commercial Payment Terms</label>
+                  <select id="admin-portal-commercial-payment-terms-24"
                     value={costingForm.paymentTerms}
                     onChange={(e) => setCostingForm({ ...costingForm, paymentTerms: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -2515,8 +2636,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
             <form onSubmit={handleRecordPaymentSubmit} className="space-y-3 text-xs font-semibold">
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remittance Amount (NGN) *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-remittance-amount-ngn-25">Remittance Amount (NGN) *</label>
+                <input id="admin-portal-remittance-amount-ngn-25"
                   required
                   type="number"
                   min="1"
@@ -2529,8 +2650,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payment Classification *</label>
-                <select
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-payment-classification-26">Payment Classification *</label>
+                <select id="admin-portal-payment-classification-26"
                   value={paymentForm.type}
                   onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2543,8 +2664,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Bank Transfer Reference / Session ID *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-bank-transfer-reference-session-27">Bank Transfer Reference / Session ID *</label>
+                <input id="admin-portal-bank-transfer-reference-session-27"
                   required
                   value={paymentForm.ref}
                   onChange={(e) => setPaymentForm({ ...paymentForm, ref: e.target.value })}
@@ -2554,8 +2675,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remittance Date *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-remittance-date-28">Remittance Date *</label>
+                <input id="admin-portal-remittance-date-28"
                   required
                   value={paymentForm.date}
                   onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
@@ -2604,8 +2725,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handleCreateTripCost} className="space-y-3 text-xs font-semibold">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Train Trip *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-select-train-trip-29">Select Train Trip *</label>
+                  <select id="admin-portal-select-train-trip-29"
                     value={newCostForm.tripId}
                     onChange={(e) => setNewCostForm({ ...newCostForm, tripId: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono"
@@ -2619,8 +2740,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Category *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-expense-category-30">Expense Category *</label>
+                  <select id="admin-portal-expense-category-30"
                     value={newCostForm.category}
                     onChange={(e) => {
                       const cat = e.target.value;
@@ -2659,8 +2780,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Description *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-voucher-description-31">Voucher Description *</label>
+                <input id="admin-portal-voucher-description-31"
                   required
                   value={newCostForm.title}
                   onChange={(e) => setNewCostForm({ ...newCostForm, title: e.target.value })}
@@ -2671,8 +2792,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Vendor / Beneficiary *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-vendor-beneficiary-32">Vendor / Beneficiary *</label>
+                  <input id="admin-portal-vendor-beneficiary-32"
                     required
                     value={newCostForm.vendor}
                     onChange={(e) => setNewCostForm({ ...newCostForm, vendor: e.target.value })}
@@ -2682,8 +2803,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-voucher-number-33">Voucher Number *</label>
+                  <input id="admin-portal-voucher-number-33"
                     required
                     value={newCostForm.voucherNo}
                     onChange={(e) => setNewCostForm({ ...newCostForm, voucherNo: e.target.value })}
@@ -2693,8 +2814,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Amount (NGN) *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-expense-amount-ngn-34">Expense Amount (NGN) *</label>
+                <input id="admin-portal-expense-amount-ngn-34"
                   required
                   type="number"
                   min="1"
@@ -2748,8 +2869,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handleUpdateTripCost} className="space-y-3 text-xs font-semibold">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Category *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-expense-category-35">Expense Category *</label>
+                  <select id="admin-portal-expense-category-35"
                     value={editingTripCost.category || 'NRC_TRACK_ACCESS'}
                     onChange={(e) => setEditingTripCost({ ...editingTripCost, category: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2764,8 +2885,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payment Status *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-payment-status-36">Payment Status *</label>
+                  <select id="admin-portal-payment-status-36"
                     value={editingTripCost.paymentStatus || 'PAID'}
                     onChange={(e) => setEditingTripCost({ ...editingTripCost, paymentStatus: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -2778,8 +2899,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Description *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-voucher-description-37">Voucher Description *</label>
+                <input id="admin-portal-voucher-description-37"
                   required
                   value={editingTripCost.title || ''}
                   onChange={(e) => setEditingTripCost({ ...editingTripCost, title: e.target.value })}
@@ -2790,8 +2911,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Vendor / Beneficiary *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-vendor-beneficiary-38">Vendor / Beneficiary *</label>
+                  <input id="admin-portal-vendor-beneficiary-38"
                     required
                     value={editingTripCost.vendor || ''}
                     onChange={(e) => setEditingTripCost({ ...editingTripCost, vendor: e.target.value })}
@@ -2801,8 +2922,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-voucher-number-39">Voucher Number *</label>
+                  <input id="admin-portal-voucher-number-39"
                     required
                     value={editingTripCost.voucherNo || ''}
                     onChange={(e) => setEditingTripCost({ ...editingTripCost, voucherNo: e.target.value })}
@@ -2812,8 +2933,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Expense Amount (NGN) *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-expense-amount-ngn-40">Expense Amount (NGN) *</label>
+                <input id="admin-portal-expense-amount-ngn-40"
                   required
                   type="number"
                   min="1"
@@ -2865,8 +2986,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handleCreateAccount} className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Code *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-account-code-41">Account Code *</label>
+                  <input id="admin-portal-account-code-41"
                     required
                     value={newAccountForm.code}
                     onChange={(e) => setNewAccountForm({ ...newAccountForm, code: e.target.value })}
@@ -2875,8 +2996,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Category *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-account-category-42">Account Category *</label>
+                  <select id="admin-portal-account-category-42"
                     value={newAccountForm.type}
                     onChange={(e) => {
                       const t = e.target.value as any;
@@ -2898,8 +3019,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Account Title / Name *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-account-title-name-43">Account Title / Name *</label>
+                <input id="admin-portal-account-title-name-43"
                   required
                   value={newAccountForm.name}
                   onChange={(e) => setNewAccountForm({ ...newAccountForm, name: e.target.value })}
@@ -2910,8 +3031,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Sub-Classification *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-sub-classification-44">Sub-Classification *</label>
+                  <input id="admin-portal-sub-classification-44"
                     required
                     value={newAccountForm.subType}
                     onChange={(e) => setNewAccountForm({ ...newAccountForm, subType: e.target.value })}
@@ -2920,8 +3041,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Opening Balance (NGN)</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-opening-balance-ngn-45">Opening Balance (NGN)</label>
+                  <input id="admin-portal-opening-balance-ngn-45"
                     type="number"
                     value={newAccountForm.openingBalance}
                     onChange={(e) => setNewAccountForm({ ...newAccountForm, openingBalance: e.target.value })}
@@ -2932,8 +3053,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Audit Purpose & Description</label>
-                <textarea
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-audit-purpose-description-46">Audit Purpose & Description</label>
+                <textarea id="admin-portal-audit-purpose-description-46"
                   rows={2}
                   value={newAccountForm.description}
                   onChange={(e) => setNewAccountForm({ ...newAccountForm, description: e.target.value })}
@@ -2988,8 +3109,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             <form onSubmit={handlePostJournalEntry} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Voucher Number *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-voucher-number-47">Voucher Number *</label>
+                  <input id="admin-portal-voucher-number-47"
                     required
                     value={newJournalForm.journalNo}
                     onChange={(e) => setNewJournalForm({ ...newJournalForm, journalNo: e.target.value })}
@@ -2997,8 +3118,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Posting Date *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-posting-date-48">Posting Date *</label>
+                  <input id="admin-portal-posting-date-48"
                     required
                     value={newJournalForm.date}
                     onChange={(e) => setNewJournalForm({ ...newJournalForm, date: e.target.value })}
@@ -3006,8 +3127,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Source Reference *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-source-reference-49">Source Reference *</label>
+                  <input id="admin-portal-source-reference-49"
                     required
                     value={newJournalForm.reference}
                     onChange={(e) => setNewJournalForm({ ...newJournalForm, reference: e.target.value })}
@@ -3018,8 +3139,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Narration / Memo *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-narration-memo-50">Narration / Memo *</label>
+                <input id="admin-portal-narration-memo-50"
                   required
                   value={newJournalForm.description}
                   onChange={(e) => setNewJournalForm({ ...newJournalForm, description: e.target.value })}
@@ -3264,10 +3385,30 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
           {/* SYNCED LOGGED IN USER DETAILS + CREATE DEAL ACTION */}
           <div className="flex items-center gap-2 sm:gap-3">
             <button
-              onClick={() => {
-                if (confirm('Permanently purge all test deals, trips, and invoices from the database for a clean production launch?')) {
-                  StateEngine.cleanProductionPurge();
-                  window.location.reload();
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: 'Permanently erase all operational data?',
+                  body: 'Every trip, deal, invoice, fund request, cost voucher, negotiation and '
+                    + 'notification will be deleted from the live MySQL database. Accounts and '
+                    + 'permissions are kept. There is no undo and no backup is taken.',
+                  confirmLabel: 'Erase everything',
+                  destructive: true,
+                });
+                if (!ok) return;
+
+                try {
+                  // The second argument is required: cleanProductionPurge refuses to
+                  // run without explicit confirmation. It was previously called
+                  // without it, so the request threw and the page reloaded anyway —
+                  // the button looked like it worked while purging nothing.
+                  await notify.promise(StateEngine.cleanProductionPurge(true), {
+                    loading: 'Purging operational data…',
+                    success: 'Operational data purged.',
+                  });
+                  await StateEngine.syncRemote();
+                  syncData();
+                } catch {
+                  /* notify.promise has already surfaced the reason */
                 }
               }}
               className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1 shadow-2xs"
@@ -3347,7 +3488,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => setActiveTab(t.id as any)}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
                         isActive
-                          ? 'bg-[#62BC37] text-white shadow-sm font-black'
+                          ? 'bg-brand text-white shadow-sm font-black'
                           : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
@@ -3362,7 +3503,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         )}
 
         {/* ─── MAIN CONTENT CANVAS (SHIFTS CLEANLY, SHARP & UNBLURRED) ─── */}
-        <main className="flex-1 p-6 space-y-6 min-w-0">
+        <main id="main-content" className="flex-1 p-6 space-y-6 min-w-0">
 
         {/* ─── TAB 0: ORIGINAL FULL EXECUTIVE REPORTS & HISTORICAL ANALYTICS (MONTH-BY-MONTH RETRIEVABLE 2-3 MONTHS AGO) ─── */}
         {activeTab === 'analytics' && (
@@ -3379,7 +3520,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
                 <div className="text-right font-mono text-xs">
                   <p className="font-extrabold text-slate-900 uppercase">CONFIDENTIAL EXECUTIVE AUDIT</p>
-                  <p className="text-slate-600">Audit Period: {selectedMonth}</p>
+                  <p className="text-slate-600">Audit Period: {monthLabel(selectedMonth)}</p>
                   <p className="text-slate-600">Generated: {new Date().toLocaleDateString('en-GB')}</p>
                 </div>
               </div>
@@ -3397,16 +3538,21 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="flex flex-wrap items-center gap-3">
                 {/* Month Picker for 2-3 Months Ago Historical Search */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 font-mono">Retrievable Month:</span>
+                  <label htmlFor="archive-month" className="text-xs font-bold text-slate-600 font-mono">
+                    Retrievable Month:
+                  </label>
                   <select
+                    id="archive-month"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
                     className="bg-slate-900 text-white font-bold rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
                   >
-                    <option value="2026-09">September 2026 (Current)</option>
-                    <option value="2026-08">August 2026 (1 Month Ago)</option>
-                    <option value="2026-07">July 2026 (2 Months Ago)</option>
-                    <option value="2026-06">June 2026 (3 Months Ago)</option>
+                    <option value="ALL">All periods ({trips.length})</option>
+                    {availableMonths.map((key) => (
+                      <option key={key} value={key}>
+                        {monthLabel(key)} ({tripsByMonth[key]?.length ?? 0})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -3466,7 +3612,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             {/* TOP OPERATIONAL INTELLIGENCE CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Total Freight Hauled ({selectedMonth})</span>
+                <span className="text-[10px] font-mono font-bold uppercase text-slate-400 block">Total Freight Hauled ({monthLabel(selectedMonth)})</span>
                 <p className="text-2xl font-black text-slate-900 font-mono">{Math.round(totalReportMT).toLocaleString()} MT</p>
                 <span className="text-[10px] text-emerald-700 font-bold">Net Corridor Cargo Moved</span>
               </div>
@@ -3508,10 +3654,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       <div key={idx} className="space-y-1.5">
                         <div className="flex justify-between items-center text-xs font-mono">
                           <span className="font-black text-slate-900">{rf.route}</span>
-                          <span className="font-bold text-[#62BC37]">{rf.percentage}% of Network ({rf.tonnage} MT)</span>
+                          <span className="font-bold text-brand">{rf.percentage}% of Network ({rf.tonnage} MT)</span>
                         </div>
                         <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                          <div className="bg-[#62BC37] h-full rounded-full transition-all" style={{ width: `${rf.percentage}%` }} />
+                          <div className="bg-brand h-full rounded-full transition-all" style={{ width: `${rf.percentage}%` }} />
                         </div>
                       </div>
                     ))}
@@ -3550,7 +3696,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </h3>
                 </div>
                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-3 py-1 rounded-xl">
-                  {selectedMonth} Target Sync
+                  {monthLabel(selectedMonth)} Target Sync
                 </span>
               </div>
 
@@ -3642,7 +3788,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div>
                   <span className="text-[10px] font-mono font-bold text-slate-700 uppercase">CORRIDOR AUDIT TRAIL</span>
                   <h3 className="text-base font-black text-slate-900">
-                    DATABASE TRIP AUDIT LOG: Archived Consignments & Discrepancies for {selectedMonth}
+                    DATABASE TRIP AUDIT LOG: Archived Consignments & Discrepancies for {monthLabel(selectedMonth)}
                   </h3>
                 </div>
               </div>
@@ -4566,7 +4712,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             return (
                               <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="py-3.5 px-3">
-                                  <span className="font-bold text-[#0E4B88] block">{t.tripId || t.id}</span>
+                                  <span className="font-bold text-navy block">{t.tripId || t.id}</span>
                                   <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'L2205'}</span>
                                 </td>
                                 <td className="py-3.5 px-3 font-sans font-bold text-slate-900">
@@ -5534,8 +5680,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <label className="text-xs font-bold text-slate-500">Select GL Account:</label>
-                          <select
+                          <label className="text-xs font-bold text-slate-500" htmlFor="admin-portal-select-gl-account-51">Select GL Account:</label>
+                          <select id="admin-portal-select-gl-account-51"
                             value={selectedLedgerAccount}
                             onChange={(e) => setSelectedLedgerAccount(e.target.value)}
                             className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -5746,8 +5892,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <label className="text-xs font-bold text-slate-500">Select Corridor:</label>
-                      <select
+                      <label className="text-xs font-bold text-slate-500" htmlFor="admin-portal-select-corridor-52">Select Corridor:</label>
+                      <select id="admin-portal-select-corridor-52"
                         value={selectedTripForCosting}
                         onChange={(e) => setSelectedTripForCosting(e.target.value)}
                         className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 font-mono"
@@ -6151,8 +6297,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <form onSubmit={handleProvisionUser} className="space-y-3 text-xs font-semibold">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Full Name *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-full-name-53">Full Name *</label>
+                  <input id="admin-portal-full-name-53"
                     required
                     value={provisionForm.fullName}
                     onChange={(e) => setProvisionForm({ ...provisionForm, fullName: e.target.value })}
@@ -6163,8 +6309,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Email Address *</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-email-address-54">Email Address *</label>
+                    <input id="admin-portal-email-address-54"
                       required
                       type="email"
                       value={provisionForm.email}
@@ -6174,8 +6320,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Mobile Phone *</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-mobile-phone-55">Mobile Phone *</label>
+                    <input id="admin-portal-mobile-phone-55"
                       required
                       value={provisionForm.phone}
                       onChange={(e) => setProvisionForm({ ...provisionForm, phone: e.target.value })}
@@ -6187,8 +6333,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Role Classification</label>
-                    <select
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-role-classification-56">Role Classification</label>
+                    <select id="admin-portal-role-classification-56"
                       value={provisionForm.role}
                       onChange={(e) => {
                         const newRole = e.target.value;
@@ -6210,8 +6356,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
-                    <select
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-assigned-station-57">Assigned Station</label>
+                    <select id="admin-portal-assigned-station-57"
                       value={provisionForm.assignedStation}
                       onChange={(e) => setProvisionForm({ ...provisionForm, assignedStation: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
@@ -6226,8 +6372,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 {provisionForm.role === 'CUSTOMER' && (
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Company / Organization Name *</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-company-organization-name-58">Company / Organization Name *</label>
+                    <input id="admin-portal-company-organization-name-58"
                       required
                       value={provisionForm.companyName}
                       onChange={(e) => setProvisionForm({ ...provisionForm, companyName: e.target.value })}
@@ -6529,8 +6675,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <form onSubmit={handleRegisterWagon} className="space-y-3.5 text-xs font-semibold">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Registration ID *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-wagon-registration-id-59">Wagon Registration ID *</label>
+                  <input id="admin-portal-wagon-registration-id-59"
                     required
                     value={newWagonForm.id}
                     onChange={(e) => setNewWagonForm({ ...newWagonForm, id: e.target.value })}
@@ -6539,8 +6685,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon Classification *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-wagon-classification-60">Wagon Classification *</label>
+                  <select id="admin-portal-wagon-classification-60"
                     value={newWagonForm.wagonType}
                     onChange={(e) => setNewWagonForm({ ...newWagonForm, wagonType: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -6554,8 +6700,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Payload Capacity</label>
-                    <input
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-payload-capacity-61">Payload Capacity</label>
+                    <input id="admin-portal-payload-capacity-61"
                       required
                       value={newWagonForm.payloadCapacity}
                       onChange={(e) => setNewWagonForm({ ...newWagonForm, payloadCapacity: e.target.value })}
@@ -6563,8 +6709,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Assigned Station</label>
-                    <select
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-assigned-station-62">Assigned Station</label>
+                    <select id="admin-portal-assigned-station-62"
                       value={newWagonForm.currentStation}
                       onChange={(e) => setNewWagonForm({ ...newWagonForm, currentStation: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -6685,7 +6831,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                       onClick={() => setSelectedPermissionRole(r.key)}
                       className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-2 border ${
                         isSelected
-                          ? 'bg-[#62BC37] text-white border-[#62BC37] shadow-sm font-black'
+                          ? 'bg-brand text-white border-brand shadow-sm font-black'
                           : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
                       }`}
                     >
@@ -6711,7 +6857,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <h4 className="text-xs font-black text-slate-900">
-                      Configuring: <span className="text-[#62BC37]">{selectedPermissionRole}</span>
+                      Configuring: <span className="text-brand">{selectedPermissionRole}</span>
                     </h4>
                     <p className="text-[11px] text-slate-500 font-medium">
                       {activeRolePerms.length} of {totalPerms} permissions enabled for this role.
@@ -6762,10 +6908,17 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                           {items.map((item) => {
                             const isGranted = activeRolePerms.includes(item.key);
 
+                            // A <label> wrapping the checkbox, rather than a div
+                            // with an onClick. The checkbox previously had
+                            // `onChange={() => {}}` and depended on the parent
+                            // div's click handler, so a keyboard user could focus
+                            // it and press Space to no effect — the permission
+                            // matrix could not be operated without a mouse at all.
+                            // Wrapping associates the two natively, so click,
+                            // Space and screen-reader announcement all work.
                             return (
-                              <div
+                              <label
                                 key={item.key}
-                                onClick={() => handleTogglePermission(item.key)}
                                 className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
                                   isGranted
                                     ? 'bg-emerald-50/40 border-emerald-300 shadow-2xs'
@@ -6775,7 +6928,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                 <input
                                   type="checkbox"
                                   checked={isGranted}
-                                  onChange={() => {}} // Handled by parent div
+                                  onChange={() => handleTogglePermission(item.key)}
                                   className="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
                                 />
                                 <div className="space-y-0.5 min-w-0">
@@ -6791,7 +6944,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                                     {item.key}
                                   </code>
                                 </div>
-                              </div>
+                              </label>
                             );
                           })}
                         </div>
@@ -6814,7 +6967,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 type="button"
                 onClick={handleSavePermissionsMatrix}
                 disabled={isSavingPermissions}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+                className="bg-brand hover:bg-brand-dark text-white font-black text-xs px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 shrink-0 cursor-pointer"
               >
                 {isSavingPermissions ? 'Saving...' : 'Save & Enforce in Database'}
               </button>
@@ -6870,10 +7023,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-agreed-total-freight-cost-63">
                   Agreed Total Freight Cost (₦) *
                 </label>
-                <input
+                <input id="admin-portal-agreed-total-freight-cost-63"
                   required
                   type="number"
                   value={pricingForm.amount}
@@ -6885,10 +7038,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-tariff-rate-per-ton-64">
                     Tariff Rate Per Ton (₦/MT)
                   </label>
-                  <input
+                  <input id="admin-portal-tariff-rate-per-ton-64"
                     type="number"
                     value={pricingForm.tariffRatePerTon}
                     onChange={(e) => setPricingForm({ ...pricingForm, tariffRatePerTon: e.target.value })}
@@ -6897,10 +7050,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-damage-deduction-65">
                     Damage Deduction (₦)
                   </label>
-                  <input
+                  <input id="admin-portal-damage-deduction-65"
                     type="number"
                     value={pricingForm.damageDeduction}
                     onChange={(e) => setPricingForm({ ...pricingForm, damageDeduction: e.target.value })}
@@ -6911,10 +7064,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-payment-terms-commercial-finance-66">
                   Payment Terms / Commercial Finance Notes
                 </label>
-                <textarea
+                <textarea id="admin-portal-payment-terms-commercial-finance-66"
                   rows={2}
                   value={pricingForm.notes}
                   onChange={(e) => setPricingForm({ ...pricingForm, notes: e.target.value })}
@@ -6933,7 +7086,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
                 >
                   Save Cost to Ledger
                 </button>

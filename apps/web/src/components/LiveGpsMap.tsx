@@ -1,7 +1,10 @@
 'use client';
 
+import { shouldPoll, onReturnToForeground } from '@/lib/polling';
+import 'leaflet/dist/leaflet.css';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
+import { BRAND } from '@/lib/theme';
 
 export interface MonitoringOfficer {
   name: string;
@@ -478,8 +481,17 @@ export function LiveGpsMap({
     };
 
     fetchLatestRemoteGps();
-    const interval = setInterval(fetchLatestRemoteGps, 4000);
-    return () => clearInterval(interval);
+    // 4s is the tightest poll in the application — worth suspending entirely
+    // while nobody is looking at the map. See lib/polling.
+    const interval = setInterval(() => {
+      if (!shouldPoll()) return;
+      fetchLatestRemoteGps();
+    }, 4000);
+    const stopForegroundWatch = onReturnToForeground(fetchLatestRemoteGps);
+    return () => {
+      clearInterval(interval);
+      stopForegroundWatch();
+    };
   }, [tripId, locoId, isBroadcasting, destStation, originStation]);
 
   // Clean up watcher on unmount
@@ -504,8 +516,9 @@ export function LiveGpsMap({
 
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconUrl: '/vendor/leaflet/marker-icon.png',
+        iconRetinaUrl: '/vendor/leaflet/marker-icon-2x.png',
+        shadowUrl: '/vendor/leaflet/marker-shadow.png',
       });
 
       if (leafletMapRef.current) {
@@ -531,7 +544,7 @@ export function LiveGpsMap({
 
         // Rail corridor route polyline
         routePolylineRef.current = L.polyline([originPos, destPos], {
-          color: '#62BC37',
+          color: BRAND.green,
           weight: 5,
           dashArray: '8, 8',
           opacity: 0.9,
@@ -550,7 +563,7 @@ export function LiveGpsMap({
         // Custom live train locomotive marker with pulse indicator
         const trainIcon = L.divIcon({
           html: `
-            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:18px; border:2px solid #62BC37; box-shadow:0 6px 20px rgba(0,0,0,0.6); display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+            <div style="background:#0F172A; color:#FFFFFF; font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:800; padding:5px 10px; border-radius:18px; border:2px solid ${BRAND.green}; box-shadow:0 6px 20px rgba(0,0,0,0.6); display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
               <span style="width:8px; height:8px; border-radius:50%; background:#10B981; display:inline-block;" class="animate-ping"></span>
               LOCO ${locoId}
             </div>
@@ -622,7 +635,7 @@ export function LiveGpsMap({
           <button
             onClick={() => setMapMode('MAP')}
             className={`px-3 py-1 rounded-lg text-xs font-bold font-mono transition-all ${
-              mapMode === 'MAP' ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-300 hover:text-white'
+              mapMode === 'MAP' ? 'bg-brand text-white shadow-xs' : 'text-slate-300 hover:text-white'
             }`}
           >
              Live Map (OSM)
@@ -630,7 +643,7 @@ export function LiveGpsMap({
           <button
             onClick={() => setMapMode('RADAR')}
             className={`px-3 py-1 rounded-lg text-xs font-bold font-mono transition-all ${
-              mapMode === 'RADAR' ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-300 hover:text-white'
+              mapMode === 'RADAR' ? 'bg-brand text-white shadow-xs' : 'text-slate-300 hover:text-white'
             }`}
           >
              Radar Vector
@@ -648,7 +661,7 @@ export function LiveGpsMap({
                 key={df}
                 onClick={() => setGpsDateFilter(df)}
                 className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
-                  gpsDateFilter === df ? 'bg-[#62BC37] text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                  gpsDateFilter === df ? 'bg-brand text-white shadow-xs' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {df === 'ALL' ? 'All Dates' : df === 'TODAY' ? ' Today' : ' Yesterday'}
@@ -663,7 +676,7 @@ export function LiveGpsMap({
             <select
               value={trip?.id || trip?.tripId || ''}
               onChange={(e) => handleTripChange(e.target.value)}
-              className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-[#62BC37] focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
+              className="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-2 rounded-xl border border-slate-600 focus:ring-2 focus:ring-brand focus:outline-none w-full sm:w-80 cursor-pointer shadow-inner"
             >
               {allTrips.length === 0 && (
                 <option value="">No Active Corridor Dispatches</option>
@@ -771,7 +784,7 @@ export function LiveGpsMap({
       {/* ─── ON-BOARD MONITORING ESCORT OFFICER BAR ─── */}
       <div className="bg-slate-950 text-white p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 font-sans">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#62BC37] text-white flex items-center justify-center font-black text-sm shadow-md font-mono">
+          <div className="w-10 h-10 rounded-2xl bg-brand text-white flex items-center justify-center font-black text-sm shadow-md font-mono">
             
           </div>
           <div>
@@ -807,7 +820,7 @@ export function LiveGpsMap({
           {!isSimulating ? (
             <button
               onClick={startSimulation}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
+              className="bg-brand hover:bg-brand-dark text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
               title="Smoothly simulate rail freight transit along Nigerian railway corridor (Ideal for laptop presentations)"
             >
               <span> Simulate Rail Movement (Presentation Demo)</span>
@@ -861,7 +874,6 @@ export function LiveGpsMap({
         {mapMode === 'MAP' ? (
           /* REAL LEAFLET OPENSTREETMAP INTERACTIVE VIEW */
           <div className="w-full h-full relative">
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <div ref={mapContainerRef} className="w-full h-full z-0 bg-slate-900" />
 
             {/* LIVE OVERLAY COMPASS & TELEMETRY HUD */}
@@ -903,7 +915,7 @@ export function LiveGpsMap({
             <div
               className="absolute inset-0 opacity-20 pointer-events-none"
               style={{
-                backgroundImage: `radial-gradient(#62BC37 1px, transparent 1px)`,
+                backgroundImage: `radial-gradient(${BRAND.green} 1px, transparent 1px)`,
                 backgroundSize: '24px 24px',
               }}
             />
@@ -911,11 +923,11 @@ export function LiveGpsMap({
             <svg className="w-full h-full absolute inset-0 p-8" viewBox="0 0 800 240" preserveAspectRatio="none">
               {/* Rail Line Vector */}
               <line x1="80" y1="120" x2="720" y2="120" stroke="#334155" strokeWidth="8" strokeLinecap="round" />
-              <line x1="80" y1="120" x2="720" y2="120" stroke="#62BC37" strokeWidth="4" strokeDasharray="8 6" className="animate-pulse" />
+              <line x1="80" y1="120" x2="720" y2="120" stroke={BRAND.green} strokeWidth="4" strokeDasharray="8 6" className="animate-pulse" />
 
               {/* Origin Station Point */}
               <g transform="translate(80, 120)">
-                <circle r="12" fill="#1E293B" stroke="#62BC37" strokeWidth="3" />
+                <circle r="12" fill="#1E293B" stroke={BRAND.green} strokeWidth="3" />
                 <text y="28" fill="#E2E8F0" fontSize="11" fontFamily="sans-serif" fontWeight="bold" textAnchor="middle">
                   {originStation.code} ({originStation.name.split(' ')[0]})
                 </text>
@@ -942,16 +954,16 @@ export function LiveGpsMap({
 
                 return (
                   <g transform={`translate(${trainX}, ${trainY})`}>
-                    <circle cx="0" cy="0" r="22" fill="#62BC37" fillOpacity="0.3" className="animate-ping" />
-                    <circle cx="0" cy="0" r="14" fill="#62BC37" stroke="#FFFFFF" strokeWidth="3" />
+                    <circle cx="0" cy="0" r="22" fill={BRAND.green} fillOpacity="0.3" className="animate-ping" />
+                    <circle cx="0" cy="0" r="14" fill={BRAND.green} stroke="#FFFFFF" strokeWidth="3" />
                     <text x="0" y="4" fill="#FFFFFF" fontSize="12" fontWeight="900" textAnchor="middle">
                       
                     </text>
 
                     {/* CALLOUT BADGE ABOVE TRAIN */}
                     <g transform="translate(0, -32)">
-                      <rect x="-80" y="-14" width="160" height="24" rx="6" fill="#0F172A" stroke="#62BC37" strokeWidth="1.5" />
-                      <text x="0" y="2" fill="#62BC37" fontSize="9" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
+                      <rect x="-80" y="-14" width="160" height="24" rx="6" fill="#0F172A" stroke={BRAND.green} strokeWidth="1.5" />
+                      <text x="0" y="2" fill={BRAND.green} fontSize="9" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
                         {speed} km/h • {distanceKm} km left → {cardinal}
                       </text>
                     </g>
@@ -964,7 +976,7 @@ export function LiveGpsMap({
             <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl border border-slate-800 text-white space-y-1 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">Live Speed</span>
-                <span className="font-mono font-black text-[#62BC37] text-sm">{speed} km/h</span>
+                <span className="font-mono font-black text-brand text-sm">{speed} km/h</span>
               </div>
               <div className="text-[10px] font-mono text-slate-300">
                 Coords: {coords.lat.toFixed(4)}°, {coords.lng.toFixed(4)}°
@@ -982,13 +994,13 @@ export function LiveGpsMap({
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs font-bold flex-wrap gap-2">
             <span className="text-slate-700 uppercase font-mono">Origin: {originStation.name}</span>
-            <span className="text-[#62BC37] font-mono font-extrabold text-sm">{progress}% Corridor Completed</span>
+            <span className="text-brand font-mono font-extrabold text-sm">{progress}% Corridor Completed</span>
             <span className="text-slate-700 uppercase font-mono">Target: {destStation.name}</span>
           </div>
 
           <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden relative border border-slate-200">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-[#62BC37] rounded-full transition-all duration-700 shadow-inner"
+              className="h-full bg-gradient-to-r from-emerald-500 to-brand rounded-full transition-all duration-700 shadow-inner"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -1012,7 +1024,7 @@ export function LiveGpsMap({
 
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
             <span className="text-[9px] uppercase font-bold text-slate-400 block">Phone Hotline</span>
-            <span className="font-mono font-bold text-[#62BC37]">{officer.phone}</span>
+            <span className="font-mono font-bold text-brand">{officer.phone}</span>
           </div>
         </div>
       </div>
@@ -1021,7 +1033,7 @@ export function LiveGpsMap({
       {showCallModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 font-sans text-center">
-            <div className="w-12 h-12 bg-emerald-50 text-[#62BC37] rounded-full flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
+            <div className="w-12 h-12 bg-emerald-50 text-brand rounded-full flex items-center justify-center font-black text-xl mx-auto border border-emerald-200 font-mono">
               
             </div>
             <div>
@@ -1033,7 +1045,7 @@ export function LiveGpsMap({
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 font-mono space-y-1">
               <span className="text-xs font-bold text-slate-400 block">PHONE NUMBER</span>
-              <span className="text-lg font-black text-[#62BC37]">{officer.phone}</span>
+              <span className="text-lg font-black text-brand">{officer.phone}</span>
             </div>
 
             <div className="flex gap-2">
@@ -1045,7 +1057,7 @@ export function LiveGpsMap({
               </button>
               <a
                 href={`tel:${officer.phone}`}
-                className="flex-1 bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                className="flex-1 bg-brand hover:bg-brand-dark text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <span>Dial Number Now →</span>
               </a>

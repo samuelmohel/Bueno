@@ -10,7 +10,7 @@ export default function ClientPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-xs font-bold text-slate-500">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-500">
       Redirecting to Bueno Logistics Sign In...
     </div>
   );

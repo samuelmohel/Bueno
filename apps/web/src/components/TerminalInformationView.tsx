@@ -286,14 +286,14 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             </h2>
             <p className="text-xs text-slate-500">
               Station Siding Rolling Stock Ledger, Loading Tally, Waybills, and Demurrage Counter —{' '}
-              <span className="text-[#62BC37] font-bold">100% Real-Time Data from Wagon Loading Audits.</span>
+              <span className="text-brand font-bold">100% Real-Time Data from Wagon Loading Audits.</span>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleExportCsv}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-brand hover:bg-brand-dark text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
             >
               <span>{selectedTripId !== 'ALL' ? 'Download Trip Ledger (CSV)' : 'Export Excel / CSV'}</span>
             </button>
@@ -325,7 +325,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 setSelectedStation(e.target.value);
                 setSelectedTripId('ALL');
               }}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37] shadow-xs"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-brand shadow-xs"
             >
               {Object.entries(STATION_OPTIONS).map(([code, opt]) => (
                 <option key={code} value={code}>
@@ -343,7 +343,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             <select
               value={selectedTripId}
               onChange={(e) => setSelectedTripId(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-[#62BC37] shadow-xs"
+              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-slate-900 focus:ring-2 focus:ring-brand shadow-xs"
             >
               <option value="ALL">All Trips & Wagons at {selectedStation}</option>
               {allTrips.map((t: any) => (
@@ -359,7 +359,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
         <div className="flex flex-wrap items-center justify-between gap-4 pt-1 text-xs font-mono">
           <div className="flex items-center gap-3">
             <span className="text-slate-500">Track Gauge:</span>
-            <span className="font-bold text-[#0E4B88] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+            <span className="font-bold text-navy bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
               {currentStationInfo.gauge}
             </span>
           </div>
@@ -382,9 +382,9 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
 
         {/* DEDICATED TRIP HIGHLIGHT BANNER (IF FILTERED BY TRIP) */}
         {currentTrip && (
-          <div className="p-4 rounded-2xl bg-[#62BC37]/10 border border-[#62BC37]/30 flex flex-wrap justify-between items-center gap-3">
+          <div className="p-4 rounded-2xl bg-brand/10 border border-brand/30 flex flex-wrap justify-between items-center gap-3">
             <div>
-              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-[#356e1b] block">
+              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-brand-800 block">
                 AUDIT FOCUS: TRIP {currentTrip.tripId || currentTrip.id}
               </span>
               <p className="text-sm font-black text-slate-900 mt-0.5">
@@ -403,7 +403,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               </button>
               <button
                 onClick={handleExportCsv}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs cursor-pointer"
+                className="bg-brand hover:bg-brand-dark text-white font-extrabold text-xs px-3.5 py-1.5 rounded-xl shadow-xs cursor-pointer"
               >
                 Download This Trip CSV
               </button>
@@ -469,7 +469,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 stationRows.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                     {/* 1. WAGON NO. */}
-                    <td className="p-3.5 font-black text-[#0E4B88]">{row.wagonNo}</td>
+                    <td className="p-3.5 font-black text-navy">{row.wagonNo}</td>
 
                     {/* 2. CONDITION */}
                     <td className="p-3.5">
@@ -533,7 +533,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                     </td>
 
                     {/* 15. WAYBILL NO. */}
-                    <td className="p-3.5 font-bold text-[#0E4B88]">{row.waybillNo}</td>
+                    <td className="p-3.5 font-bold text-navy">{row.waybillNo}</td>
 
                     {/* 16. DEMURRAGE */}
                     <td className="p-3.5 font-black">
@@ -577,8 +577,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
             <form onSubmit={handleAddRow} className="space-y-3 text-xs font-semibold">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Wagon No. *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-wagon-no-1">Wagon No. *</label>
+                  <input id="terminal-informati-wagon-no-1"
                     required
                     value={newRowForm.wagonNo}
                     onChange={(e) => setNewRowForm({ ...newRowForm, wagonNo: e.target.value })}
@@ -587,8 +587,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Condition *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-condition-2">Condition *</label>
+                  <select id="terminal-informati-condition-2"
                     value={newRowForm.condition}
                     onChange={(e) => setNewRowForm({ ...newRowForm, condition: e.target.value as any })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -604,24 +604,24 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Start Time</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-start-time-3">Start Time</label>
+                  <input id="terminal-informati-start-time-3"
                     value={newRowForm.startTime}
                     onChange={(e) => setNewRowForm({ ...newRowForm, startTime: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">End Time</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-end-time-4">End Time</label>
+                  <input id="terminal-informati-end-time-4"
                     value={newRowForm.endTime}
                     onChange={(e) => setNewRowForm({ ...newRowForm, endTime: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Duration</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-duration-5">Duration</label>
+                  <input id="terminal-informati-duration-5"
                     value={newRowForm.duration}
                     onChange={(e) => setNewRowForm({ ...newRowForm, duration: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -631,8 +631,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Train No. *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-train-no-6">Train No. *</label>
+                  <input id="terminal-informati-train-no-6"
                     required
                     value={newRowForm.trainNo}
                     onChange={(e) => setNewRowForm({ ...newRowForm, trainNo: e.target.value })}
@@ -640,8 +640,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Destination *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-destination-7">Destination *</label>
+                  <select id="terminal-informati-destination-7"
                     value={newRowForm.destination}
                     onChange={(e) => setNewRowForm({ ...newRowForm, destination: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -657,16 +657,16 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Quantity (Bags)</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-quantity-bags-8">Quantity (Bags)</label>
+                  <input id="terminal-informati-quantity-bags-8"
                     value={newRowForm.quantity}
                     onChange={(e) => setNewRowForm({ ...newRowForm, quantity: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tonnage</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-tonnage-9">Tonnage</label>
+                  <input id="terminal-informati-tonnage-9"
                     value={newRowForm.tonnage}
                     onChange={(e) => setNewRowForm({ ...newRowForm, tonnage: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -675,8 +675,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Feeder Truck Plate(s)</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-feeder-truck-plate-s-10">Feeder Truck Plate(s)</label>
+                <input id="terminal-informati-feeder-truck-plate-s-10"
                   value={newRowForm.truckRegNo}
                   onChange={(e) => setNewRowForm({ ...newRowForm, truckRegNo: e.target.value })}
                   placeholder="e.g. KJA-482-XY, BDG-119-ZZ"
@@ -685,8 +685,8 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Remark / Audit Note</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="terminal-informati-remark-audit-note-11">Remark / Audit Note</label>
+                <input id="terminal-informati-remark-audit-note-11"
                   value={newRowForm.remark}
                   onChange={(e) => setNewRowForm({ ...newRowForm, remark: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-900"
@@ -703,7 +703,7 @@ export function TerminalInformationView({ user, initialStation }: { user?: any; 
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer"
                 >
                   Save Entry
                 </button>

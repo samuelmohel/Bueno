@@ -1,11 +1,22 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
+import { shouldPoll, onReturnToForeground } from '@/lib/polling';
 import { useState, useEffect } from 'react';
 import { StateEngine, CANONICAL_CORRIDORS } from '@/lib/services/StateEngine';
-import { LiveGpsMap } from '@/components/LiveGpsMap';
 import { NotificationBell } from '@/components/NotificationBell';
-import OfficialInvoiceModal from '@/components/OfficialInvoiceModal';
-import { TripDossierModal } from '@/components/TripDossierModal';
+
+const ViewLoading = () => (
+  <div className="flex h-48 items-center justify-center" role="status" aria-live="polite">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-brand" />
+    <span className="sr-only">Loading view…</span>
+  </div>
+);
+
+const LiveGpsMap = dynamic(() => import('@/components/LiveGpsMap').then((m) => m.LiveGpsMap), { ssr: false, loading: ViewLoading });
+const OfficialInvoiceModal = dynamic(() => import('@/components/OfficialInvoiceModal'), { loading: ViewLoading });
+const TripDossierModal = dynamic(() => import('@/components/TripDossierModal').then((m) => m.TripDossierModal), { loading: ViewLoading });
 
 // COMMODITY CONFIG MATRIX FOR CLIENT PORTAL
 export const COMMODITY_CONFIG: Record<string, { unit: string; wagonType: string }> = {
@@ -210,10 +221,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
   useEffect(() => {
     syncData();
     StateEngine.syncRemote();
-    const interval = setInterval(() => {
+    const refresh = () => {
       StateEngine.syncRemote();
       syncData();
+    };
+
+    // Skipped while the tab is hidden or the browser is offline; see lib/polling.
+    const interval = setInterval(() => {
+      if (!shouldPoll()) return;
+      refresh();
     }, 5000);
+    const stopForegroundWatch = onReturnToForeground(refresh);
 
     const handleUpdate = () => syncData();
     window.addEventListener('storage', handleUpdate);
@@ -221,6 +239,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
     window.addEventListener('bueno_permissions_updated', handleUpdate);
     return () => {
       clearInterval(interval);
+      stopForegroundWatch();
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('bueno_state_updated', handleUpdate);
       window.removeEventListener('bueno_permissions_updated', handleUpdate);
@@ -515,7 +534,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
         )}
 
         {/* MAIN CANVAS */}
-        <main className="flex-1 p-6 space-y-6 min-w-0">
+        <main id="main-content" className="flex-1 p-6 space-y-6 min-w-0">
 
         {/* ─── B2B CONSIGNEE LIFECYCLE BANNER ─── */}
         <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl space-y-5">
@@ -1056,17 +1075,17 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
 
             <div className="space-y-4 text-xs font-semibold">
               <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Company Registered Name</label>
-                <input readOnly value={companyName} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900" />
+                <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1" htmlFor="customer-portal-company-registered-name-1">Company Registered Name</label>
+                <input id="customer-portal-company-registered-name-1" readOnly value={companyName} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Logistics Contact Lead</label>
-                  <input readOnly value={user?.fullName || 'Freight Manager'} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900" />
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1" htmlFor="customer-portal-logistics-contact-lead-2">Logistics Contact Lead</label>
+                  <input id="customer-portal-logistics-contact-lead-2" readOnly value={user?.fullName || 'Freight Manager'} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">Official Business Email</label>
-                  <input readOnly value={user?.email || clientEmail} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-900" />
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1" htmlFor="customer-portal-official-business-email-3">Official Business Email</label>
+                  <input id="customer-portal-official-business-email-3" readOnly value={user?.email || clientEmail} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 font-mono font-bold text-slate-900" />
                 </div>
               </div>
             </div>
@@ -1130,7 +1149,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 {/* CANONICAL CORRIDOR PRESET SELECTOR */}
                 <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-2xl space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-900">
+                    <label htmlFor="corridor-preset" className="block text-[10px] font-extrabold uppercase tracking-widest text-emerald-900">
                       QUICK SELECT ACTIVE FREIGHT CORRIDOR (CANONICAL ROUTES)
                     </label>
                     <span className="text-[9px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
@@ -1138,6 +1157,7 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                     </span>
                   </div>
                   <select
+                    id="corridor-preset"
                     onChange={(e) => {
                       const preset = CANONICAL_CORRIDORS.find((c) => c.id === e.target.value);
                       if (preset) {
@@ -1175,10 +1195,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 {/* PRODUCT & VOLUME */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1" htmlFor="customer-portal-product-consignment-type-4">
                       PRODUCT (CONSIGNMENT TYPE) *
                     </label>
-                    <select
+                    <select id="customer-portal-product-consignment-type-4"
                       value={consignmentForm.product}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, product: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
@@ -1195,10 +1215,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1" htmlFor="customer-portal-declared-volume-strictly-in-5">
                       DECLARED VOLUME STRICTLY IN TONNAGE (MT) *
                     </label>
-                    <input
+                    <input id="customer-portal-declared-volume-strictly-in-5"
                       required
                       type="number"
                       min="1"
@@ -1214,10 +1234,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 {/* ORIGIN & DESTINATION WITH GAUGE */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1" htmlFor="customer-portal-originating-station-siding-6">
                       ORIGINATING STATION / SIDING *
                     </label>
-                    <select
+                    <select id="customer-portal-originating-station-siding-6"
                       value={consignmentForm.originStation}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, originStation: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
@@ -1231,10 +1251,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1" htmlFor="customer-portal-destination-station-7">
                       DESTINATION STATION *
                     </label>
-                    <select
+                    <select id="customer-portal-destination-station-7"
                       value={consignmentForm.destinationStation}
                       onChange={(e) => setConsignmentForm({ ...consignmentForm, destinationStation: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-slate-900"
@@ -1310,10 +1330,10 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1" htmlFor="customer-portal-special-instructions-remarks-8">
                     SPECIAL INSTRUCTIONS / REMARKS
                   </label>
-                  <textarea
+                  <textarea id="customer-portal-special-instructions-remarks-8"
                     rows={2}
                     value={consignmentForm.specialInstructions}
                     onChange={(e) => setConsignmentForm({ ...consignmentForm, specialInstructions: e.target.value })}

@@ -126,7 +126,7 @@ export function NotificationBell() {
             {unread > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-xs text-[#0E4B88] hover:text-[#62BC37] font-semibold cursor-pointer"
+                className="text-xs text-navy hover:text-brand font-semibold cursor-pointer"
               >
                 Mark all read
               </button>
@@ -136,7 +136,7 @@ export function NotificationBell() {
           <div className="max-h-96 overflow-y-auto divide-y divide-slate-50">
             {loading && (
               <div className="flex justify-center py-6">
-                <div className="w-5 h-5 border-2 border-[#62BC37] border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
               </div>
             )}
 
@@ -164,7 +164,7 @@ export function NotificationBell() {
                   {n.body && <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>}
                   <p className="text-[10px] text-slate-400 mt-1">{timeAgo(n.time)}</p>
                 </div>
-                {!n.readInt && <span className="w-2 h-2 bg-[#62BC37] rounded-full mt-1.5 shrink-0" />}
+                {!n.readInt && <span className="w-2 h-2 bg-brand rounded-full mt-1.5 shrink-0" />}
               </button>
             ))}
           </div>

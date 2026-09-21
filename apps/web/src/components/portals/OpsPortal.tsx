@@ -18,9 +18,9 @@ export function OpsPortal({ user, onSignOut }: { user: any; onSignOut: () => voi
         </button>
       </header>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
+      <main id="main-content" className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-2">
-          <span className="text-xs font-black text-[#0E4B88] uppercase tracking-widest">Network Operations</span>
+          <span className="text-xs font-black text-navy uppercase tracking-widest">Network Operations</span>
           <h2 className="text-2xl font-black text-slate-900">Rail Corridor Train Pathing & Field Operations Command</h2>
           <p className="text-xs text-slate-600">Supervise active haulage trips, approve operational fund requisitions, and monitor wagon turnarounds.</p>
         </div>

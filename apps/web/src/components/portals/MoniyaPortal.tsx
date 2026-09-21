@@ -16,7 +16,7 @@ export function MoniyaPortal({ user, onSignOut }: { user: any; onSignOut: () => 
         </button>
       </header>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
+      <main id="main-content" className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-2">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Inland Dry Port Governance</span>
           <h2 className="text-2xl font-black text-slate-900">3D Container Yard Stacking & Demurrage Counter</h2>

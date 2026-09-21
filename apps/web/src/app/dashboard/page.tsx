@@ -9,9 +9,42 @@ import {
   installSessionExpiryHandler,
   type SessionUser,
 } from '@/lib/auth/session';
-import { CustomerPortal } from '@/components/portals/CustomerPortal';
-import { CargoOfficerPortal } from '@/components/portals/CargoOfficerPortal';
-import { AdminPortal } from '@/components/portals/AdminPortal';
+import dynamic from 'next/dynamic';
+
+/**
+ * Each portal loads only for the role that uses it.
+ *
+ * A signed-in user renders exactly one of these, but importing all three
+ * statically meant every user downloaded all of them — a consignee on a phone
+ * was paying for the 6,900-line administrator portal they can never open.
+ * Splitting here is worth far more than splitting inside any one portal,
+ * because the unused code is whole portals rather than individual tabs.
+ *
+ * `ssr: false` is correct as well as convenient: which portal to render is not
+ * known until the session has been fetched in the browser, so there is nothing
+ * useful to prerender.
+ */
+const PortalLoading = () => (
+  <div className="min-h-screen bg-white flex items-center justify-center">
+    <div className="text-center text-slate-900 space-y-3" role="status" aria-live="polite">
+      <div className="w-10 h-10 border-[3px] border-slate-300 border-t-transparent rounded-full animate-spin mx-auto" />
+      <p className="text-xs font-bold text-slate-500">Opening your workspace…</p>
+    </div>
+  </div>
+);
+
+const CustomerPortal = dynamic(
+  () => import('@/components/portals/CustomerPortal').then((m) => m.CustomerPortal),
+  { ssr: false, loading: PortalLoading }
+);
+const CargoOfficerPortal = dynamic(
+  () => import('@/components/portals/CargoOfficerPortal').then((m) => m.CargoOfficerPortal),
+  { ssr: false, loading: PortalLoading }
+);
+const AdminPortal = dynamic(
+  () => import('@/components/portals/AdminPortal').then((m) => m.AdminPortal),
+  { ssr: false, loading: PortalLoading }
+);
 
 /**
  * Portal shell.
@@ -94,7 +127,7 @@ export default function Dashboard() {
           <p className="text-xs text-slate-500">{message}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-5 py-2.5 bg-[#62BC37] text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+            className="px-5 py-2.5 bg-brand text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
           >
             Try again
           </button>

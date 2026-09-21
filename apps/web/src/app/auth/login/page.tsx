@@ -119,25 +119,25 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row font-sans text-slate-900 selection:bg-[#62BC37] selection:text-white">
+    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row font-sans text-slate-900 selection:bg-brand selection:text-white">
       
       {/* ── LEFT ENTERPRISE SHOWCASE & CORRIDOR IDENTITY ─────────────────── */}
       <div className="lg:w-1/2 bg-slate-900 p-8 sm:p-12 lg:p-16 flex flex-col justify-between relative border-b lg:border-b-0 lg:border-r border-slate-800 text-white overflow-hidden">
         {/* Ambient Gradient Glows */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#62BC37]/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#0E4B88]/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-brand/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-navy/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Brand & Status */}
         <div className="relative z-10 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-12 h-12 rounded-2xl bg-[#62BC37] p-0.5 shadow-xl group-hover:scale-105 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-brand p-0.5 shadow-xl group-hover:scale-105 transition-transform">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-black text-xl text-white font-mono">
                 B
               </div>
             </div>
             <div>
               <h1 className="text-xl font-black text-white tracking-wider" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                BUENO <span className="text-[#62BC37]">LOGISTICS</span>
+                BUENO <span className="text-brand">LOGISTICS</span>
               </h1>
               <span className="text-[10px] font-mono text-slate-400 block -mt-1 uppercase tracking-widest font-semibold">
                 ENTERPRISE FREIGHT OS
@@ -154,7 +154,7 @@ function LoginForm() {
         {/* Center Architectural Pitch */}
         <div className="my-12 relative z-10 space-y-6">
           <div className="space-y-3">
-            <span className="text-xs font-mono font-bold uppercase tracking-widest text-[#62BC37]">
+            <span className="text-xs font-mono font-bold uppercase tracking-widest text-brand">
               Commercial Rail Transport & Siding Command
             </span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -207,7 +207,7 @@ function LoginForm() {
             {/* Header */}
             <div className="space-y-2 text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 text-slate-800 mb-1">
-                <svg className="w-6 h-6 text-[#62BC37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
@@ -233,16 +233,16 @@ function LoginForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Work Email / Staff ID */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
+                <label className="text-xs font-bold text-slate-700 block" htmlFor="page-work-email-or-account-1">
                   Work Email or Account Identifier
                 </label>
                 <div className="relative">
-                  <input
+                  <input id="page-work-email-or-account-1"
                     type="text"
                     value={emailOrId}
                     onChange={(e) => setEmailOrId(e.target.value)}
                     placeholder="name@bueno.ng or staff ID"
-                    className="w-full px-4 py-3 text-xs font-medium rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:border-transparent bg-slate-50/50 transition-all"
+                    className="w-full px-4 py-3 text-xs font-medium rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-slate-50/50 transition-all"
                     required
                     autoFocus
                   />
@@ -252,24 +252,25 @@ function LoginForm() {
               {/* Password / Security PIN */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700">
+                  <label htmlFor="login-password" className="text-xs font-bold text-slate-700">
                     Password / Security PIN
                   </label>
                   <button
                     type="button"
                     onClick={() => setShowForgotPassword(true)}
-                    className="text-[11px] font-semibold text-[#0E4B88] hover:text-[#62BC37] transition-colors"
+                    className="text-[11px] font-semibold text-navy hover:text-brand transition-colors"
                   >
                     Forgot Password?
                   </button>
                 </div>
                 <div className="relative">
                   <input
+                    id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     value={passwordOrPin}
                     onChange={(e) => setPasswordOrPin(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 pr-11 text-xs font-mono font-medium rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:border-transparent bg-slate-50/50 transition-all"
+                    className="w-full px-4 py-3 pr-11 text-xs font-mono font-medium rounded-xl border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent bg-slate-50/50 transition-all"
                     required
                   />
                   <button
@@ -299,7 +300,7 @@ function LoginForm() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#62BC37] focus:ring-[#62BC37] border-slate-300 cursor-pointer"
+                    className="w-4 h-4 rounded text-brand focus:ring-brand border-slate-300 cursor-pointer"
                   />
                   <span className="text-xs font-medium text-slate-600">Remember this workstation</span>
                 </label>
@@ -309,7 +310,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-4 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -371,13 +372,13 @@ function LoginForm() {
             ) : (
               <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700">Corporate Email Address</label>
-                  <input
+                  <label className="text-xs font-bold text-slate-700" htmlFor="page-corporate-email-address-2">Corporate Email Address</label>
+                  <input id="page-corporate-email-address-2"
                     type="email"
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     placeholder="name@bueno.ng"
-                    className="w-full px-4 py-3 text-xs rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full px-4 py-3 text-xs rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     required
                   />
                 </div>
@@ -392,7 +393,7 @@ function LoginForm() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
+                    className="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer"
                   >
                     Send Reset Link
                   </button>

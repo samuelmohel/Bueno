@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { StateEngine } from '@/lib/services/StateEngine';
+import { BRAND } from '@/lib/theme';
 
 interface InvoiceModalProps {
   invoice: any;
@@ -137,14 +138,14 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-900 pb-6 gap-6">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-900 via-slate-800 to-[#62BC37] flex items-center justify-center p-3 shadow-md">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-900 via-slate-800 to-brand flex items-center justify-center p-3 shadow-md">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-white" fill="currentColor">
                   <path d="M15 75 L85 75 L80 82 L20 82 Z" />
                   <path d="M25 65 L75 65 L70 70 L30 70 Z" />
                   <rect x="25" y="28" width="50" height="32" rx="4" fill="none" stroke="currentColor" strokeWidth="6" />
                   <circle cx="38" cy="44" r="5" />
                   <circle cx="62" cy="44" r="5" />
-                  <path d="M50 18 L50 28" stroke="#62BC37" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M50 18 L50 28" stroke={BRAND.green} strokeWidth="6" strokeLinecap="round" />
                 </svg>
               </div>
               <div>

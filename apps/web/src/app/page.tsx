@@ -244,25 +244,28 @@ export default function BuenoLogisticsHomePage() {
             >
               Request Freight Account
             </button>
-            <Link href="/auth/login" className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-sm">
+            <Link href="/auth/login" className="bg-brand hover:bg-brand-dark text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-sm">
               Sign In to Freight OS →
             </Link>
           </div>
         </div>
       </nav>
 
+      {/* Target for the layout's "Skip to main content" link. */}
+      <main id="main-content">
+
       {/* ─── HERO ──────────────────────────────────── */}
       <section className="relative pt-16 pb-24 px-6 lg:px-10 overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-7 space-y-8">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-800 text-xs font-extrabold">
-              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
               BUENO LOGISTICS LIMITED — NIGERIAN RAIL FREIGHT OPERATING SYSTEM
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1]" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Heavy Rail Freight <br />
-              <span className="text-[#62BC37]">
+              <span className="text-brand">
                 Tracking & Logistics.
               </span>
             </h1>
@@ -274,7 +277,7 @@ export default function BuenoLogisticsHomePage() {
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
                 onClick={() => setRequestModal(true)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all"
+                className="bg-brand hover:bg-brand-dark text-white text-sm font-extrabold px-7 py-3.5 rounded-2xl shadow-md transition-all"
               >
                 Request Freight Account →
               </button>
@@ -298,7 +301,7 @@ export default function BuenoLogisticsHomePage() {
                 <div className="text-xs font-semibold text-slate-500 mt-1">Typical Train Capacity</div>
               </div>
               <div>
-                <div className="text-2xl sm:text-3xl font-black text-[#62BC37]" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                <div className="text-2xl sm:text-3xl font-black text-brand" style={{ fontFamily: "'Outfit', sans-serif" }}>
                   <Counter to={100} suffix="%" />
                 </div>
                 <div className="text-xs font-semibold text-slate-500 mt-1">Live Satellite Lock</div>
@@ -332,7 +335,7 @@ export default function BuenoLogisticsHomePage() {
       <section id="how" className="py-24 px-6 lg:px-10 bg-slate-50">
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="text-center max-w-2xl mx-auto space-y-4">
-            <span className="text-xs font-extrabold text-[#0E4B88] uppercase tracking-widest">End-to-End Workflow</span>
+            <span className="text-xs font-extrabold text-navy uppercase tracking-widest">End-to-End Workflow</span>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
               7 Steps from Deal Registration to Unloading
             </h2>
@@ -344,7 +347,7 @@ export default function BuenoLogisticsHomePage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {steps.slice(0, 4).map(s => (
               <div key={s.n} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-3">
-                <span className="font-mono text-2xl font-black text-[#0E4B88]">{s.n}</span>
+                <span className="font-mono text-2xl font-black text-navy">{s.n}</span>
                 <h3 className="text-base font-bold text-slate-900">{s.title}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">{s.desc}</p>
               </div>
@@ -353,7 +356,7 @@ export default function BuenoLogisticsHomePage() {
           <div className="grid sm:grid-cols-3 gap-6">
             {steps.slice(4).map(s => (
               <div key={s.n} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-3">
-                <span className="font-mono text-2xl font-black text-[#62BC37]">{s.n}</span>
+                <span className="font-mono text-2xl font-black text-brand">{s.n}</span>
                 <h3 className="text-base font-bold text-slate-900">{s.title}</h3>
                 <p className="text-xs text-slate-500 leading-relaxed">{s.desc}</p>
               </div>
@@ -366,7 +369,7 @@ export default function BuenoLogisticsHomePage() {
       <section id="roles" className="py-24 px-6 lg:px-10 bg-white">
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="text-center max-w-2xl mx-auto space-y-4">
-            <span className="text-xs font-extrabold text-[#0E4B88] uppercase tracking-widest">Role-Based Access</span>
+            <span className="text-xs font-extrabold text-navy uppercase tracking-widest">Role-Based Access</span>
             <h2 className="text-3xl sm:text-4xl font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Built for Every Operational Level
             </h2>
@@ -397,13 +400,13 @@ export default function BuenoLogisticsHomePage() {
           {/* Text & Advertising Copy */}
           <div className="lg:col-span-7 space-y-6">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-400 text-xs font-black uppercase tracking-widest font-mono">
-              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
               FOR MANUFACTURERS & BULK DISTRIBUTORS
             </span>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
               Scale Bulk Freight Distribution Across Nigeria <br />
-              <span className="text-[#62BC37]">By Heavy Rail.</span>
+              <span className="text-brand">By Heavy Rail.</span>
             </h2>
 
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed max-w-xl font-normal">
@@ -413,7 +416,7 @@ export default function BuenoLogisticsHomePage() {
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
                 onClick={() => setRequestModal(true)}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white text-sm font-extrabold px-8 py-4 rounded-2xl shadow-xl transition-all hover:scale-105"
+                className="bg-brand hover:bg-brand-dark text-white text-sm font-extrabold px-8 py-4 rounded-2xl shadow-xl transition-all hover:scale-105"
               >
                 Become a Freight Partner / Request Account →
               </button>
@@ -468,6 +471,8 @@ export default function BuenoLogisticsHomePage() {
         </div>
       </section>
 
+      </main>
+
       {/* ─── FOOTER ─────────────────────────────────── */}
       <footer className="bg-slate-950 text-white py-16 px-6 lg:px-10 border-t border-slate-900">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between gap-10">
@@ -509,7 +514,7 @@ export default function BuenoLogisticsHomePage() {
             </button>
 
             <div>
-              <span className="text-[10px] font-mono font-extrabold text-[#62BC37] uppercase tracking-widest block">
+              <span className="text-[10px] font-mono font-extrabold text-brand uppercase tracking-widest block">
                 Industrial Client Onboarding · Official Form
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -524,7 +529,7 @@ export default function BuenoLogisticsHomePage() {
               <div className="space-y-5 text-left font-sans">
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-5 rounded-2xl space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#62BC37] text-white rounded-full flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 bg-brand text-white rounded-full flex items-center justify-center shadow-sm">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                       </svg>
@@ -548,18 +553,18 @@ export default function BuenoLogisticsHomePage() {
                   <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">What happens next</h4>
                   <ol className="space-y-2.5 text-xs text-slate-600">
                     <li className="flex gap-2.5">
-                      <span className="font-mono font-black text-[#62BC37] shrink-0">1.</span>
+                      <span className="font-mono font-black text-brand shrink-0">1.</span>
                       <span>Our commercial desk reviews your corridor, volume and cargo type.</span>
                     </li>
                     <li className="flex gap-2.5">
-                      <span className="font-mono font-black text-[#62BC37] shrink-0">2.</span>
+                      <span className="font-mono font-black text-brand shrink-0">2.</span>
                       <span>
                         We contact you on <b className="font-mono">{provisionResult.request.email}</b> to
                         agree a freight rate.
                       </span>
                     </li>
                     <li className="flex gap-2.5">
-                      <span className="font-mono font-black text-[#62BC37] shrink-0">3.</span>
+                      <span className="font-mono font-black text-brand shrink-0">3.</span>
                       <span>
                         Once terms are agreed we provision your consignee portal account and send your
                         sign-in details securely.
@@ -588,27 +593,27 @@ export default function BuenoLogisticsHomePage() {
             ) : (
               <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs font-semibold">
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-company-name-1">
                     Company Name *
                   </label>
-                  <input
+                  <input id="page-company-name-1"
                     required
                     value={form.companyName}
                     onChange={(e) => setForm({ ...form, companyName: e.target.value })}
                     placeholder="e.g. HUAXIN BUILDING MATERIALS NIG PLC (HBM), APMT, MAERSKLINES..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] focus:bg-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand focus:bg-white"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-product-2">
                       PRODUCT *
                     </label>
-                    <select
+                    <select id="page-product-2"
                       value={form.product}
                       onChange={(e) => setForm({ ...form, product: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                       <option value="CEMENT">CEMENT</option>
                       <option value="GYPSUM">GYPSUM</option>
@@ -621,57 +626,57 @@ export default function BuenoLogisticsHomePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-contact-person-name-3">
                       Contact Person Name *
                     </label>
-                    <input
+                    <input id="page-contact-person-name-3"
                       required
                       value={form.contactName}
                       onChange={(e) => setForm({ ...form, contactName: e.target.value })}
                       placeholder="e.g. Engr. Clement Lawson"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-official-business-email-4">
                       Official Business Email *
                     </label>
-                    <input
+                    <input id="page-official-business-email-4"
                       type="email"
                       required
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       placeholder="logistics@hbm.ng"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-phone-contact-number-5">
                       Phone / Contact Number *
                     </label>
-                    <input
+                    <input id="page-phone-contact-number-5"
                       type="text"
                       required
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       placeholder="08031234567"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-est-volume-tonnage-tonnes-6">
                       Est. Volume (Tonnage - Tonnes) *
                     </label>
-                    <select
+                    <select id="page-est-volume-tonnage-tonnes-6"
                       value={form.volume}
                       onChange={(e) => setForm({ ...form, volume: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                       <option value="100 - 500 Metric Tonnes (T)">100 – 500 Metric Tonnes (T)</option>
                       <option value="500 - 1,000 Metric Tonnes (T)">500 – 1,000 Metric Tonnes (T)</option>
@@ -680,13 +685,13 @@ export default function BuenoLogisticsHomePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                    <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-track-gauge-corridor-7">
                       Track Gauge Corridor *
                     </label>
-                    <select
+                    <select id="page-track-gauge-corridor-7"
                       value={form.route}
                       onChange={(e) => setForm({ ...form, route: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                     >
                       <option value="PAPA → MONI (Papalanto to Moniya - Standard Gauge)">Papalanto → Moniya (Standard Gauge)</option>
                       <option value="MONI → APMT (Moniya to APMT Exports - Standard Gauge)">Moniya → APMT Exports (Standard Gauge)</option>
@@ -701,15 +706,15 @@ export default function BuenoLogisticsHomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1">
+                  <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1" htmlFor="page-special-cargo-operational-notes-8">
                     Special Cargo / Operational Notes
                   </label>
-                  <textarea
+                  <textarea id="page-special-cargo-operational-notes-8"
                     rows={2}
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     placeholder="Provide any specific loading bay or siding requirements..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
                   />
                 </div>
 
@@ -722,7 +727,7 @@ export default function BuenoLogisticsHomePage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1 cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all mt-1 cursor-pointer flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>

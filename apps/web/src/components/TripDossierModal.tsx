@@ -52,12 +52,12 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
         {/* MODAL HEADER (Hidden on Print) */}
         <div className="bg-slate-900 text-white p-5 px-6 flex justify-between items-center border-b border-slate-800 print:hidden shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#62BC37] flex items-center justify-center font-mono font-black text-lg">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-brand flex items-center justify-center font-mono font-black text-lg">
               
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-[#62BC37]">{trip.tripId || trip.id}</span>
+                <span className="font-mono text-xs font-bold text-brand">{trip.tripId || trip.id}</span>
                 <span className="bg-slate-800 text-slate-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase font-mono">
                   {trip.status}
                 </span>
@@ -232,7 +232,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
                   ) : (
                     tripRequests.map((r: any) => (
                       <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="p-2.5 px-3 font-bold text-[#0E4B88]">{r.id}</td>
+                        <td className="p-2.5 px-3 font-bold text-navy">{r.id}</td>
                         <td className="p-2.5 px-3 font-sans font-bold text-slate-800">
                           {r.title} <span className="text-slate-400 font-normal font-mono text-[10px]">({r.category})</span>
                         </td>
@@ -261,14 +261,14 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
           <div className="bg-slate-900 text-white p-5 sm:p-6 rounded-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-bold text-[#62BC37] uppercase tracking-wider block">
+                <span className="text-[10px] font-mono font-bold text-brand uppercase tracking-wider block">
                   TRIP PROFIT & LOSS RECONCILIATION
                 </span>
                 <h3 className="text-sm font-black text-white font-sans">Corridor Financial Performance Summary</h3>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 uppercase font-mono block">Gross Margin</span>
-                <span className={`text-base font-black font-mono ${fin.marginPct >= 20 ? 'text-[#62BC37]' : 'text-amber-400'}`}>
+                <span className={`text-base font-black font-mono ${fin.marginPct >= 20 ? 'text-brand' : 'text-amber-400'}`}>
                   {fin.marginPct}% Margin
                 </span>
               </div>
@@ -294,8 +294,8 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
               </div>
 
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[9px] text-[#62BC37] uppercase block">Net Trip Operating Profit</span>
-                <p className={`text-sm font-black ${fin.grossProfit >= 0 ? 'text-[#62BC37]' : 'text-rose-500'}`}>
+                <span className="text-[9px] text-brand uppercase block">Net Trip Operating Profit</span>
+                <p className={`text-sm font-black ${fin.grossProfit >= 0 ? 'text-brand' : 'text-rose-500'}`}>
                   ₦{fin.grossProfit.toLocaleString()}
                 </p>
                 <span className="text-[9px] text-slate-500">Contribution to Head Office</span>

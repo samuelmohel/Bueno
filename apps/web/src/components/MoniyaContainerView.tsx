@@ -231,7 +231,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleAutoStackFromTrips}
-            className="bg-[#0E4B88] hover:bg-[#093562] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
+            className="bg-navy hover:bg-navy-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-2"
           >
             <span> Auto-Stack Arrived Train Wagons</span>
           </button>
@@ -248,7 +248,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
         {[
           ['Yard Stacked Containers', `${totalContainers} TEUs`, 'text-slate-900'],
-          ['Import Cargo (Bay A)', `${importsCount} TEUs`, 'text-[#0E4B88]'],
+          ['Import Cargo (Bay A)', `${importsCount} TEUs`, 'text-navy'],
           ['Export Cargo (Bay B)', `${exportsCount} TEUs`, 'text-slate-600'],
           ['Empty Containers (Bay C)', `${emptiesCount} TEUs`, 'text-amber-700'],
           ['Total Gate Revenue Collected', `₦${totalGateRevenue.toLocaleString()}`, 'text-emerald-700'],
@@ -264,7 +264,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
       <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-5 shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-100 pb-4">
           <div>
-            <span className="text-[10px] font-mono font-black text-[#0E4B88] uppercase tracking-wider block">
+            <span className="text-[10px] font-mono font-black text-navy uppercase tracking-wider block">
               STACKING YARD TOPOLOGY
             </span>
             <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -276,7 +276,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
           </div>
           <div className="flex items-center gap-3 text-xs font-bold">
             <span className="flex items-center gap-1.5 text-slate-700">
-              <span className="w-3 h-3 rounded bg-[#0E4B88]" /> Bay A (Import)
+              <span className="w-3 h-3 rounded bg-navy" /> Bay A (Import)
             </span>
             <span className="flex items-center gap-1.5 text-slate-700">
               <span className="w-3 h-3 rounded bg-slate-900" /> Bay B (Export)
@@ -289,7 +289,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
 
         <div className="grid md:grid-cols-3 gap-6">
           {[
-            { title: 'Bay A — Import Yard', code: 'Bay A', bg: 'bg-blue-50/50 border-blue-200', badge: 'bg-[#0E4B88] text-white', desc: 'Inbound maritime containers from Lagos Ports' },
+            { title: 'Bay A — Import Yard', code: 'Bay A', bg: 'bg-blue-50/50 border-blue-200', badge: 'bg-navy text-white', desc: 'Inbound maritime containers from Lagos Ports' },
             { title: 'Bay B — Export Yard', code: 'Bay B', bg: 'bg-emerald-50/50 border-emerald-200', badge: 'bg-slate-900 text-white', desc: 'Outbound agricultural & manufactured freight' },
             { title: 'Bay C — Empty Yard', code: 'Bay C', bg: 'bg-amber-50/50 border-amber-200', badge: 'bg-amber-600 text-white', desc: 'Empty containers awaiting return or repositioning' },
           ].map((bay) => {
@@ -323,29 +323,30 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                     const isOverdue = (Number(c.dwellDays) || 0) > 14;
                     const blockBg =
                       c.type === 'CONTAINERS-IMPORT'
-                        ? 'bg-[#0E4B88] text-white hover:bg-[#093562]'
+                        ? 'bg-navy text-white hover:bg-navy-700'
                         : c.type === 'CONTAINERS-EXPORT'
                         ? 'bg-slate-900 text-white hover:bg-slate-800'
                         : 'bg-amber-500 text-slate-900 hover:bg-amber-600';
 
                     return (
-                      <div
+                      <button
                         key={c.id}
+                        type="button"
                         onClick={() => setSelectedContainer(c)}
-                        className={`h-16 cursor-pointer rounded-xl p-2 flex flex-col justify-between shadow-sm hover:scale-105 transition-all ${blockBg}`}
+                        className={`h-16 w-full text-left cursor-pointer rounded-xl p-2 flex flex-col justify-between shadow-sm hover:scale-105 transition-all ${blockBg}`}
                         title={`Container ${c.id} · ${c.agent} · Tier ${c.tier} · ${c.dwellDays} Days`}
                       >
-                        <div className="flex justify-between items-center text-[9px] font-mono font-black">
+                        <span className="flex justify-between items-center text-[9px] font-mono font-black w-full">
                           <span>{c.tier}T</span>
                           {isOverdue && (
                             <span className="bg-rose-600 text-white px-1 py-0.5 rounded text-[8px] font-bold">
                               DEM
                             </span>
                           )}
-                        </div>
+                        </span>
                         <span className="text-[10px] font-mono font-extrabold truncate block">{c.id}</span>
                         <span className="text-[8px] opacity-85 block truncate font-bold">{c.agent}</span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -401,7 +402,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
               ) : (
                 overdueContainers.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50 text-xs font-sans">
-                    <td className="p-4 font-mono font-black text-[#0E4B88]">{c.id}</td>
+                    <td className="p-4 font-mono font-black text-navy">{c.id}</td>
                     <td className="p-4 font-bold text-slate-800">{c.agent}</td>
                     <td className="p-4 font-mono text-slate-600">{c.arrivalDate}</td>
                     <td className="p-4 font-mono font-bold text-slate-900">{c.dwellDays} Days</td>
@@ -467,7 +468,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             <tbody className="divide-y divide-slate-100">
               {gateLogs.map((g) => (
                 <tr key={g.id} className="hover:bg-slate-50 text-xs">
-                  <td className="p-4 font-mono font-black text-[#0E4B88]">{g.id}</td>
+                  <td className="p-4 font-mono font-black text-navy">{g.id}</td>
                   <td className="p-4 font-mono font-bold text-slate-900">{g.truckRegNo}</td>
                   <td className="p-4 text-slate-800 font-medium">
                     {g.driverName} <span className="block text-[10px] text-slate-400 font-mono">{g.driverPhone}</span>
@@ -524,8 +525,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             <form onSubmit={handleRegisterTruck} className="space-y-4 text-xs font-semibold">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Gate Action *</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-gate-action-1">Gate Action *</label>
+                  <select id="moniya-container-v-gate-action-1"
                     value={gateForm.action}
                     onChange={(e) => setGateForm({ ...gateForm, action: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -535,8 +536,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Truck Registration *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-truck-registration-2">Truck Registration *</label>
+                  <input id="moniya-container-v-truck-registration-2"
                     required
                     value={gateForm.truckRegNo}
                     onChange={(e) => setGateForm({ ...gateForm, truckRegNo: e.target.value })}
@@ -548,8 +549,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Driver Full Name *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-driver-full-name-3">Driver Full Name *</label>
+                  <input id="moniya-container-v-driver-full-name-3"
                     required
                     value={gateForm.driverName}
                     onChange={(e) => setGateForm({ ...gateForm, driverName: e.target.value })}
@@ -558,8 +559,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Driver Phone Number *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-driver-phone-number-4">Driver Phone Number *</label>
+                  <input id="moniya-container-v-driver-phone-number-4"
                     required
                     value={gateForm.driverPhone}
                     onChange={(e) => setGateForm({ ...gateForm, driverPhone: e.target.value })}
@@ -570,8 +571,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Haulage Transporter Company *</label>
-                <input
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-haulage-transporter-company-5">Haulage Transporter Company *</label>
+                <input id="moniya-container-v-haulage-transporter-company-5"
                   required
                   value={gateForm.transporter}
                   onChange={(e) => setGateForm({ ...gateForm, transporter: e.target.value })}
@@ -582,8 +583,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Container Number *</label>
-                  <input
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-container-number-6">Container Number *</label>
+                  <input id="moniya-container-v-container-number-6"
                     required
                     value={gateForm.containerId}
                     onChange={(e) => setGateForm({ ...gateForm, containerId: e.target.value })}
@@ -592,8 +593,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Shipping Agent</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-shipping-agent-7">Shipping Agent</label>
+                  <select id="moniya-container-v-shipping-agent-7"
                     value={gateForm.agent}
                     onChange={(e) => setGateForm({ ...gateForm, agent: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -604,8 +605,8 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Category</label>
-                  <select
+                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="moniya-container-v-category-8">Category</label>
+                  <select id="moniya-container-v-category-8"
                     value={gateForm.type}
                     onChange={(e) => setGateForm({ ...gateForm, type: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900"
@@ -660,7 +661,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left text-xs space-y-2 font-mono">
               <div className="flex justify-between border-b pb-1.5">
                 <span className="text-slate-400">Pass Serial No:</span>
-                <span className="font-bold text-[#0E4B88]">{printedReceipt.id}</span>
+                <span className="font-bold text-navy">{printedReceipt.id}</span>
               </div>
               <div className="flex justify-between border-b pb-1.5">
                 <span className="text-slate-400">Truck Reg No:</span>
@@ -720,7 +721,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
           <div className="bg-white rounded-3xl w-full max-w-lg p-6 space-y-4 font-sans shadow-2xl border border-slate-200">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-mono font-black text-[#0E4B88] uppercase">
+                <span className="text-[10px] font-mono font-black text-navy uppercase">
                   {selectedContainer.agent} SHIPPING LINE
                 </span>
                 <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -746,7 +747,7 @@ export function MoniyaContainerView({ user }: MoniyaContainerViewProps) {
               </div>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <span className="text-[9px] uppercase font-bold text-slate-400 block">Yard Topology</span>
-                <span className="font-mono font-bold text-[#0E4B88]">
+                <span className="font-mono font-bold text-navy">
                   {selectedContainer.bay} | {selectedContainer.row} | {selectedContainer.col} | Tier {selectedContainer.tier}
                 </span>
               </div>

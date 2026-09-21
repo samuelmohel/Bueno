@@ -1,11 +1,11 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
+import { shouldPoll, onReturnToForeground } from '@/lib/polling';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { StateEngine, SEED_WAGONS, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
-import { LiveGpsMap } from '@/components/LiveGpsMap';
-import { MoniyaContainerView } from '@/components/MoniyaContainerView';
-import { TerminalInformationView } from '@/components/TerminalInformationView';
 import {
   Train,
   Search,
@@ -33,6 +33,25 @@ import {
   Send,
 } from 'lucide-react';
 
+/*
+ * The heavy shared views load on demand.
+ *
+ * A cargo officer opens the GPS map or the container yard occasionally, not on
+ * every sign-in, and the map pulls in Leaflet. Importing them statically here
+ * would also undo the splitting done in AdminPortal, because a static import
+ * anywhere pulls the module into the common chunk for everyone.
+ */
+const ViewLoading = () => (
+  <div className="flex h-48 items-center justify-center" role="status" aria-live="polite">
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-brand" />
+    <span className="sr-only">Loading view…</span>
+  </div>
+);
+
+const LiveGpsMap = dynamic(() => import('@/components/LiveGpsMap').then((m) => m.LiveGpsMap), { ssr: false, loading: ViewLoading });
+const MoniyaContainerView = dynamic(() => import('@/components/MoniyaContainerView').then((m) => m.MoniyaContainerView), { loading: ViewLoading });
+const TerminalInformationView = dynamic(() => import('@/components/TerminalInformationView').then((m) => m.TerminalInformationView), { loading: ViewLoading });
+
 /* ─────────────────────────────────────────────────────────
    STATIONS & NOMENCLATURE
 ───────────────────────────────────────────────────────── */
@@ -51,7 +70,7 @@ const STATIONS: Record<string, string> = {
 
 const sName = (c: string) => STATIONS[c] || c || 'Station';
 
-const ic = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37]';
+const ic = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand';
 const lc = 'block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-1';
 
 function Badge({ text, color }: { text: string; color?: string }) {
@@ -105,7 +124,7 @@ function CustomAlertModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4 font-sans text-center">
-        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-brand mx-auto flex items-center justify-center shadow-xs">
           <CheckCircle2 className="w-6 h-6" />
         </div>
         <h3 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -114,7 +133,7 @@ function CustomAlertModal({
         <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{message}</p>
         <button
           onClick={onClose}
-          className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+          className="w-full bg-brand hover:bg-brand-dark text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
         >
           Acknowledge & Continue
         </button>
@@ -212,7 +231,7 @@ export function LiveTimer({ ts }: { ts: number }) {
 
   return (
     <span className="font-mono font-black text-emerald-600 text-base sm:text-lg tracking-wider flex items-center gap-1.5">
-      <Clock className="w-4 h-4 animate-spin text-[#62BC37]" />
+      <Clock className="w-4 h-4 animate-spin text-brand" />
       {hh}:{mm}:{ss}
     </span>
   );
@@ -282,10 +301,17 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
   useEffect(() => {
     syncData();
     StateEngine.syncRemote();
-    const interval = setInterval(() => {
+    const refresh = () => {
       StateEngine.syncRemote();
       syncData();
+    };
+
+    // Skipped while the tab is hidden or the browser is offline; see lib/polling.
+    const interval = setInterval(() => {
+      if (!shouldPoll()) return;
+      refresh();
     }, 5000);
+    const stopForegroundWatch = onReturnToForeground(refresh);
 
     const handleUpdate = () => syncData();
     window.addEventListener('storage', handleUpdate);
@@ -300,6 +326,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
     return () => {
       clearInterval(interval);
+      stopForegroundWatch();
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('bueno_state_updated', handleUpdate);
     };
@@ -533,7 +560,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             </div>
 
             <div className="hidden md:flex items-center gap-1.5 ml-4 pl-4 border-l border-slate-200">
-              <span className="w-2 h-2 rounded-full bg-[#62BC37] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-brand animate-pulse" />
               <span className="text-xs font-black text-slate-700">{sName(station)}</span>
               <span className="text-[10px] font-mono text-slate-400">({station})</span>
             </div>
@@ -542,7 +569,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">
               <span className="text-xs font-black text-slate-900 block">{user?.fullName || 'Cargo Officer'}</span>
-              <span className="text-[10px] font-mono text-[#62BC37] font-bold block">
+              <span className="text-[10px] font-mono text-brand font-bold block">
                 {user?.staffId ? `ID: ${user.staffId}` : 'Station Field Officer'}
               </span>
             </div>
@@ -583,7 +610,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     }}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2.5 cursor-pointer ${
                       isActive
-                        ? 'bg-[#62BC37] text-white shadow-sm font-black'
+                        ? 'bg-brand text-white shadow-sm font-black'
                         : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
@@ -596,7 +623,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px] text-slate-600 space-y-1 mt-6">
               <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                <MapPin className="w-3.5 h-3.5 text-[#62BC37]" />
+                <MapPin className="w-3.5 h-3.5 text-brand" />
                 <span>Station Duty Node</span>
               </div>
               <p className="text-xs font-black text-slate-900">{sName(station)}</p>
@@ -606,7 +633,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
         )}
 
         {/* MAIN OPERATIONAL WORKSPACE */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto min-w-0">
+        <main id="main-content" className="flex-1 p-4 sm:p-6 overflow-y-auto min-w-0">
           {selectedTripId ? (
             /* ACTIVE PER-WAGON TIMED LOADING DASHBOARD */
             <TripWagonView
@@ -638,7 +665,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     mobileCard={(d: any) => (
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</span>
+                          <span className="font-mono font-black text-navy">{d.dealNumber || d.id}</span>
                           <span className="text-xs font-bold text-slate-700">
                             {sName(d.loadingStation || d.origin || station)} ➔ {sName(d.destination || 'MNY')}
                           </span>
@@ -656,7 +683,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                               qty: String(d.quantity || 27600),
                             }));
                           }}
-                          className="w-full bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs py-2.5 rounded-xl mt-2 shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+                          className="w-full bg-brand hover:bg-brand-dark text-white font-black text-xs py-2.5 rounded-xl mt-2 shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
                         >
                           <span>Create Trip & Start Loading</span>
                           <ArrowRight className="w-4 h-4" />
@@ -669,7 +696,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       <tr>
                         <td colSpan={5} className="p-12 text-center bg-white">
                           <div className="max-w-md mx-auto space-y-3">
-                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#62BC37] mx-auto flex items-center justify-center shadow-xs">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-brand mx-auto flex items-center justify-center shadow-xs">
                               <ShieldCheck className="w-6 h-6" />
                             </div>
                             <h4 className="text-base font-black text-slate-900" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -684,7 +711,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     ) : (
                       myDeals.map((d) => (
                         <tr key={d.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4 font-mono font-black text-[#0E4B88]">{d.dealNumber || d.id}</td>
+                          <td className="p-4 font-mono font-black text-navy">{d.dealNumber || d.id}</td>
                           <td className="p-4">
                             <p className="font-bold text-slate-900">{d.company}</p>
                             <p className="text-[10px] text-slate-400">Approved Commercial Contract</p>
@@ -693,7 +720,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             <div className="flex items-center gap-1.5 text-xs">
                               <span className="font-bold text-slate-800">{sName(d.loadingStation || d.origin || station)}</span>
                               <span className="text-slate-400">➔</span>
-                              <span className="font-bold text-[#0E4B88]">{sName(d.destination || 'MNY')}</span>
+                              <span className="font-bold text-navy">{sName(d.destination || 'MNY')}</span>
                             </div>
                           </td>
                           <td className="p-4 text-slate-700">
@@ -712,7 +739,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                                   qty: String(d.quantity || 27600),
                                 }));
                               }}
-                              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                              className="bg-brand hover:bg-brand-dark text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
                             >
                               <span>Create Trip</span>
                               <ArrowRight className="w-3.5 h-3.5" />
@@ -736,22 +763,22 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     mobileCard={(t: any) => {
                       const loaded = (t.wagonLogs || []).filter((w: any) => w.status === 'LOADED').length;
                       return (
-                        <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
-                          <div className="flex justify-between items-center">
-                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
-                            <span className="font-mono font-bold text-[#62BC37] text-xs">
+                        <button type="button" className="space-y-2 cursor-pointer w-full text-left" onClick={() => setSelectedTripId(t.id)}>
+                          <span className="flex justify-between items-center">
+                            <span className="font-mono font-black text-navy">{t.tripId}</span>
+                            <span className="font-mono font-bold text-brand text-xs">
                               {loaded} / {t.targetWagonsCount || 23} Loaded
                             </span>
-                          </div>
-                          <p className="font-bold text-slate-900">{t.company}</p>
-                          <p className="text-xs text-slate-600">
+                          </span>
+                          <span className="block font-bold text-slate-900">{t.company}</span>
+                          <span className="block text-xs text-slate-600">
                             {sName(t.origin)} ➔ {sName(t.destination)}
-                          </p>
-                          <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                          </span>
+                          <span className="text-xs font-bold text-navy pt-1 flex items-center gap-1">
                             <span>Open Wagon Loading Console</span>
                             <ArrowRight className="w-3.5 h-3.5" />
-                          </p>
-                        </div>
+                          </span>
+                        </button>
                       );
                     }}
                     data={myTrips}
@@ -771,7 +798,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             className="hover:bg-slate-50 cursor-pointer transition-colors"
                             onClick={() => setSelectedTripId(t.id)}
                           >
-                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-mono font-black text-navy">{t.tripId}</td>
                             <td className="p-4 font-bold text-slate-900">{t.cargoOfficerName}</td>
                             <td className="p-4">
                               <p className="font-bold text-slate-900">{t.company}</p>
@@ -780,11 +807,11 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             <td className="p-4 text-slate-600 font-medium">
                               {sName(t.origin)} ➔ {sName(t.destination)}
                             </td>
-                            <td className="p-4 font-mono font-bold text-[#62BC37]">
+                            <td className="p-4 font-mono font-bold text-brand">
                               {loaded} / {t.targetWagonsCount || 23} Wagons
                             </td>
                             <td className="p-4">
-                              <span className="text-xs font-bold text-[#0E4B88] hover:underline flex items-center gap-1">
+                              <span className="text-xs font-bold text-navy hover:underline flex items-center gap-1">
                                 <span>Open Loading</span>
                                 <ArrowRight className="w-3.5 h-3.5" />
                               </span>
@@ -807,21 +834,21 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                     <TableWrap
                       headers={['Trip ID', 'Company', 'Locomotive', 'Route', 'Status', 'Action']}
                       mobileCard={(t: any) => (
-                        <div className="space-y-2 cursor-pointer" onClick={() => setSelectedTripId(t.id)}>
-                          <div className="flex justify-between items-center">
-                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                        <button type="button" className="space-y-2 cursor-pointer w-full text-left" onClick={() => setSelectedTripId(t.id)}>
+                          <span className="flex justify-between items-center">
+                            <span className="font-mono font-black text-navy">{t.tripId}</span>
                             <Badge text={t.status} color="green" />
-                          </div>
-                          <p className="font-bold text-slate-900">{t.company}</p>
-                          <p className="text-xs font-mono text-slate-700">Loco: {t.locomotiveId}</p>
-                          <p className="text-xs text-slate-600">
+                          </span>
+                          <span className="block font-bold text-slate-900">{t.company}</span>
+                          <span className="block text-xs font-mono text-slate-700">Loco: {t.locomotiveId}</span>
+                          <span className="block text-xs text-slate-600">
                             {sName(t.origin)} ➔ {sName(t.destination)}
-                          </p>
-                          <p className="text-xs font-bold text-[#62BC37] pt-1 flex items-center gap-1">
-                            <span>Inspect Consist & Telemetry</span>
+                          </span>
+                          <span className="text-xs font-bold text-brand pt-1 flex items-center gap-1">
+                            <span>Inspect Consist &amp; Telemetry</span>
                             <ArrowRight className="w-3.5 h-3.5" />
-                          </p>
-                        </div>
+                          </span>
+                        </button>
                       )}
                       data={myInTransit}
                     >
@@ -838,7 +865,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             className="hover:bg-slate-50 cursor-pointer transition-colors"
                             onClick={() => setSelectedTripId(t.id)}
                           >
-                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-mono font-black text-navy">{t.tripId}</td>
                             <td className="p-4 font-bold text-slate-900">{t.company}</td>
                             <td className="p-4 font-mono text-slate-800 font-bold">{t.locomotiveId}</td>
                             <td className="p-4 text-slate-600 font-medium">
@@ -847,7 +874,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             <td className="p-4">
                               <Badge text={t.status} color="green" />
                             </td>
-                            <td className="p-4 font-bold text-[#62BC37] hover:underline">Inspect Consist & GPS ➔</td>
+                            <td className="p-4 font-bold text-brand hover:underline">Inspect Consist & GPS ➔</td>
                           </tr>
                         ))
                       )}
@@ -876,7 +903,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                       return (
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <span className="font-mono font-black text-[#0E4B88]">{t.tripId}</span>
+                            <span className="font-mono font-black text-navy">{t.tripId}</span>
                             <Badge text={t.status} color={t.status === 'UNLOADING' ? 'purple' : 'blue'} />
                           </div>
                           <p className="font-bold text-slate-900">
@@ -909,7 +936,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                         const unloadedCount = (t.wagonLogs || []).filter((w: any) => w.unloadStatus === 'UNLOADED').length;
                         return (
                           <tr key={t.id} className="hover:bg-purple-50/40 transition-colors">
-                            <td className="p-4 font-mono font-black text-[#0E4B88]">{t.tripId}</td>
+                            <td className="p-4 font-mono font-black text-navy">{t.tripId}</td>
                             <td className="p-4 font-bold text-slate-900">{sName(t.origin)}</td>
                             <td className="p-4 text-slate-700 font-medium">
                               {t.company} — {t.cargoType}
@@ -948,7 +975,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   action={
                     <button
                       onClick={() => setAddWagonModal(true)}
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="bg-brand hover:bg-brand-dark text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Register New Wagon</span>
@@ -1073,7 +1100,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   action={
                     <button
                       onClick={() => setFundsModal(true)}
-                      className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                      className="bg-brand hover:bg-brand-dark text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Request Funds</span>
@@ -1083,18 +1110,18 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   <TableWrap
                     headers={['Req ID', 'Title & Category', 'Amount (₦)', 'Current Stage', 'Action']}
                     mobileCard={(r: any) => (
-                      <div className="space-y-2 cursor-pointer" onClick={() => setSelectedReq(r)}>
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono font-black text-[#0E4B88]">{r.id}</span>
+                      <button type="button" className="space-y-2 cursor-pointer w-full text-left" onClick={() => setSelectedReq(r)}>
+                        <span className="flex justify-between items-center">
+                          <span className="font-mono font-black text-navy">{r.id}</span>
                           <Badge text={r.stage} color={stageColor(r.stage)} />
-                        </div>
-                        <p className="font-bold text-slate-900">{r.title}</p>
-                        <p className="text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</p>
-                        <p className="text-xs font-bold text-[#0E4B88] pt-1 flex items-center gap-1">
+                        </span>
+                        <span className="block font-bold text-slate-900">{r.title}</span>
+                        <span className="block text-xs font-mono font-black text-emerald-700">₦{Number(r.amount).toLocaleString()}</span>
+                        <span className="text-xs font-bold text-navy pt-1 flex items-center gap-1">
                           <span>Inspect Details</span>
                           <ArrowRight className="w-3.5 h-3.5" />
-                        </p>
-                      </div>
+                        </span>
+                      </button>
                     )}
                     data={requests.filter((r) => r.station === station)}
                   >
@@ -1113,7 +1140,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             className="hover:bg-slate-50 cursor-pointer transition-colors"
                             onClick={() => setSelectedReq(r)}
                           >
-                            <td className="p-4 font-mono font-black text-[#0E4B88]">{r.id}</td>
+                            <td className="p-4 font-mono font-black text-navy">{r.id}</td>
                             <td className="p-4">
                               <p className="font-bold text-slate-900">{r.title}</p>
                               <p className="text-[10px] text-slate-500">{r.category}</p>
@@ -1124,7 +1151,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                             <td className="p-4">
                               <Badge text={r.stage} color={stageColor(r.stage)} />
                             </td>
-                            <td className="p-4 font-bold text-[#0E4B88] hover:underline">Inspect Details & Chat ➔</td>
+                            <td className="p-4 font-bold text-navy hover:underline">Inspect Details & Chat ➔</td>
                           </tr>
                         ))
                     )}
@@ -1175,15 +1202,15 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 </div>
                 <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
                   <span className="text-slate-500">Target Wagon Consist:</span>
-                  <span className="font-mono font-black text-[#0E4B88]">
+                  <span className="font-mono font-black text-navy">
                     {Math.min(23, Math.max(1, Math.ceil((Number(createDeal.quantity) || 27600) / 1200)))} Covered Wagons (Max 23)
                   </span>
                 </div>
               </div>
 
               <div>
-                <label className={lc}>Assigned Locomotive ID *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-assigned-locomotive-id-1">Assigned Locomotive ID *</label>
+                <input id="cargo-officer-port-assigned-locomotive-id-1"
                   required
                   value={tripForm.locomotiveId}
                   onChange={(e) => setTripForm({ ...tripForm, locomotiveId: e.target.value })}
@@ -1194,8 +1221,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lc}>Loading Date *</label>
-                  <input
+                  <label className={lc} htmlFor="cargo-officer-port-loading-date-2">Loading Date *</label>
+                  <input id="cargo-officer-port-loading-date-2"
                     required
                     value={tripForm.loadingDate}
                     onChange={(e) => setTripForm({ ...tripForm, loadingDate: e.target.value })}
@@ -1203,8 +1230,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   />
                 </div>
                 <div>
-                  <label className={lc}>Start Time *</label>
-                  <input
+                  <label className={lc} htmlFor="cargo-officer-port-start-time-3">Start Time *</label>
+                  <input id="cargo-officer-port-start-time-3"
                     required
                     value={tripForm.startTime}
                     onChange={(e) => setTripForm({ ...tripForm, startTime: e.target.value })}
@@ -1214,8 +1241,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
 
               <div>
-                <label className={lc}>Locomotive Train Driver *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-locomotive-train-driver-4">Locomotive Train Driver *</label>
+                <input id="cargo-officer-port-locomotive-train-driver-4"
                   required
                   value={tripForm.driverName}
                   onChange={(e) => setTripForm({ ...tripForm, driverName: e.target.value })}
@@ -1225,8 +1252,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
 
               <div>
-                <label className={lc}>Train Crew Members *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-train-crew-members-5">Train Crew Members *</label>
+                <input id="cargo-officer-port-train-crew-members-5"
                   required
                   value={tripForm.crewMembers}
                   onChange={(e) => setTripForm({ ...tripForm, crewMembers: e.target.value })}
@@ -1236,8 +1263,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
 
               <div>
-                <label className={lc}>Monitoring Cargo Officer *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-monitoring-cargo-officer-6">Monitoring Cargo Officer *</label>
+                <input id="cargo-officer-port-monitoring-cargo-officer-6"
                   required
                   value={tripForm.monitoringOfficer}
                   onChange={(e) => setTripForm({ ...tripForm, monitoringOfficer: e.target.value })}
@@ -1255,7 +1282,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white font-black text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <span>Initiate Trip & Open Wagon Loading</span>
                   <ArrowRight className="w-4 h-4" />
@@ -1280,8 +1307,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             </div>
             <form onSubmit={handleRegisterWagon} className="space-y-4">
               <div>
-                <label className={lc}>Wagon Identification Code *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-wagon-identification-code-7">Wagon Identification Code *</label>
+                <input id="cargo-officer-port-wagon-identification-code-7"
                   required
                   placeholder="e.g. PXG 09070"
                   value={newWagonId}
@@ -1292,12 +1319,12 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lc}>Carriage Type</label>
-                  <input readOnly value="PXG Covered Hopper Wagon" className={`${ic} bg-slate-100 text-slate-600`} />
+                  <label className={lc} htmlFor="cargo-officer-port-carriage-type-8">Carriage Type</label>
+                  <input id="cargo-officer-port-carriage-type-8" readOnly value="PXG Covered Hopper Wagon" className={`${ic} bg-slate-100 text-slate-600`} />
                 </div>
                 <div>
-                  <label className={lc}>Standard Capacity</label>
-                  <input readOnly value="1,200 Bags (60 MT)" className={`${ic} bg-slate-100 text-slate-600 font-mono`} />
+                  <label className={lc} htmlFor="cargo-officer-port-standard-capacity-9">Standard Capacity</label>
+                  <input id="cargo-officer-port-standard-capacity-9" readOnly value="1,200 Bags (60 MT)" className={`${ic} bg-slate-100 text-slate-600 font-mono`} />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1310,7 +1337,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
                   Register to Fleet Inventory
                 </button>
@@ -1334,8 +1361,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
             </div>
             <form onSubmit={handleFundRequest} className="space-y-3">
               <div>
-                <label className={lc}>Requisition Title *</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-requisition-title-10">Requisition Title *</label>
+                <input id="cargo-officer-port-requisition-title-10"
                   required
                   placeholder="e.g. Tarpaulin Covering & Lashing Consignment"
                   value={fundForm.title}
@@ -1345,8 +1372,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lc}>Category *</label>
-                  <select
+                  <label className={lc} htmlFor="cargo-officer-port-category-11">Category *</label>
+                  <select id="cargo-officer-port-category-11"
                     value={fundForm.category}
                     onChange={(e) => setFundForm({ ...fundForm, category: e.target.value })}
                     className={ic}
@@ -1359,8 +1386,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                   </select>
                 </div>
                 <div>
-                  <label className={lc}>Amount Requested (₦) *</label>
-                  <input
+                  <label className={lc} htmlFor="cargo-officer-port-amount-requested-12">Amount Requested (₦) *</label>
+                  <input id="cargo-officer-port-amount-requested-12"
                     required
                     type="number"
                     value={fundForm.amount}
@@ -1370,8 +1397,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 </div>
               </div>
               <div>
-                <label className={lc}>Associated Trip Number</label>
-                <input
+                <label className={lc} htmlFor="cargo-officer-port-associated-trip-number-13">Associated Trip Number</label>
+                <input id="cargo-officer-port-associated-trip-number-13"
                   value={fundForm.tripNo}
                   onChange={(e) => setFundForm({ ...fundForm, tripNo: e.target.value })}
                   placeholder="e.g. TRIP-001"
@@ -1379,8 +1406,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 />
               </div>
               <div>
-                <label className={lc}>Justification & Operational Details *</label>
-                <textarea
+                <label className={lc} htmlFor="cargo-officer-port-justification-operational-details-14">Justification & Operational Details *</label>
+                <textarea id="cargo-officer-port-justification-operational-details-14"
                   required
                   rows={3}
                   value={fundForm.description}
@@ -1399,7 +1426,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
                 >
                   Submit Requisition
                 </button>
@@ -1495,7 +1522,7 @@ function TripWagonView({
     return (
       <div className="p-8 text-center text-xs text-slate-400">
         Trip not found.{' '}
-        <button onClick={onBack} className="underline text-[#62BC37] font-bold">
+        <button onClick={onBack} className="underline text-brand font-bold">
           Go back
         </button>
       </div>
@@ -1834,7 +1861,7 @@ function TripWagonView({
               LOADING LOCKED (IN TRANSIT)
             </span>
           )}
-          <span className="text-xs font-bold text-[#62BC37] bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+          <span className="text-xs font-bold text-brand bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
             {loadedCount} / {targetCount} Wagons ({totalQtyLoadedSoFar.toLocaleString()} / {totalReqQty.toLocaleString()} {unitShort})
           </span>
         </div>
@@ -1844,12 +1871,12 @@ function TripWagonView({
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
           <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#62BC37]">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-brand">
               TRIP {trip.tripId} — ORIGIN SIDING LOADING MANIFEST
             </p>
             <h3 className="text-base font-black text-slate-900">{trip.company}</h3>
           </div>
-          <span className="bg-blue-50 text-[#0E4B88] font-mono font-bold text-xs px-3 py-1 rounded-xl border border-blue-200">
+          <span className="bg-blue-50 text-navy font-mono font-bold text-xs px-3 py-1 rounded-xl border border-blue-200">
             {sName(trip.origin)} ➔ {sName(trip.destination)}
           </span>
         </div>
@@ -1877,7 +1904,7 @@ function TripWagonView({
 
       {/* LIVE DISPATCH BANNER */}
       {!isTripInTransit && (
-        <div className="bg-[#62BC37] text-white rounded-2xl p-5 shadow-lg space-y-4">
+        <div className="bg-brand text-white rounded-2xl p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -1915,7 +1942,7 @@ function TripWagonView({
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Finalized Wagons</span>
-            <span className="text-xl font-black font-mono text-[#62BC37]">{loadedCount}</span>
+            <span className="text-xl font-black font-mono text-brand">{loadedCount}</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Volume Loaded</span>
@@ -1925,12 +1952,12 @@ function TripWagonView({
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Loading Ratio</span>
-            <span className="text-xl font-black font-mono text-[#0E4B88]">{pct}%</span>
+            <span className="text-xl font-black font-mono text-navy">{pct}%</span>
           </div>
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-[#0E4B88] to-[#62BC37] h-full rounded-full transition-all"
+            className="bg-gradient-to-r from-navy to-brand h-full rounded-full transition-all"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -1955,7 +1982,7 @@ function TripWagonView({
                   setSelWagon(availableFleetWagons[0].id);
                 }
               }}
-              className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+              className="bg-brand hover:bg-brand-dark text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Add Wagon to Loading Deck</span>
@@ -1965,7 +1992,7 @@ function TripWagonView({
 
         {/* WAGON SELECTION FORM / MODAL */}
         {!isTripInTransit && adding && (
-          <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 border-2 border-[#0E4B88]/20 rounded-2xl p-5 space-y-4 shadow-xs">
+          <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 border-2 border-navy/20 rounded-2xl p-5 space-y-4 shadow-xs">
             <div className="flex justify-between items-center border-b border-slate-200/60 pb-3">
               <div>
                 <h4 className="font-black text-slate-900 text-sm">Wagon Allocation & Siding Dispatch</h4>
@@ -1976,7 +2003,7 @@ function TripWagonView({
               <button
                 type="button"
                 onClick={() => setIsCustomWagon(!isCustomWagon)}
-                className="text-xs font-bold text-[#0E4B88] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                className="text-xs font-bold text-navy bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
               >
                 {isCustomWagon ? 'Pick from 46 Fleet Wagons' : 'Write Custom / External Wagon ID'}
               </button>
@@ -1985,14 +2012,14 @@ function TripWagonView({
             <form onSubmit={startLoadingWagon} className="space-y-4">
               {isCustomWagon ? (
                 <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
-                  <label className="block text-xs font-bold text-slate-700">Enter External / Custom Wagon Number *</label>
-                  <input
+                  <label className="block text-xs font-bold text-slate-700" htmlFor="cargo-officer-port-enter-external-custom-wagon-15">Enter External / Custom Wagon Number *</label>
+                  <input id="cargo-officer-port-enter-external-custom-wagon-15"
                     type="text"
                     required
                     value={customWagonId}
                     onChange={(e) => setCustomWagonId(e.target.value)}
                     placeholder="e.g. PXG 09048, GND 4410, NRC-HPR-88"
-                    className="w-full font-mono text-sm font-bold uppercase p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-[#62BC37]"
+                    className="w-full font-mono text-sm font-bold uppercase p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand"
                   />
                   <span className="text-[11px] text-slate-500 block">
                     This custom wagon will be automatically saved and registered to the live SQL database.
@@ -2001,18 +2028,19 @@ function TripWagonView({
               ) : (
                 <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200">
                   <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold text-slate-700">
+                    <label htmlFor="wagon-search" className="text-xs font-bold text-slate-700">
                       Select from 46 Dedicated Covered Hopper Wagons ({availableFleetWagons.length} Available at {sName(trip.origin)})
                     </label>
                   </div>
                   <div className="relative">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
+                      id="wagon-search"
                       type="text"
                       value={wagonSearch}
                       onChange={(e) => setWagonSearch(e.target.value)}
                       placeholder="Filter wagons by number (e.g. PXG 09001)..."
-                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#62BC37]"
+                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand"
                     />
                   </div>
 
@@ -2031,7 +2059,7 @@ function TripWagonView({
                             onClick={() => setSelWagon(w.id)}
                             className={`p-2.5 rounded-xl text-left border transition-all text-xs cursor-pointer ${
                               isSelected
-                                ? 'bg-emerald-50 border-2 border-[#62BC37] text-slate-900 shadow-xs'
+                                ? 'bg-emerald-50 border-2 border-brand text-slate-900 shadow-xs'
                                 : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
                             }`}
                           >
@@ -2048,13 +2076,13 @@ function TripWagonView({
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Loading Siding / Silo Bay Location</label>
-                <input
+                <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-loading-siding-silo-bay-16">Loading Siding / Silo Bay Location</label>
+                <input id="cargo-officer-port-loading-siding-silo-bay-16"
                   type="text"
                   value={sourceBay}
                   onChange={(e) => setSourceBay(e.target.value)}
                   placeholder="e.g. Silo Bay 1 - Loading Siding"
-                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#62BC37]"
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand"
                 />
               </div>
 
@@ -2068,7 +2096,7 @@ function TripWagonView({
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="bg-brand hover:bg-brand-dark text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs flex items-center gap-2 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Start Loading Wagon</span>
@@ -2084,11 +2112,11 @@ function TripWagonView({
             {activeLoadingWagons.map((active: any) => (
               <div
                 key={active.id}
-                className="bg-emerald-50/60 border-2 border-[#62BC37] rounded-2xl p-4 space-y-3 shadow-xs"
+                className="bg-emerald-50/60 border-2 border-brand rounded-2xl p-4 space-y-3 shadow-xs"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[10px] font-extrabold text-[#62BC37] uppercase tracking-wider block">
+                    <span className="text-[10px] font-extrabold text-brand uppercase tracking-wider block">
                       LOADING IN PROGRESS
                     </span>
                     <h4 className="text-xl font-mono font-black text-slate-900">{active.wagonId}</h4>
@@ -2096,7 +2124,7 @@ function TripWagonView({
                       Started: {active.startDate} at {active.startTime}
                     </p>
                   </div>
-                  <span className="w-3 h-3 rounded-full bg-[#62BC37] animate-ping" />
+                  <span className="w-3 h-3 rounded-full bg-brand animate-ping" />
                 </div>
 
                 <div className="bg-white p-3 rounded-xl border border-emerald-200 flex justify-between items-center">
@@ -2185,7 +2213,7 @@ function TripWagonView({
                           w.feederTrucks.map((ft: any, ftIdx: number) => (
                             <div key={ftIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
                               <div className="flex justify-between items-center">
-                                <span className="font-mono font-bold text-[#0E4B88] text-xs flex items-center gap-1">
+                                <span className="font-mono font-bold text-navy text-xs flex items-center gap-1">
                                   <Truck className="w-3.5 h-3.5" />
                                   <span>{ft.truckRegNo}</span>
                                 </span>
@@ -2202,7 +2230,7 @@ function TripWagonView({
                         ) : (
                           <div className="col-span-full bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center">
                             <div>
-                              <span className="font-mono font-bold text-[#0E4B88] text-xs flex items-center gap-1">
+                              <span className="font-mono font-bold text-navy text-xs flex items-center gap-1">
                                 <Truck className="w-3.5 h-3.5" />
                                 <span>{w.truckRegNo || 'N/A'}</span>
                               </span>
@@ -2244,8 +2272,8 @@ function TripWagonView({
             <form onSubmit={confirmStopLoading} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Loading Start Time</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-loading-start-time-17">Loading Start Time</label>
+                  <input id="cargo-officer-port-loading-start-time-17"
                     type="text"
                     value={startTimeEdit}
                     onChange={(e) => setStartTimeEdit(e.target.value)}
@@ -2254,8 +2282,8 @@ function TripWagonView({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Concluding Time</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-concluding-time-18">Concluding Time</label>
+                  <input id="cargo-officer-port-concluding-time-18"
                     type="text"
                     value={endTimeEdit}
                     onChange={(e) => setEndTimeEdit(e.target.value)}
@@ -2266,8 +2294,8 @@ function TripWagonView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Source Loading Siding / Silo Bay *</label>
-                <input
+                <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-source-loading-siding-silo-19">Source Loading Siding / Silo Bay *</label>
+                <input id="cargo-officer-port-source-loading-siding-silo-19"
                   required
                   value={sourceBay}
                   onChange={(e) => setSourceBay(e.target.value)}
@@ -2288,7 +2316,7 @@ function TripWagonView({
                   <button
                     type="button"
                     onClick={handleAddFeederTruck}
-                    className="text-xs font-bold text-[#0E4B88] bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-navy bg-white hover:bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Another Feeder Truck</span>
@@ -2315,10 +2343,10 @@ function TripWagonView({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase" htmlFor="cargo-officer-port-truck-license-plate-reg-20">
                           Truck License Plate / Reg No *
                         </label>
-                        <input
+                        <input id="cargo-officer-port-truck-license-plate-reg-20"
                           required
                           value={ft.truckRegNo}
                           onChange={(e) => handleUpdateFeederTruck(idx, 'truckRegNo', e.target.value)}
@@ -2327,10 +2355,10 @@ function TripWagonView({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase" htmlFor="cargo-officer-port-transporter-haulage-co-21">
                           Transporter / Haulage Co *
                         </label>
-                        <input
+                        <input id="cargo-officer-port-transporter-haulage-co-21"
                           required
                           value={ft.transporter}
                           onChange={(e) => handleUpdateFeederTruck(idx, 'transporter', e.target.value)}
@@ -2342,8 +2370,8 @@ function TripWagonView({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Driver Name</label>
-                        <input
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase" htmlFor="cargo-officer-port-driver-name-22">Driver Name</label>
+                        <input id="cargo-officer-port-driver-name-22"
                           value={ft.driverName}
                           onChange={(e) => handleUpdateFeederTruck(idx, 'driverName', e.target.value)}
                           placeholder="e.g. Ibrahim Garba"
@@ -2351,8 +2379,8 @@ function TripWagonView({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Driver Phone</label>
-                        <input
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase" htmlFor="cargo-officer-port-driver-phone-23">Driver Phone</label>
+                        <input id="cargo-officer-port-driver-phone-23"
                           value={ft.phone}
                           onChange={(e) => handleUpdateFeederTruck(idx, 'phone', e.target.value)}
                           placeholder="e.g. 08031112233"
@@ -2362,10 +2390,10 @@ function TripWagonView({
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase" htmlFor="cargo-officer-port-quantity-loaded-from-this-24">
                         Quantity Loaded from this Truck ({unitShort}) *
                       </label>
-                      <input
+                      <input id="cargo-officer-port-quantity-loaded-from-this-24"
                         required
                         type="number"
                         min="1"
@@ -2380,10 +2408,10 @@ function TripWagonView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
+                <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-total-net-payload-for-25">
                   Total Net Payload for Wagon ({unitLabel}) *
                 </label>
-                <input
+                <input id="cargo-officer-port-total-net-payload-for-25"
                   required
                   type="number"
                   min="1"
@@ -2403,7 +2431,7 @@ function TripWagonView({
                 </button>
                 <button
                   type="submit"
-                  className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="bg-brand hover:bg-brand-dark text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
                   <span>Save & Complete Wagon Load</span>
@@ -2469,7 +2497,7 @@ function TripUnloadWagonView({
     return (
       <div className="p-8 text-center text-xs text-slate-400">
         Trip not found.{' '}
-        <button onClick={onBack} className="underline text-[#62BC37] font-bold">
+        <button onClick={onBack} className="underline text-brand font-bold">
           Go back
         </button>
       </div>
@@ -2768,7 +2796,7 @@ function TripUnloadWagonView({
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Discharged</span>
-            <span className="text-xl font-black font-mono text-[#62BC37]">{unloaded}</span>
+            <span className="text-xl font-black font-mono text-brand">{unloaded}</span>
           </div>
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Pending Discharge</span>
@@ -2781,7 +2809,7 @@ function TripUnloadWagonView({
         </div>
         <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-purple-500 to-[#62BC37] h-full rounded-full transition-all"
+            className="bg-gradient-to-r from-purple-500 to-brand h-full rounded-full transition-all"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -2809,7 +2837,7 @@ function TripUnloadWagonView({
               </button>
               <button
                 onClick={dispatchEmptyReturnRun}
-                className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
+                className="bg-brand hover:bg-brand-dark text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer animate-pulse"
               >
                 <span>🔄 Dispatch Empty Return Run (Back to Base)</span>
               </button>
@@ -2846,7 +2874,7 @@ function TripUnloadWagonView({
 
                   <div className="flex items-center gap-3">
                     {isUnloaded ? (
-                      <span className="bg-[#62BC37] text-white font-bold text-[10px] px-3 py-1 rounded-xl flex items-center gap-1">
+                      <span className="bg-brand text-white font-bold text-[10px] px-3 py-1 rounded-xl flex items-center gap-1">
                         <Check className="w-3 h-3" />
                         <span>DISCHARGED</span>
                       </span>
@@ -2892,7 +2920,7 @@ function TripUnloadWagonView({
                     <span className="block text-[9px] uppercase text-slate-400 font-extrabold">Damages / Bursts</span>
                     <span
                       className={`font-mono font-black ${
-                        (w.damageQty || 0) > 0 || (w.burstBags || 0) > 0 ? 'text-rose-600' : 'text-[#62BC37]'
+                        (w.damageQty || 0) > 0 || (w.burstBags || 0) > 0 ? 'text-rose-600' : 'text-brand'
                       }`}
                     >
                       {w.damageQty || 0} Damaged / {w.burstBags || 0} Bursts
@@ -2930,8 +2958,8 @@ function TripUnloadWagonView({
             <form onSubmit={confirmStopUnloading} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unload Start Time</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-unload-start-time-26">Unload Start Time</label>
+                  <input id="cargo-officer-port-unload-start-time-26"
                     type="text"
                     value={unloadForm.unloadStartTimeEdit}
                     onChange={(e) => setUnloadForm({ ...unloadForm, unloadStartTimeEdit: e.target.value })}
@@ -2940,8 +2968,8 @@ function TripUnloadWagonView({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Unload Concluding Time</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-unload-concluding-time-27">Unload Concluding Time</label>
+                  <input id="cargo-officer-port-unload-concluding-time-27"
                     type="text"
                     value={unloadForm.unloadEndTimeEdit}
                     onChange={(e) => setUnloadForm({ ...unloadForm, unloadEndTimeEdit: e.target.value })}
@@ -2953,8 +2981,8 @@ function TripUnloadWagonView({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Intact Count ({unitShort})</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-intact-count-28">Intact Count ({unitShort})</label>
+                  <input id="cargo-officer-port-intact-count-28"
                     required
                     type="number"
                     min="0"
@@ -2964,8 +2992,8 @@ function TripUnloadWagonView({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Damaged Count</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-damaged-count-29">Damaged Count</label>
+                  <input id="cargo-officer-port-damaged-count-29"
                     type="number"
                     min="0"
                     value={unloadForm.damageQty}
@@ -2974,8 +3002,8 @@ function TripUnloadWagonView({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Burst Bags</label>
-                  <input
+                  <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-burst-bags-30">Burst Bags</label>
+                  <input id="cargo-officer-port-burst-bags-30"
                     type="number"
                     min="0"
                     value={unloadForm.burstBags}
@@ -3089,7 +3117,7 @@ function FundRequestDetailModal({
         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-[#0E4B88] text-sm">{req.id}</span>
+              <span className="font-mono font-black text-navy text-sm">{req.id}</span>
               <Badge text={req.stage} color={stageColor(req.stage)} />
             </div>
             <h3 className="text-base font-black text-slate-900 mt-1">{req.title}</h3>
@@ -3114,7 +3142,7 @@ function FundRequestDetailModal({
           </div>
           <div>
             <span className="text-[9px] uppercase font-extrabold text-slate-400 block">Associated Trip</span>
-            <span className="font-mono font-bold text-[#0E4B88]">{req.tripNo || 'TRIP-001'}</span>
+            <span className="font-mono font-bold text-navy">{req.tripNo || 'TRIP-001'}</span>
           </div>
         </div>
 
@@ -3144,7 +3172,7 @@ function FundRequestDetailModal({
           />
           <button
             type="submit"
-            className="bg-[#62BC37] hover:bg-[#52A02D] text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="bg-brand hover:bg-brand-dark text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
             <span>Send</span>

@@ -111,7 +111,7 @@ function ChangePasswordForm() {
       <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-8 sm:p-10 max-w-md w-full space-y-6">
         <div className="space-y-2 text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 mb-1">
-            <svg className="w-6 h-6 text-[#62BC37]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
@@ -137,14 +137,14 @@ function ChangePasswordForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 block">
+            <label className="text-xs font-bold text-slate-700 block" htmlFor="page-field-1-1">
               {isFirstSignIn ? 'Current password or PIN' : 'Current password'}
             </label>
-            <input
+            <input id="page-field-1-1"
               type={show ? 'text' : 'password'}
               value={currentSecret}
               onChange={(e) => setCurrentSecret(e.target.value)}
-              className="w-full px-4 py-3 text-xs font-mono rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-slate-50/50"
+              className="w-full px-4 py-3 text-xs font-mono rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand bg-slate-50/50"
               required
               autoFocus
             />
@@ -154,12 +154,12 @@ function ChangePasswordForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 block">New password</label>
-            <input
+            <label className="text-xs font-bold text-slate-700 block" htmlFor="page-new-password-2">New password</label>
+            <input id="page-new-password-2"
               type={show ? 'text' : 'password'}
               value={newSecret}
               onChange={(e) => setNewSecret(e.target.value)}
-              className="w-full px-4 py-3 text-xs font-mono rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-slate-50/50"
+              className="w-full px-4 py-3 text-xs font-mono rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand bg-slate-50/50"
               required
             />
             {fieldErrors.newSecret && (
@@ -180,12 +180,12 @@ function ChangePasswordForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 block">Confirm new password</label>
-            <input
+            <label className="text-xs font-bold text-slate-700 block" htmlFor="page-confirm-new-password-3">Confirm new password</label>
+            <input id="page-confirm-new-password-3"
               type={show ? 'text' : 'password'}
               value={confirmSecret}
               onChange={(e) => setConfirmSecret(e.target.value)}
-              className={`w-full px-4 py-3 text-xs font-mono rounded-xl border text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#62BC37] bg-slate-50/50 ${
+              className={`w-full px-4 py-3 text-xs font-mono rounded-xl border text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand bg-slate-50/50 ${
                 mismatch ? 'border-rose-300' : 'border-slate-200'
               }`}
               required
@@ -198,7 +198,7 @@ function ChangePasswordForm() {
               type="checkbox"
               checked={show}
               onChange={(e) => setShow(e.target.checked)}
-              className="w-4 h-4 rounded text-[#62BC37] focus:ring-[#62BC37] border-slate-300 cursor-pointer"
+              className="w-4 h-4 rounded text-brand focus:ring-brand border-slate-300 cursor-pointer"
             />
             <span className="text-xs font-medium text-slate-600">Show passwords</span>
           </label>
@@ -206,7 +206,7 @@ function ChangePasswordForm() {
           <button
             type="submit"
             disabled={loading || problems.length > 0 || mismatch || !currentSecret || !newSecret}
-            className="w-full py-3.5 px-4 bg-[#62BC37] hover:bg-[#52A02D] disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer"
+            className="w-full py-3.5 px-4 bg-brand hover:bg-brand-dark disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer"
           >
             {loading ? 'Updating…' : 'Update password'}
           </button>
