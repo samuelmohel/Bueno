@@ -1,7 +1,7 @@
 {
-  "commit": "88976df",
+  "commit": "ed194fb",
   "branch": "main",
-  "subject": "feat(web): rebuild the sign-in page",
-  "builtAt": "2026-09-22T15:53:33.942Z",
+  "subject": "feat: make \"keep me signed in\" real, and redesign the sign-in page",
+  "builtAt": "2026-09-22T16:25:20.482Z",
   "dirty": false
 }
