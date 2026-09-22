@@ -1,7 +1,7 @@
 {
-  "commit": "ffbfe9c",
+  "commit": "76bda13",
   "branch": "main",
-  "subject": "fix: the permissions editor was showing defaults, not the enforced policy",
-  "builtAt": "2026-09-22T12:54:00.869Z",
+  "subject": "feat: permanently delete a user account",
+  "builtAt": "2026-09-22T13:53:32.631Z",
   "dirty": false
 }
