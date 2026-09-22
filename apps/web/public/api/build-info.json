@@ -1,7 +1,7 @@
 {
-  "commit": "f7e1c8f",
+  "commit": "50c6cb2",
   "branch": "main",
-  "subject": "fix: make user provisioning actually reach the database",
-  "builtAt": "2026-09-22T09:06:52.208Z",
+  "subject": "fix: say why a collection is empty instead of showing a blank table",
+  "builtAt": "2026-09-22T09:50:10.241Z",
   "dirty": false
 }
