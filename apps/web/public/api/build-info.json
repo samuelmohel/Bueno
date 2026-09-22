@@ -1,7 +1,7 @@
 {
-  "commit": "76bda13",
+  "commit": "88976df",
   "branch": "main",
-  "subject": "feat: permanently delete a user account",
-  "builtAt": "2026-09-22T13:53:32.631Z",
+  "subject": "feat(web): rebuild the sign-in page",
+  "builtAt": "2026-09-22T15:53:33.942Z",
   "dirty": false
 }
