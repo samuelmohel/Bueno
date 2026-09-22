@@ -132,5 +132,48 @@ done
 check "repeated login attempts get rate limited" 1 "$limited"
 
 echo
+echo "=== 8. Provisioning an account end to end ==="
+#
+# The interface built a user object in the browser and pushed it through the
+# generic collection store, which posts {"action":"upsert"} - not a case
+# users.php handles. Every provisioning attempt got a 400, the account existed
+# only in localStorage until the next poll, and no password hash was ever
+# written, so the credential the administrator was shown could not work.
+#
+# Nothing caught it because no test ever created an account and then tried to
+# sign in as it. This does exactly that.
+
+NEWMAIL="provisioned-$$@bueno.ng"
+
+r=$(req POST /api/users.php "{\"action\":\"create\",\"fullName\":\"Provisioned Officer\",\"email\":\"$NEWMAIL\",\"role\":\"CARGO_OFFICER\",\"userType\":\"STAFF\",\"assignedStation\":\"EWK\"}" "$ADMIN_TOKEN")
+check "an administrator can provision an account" 201 "$(code_of "$r")"
+CREATED_BODY="$(body_of "$r")"
+check_contains "the response carries a one-time secret" '"initialSecret"' "$CREATED_BODY"
+check_not_contains "it does not echo a password hash" 'password_hash' "$CREATED_BODY"
+
+NEWSECRET=$(printf '%s' "$CREATED_BODY" | sed -n 's/.*"initialSecret":"\([^"]*\)".*/\1/p')
+
+# The account must be in the directory the administrator is looking at.
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check_contains "the new account appears in the user list" "$NEWMAIL" "$(body_of "$r")"
+
+# And the secret the administrator was shown must be the one that works.
+r=$(req POST /api/auth.php "{\"action\":\"login\",\"identifier\":\"$NEWMAIL\",\"secret\":\"$NEWSECRET\"}")
+check "the returned secret actually signs in" 200 "$(code_of "$r")"
+check_contains "and the account must set its own password" '"mustChangeCredentials":true' "$(body_of "$r")"
+
+# A whole-collection push is what the UI used to send. It must be refused
+# rather than silently doing nothing.
+r=$(req POST /api/users.php '[{"id":"usr_x","fullName":"Bulk","email":"bulk@bueno.ng","role":"ADMIN"}]' "$ADMIN_TOKEN")
+check "a bare array write is rejected" 400 "$(code_of "$r")"
+r=$(req POST /api/users.php '{"action":"upsert","id":"usr_x","role":"ADMIN"}' "$ADMIN_TOKEN")
+check "an unsupported action is rejected" 400 "$(code_of "$r")"
+
+# Duplicate addresses are refused, matching the unique index on the column.
+r=$(req POST /api/users.php "{\"action\":\"create\",\"fullName\":\"Duplicate\",\"email\":\"$NEWMAIL\",\"role\":\"CARGO_OFFICER\"}" "$ADMIN_TOKEN")
+check "a second account on the same address is refused" 409 "$(code_of "$r")"
+
+
+echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

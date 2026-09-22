@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { getUser } from '@/lib/auth/session';
 import { notify, confirmAction } from '@/lib/notify';
-import { generateTemporaryCredential } from '@/lib/utils';
 import { BRAND } from '@/lib/theme';
 import {
   StateEngine,
@@ -650,11 +649,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     role: 'CARGO_OFFICER',
     assignedStation: 'EWK',
     companyName: '',
-    // Generated per account rather than a fixed '1111'. The server hashes it
-    // and forces a change at first sign-in, but a predictable default is
-    // usable by anyone who knows the address until that sign-in happens.
-    pin: generateTemporaryCredential(),
+    // No credential field. The server generates the one-time password and
+    // returns it once on creation; letting an administrator choose it here
+    // was how every new account ended up on the PIN '1111'.
   });
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [isResettingCredentials, setIsResettingCredentials] = useState(false);
 
   // Granular Permissions Matrix State
   const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getRolePermissions());
@@ -1466,97 +1467,153 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   // STAFF ACCOUNT PROVISIONING
-  const handleProvisionUser = (e: React.FormEvent) => {
+  const handleProvisionUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newUserId = `usr_${Date.now()}`;
+    if (isProvisioning) return;
+
     const isCustomer = provisionForm.role === 'CUSTOMER' || provisionForm.role === 'CONSIGNEE';
-    const effectiveUserType = isCustomer ? 'CUSTOMER' : 'STAFF';
     const effectiveCompany = isCustomer
       ? (provisionForm.companyName.trim() || provisionForm.fullName.trim())
       : (provisionForm.companyName.trim() || 'Bueno Logistics HQ');
 
-    const newUserObj = {
-      id: newUserId,
-      fullName: provisionForm.fullName.trim(),
-      email: provisionForm.email.toLowerCase().trim(),
-      phone: provisionForm.phone.trim(),
-      userType: effectiveUserType,
-      role: provisionForm.role,
-      assignedStation: provisionForm.assignedStation,
-      stationName: provisionForm.assignedStation === 'EWK' ? 'Ewekoro Terminal' : provisionForm.assignedStation === 'MNY' ? 'Moniya Yard' : 'Apapa Port',
-      companyName: effectiveCompany,
-      staffId: isCustomer ? `CUST-${Math.floor(1000 + Math.random() * 9000)}` : `${provisionForm.assignedStation}-${Math.floor(10 + Math.random() * 89)}`,
-      pin: provisionForm.pin || '1111',
-      status: 'ACTIVE',
-      createdAt: new Date().toLocaleDateString('en-GB'),
-    };
+    setIsProvisioning(true);
+    try {
+      /*
+       * The account is created by the server, and the credential comes back
+       * from the server.
+       *
+       * This used to build a user object in the browser, hand it to
+       * StateEngine.saveUsers() and announce a PIN the administrator had typed
+       * into the form. None of that reached the database: saveUsers routed
+       * through the generic collection store, which posts {action: 'upsert'},
+       * and users.php dispatches on an explicit action and answered 400.
+       *
+       * So the account appeared in the list until the next poll replaced it,
+       * and no password hash was ever written — the credential shown could
+       * never have worked. The server has always generated its own one-time
+       * secret; nothing was showing it.
+       */
+      const { user: created, initialSecret } = await StateEngine.provisionUser({
+        fullName: provisionForm.fullName.trim(),
+        email: provisionForm.email.toLowerCase().trim(),
+        phone: provisionForm.phone.trim(),
+        role: provisionForm.role,
+        userType: isCustomer ? 'CUSTOMER' : 'STAFF',
+        assignedStation: provisionForm.assignedStation,
+        companyName: effectiveCompany,
+      });
 
-    StateEngine.saveUsers([newUserObj, ...usersList]);
-    setUsersList([newUserObj, ...usersList]);
+      syncData();
 
-    if (isCustomer) {
-      const initialDeal = {
-        id: `DEAL-NEG-${newUserObj.id}`,
-        companyName: newUserObj.companyName,
-        email: newUserObj.email,
-        contactName: newUserObj.fullName,
-        loadingStation: newUserObj.assignedStation && newUserObj.assignedStation !== 'HQ' ? newUserObj.assignedStation : 'PAPA',
-        destination: 'MNY',
-        cargoType: 'Bagged Cement (50kg)',
-        quantity: '2,000 Bags',
-        status: 'IN_NEGOTIATION',
-        createdAt: new Date().toLocaleDateString('en-GB'),
-        messages: [
-          {
-            sender: 'Head of Operations',
-            role: 'Head of Operations',
-            text: `Welcome ${newUserObj.companyName}! Your client portal is active. Operations Command is standing by to coordinate rail freight corridors, wagon manifests, and commercial tariffs with your team.`,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          },
-        ],
-      };
-      const curDeals = tryParse('bueno_custom_deal_negotiations', []);
-      const exists = curDeals.some((d: any) => d.email?.toLowerCase() === newUserObj.email);
-      if (!exists) {
-        localStorage.setItem('bueno_custom_deal_negotiations', JSON.stringify([initialDeal, ...curDeals]));
-        StateEngine.saveNegotiations([initialDeal, ...curDeals]);
-      }
+      // Shown once. It is hashed on write and cannot be retrieved again — the
+      // only recovery is a credential reset, which issues a new one.
+      setCustomAlert({
+        title: 'Account provisioned',
+        message:
+          `${created.fullName} (${created.role}) can now sign in as ${created.email}.
+
+` +
+          `One-time password: ${initialSecret}
+
+` +
+          'Give this to them over a channel you trust. It is not stored anywhere and cannot be ' +
+          'shown again. They must set their own password the first time they sign in.',
+      });
+
+      setProvisionForm({
+        fullName: '',
+        email: '',
+        phone: '',
+        userType: 'STAFF',
+        role: 'CARGO_OFFICER',
+        assignedStation: 'EWK',
+        companyName: '',
+      });
+    } catch (err: any) {
+      // Surfaces the real reason: a duplicate address (409), a role more
+      // privileged than the administrator's own (403), or a validation
+      // failure (422).
+      notify.error(err?.message || 'Could not provision the account.');
+    } finally {
+      setIsProvisioning(false);
     }
-
-    setCustomAlert({
-      title: 'New Account Provisioned',
-      message: `Account created for ${newUserObj.fullName} (${newUserObj.role}) with Security PIN: ${newUserObj.pin}!`,
-    });
-
-    setProvisionForm({
-      fullName: '',
-      email: '',
-      phone: '',
-      userType: 'STAFF',
-      role: 'CARGO_OFFICER',
-      assignedStation: 'EWK',
-      companyName: '',
-      pin: generateTemporaryCredential(),
-    });
   };
 
   // EDIT EXISTING USER ACCOUNT
-  const handleSaveUserEdit = (e: React.FormEvent) => {
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
+    if (!editingUser || isSavingUser) return;
 
-    StateEngine.updateUser(editingUser.id, editingUser);
-    setUsersList(usersList.map((u) => (u.id === editingUser.id ? editingUser : u)));
-    if (editingUser.id === currentUser?.id || editingUser.email === currentUser?.email || editingUser.role === currentUser?.role) {
-      setCurrentUser(editingUser);
+    setIsSavingUser(true);
+    try {
+      // Awaited, not optimistic: the server can refuse an edit — promoting an
+      // account to a role above the administrator's own, for instance — and
+      // the list previously showed the change as saved either way.
+      await StateEngine.updateUser(editingUser.id, {
+        fullName: editingUser.fullName,
+        email: editingUser.email,
+        phone: editingUser.phone,
+        role: editingUser.role,
+        assignedStation: editingUser.assignedStation,
+        companyName: editingUser.companyName,
+        staffId: editingUser.staffId,
+      });
+
+      // Activation is a distinct operation on the API — `update` does not
+      // accept a status column — so the dropdown needs its own call. It made
+      // no difference at all before this.
+      const previous = usersList.find((u) => u.id === editingUser.id);
+      const wasActive = (previous?.status ?? 'ACTIVE') === 'ACTIVE';
+      const nowActive = (editingUser.status ?? 'ACTIVE') === 'ACTIVE';
+      if (wasActive !== nowActive) {
+        await StateEngine.setUserActive(editingUser.id, nowActive);
+      }
+
+      if (editingUser.id === currentUser?.id || editingUser.email === currentUser?.email) {
+        setCurrentUser({ ...currentUser, ...editingUser });
+      }
+      setEditingUser(null);
+      syncData();
+      notify.success(`Account for ${editingUser.fullName} updated.`);
+    } catch (err: any) {
+      notify.error(err?.message || 'Could not update the account.');
+    } finally {
+      setIsSavingUser(false);
     }
-    setEditingUser(null);
-    syncData();
+  };
 
-    setCustomAlert({
-      title: 'User Account Updated',
-      message: `Account for ${editingUser.fullName} (${editingUser.email}) updated successfully in database! All executive sign-offs, manifests, invoices, and reports now reflect this change.`,
+  // ISSUE A NEW ONE-TIME PASSWORD
+  const handleResetUserCredentials = async (target: any) => {
+    const ok = await confirmAction({
+      title: `Reset the password for ${target.fullName}?`,
+      body: 'A new one-time password is generated and shown to you once. Every session this '
+        + 'account currently holds is ended immediately, and they must set a new password the '
+        + 'next time they sign in.',
+      confirmLabel: 'Reset password',
+      destructive: true,
     });
+    if (!ok) return;
+
+    setIsResettingCredentials(true);
+    try {
+      const secret = await StateEngine.resetUserCredentials(target.id);
+      syncData();
+      setCustomAlert({
+        title: 'Password reset',
+        message:
+          `New one-time password for ${target.fullName} (${target.email}):
+
+${secret}
+
+`
+          + 'Give this to them over a channel you trust. It is not stored anywhere and cannot be '
+          + 'shown again.',
+      });
+    } catch (err: any) {
+      notify.error(err?.message || 'Could not reset the password.');
+    } finally {
+      setIsResettingCredentials(false);
+    }
   };
 
   // TOGGLE UNIFIED PERMISSION FOR SELECTED ROLE
@@ -2014,13 +2071,23 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div className="grid grid-cols-2 gap-2">
+                {/*
+                  A credential cannot be edited here, and this field never
+                  could: it displayed '1111' for everyone — the update action
+                  does not accept a pin, and the stored value is a bcrypt hash
+                  that cannot be read back. Issuing a new one-time password is
+                  the operation that actually exists.
+                */}
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1" htmlFor="admin-portal-security-pin-6">Security PIN</label>
-                  <input id="admin-portal-security-pin-6"
-                    value={editingUser.pin || '1111'}
-                    onChange={(e) => setEditingUser({ ...editingUser, pin: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold font-mono text-emerald-700"
-                  />
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Credentials</span>
+                  <button
+                    type="button"
+                    disabled={isResettingCredentials}
+                    onClick={() => handleResetUserCredentials(editingUser)}
+                    className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    {isResettingCredentials ? 'Resetting…' : 'Reset password'}
+                  </button>
                 </div>
 
                 <div>
