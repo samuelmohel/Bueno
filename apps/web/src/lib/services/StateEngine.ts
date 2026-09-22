@@ -1143,6 +1143,22 @@ class StateEngineService {
     this.notifyListeners();
   }
 
+  /**
+   * Erase an account permanently.
+   *
+   * Deactivation is the right choice almost every time — it ends access while
+   * keeping the account attached to the work it did. This is for accounts
+   * created in error, duplicates, test accounts and erasure requests.
+   *
+   * The server refuses to delete the caller's own account, or the last active
+   * account able to administer permissions.
+   */
+  async deleteUser(id: string): Promise<void> {
+    await api.post('users.php', { action: 'delete', id });
+    await STORES.bueno_users.sync();
+    this.notifyListeners();
+  }
+
   /** Issue a new one-time secret and end every session the account holds. */
   async resetUserCredentials(id: string): Promise<string> {
     const { data } = await api.post('users.php', { action: 'reset_credentials', id });

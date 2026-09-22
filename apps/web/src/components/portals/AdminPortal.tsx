@@ -517,7 +517,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [negotiations, setNegotiations] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [customAlert, setCustomAlert] = useState<{ title?: string; message: string } | null>(null);
+  const [customAlert, setCustomAlert] = useState<
+    { title?: string; message: string; secret?: string } | null
+  >(null);
 
   // Enterprise Accounting & Dynamic Trip Costing State
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -656,6 +658,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isResettingCredentials, setIsResettingCredentials] = useState(false);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
   // Null unless the server refused the directory read; see dataStore.readFailure.
   const [usersDirectoryError, setUsersDirectoryError] =
     useState<{ status: number; message: string } | null>(null);
@@ -1535,14 +1538,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       setCustomAlert({
         title: 'Account provisioned',
         message:
-          `${created.fullName} (${created.role}) can now sign in as ${created.email}.
-
-` +
-          `One-time password: ${initialSecret}
-
-` +
-          'Give this to them over a channel you trust. It is not stored anywhere and cannot be ' +
-          'shown again. They must set their own password the first time they sign in.',
+          `${created.fullName} (${created.role}) can now sign in as ${created.email}.\n\n` +
+          'Give the password below to them over a channel you trust. They must set their own ' +
+          'the first time they sign in.',
+        secret: initialSecret,
       });
 
       setProvisionForm({
@@ -1626,18 +1625,50 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       setCustomAlert({
         title: 'Password reset',
         message:
-          `New one-time password for ${target.fullName} (${target.email}):
-
-${secret}
-
-`
-          + 'Give this to them over a channel you trust. It is not stored anywhere and cannot be '
-          + 'shown again.',
+          `${target.fullName} (${target.email}) has been signed out everywhere and must set a `
+          + 'new password at their next sign-in. Give them the password below over a channel you '
+          + 'trust.',
+        secret,
       });
     } catch (err: any) {
       notify.error(err?.message || 'Could not reset the password.');
     } finally {
       setIsResettingCredentials(false);
+    }
+  };
+
+  // PERMANENTLY DELETE AN ACCOUNT
+  //
+  // Deliberately harder to reach than deactivation, and worded so the
+  // difference is clear at the moment of the decision rather than in
+  // documentation nobody reads.
+  const handleDeleteUser = async (target: any) => {
+    const ok = await confirmAction({
+      title: `Permanently delete ${target.fullName}?`,
+      body:
+        `${target.email} will be erased from the database, along with every session it holds. `
+        + 'This cannot be undone. '
+        + 'Trips, deals and manifests this person worked on are unaffected — they record names, '
+        + 'not account references — and the audit log keeps what the account did. '
+        + 'If you only need to stop them signing in, close this and set Account Status to '
+        + 'Deactivated instead, which can be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setIsDeletingUser(true);
+    try {
+      await StateEngine.deleteUser(target.id);
+      setEditingUser(null);
+      syncData();
+      notify.success(`${target.fullName} deleted.`);
+    } catch (err: any) {
+      // The server refuses self-deletion, and refuses removing the last
+      // account able to administer permissions.
+      notify.error(err?.message || 'Could not delete the account.');
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
@@ -2081,7 +2112,42 @@ ${secret}
               </div>
               <h3 className="text-base font-black text-slate-900">{customAlert.title || 'Action Completed'}</h3>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed font-medium">{customAlert.message}</p>
+            {/* whitespace-pre-line: the message is written with line breaks
+                and a <p> collapses them, which ran the one-time password into
+                the sentence around it. */}
+            <p className="whitespace-pre-line text-xs text-slate-600 leading-relaxed font-medium">
+              {customAlert.message}
+            </p>
+
+            {/* A credential shown exactly once should not have to be
+                transcribed by eye out of a paragraph. */}
+            {customAlert.secret && (
+              <div className="rounded-2xl border border-slate-300 bg-slate-50 p-4">
+                <span className="block text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                  One-time password
+                </span>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="flex-1 select-all break-all rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm font-black tracking-widest text-slate-900">
+                    {customAlert.secret}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard
+                        ?.writeText(customAlert.secret as string)
+                        .then(() => notify.success('Password copied.'))
+                        .catch(() => notify.error('Could not copy — select it and copy manually.'));
+                    }}
+                    className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-slate-800"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="mt-2 text-[10px] font-semibold text-slate-500">
+                  Not stored anywhere and cannot be shown again. Use “Reset password” if it is lost.
+                </p>
+              </div>
+            )}
             <button
               onClick={() => setCustomAlert(null)}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl transition-all shadow-md"
@@ -2223,11 +2289,38 @@ ${secret}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all"
+                  disabled={isSavingUser}
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all disabled:opacity-60"
                 >
-                  Save Account Corrections →
+                  {isSavingUser ? 'Saving…' : 'Save Account Corrections →'}
                 </button>
               </div>
+
+              {/*
+                Separated from the save controls and shown only to a role that
+                holds the capability. Deleting is not a variant of saving, and
+                putting it beside "Save" is how it gets clicked by accident.
+              */}
+              {can('users.delete') && (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
+                  <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-800">
+                    Irreversible
+                  </p>
+                  <p className="mt-1 text-2xs font-semibold leading-relaxed text-rose-900">
+                    Deleting erases the account and its sessions for good. To stop someone signing
+                    in while keeping their record, set Account Status to <b>Deactivated</b> above —
+                    that can be undone.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isDeletingUser}
+                    onClick={() => handleDeleteUser(editingUser)}
+                    className="mt-3 w-full rounded-xl border border-rose-300 bg-white px-3 py-2.5 text-xs font-black text-rose-700 transition-colors hover:bg-rose-600 hover:text-white disabled:opacity-60"
+                  >
+                    {isDeletingUser ? 'Deleting…' : 'Delete this account permanently'}
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>

@@ -145,6 +145,7 @@ export const CAPABILITIES: readonly Capability[] = [
   { key: 'users.edit', kind: 'action', module: 'users', label: 'Edit Profiles', description: 'Update contact details, station, or phone number' },
   { key: 'users.reset_credentials', kind: 'action', module: 'users', label: 'Reset Credentials', description: 'Force a password or PIN reset for another user', sensitive: true },
   { key: 'users.deactivate', kind: 'action', module: 'users', label: 'Deactivate Account', description: 'Revoke a user’s access to the platform', sensitive: true },
+  { key: 'users.delete', kind: 'action', module: 'users', label: 'Delete Account Permanently', description: 'Erase an account and its sessions. Audit history is retained and deactivation is usually the right choice instead', sensitive: true },
 
   // ── System governance ─────────────────────────────────────────────────────
   { key: 'system.permissions_edit', kind: 'action', module: 'system', label: 'Edit Permissions Matrix', description: 'Change what every role in the platform may do', sensitive: true },

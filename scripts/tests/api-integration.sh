@@ -223,5 +223,70 @@ check "and the refusal changed nothing" 200 "$(code_of "$r")"
 
 
 echo
+echo "=== 10. Deleting an account ==="
+#
+# Deletion is irreversible, so the guards matter more than the happy path:
+# you must not be able to delete yourself out of a session, or remove the last
+# account capable of administering the platform.
+
+# A disposable account to delete.
+DELMAIL="deleteme-$$@bueno.ng"
+r=$(req POST /api/users.php "{\"action\":\"create\",\"fullName\":\"Temporary Account\",\"email\":\"$DELMAIL\",\"role\":\"CARGO_OFFICER\",\"userType\":\"STAFF\",\"assignedStation\":\"EWK\"}" "$ADMIN_TOKEN")
+check "a disposable account is created" 201 "$(code_of "$r")"
+DELID=$(printf '%s' "$(body_of "$r")" | sed -n 's/.*"id":"\(usr_[^"]*\)".*/\1/p')
+
+# The caller must not be able to delete the account they are signed in with.
+# body_of takes the response as an argument; piping into it leaves $1 unset,
+# which silently yields an empty id and makes the assertion below pass for the
+# wrong reason (a validation error rather than the self-delete guard).
+ADMIN_ME=$(body_of "$(req GET /api/auth.php '' "$ADMIN_TOKEN")")
+ADMINID=$(printf '%s' "$ADMIN_ME" | grep -o '"id":"usr_[^"]*"' | head -1 | cut -d'"' -f4)
+check "the signed-in admin id was resolved" 1 "$([ -n "$ADMINID" ] && echo 1 || echo 0)"
+r=$(req POST /api/users.php "{\"action\":\"delete\",\"id\":\"$ADMINID\"}" "$ADMIN_TOKEN")
+check "you cannot delete your own account" 422 "$(code_of "$r")"
+
+# A cargo officer holds no users.delete capability.
+r=$(req POST /api/users.php "{\"action\":\"delete\",\"id\":\"$DELID\"}" "$CARGO_TOKEN")
+check "a cargo officer cannot delete accounts" 403 "$(code_of "$r")"
+
+# The real thing.
+r=$(req POST /api/users.php "{\"action\":\"delete\",\"id\":\"$DELID\"}" "$ADMIN_TOKEN")
+check "an administrator can delete an account" 200 "$(code_of "$r")"
+
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check_not_contains "the account is gone from the directory" "$DELMAIL" "$(body_of "$r")"
+
+# Deleting it again is a 404, not a silent success.
+r=$(req POST /api/users.php "{\"action\":\"delete\",\"id\":\"$DELID\"}" "$ADMIN_TOKEN")
+check "deleting it twice reports not found" 404 "$(code_of "$r")"
+
+# A deleted account cannot sign in, whatever credential it held.
+r=$(req POST /api/auth.php "{\"action\":\"login\",\"identifier\":\"$DELMAIL\",\"secret\":\"anything\"}")
+check "the deleted account cannot sign in" 401 "$(code_of "$r")"
+
+# The audit trail must survive the subject of the audit.
+r=$(req GET "/api/users.php" '' "$ADMIN_TOKEN")
+check "the directory still works after a deletion" 200 "$(code_of "$r")"
+
+# The platform must never be left with nobody able to administer it. Reached
+# here by granting delete to a role that cannot administer permissions, then
+# having it try to remove the last account that can — the one path where the
+# self-delete guard does not already stop you.
+r=$(req POST /api/permissions.php '{"roleKey":"CARGO_OFFICER","permissions":["deals","fleet","users","users.view","users.delete"]}' "$ADMIN_TOKEN")
+check "a role can be granted delete for this check" 200 "$(code_of "$r")"
+
+r=$(req POST /api/users.php "{\"action\":\"delete\",\"id\":\"$ADMINID\"}" "$CARGO_TOKEN")
+check "deleting the last administrator is refused" 422 "$(code_of "$r")"
+check_contains "and says why" 'lock everyone out' "$(body_of "$r")"
+
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check "the administrator still exists" 200 "$(code_of "$r")"
+check_contains "and is still in the directory" 'admin@bueno.ng' "$(body_of "$r")"
+
+r=$(req POST /api/permissions.php '{"action":"RESET_DEFAULTS"}' "$ADMIN_TOKEN")
+check "defaults restored after the check" 200 "$(code_of "$r")"
+
+
+echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

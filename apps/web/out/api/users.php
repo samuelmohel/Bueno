@@ -257,6 +257,95 @@ switch ($action) {
         Response::ok(['message' => 'Account ' . strtolower($status) . '.']);
     }
 
+    // ── Delete permanently ──────────────────────────────────────────────────
+    //
+    // Deactivation is the right answer almost every time: it ends access
+    // immediately while keeping the account attached to the work it did. This
+    // exists for the cases deactivation does not cover — an account created in
+    // error, a duplicate, a test account, or an erasure request.
+    //
+    // What is deliberately NOT deleted:
+    //
+    //   - Audit log entries. They record what the account did while it
+    //     existed, and an audit trail that can be edited by deleting the
+    //     subject is not an audit trail. The rows keep the account id, which
+    //     no longer resolves — that is correct, and the deletion is itself
+    //     recorded with the email so the history stays readable.
+    //
+    //   - Trips, deals and manifests. These carry officer and creator NAMES as
+    //     text rather than references, so operational history is unaffected by
+    //     removing the account row.
+    case 'delete': {
+        $actor = Rbac::require('users.delete');
+
+        $data = Validator::for($body)->identifier('id', true, 100)->validated();
+
+        $find = Db::conn()->prepare('SELECT id, fullName, email, role, status FROM bueno_users WHERE id = ? LIMIT 1');
+        $find->execute([$data['id']]);
+        $target = $find->fetch();
+        if ($target === false) {
+            Response::error('User not found.', 404);
+        }
+
+        // Deleting the account you are signed in as would leave you holding a
+        // session for a user that no longer exists.
+        if ((string) $target['id'] === (string) $actor['id']) {
+            Response::error(
+                'You cannot delete the account you are signed in with. Ask another administrator.',
+                422
+            );
+        }
+
+        // Never allow the platform to be left with nobody able to administer
+        // it. Same protection the permissions matrix has, applied to the other
+        // way of reaching the same dead end — deleting the last administrator
+        // rather than revoking the capability.
+        if (Rbac::can($target, 'system.permissions_edit')) {
+            $rolesWithEdit = [];
+            foreach (Rbac::matrix() as $role => $perms) {
+                if (in_array('system.permissions_edit', $perms, true)) {
+                    $rolesWithEdit[] = $role;
+                }
+            }
+
+            if ($rolesWithEdit !== []) {
+                $placeholders = implode(',', array_fill(0, count($rolesWithEdit), '?'));
+                $stmt = Db::conn()->prepare(
+                    "SELECT COUNT(*) FROM bueno_users
+                      WHERE status = 'ACTIVE' AND id <> ? AND role IN ($placeholders)"
+                );
+                $stmt->execute(array_merge([$target['id']], $rolesWithEdit));
+
+                if ((int) $stmt->fetchColumn() === 0) {
+                    Response::error(
+                        'This is the only active account that can administer permissions. '
+                        . 'Deleting it would lock everyone out. Provision a replacement administrator first.',
+                        422
+                    );
+                }
+            }
+        }
+
+        // End every session before the row goes, so a token cannot outlive the
+        // account it belongs to.
+        Auth::revokeAllSessions((string) $target['id'], 'account_deleted');
+
+        Db::conn()->prepare('DELETE FROM bueno_users WHERE id = ?')->execute([$target['id']]);
+
+        // Recorded with the identifying details, because after this the id
+        // resolves to nothing and the entry would otherwise be unreadable.
+        Audit::record('users.delete', 'user', (string) $target['id'], Audit::SUCCESS, [
+            'email'    => $target['email'],
+            'fullName' => $target['fullName'],
+            'role'     => $target['role'],
+            'status'   => $target['status'],
+        ], $actor);
+
+        Response::ok([
+            'message' => 'Account permanently deleted. Audit history has been retained.',
+        ]);
+    }
+
     // ── Reset credentials ───────────────────────────────────────────────────
     case 'reset_credentials': {
         $actor = Rbac::require('users.reset_credentials');
