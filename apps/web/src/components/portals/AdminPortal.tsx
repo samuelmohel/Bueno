@@ -656,6 +656,9 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isResettingCredentials, setIsResettingCredentials] = useState(false);
+  // Null unless the server refused the directory read; see dataStore.readFailure.
+  const [usersDirectoryError, setUsersDirectoryError] =
+    useState<{ status: number; message: string } | null>(null);
 
   // Granular Permissions Matrix State
   const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getRolePermissions());
@@ -693,6 +696,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     StateEngine.syncRemote();
     setRequests(liveReqs);
     setUsersList(liveUsers);
+    setUsersDirectoryError(StateEngine.readFailureFor('bueno_users'));
     setNotifications(liveNotifs);
     setPermissionsMatrix(livePerms);
     setSystemSettings(liveSettings);
@@ -6484,6 +6488,37 @@ ${secret}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
+                    {usersList.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center font-sans">
+                          {/*
+                            An empty directory and a refused one look identical
+                            otherwise — "(0)" reads as a missing feature rather
+                            than a permission this account does not hold.
+                          */}
+                          {usersDirectoryError ? (
+                            <>
+                              <p className="text-xs font-bold text-rose-700">
+                                The directory could not be loaded.
+                              </p>
+                              <p className="mt-1 text-2xs font-semibold text-slate-600">
+                                {usersDirectoryError.message}
+                              </p>
+                              <p className="mt-1 text-3xs font-mono text-slate-400">
+                                users.php responded {usersDirectoryError.status}
+                                {usersDirectoryError.status === 403
+                                  ? ' — the “View Directory” capability is missing for this role in the Permissions Matrix.'
+                                  : ''}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs font-semibold text-slate-500">
+                              No accounts yet. Provision one using the form on the left.
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
                     {usersList.map((u, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-3 font-bold font-sans text-slate-900">{u.fullName}</td>

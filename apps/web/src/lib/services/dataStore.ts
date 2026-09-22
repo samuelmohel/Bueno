@@ -73,12 +73,34 @@ function rowsDiffer(a: Row, b: Row): boolean {
   return false;
 }
 
+/** Why a collection is empty, when it is empty for a reason. */
+export interface ReadFailure {
+  status: number;
+  message: string;
+}
+
 export class CollectionStore {
   private rows: Row[] = [];
   private etag: string | null = null;
   private hydrated = false;
   private syncing: Promise<void> | null = null;
   private readonly idField: string;
+
+  /**
+   * Set when the server refused the last read.
+   *
+   * A refused read used to be indistinguishable from an empty collection: the
+   * store quietly set zero rows and the screen showed an empty table with no
+   * explanation. "Provisioned Accounts (0)" looked like a missing feature
+   * rather than a permission the account does not hold, and there was nothing
+   * on screen to tell the two apart.
+   */
+  private lastReadFailure: ReadFailure | null = null;
+
+  /** Null when the last read succeeded. */
+  readFailure(): ReadFailure | null {
+    return this.lastReadFailure;
+  }
 
   constructor(private readonly options: StoreOptions) {
     this.idField = options.idField ?? 'id';
@@ -119,12 +141,21 @@ export class CollectionStore {
 
         this.etag = res.etag;
         const data = Array.isArray(res.data?.data) ? res.data.data : [];
+        this.lastReadFailure = null;
         this.setRows(data);
       } catch (err) {
         if (err instanceof ApiError && (err.isForbidden || err.isUnauthenticated)) {
           // Not permitted to read this collection, or signed out. An empty
-          // list is the correct view; keeping stale rows would show data the
-          // user may no longer see.
+          // list is the correct view — keeping stale rows would show data the
+          // user may no longer see — but record why, so the screen can say so
+          // instead of presenting a refusal as "there is nothing here".
+          this.lastReadFailure = {
+            status: err.status,
+            message: err.message || 'You do not have permission to view this.',
+          };
+          console.warn(
+            `[store:${this.options.endpoint}] read refused (${err.status}): ${err.message}`
+          );
           this.setRows([]);
           return;
         }

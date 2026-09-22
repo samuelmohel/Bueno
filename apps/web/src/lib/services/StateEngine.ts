@@ -475,6 +475,18 @@ class StateEngineService {
     this.notifyListeners();
   }
 
+  /**
+   * Why a collection is empty, if the server refused to serve it.
+   *
+   *   StateEngine.readFailureFor('bueno_users')
+   *
+   * Returns null when the last read succeeded, so a screen can distinguish
+   * "there is nothing here" from "you are not allowed to see this".
+   */
+  readFailureFor(key: string): { status: number; message: string } | null {
+    return STORES[key]?.readFailure() ?? null;
+  }
+
   /** Drop every browser-held cache. Called on sign-out. */
   clearLocalCaches(): void {
     Object.values(STORES).forEach((s) => s.clearLocal());
