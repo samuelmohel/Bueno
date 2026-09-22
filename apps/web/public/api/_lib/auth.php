@@ -38,9 +38,23 @@ final class Auth
     /** @var array<string,mixed>|null|false false = not yet resolved */
     private static array|null|false $current = false;
 
-    private static function sessionTtl(): int
+    /**
+     * How long a session lasts.
+     *
+     * The default suits a shared terminal at a siding: one shift, then sign in
+     * again. `$extended` is the "keep me signed in" case, for someone's own
+     * laptop, and is deliberately days rather than months — a freight platform
+     * holds commercial rates and customer records, and a token that outlives
+     * somebody's employment is a liability.
+     *
+     * Both are per session, stored on the row, so changing these values does
+     * not retroactively extend sessions that already exist.
+     */
+    private static function sessionTtl(bool $extended = false): int
     {
-        return Config::int('SESSION_TTL_SECONDS', 43200); // 12 hours
+        return $extended
+            ? Config::int('SESSION_TTL_REMEMBERED_SECONDS', 1209600)  // 14 days
+            : Config::int('SESSION_TTL_SECONDS', 43200);              // 12 hours
     }
 
     private static function now(): string
@@ -106,7 +120,12 @@ final class Auth
      *
      * @return array{token:string,expiresAt:string,user:array<string,mixed>}
      */
-    public static function login(string $identifier, string $secret): array
+    /**
+     * @param bool $extended Issue a longer-lived session ("keep me signed in").
+     *                       Never widens what the session may do — only how
+     *                       long it lasts.
+     */
+    public static function login(string $identifier, string $secret, bool $extended = false): array
     {
         $ip = Http::clientIp();
 
@@ -170,9 +189,13 @@ final class Auth
             ->prepare('UPDATE bueno_users SET failed_attempts = 0, locked_until = NULL, last_login_at = ? WHERE id = ?')
             ->execute([self::now(), $user['id']]);
 
-        $session = self::createSession((string) $user['id']);
+        $session = self::createSession((string) $user['id'], $extended);
 
-        Audit::record('auth.login', 'user', (string) $user['id'], Audit::SUCCESS, null, [
+        // Recorded, because a long-lived session is worth being able to see
+        // when reviewing how an account was used.
+        Audit::record('auth.login', 'user', (string) $user['id'], Audit::SUCCESS, [
+            'extendedSession' => $extended,
+        ], [
             'id'   => $user['id'],
             'role' => $user['role'],
         ]);
@@ -208,10 +231,10 @@ final class Auth
     // ── Sessions ────────────────────────────────────────────────────────────
 
     /** @return array{token:string,expiresAt:string} */
-    private static function createSession(string $userId): array
+    private static function createSession(string $userId, bool $extended = false): array
     {
         $token     = bin2hex(random_bytes(32));
-        $expiresAt = self::at(time() + self::sessionTtl());
+        $expiresAt = self::at(time() + self::sessionTtl($extended));
 
         Db::conn()->prepare(
             'INSERT INTO bueno_sessions

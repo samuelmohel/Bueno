@@ -98,8 +98,12 @@ export async function loadSession(force = false): Promise<Session> {
   }
 }
 
-export async function signIn(identifier: string, secret: string): Promise<Session> {
-  const session = await authApi.login(identifier, secret);
+export async function signIn(
+  identifier: string,
+  secret: string,
+  remember = false
+): Promise<Session> {
+  const session = await authApi.login(identifier, secret, remember);
   setSession(session);
   return session;
 }

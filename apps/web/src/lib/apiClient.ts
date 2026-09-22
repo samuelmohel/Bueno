@@ -191,8 +191,12 @@ export interface Session {
 }
 
 export const authApi = {
-  async login(identifier: string, secret: string): Promise<Session> {
-    const { data } = await api.post('auth.php', { action: 'login', identifier, secret });
+  /**
+   * @param remember Ask the server for a longer-lived session. It controls how
+   *                 long the session lasts, never what it may do.
+   */
+  async login(identifier: string, secret: string, remember = false): Promise<Session> {
+    const { data } = await api.post('auth.php', { action: 'login', identifier, secret, remember });
     setToken(data.token);
     return {
       authenticated: true,

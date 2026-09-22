@@ -57,9 +57,12 @@ switch ($action) {
         $data = Validator::for($body)
             ->string('identifier', true, 255)
             ->string('secret', true, 255)
+            // "Keep me signed in". Absent or false gives the normal shift-length
+            // session, which is the right default for a shared terminal.
+            ->boolean('remember', false)
             ->validated();
 
-        $result = Auth::login($data['identifier'], $data['secret']);
+        $result = Auth::login($data['identifier'], $data['secret'], (bool) $data['remember']);
 
         Response::json([
             'status'       => 'success',

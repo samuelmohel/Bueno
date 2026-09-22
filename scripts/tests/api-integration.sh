@@ -122,17 +122,7 @@ check "logout succeeds" 200 "$(code_of "$r")"
 r=$(req GET /api/auth.php '' "$CUST_TOKEN")
 check_contains "revoked token no longer authenticates" '"authenticated":false' "$(body_of "$r")"
 
-echo
-echo "=== 7. Rate limiting ==="
-limited=0
-for i in $(seq 1 14); do
-  r=$(req POST /api/auth.php '{"action":"login","identifier":"ratelimit-probe@bueno.ng","secret":"x"}')
-  [ "$(code_of "$r")" = "429" ] && limited=1 && break
-done
-check "repeated login attempts get rate limited" 1 "$limited"
-
-echo
-echo "=== 8. Provisioning an account end to end ==="
+echo "=== 7. Provisioning an account end to end ==="
 #
 # The interface built a user object in the browser and pushed it through the
 # generic collection store, which posts {"action":"upsert"} - not a case
@@ -175,7 +165,7 @@ check "a second account on the same address is refused" 409 "$(code_of "$r")"
 
 
 echo
-echo "=== 9. The permissions matrix is readable and enforced ==="
+echo "=== 8. The permissions matrix is readable and enforced ==="
 #
 # The editor rendered normalizeMatrix(localStorage), and normalizeMatrix(null)
 # returns the shipped defaults - so an administrator saw every default
@@ -223,7 +213,7 @@ check "and the refusal changed nothing" 200 "$(code_of "$r")"
 
 
 echo
-echo "=== 10. Deleting an account ==="
+echo "=== 9. Deleting an account ==="
 #
 # Deletion is irreversible, so the guards matter more than the happy path:
 # you must not be able to delete yourself out of a session, or remove the last
@@ -287,6 +277,54 @@ r=$(req POST /api/permissions.php '{"action":"RESET_DEFAULTS"}' "$ADMIN_TOKEN")
 check "defaults restored after the check" 200 "$(code_of "$r")"
 
 
+echo
+echo "=== 10. Keep me signed in ==="
+#
+# The checkbox sat on the sign-in page ticked by default and read by nothing:
+# signIn() took an identifier and a secret and there was no third argument.
+# These assertions are what make it a feature rather than decoration - the flag
+# has to change the session the server issues, and nothing else about it.
+
+r=$(req POST /api/auth.php '{"action":"login","identifier":"admin@bueno.ng","secret":"Str0ngAdminPw!"}')
+check "a normal sign-in succeeds" 200 "$(code_of "$r")"
+SHORT_EXP=$(printf '%s' "$(body_of "$r")" | grep -o '"expiresAt":"[^"]*"' | cut -d'"' -f4)
+
+r=$(req POST /api/auth.php '{"action":"login","identifier":"admin@bueno.ng","secret":"Str0ngAdminPw!","remember":true}')
+check "a remembered sign-in succeeds" 200 "$(code_of "$r")"
+LONG_EXP=$(printf '%s' "$(body_of "$r")" | grep -o '"expiresAt":"[^"]*"' | cut -d'"' -f4)
+LONG_TOKEN=$(printf '%s' "$(body_of "$r")" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+check "both sessions report an expiry" 1 "$([ -n "$SHORT_EXP" ] && [ -n "$LONG_EXP" ] && echo 1 || echo 0)"
+# String comparison is sound here: both are UTC ISO-8601 with identical shape.
+check "remembering extends the session" 1 "$([ "$LONG_EXP" \> "$SHORT_EXP" ] && echo 1 || echo 0)"
+
+# It must extend the session only - never widen what the session may do.
+check "a remembered session returned a token" 1 "$([ -n "$LONG_TOKEN" ] && echo 1 || echo 0)"
+r=$(req GET /api/auth.php '' "$LONG_TOKEN")
+check_contains "a remembered session authenticates" '"authenticated":true' "$(body_of "$r")"
+# The correct check is that the two sessions carry the SAME capabilities -
+# picking one capability and asserting its absence only tested whether that
+# capability happened to be granted, which for ADMIN it legitimately is.
+LONG_CAPS=$(printf '%s' "$(body_of "$r")" | grep -o '"capabilities":\[[^]]*\]')
+r=$(req GET /api/auth.php '' "$ADMIN_TOKEN")
+NORMAL_CAPS=$(printf '%s' "$(body_of "$r")" | grep -o '"capabilities":\[[^]]*\]')
+check "remembering grants nothing extra" "$NORMAL_CAPS" "$LONG_CAPS"
+
+# An absent flag must behave as false rather than erroring.
+r=$(req POST /api/auth.php '{"action":"login","identifier":"admin@bueno.ng","secret":"Str0ngAdminPw!","remember":"yes"}')
+check "a non-boolean remember value is tolerated" 200 "$(code_of "$r")"
+
+
+echo
+echo "=== 11. Rate limiting (last: it exhausts the login limiter) ==="
+limited=0
+for i in $(seq 1 14); do
+  r=$(req POST /api/auth.php '{"action":"login","identifier":"ratelimit-probe@bueno.ng","secret":"x"}')
+  [ "$(code_of "$r")" = "429" ] && limited=1 && break
+done
+check "repeated login attempts get rate limited" 1 "$limited"
+
+echo
 echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
