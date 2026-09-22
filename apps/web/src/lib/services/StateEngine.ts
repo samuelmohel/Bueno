@@ -1311,14 +1311,50 @@ class StateEngineService {
   /** No longer needed: the server owns the matrix and its schema. */
   seedPermissionsIfVersionMismatch(): void {}
 
-  /** The full role-to-capability matrix, for the permissions editor. */
-  async fetchRolePermissions(): Promise<Record<string, string[]>> {
+  /**
+   * Load the matrix the server is actually enforcing, and cache it.
+   *
+   * This existed and was never called from anywhere, which made the
+   * permissions editor display something that was not true. getRolePermissions
+   * falls back to the shipped defaults when the browser has nothing cached, so
+   * an administrator opening the screen for the first time saw every default
+   * capability ticked regardless of what the database held. A capability
+   * revoked on the server appeared granted, and the endpoint it guarded
+   * answered 403 while the checkbox for it sat there ticked.
+   *
+   * It was worse than a display fault: every toggle writes the whole matrix
+   * back, so the first edit would have overwritten the server's real state
+   * with the browser's guess and silently restored capabilities an
+   * administrator had deliberately removed.
+   */
+  async refreshRolePermissions(): Promise<Record<string, string[]>> {
     const { data } = await api.get('permissions.php');
-    return normalizeMatrix(data?.matrix);
+    const matrix = normalizeMatrix(data?.matrix);
+    this.writeStorage('bueno_role_permissions', matrix);
+    this.notifyListeners();
+    return matrix;
+  }
+
+  /** @deprecated use refreshRolePermissions, which also caches. */
+  async fetchRolePermissions(): Promise<Record<string, string[]>> {
+    return this.refreshRolePermissions();
+  }
+
+  /**
+   * Whether the cached matrix came from the server or is a default guess.
+   *
+   * The editor must not present defaults as though they were the enforced
+   * policy, so it needs to know the difference.
+   */
+  hasServerRolePermissions(): boolean {
+    return this.readStorage<Record<string, string[]> | null>('bueno_role_permissions', null) !== null;
   }
 
   /**
    * Cached matrix for synchronous render paths.
+   *
+   * Falls back to defaults when nothing has been loaded yet — callers that
+   * show this to a human must check hasServerRolePermissions() first.
    *
    * Note this is for *displaying* the editor. Authorization decisions use
    * can()/canUserAccessTab(), which read the caller's own server-issued

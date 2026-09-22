@@ -659,6 +659,13 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   // Null unless the server refused the directory read; see dataStore.readFailure.
   const [usersDirectoryError, setUsersDirectoryError] =
     useState<{ status: number; message: string } | null>(null);
+  // The permissions editor must never present the shipped defaults as though
+  // they were the policy the server enforces. Until this is true, the screen
+  // shows a loading state rather than a matrix nobody has verified.
+  const [permissionsLoaded, setPermissionsLoaded] = useState(
+    () => StateEngine.hasServerRolePermissions()
+  );
+  const [permissionsLoadError, setPermissionsLoadError] = useState<string | null>(null);
 
   // Granular Permissions Matrix State
   const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, string[]>>(() => StateEngine.getRolePermissions());
@@ -923,6 +930,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
     syncData();
     syncUser();
+
+    // Load the matrix the server is actually enforcing. Nothing called this
+    // before, so the editor rendered defaults out of localStorage and showed
+    // capabilities as granted that the API was refusing.
+    void StateEngine.refreshRolePermissions()
+      .then((matrix) => {
+        setPermissionsMatrix(matrix);
+        setGranularPermissions(matrix);
+        setPermissionsLoaded(true);
+        setPermissionsLoadError(null);
+      })
+      .catch((err: any) => {
+        setPermissionsLoadError(err?.message || 'Could not load the permissions matrix.');
+      });
 
     StateEngine.syncRemote();
     // 12s rather than 4s: reads are ETagged now, so an unchanged collection
@@ -1621,27 +1642,99 @@ ${secret}
   };
 
   // TOGGLE UNIFIED PERMISSION FOR SELECTED ROLE
-  const handleTogglePermission = (permKey: string) => {
+  /**
+   * Write a change to the matrix.
+   *
+   * Every edit here posts the WHOLE matrix, which is why it must never run
+   * against a matrix the browser guessed: doing so would overwrite the
+   * server's real policy with the shipped defaults and silently restore
+   * capabilities an administrator had removed. Loading is enforced before any
+   * write is allowed.
+   */
+  const commitMatrix = async (
+    updatedMatrix: Record<string, string[]>,
+    description: string
+  ): Promise<void> => {
+    const previous = permissionsMatrix;
+    setPermissionsMatrix(updatedMatrix);
+    setGranularPermissions(updatedMatrix);
+
+    const ok = await StateEngine.saveRolePermissionsAsync(updatedMatrix);
+    if (ok) {
+      notify.success(description);
+      return;
+    }
+
+    // The save was refused — most often by the server's guard against leaving
+    // nobody able to administer permissions. Put the checkbox back rather than
+    // leaving the screen showing a change that did not happen.
+    setPermissionsMatrix(previous);
+    setGranularPermissions(previous);
+    notify.error('That change was not saved. The matrix is unchanged.');
+  };
+
+  const handleTogglePermission = async (permKey: string) => {
+    if (!permissionsLoaded) {
+      notify.error('Still loading the current permissions. Try again in a moment.');
+      return;
+    }
+
     const fullMatrix = StateEngine.getRolePermissions();
     const currentPerms = fullMatrix[selectedPermissionRole] ?? (DEFAULT_ROLE_TAB_PERMISSIONS[selectedPermissionRole] ?? []);
     const isChecked = currentPerms.includes(permKey);
+
+    // Removing a capability from your own role takes effect immediately and
+    // can remove the screen you are standing on.
+    if (isChecked && selectedPermissionRole === currentUser?.role) {
+      const label = UNIFIED_PERMISSION_LIST.find((p) => p.key === permKey)?.label ?? permKey;
+      const confirmed = await confirmAction({
+        title: `Remove "${label}" from your own role?`,
+        body: `You are signed in as ${selectedPermissionRole}. This takes effect immediately and `
+          + 'applies to you. If it controls the screen you are on, you will lose access to it.',
+        confirmLabel: 'Remove it anyway',
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
 
     const updated = isChecked
       ? currentPerms.filter((p) => p !== permKey)
       : Array.from(new Set([...currentPerms, permKey]));
 
-    const updatedMatrix = { ...fullMatrix, [selectedPermissionRole]: updated };
-    setPermissionsMatrix(updatedMatrix);
-    StateEngine.saveRolePermissions(updatedMatrix);
+    await commitMatrix(
+      { ...fullMatrix, [selectedPermissionRole]: updated },
+      `${isChecked ? 'Revoked' : 'Granted'} for ${selectedPermissionRole}.`
+    );
   };
 
-  const handleToggleAllForRole = (grantAll: boolean) => {
+  const handleToggleAllForRole = async (grantAll: boolean) => {
+    if (!permissionsLoaded) {
+      notify.error('Still loading the current permissions. Try again in a moment.');
+      return;
+    }
+
+    if (!grantAll) {
+      const confirmed = await confirmAction({
+        title: `Revoke every capability from ${selectedPermissionRole}?`,
+        body: selectedPermissionRole === currentUser?.role
+          ? `You are signed in as ${selectedPermissionRole}. This removes every screen and action `
+            + 'from your own account, immediately.'
+          : `Everyone holding the ${selectedPermissionRole} role loses access to every screen and `
+            + 'action, immediately.',
+        confirmLabel: 'Revoke everything',
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+
     const fullMatrix = StateEngine.getRolePermissions();
     const allKeys = UNIFIED_PERMISSION_LIST.map((p) => p.key);
-    const updated = grantAll ? allKeys : [];
-    const updatedMatrix = { ...fullMatrix, [selectedPermissionRole]: updated };
-    setPermissionsMatrix(updatedMatrix);
-    StateEngine.saveRolePermissions(updatedMatrix);
+    await commitMatrix(
+      { ...fullMatrix, [selectedPermissionRole]: grantAll ? allKeys : [] },
+      grantAll
+        ? `All capabilities granted to ${selectedPermissionRole}.`
+        : `All capabilities revoked from ${selectedPermissionRole}.`
+    );
   };
 
   const handleResetPermissionsDefaults = async () => {
@@ -1666,24 +1759,36 @@ ${secret}
 
   // EXPLICIT SAVE PERMISSIONS MATRIX TO SQL DATABASE
   const handleSavePermissionsMatrix = async () => {
+    if (!permissionsLoaded || permissionsLoadError) {
+      notify.error('The live permissions have not loaded. Saving now would overwrite them.');
+      return;
+    }
+
     setIsSavingPermissions(true);
     try {
       const ok = await StateEngine.saveRolePermissionsAsync(permissionsMatrix);
-      setIsSavingPermissions(false);
-      if (ok) {
-        setPermissionsSaveSuccess(true);
-        setTimeout(() => setPermissionsSaveSuccess(false), 4000);
-        setCustomAlert({
-          title: 'Permissions Matrix Saved to SQL Database',
-          message: 'All updated role permissions have been permanently committed to the live SQL database (bueno_role_permissions) and broadcast live across all user accounts and desks!',
-        });
-      } else {
-        setCustomAlert({
-          title: 'Permissions Saved',
-          message: 'Role permissions matrix updated in repository cache.',
-        });
+
+      if (!ok) {
+        // A refused save previously reported "Permissions Saved — updated in
+        // repository cache", which is not true and not a cache: the write was
+        // rejected and nothing changed anywhere.
+        notify.error('The permissions matrix was NOT saved. Nothing has changed.');
+        return;
       }
-    } catch {
+
+      // Read back what the server actually stored, rather than assuming the
+      // request was applied verbatim — it normalises the matrix and strips
+      // sensitive capabilities from external roles.
+      const enforced = await StateEngine.refreshRolePermissions();
+      setPermissionsMatrix(enforced);
+      setGranularPermissions(enforced);
+
+      setPermissionsSaveSuccess(true);
+      setTimeout(() => setPermissionsSaveSuccess(false), 4000);
+      notify.success('Permissions matrix saved and re-read from the database.');
+    } catch (err: any) {
+      notify.error(err?.message || 'The permissions matrix could not be saved.');
+    } finally {
       setIsSavingPermissions(false);
     }
   };
@@ -6865,6 +6970,35 @@ ${secret}
         {/* ─── TAB 7: UNIFIED ENTERPRISE PERMISSIONS MATRIX ─── */}
         {activeTab === 'permissions' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 font-sans">
+            {/*
+              Until the enforced matrix has been read back from the server,
+              what is on screen is the shipped defaults — not policy. Saying so
+              matters: a ticked box that the API is actually refusing is worse
+              than no information, because it sends you looking in the wrong
+              place entirely.
+            */}
+            {permissionsLoadError ? (
+              <div role="alert" className="rounded-2xl border border-rose-300 bg-rose-50 p-4">
+                <p className="text-xs font-black text-rose-800">
+                  Showing shipped defaults, not the live policy.
+                </p>
+                <p className="mt-1 text-2xs font-semibold text-rose-700">
+                  The permissions matrix could not be read from the server: {permissionsLoadError}
+                </p>
+                <p className="mt-1 text-2xs font-semibold text-rose-700">
+                  Editing is disabled — saving now would overwrite the real policy with these
+                  defaults. Reload the page to try again.
+                </p>
+              </div>
+            ) : !permissionsLoaded ? (
+              <div role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-bold text-slate-700">Loading the enforced permissions…</p>
+                <p className="mt-1 text-2xs font-semibold text-slate-500">
+                  Editing is disabled until the live matrix has loaded.
+                </p>
+              </div>
+            ) : null}
+
             {/* HEADER & ACTION BUTTONS */}
             <div className="border-b border-slate-100 pb-5 flex justify-between items-center flex-wrap gap-4">
               <div>
@@ -7034,8 +7168,9 @@ ${secret}
                                 <input
                                   type="checkbox"
                                   checked={isGranted}
+                                  disabled={!permissionsLoaded || !!permissionsLoadError}
                                   onChange={() => handleTogglePermission(item.key)}
-                                  className="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                                  className="w-4 h-4 mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
                                 />
                                 <div className="space-y-0.5 min-w-0">
                                   <div className="flex items-center justify-between gap-2">

@@ -175,5 +175,53 @@ check "a second account on the same address is refused" 409 "$(code_of "$r")"
 
 
 echo
+echo "=== 9. The permissions matrix is readable and enforced ==="
+#
+# The editor rendered normalizeMatrix(localStorage), and normalizeMatrix(null)
+# returns the shipped defaults - so an administrator saw every default
+# capability ticked no matter what the database held. A capability revoked on
+# the server appeared granted, while the endpoint it guards answered 403.
+# fetchRolePermissions() existed and was called from nowhere.
+#
+# These assertions pin the contract the editor depends on: what GET returns is
+# what POST stored, and what the API enforces.
+
+# Baseline: an administrator can read the directory.
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check "admin can read the directory to begin with" 200 "$(code_of "$r")"
+
+# Read the matrix, and revoke one capability from ADMIN.
+r=$(req GET /api/permissions.php '' "$ADMIN_TOKEN")
+check "the matrix is readable" 200 "$(code_of "$r")"
+check_contains "and reports ADMIN holding users.view" 'users.view' "$(body_of "$r")"
+
+r=$(req POST /api/permissions.php '{"roleKey":"ADMIN","permissions":["permissions","system.permissions_edit","users","users.create"]}' "$ADMIN_TOKEN")
+check "a role can be narrowed" 200 "$(code_of "$r")"
+
+# The read-back must show the revocation, not the defaults. This is the exact
+# disagreement that made a ticked checkbox sit over a 403.
+r=$(req GET /api/permissions.php '' "$ADMIN_TOKEN")
+ADMIN_ROW=$(printf '%s' "$(body_of "$r")" | sed -n 's/.*"ADMIN":\[\([^]]*\)\].*/\1/p')
+check_not_contains "the read-back reflects the revocation" 'users.view' "$ADMIN_ROW"
+check_contains "and retains what was kept" 'users.create' "$ADMIN_ROW"
+
+# ...and the API enforces exactly that.
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check "the directory is now refused, matching the stored matrix" 403 "$(code_of "$r")"
+
+# Restore, so the rest of the suite runs against defaults.
+r=$(req POST /api/permissions.php '{"action":"RESET_DEFAULTS"}' "$ADMIN_TOKEN")
+check "defaults can be restored" 200 "$(code_of "$r")"
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check "and the directory is readable again" 200 "$(code_of "$r")"
+
+# The server must refuse a matrix that locks everybody out of the editor.
+r=$(req POST /api/permissions.php '{"matrix":{"ADMIN":[],"CEO":[],"MD":[],"HEAD_OF_OPERATIONS":[],"HEAD_OF_FINANCE":[],"ACCOUNTANT":[],"CARGO_OFFICER":[],"CUSTOMER":[],"CONSIGNEE":[]}}' "$ADMIN_TOKEN")
+check "a matrix that locks everyone out is refused" 422 "$(code_of "$r")"
+r=$(req GET /api/users.php '' "$ADMIN_TOKEN")
+check "and the refusal changed nothing" 200 "$(code_of "$r")"
+
+
+echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
