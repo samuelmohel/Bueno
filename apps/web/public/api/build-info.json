@@ -1,7 +1,7 @@
 {
-  "commit": "0e37fee",
+  "commit": "f7e1c8f",
   "branch": "main",
-  "subject": "chore: stamp the artifact with the commit it was built from",
-  "builtAt": "2026-09-21T14:57:39.869Z",
-  "dirty": true
+  "subject": "fix: make user provisioning actually reach the database",
+  "builtAt": "2026-09-22T09:06:52.208Z",
+  "dirty": false
 }
