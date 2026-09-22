@@ -1,7 +1,7 @@
 {
-  "commit": "50c6cb2",
+  "commit": "ffbfe9c",
   "branch": "main",
-  "subject": "fix: say why a collection is empty instead of showing a blank table",
-  "builtAt": "2026-09-22T09:50:10.241Z",
+  "subject": "fix: the permissions editor was showing defaults, not the enforced policy",
+  "builtAt": "2026-09-22T12:54:00.869Z",
   "dirty": false
 }
