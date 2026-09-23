@@ -59,9 +59,14 @@
   # Deliberately without includeSubDomains or preload: other subdomains of
   # specklessinnovations.com are outside this deployment, and preload is very
   # hard to undo. Add them once every subdomain is known to be HTTPS.
-  <If "%{HTTPS} == 'on'">
-    Header always set Strict-Transport-Security "max-age=31536000"
-  </If>
+  #
+  # `env=HTTPS` rather than an <If> block. <If> is an Apache 2.4 CORE
+  # directive, so the surrounding <IfModule mod_headers.c> does not guard it —
+  # mod_headers being loaded says nothing about <If> being understood. On
+  # Apache 2.2, and on LiteSpeed builds without <If> support, an unrecognised
+  # directive in .htaccess makes the server answer 500 for every request in
+  # that directory tree, the API included. env= works everywhere.
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
 
   # X-XSS-Protection is deliberately absent. The legacy filter it enables was
   # removed from Chrome and Edge and could itself be abused to selectively
@@ -92,14 +97,16 @@
 # matters more than usual here: the API and the site share one shared-hosting
 # CPU allowance, so every asset served from cache is capacity returned to
 # actual requests.
+#
+# SetEnvIf rather than <If>/<Else>, for the portability reason above.
+<IfModule mod_setenvif.c>
+  SetEnvIf Request_URI "^/_next/static/" BUENO_FINGERPRINTED=1
+</IfModule>
+
 <IfModule mod_headers.c>
   <FilesMatch "\.(js|css|woff2|woff|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$">
-    <If "%{REQUEST_URI} =~ m#^/_next/static/#">
-      Header set Cache-Control "public, max-age=31536000, immutable"
-    </If>
-    <Else>
-      Header set Cache-Control "public, max-age=86400"
-    </Else>
+    Header set Cache-Control "public, max-age=31536000, immutable" env=BUENO_FINGERPRINTED
+    Header set Cache-Control "public, max-age=86400" env=!BUENO_FINGERPRINTED
   </FilesMatch>
 
   # HTML must always be revalidated, or a deployment does not reach anyone
