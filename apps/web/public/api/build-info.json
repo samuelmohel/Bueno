@@ -1,7 +1,7 @@
 {
-  "commit": "ed194fb",
+  "commit": "8a516ad",
   "branch": "main",
-  "subject": "feat: make \"keep me signed in\" real, and redesign the sign-in page",
-  "builtAt": "2026-09-22T16:25:20.482Z",
+  "subject": "fix(ops): remove Apache 2.4-only directives from .htaccess",
+  "builtAt": "2026-09-23T16:44:11.135Z",
   "dirty": false
 }
