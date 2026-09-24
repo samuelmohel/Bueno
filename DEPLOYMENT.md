@@ -361,6 +361,58 @@ disagreeing about who may do what.
 
 ---
 
+## How a consignee is joined to their work
+
+This is worth understanding before provisioning a customer account, because it
+is the one link in the system held together by a string rather than an id.
+
+A consignee sees a trip, deal, invoice or negotiation when **the company name
+on their account matches the company name stored on the record**. There is no
+customer id joining the two. The API applies the match in SQL, so records
+outside their company never leave the database — but equally, a record whose
+company name does not match belongs to nobody.
+
+The comparison ignores case and surrounding spaces, so `HBM Nig Plc` and
+`  hbm nig plc ` are the same organisation. It does not ignore anything else:
+`HBM` and `HBM Nig Plc` are two different companies as far as the system is
+concerned.
+
+### Before you tell a customer their portal is live
+
+```bash
+BUENO_ENV_FILE=/home/speckles/.env php scripts/check-consignee-links.php
+```
+
+It prints, for every consignee account, how many trips, deals, invoices and
+negotiations they will actually see — and then every company name in the data
+that matches no account at all. Those last ones are work nobody can see.
+
+Two failure modes it catches:
+
+- **An account with no company name.** Scoping matches on that field, so the
+  user signs in and sees nothing, with nothing on screen to explain it.
+- **Records spelt differently from the account.** Imported history is the
+  usual cause: the legacy data may say `HUAXIN BUILDING MATERIALS NIG PLC
+  (HBM)` where the new account says `Huaxin Building Materials`.
+
+Fix either by correcting the account's company name to match the records, or
+by correcting the records. The script changes nothing itself.
+
+### The limitation you should know about
+
+**Renaming a company detaches its history.** Change the company name on an
+account and every existing trip, deal and invoice stops matching — silently.
+Nothing is deleted, but the customer's portal empties.
+
+The durable fix is a company registry: each organisation gets a stable id,
+records point at the id, and the display name becomes an attribute that can
+change freely. That is a schema change and a data migration, and it is the
+single most valuable structural improvement still outstanding. Until it is
+done, treat a consignee's company name as an identifier and do not edit it
+casually — and if you must, run the script above afterwards.
+
+---
+
 ## Outstanding operational tasks
 
 These need a person with cPanel access; none of them can be done from the

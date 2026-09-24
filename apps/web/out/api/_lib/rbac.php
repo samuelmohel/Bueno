@@ -201,7 +201,28 @@ final class Rbac
                 // No company column to scope by: deny rather than leak.
                 return ['sql' => ' AND 1 = 0', 'params' => []];
             }
-            return ['sql' => " AND `$col` = ?", 'params' => [$scope['company']]];
+            /*
+             * Compared case- and whitespace-insensitively.
+             *
+             * A consignee is linked to their trips, deals and invoices by the
+             * company NAME on their account matching the company name stored
+             * on each record. A strict comparison means "HBM Nig Plc " and
+             * "HBM Nig Plc" are different organisations, and the consignee
+             * signs in to an empty portal with nothing to say why.
+             *
+             * This narrows the gap; it does not close it. The durable answer
+             * is a company registry with a stable id that records point at, so
+             * renaming an organisation cannot detach its history. Until then
+             * scripts/verify-deployment.php reports records whose company
+             * matches no account.
+             *
+             * Note this cannot use an index on the column. At this data volume
+             * that is not worth trading a silent correctness fault for.
+             */
+            return [
+                'sql'    => " AND LOWER(TRIM(`$col`)) = LOWER(TRIM(?))",
+                'params' => [$scope['company']],
+            ];
         }
 
         // station scope
@@ -230,7 +251,11 @@ final class Rbac
         if ($scope['scope'] !== 'company') {
             return;
         }
-        if ((string) ($row[$companyColumn] ?? '') !== $scope['company']) {
+        // Same comparison as scopeClause, or a record a consignee can see in a
+        // list would be refused when they open it.
+        $rowCompany  = strtolower(trim((string) ($row[$companyColumn] ?? '')));
+        $ownCompany  = strtolower(trim((string) $scope['company']));
+        if ($rowCompany !== $ownCompany) {
             Audit::record('authz.scope_denied', 'row', (string) ($row['id'] ?? ''), Audit::DENIED, null, $user);
             Response::error('You do not have permission to access this record.', 403);
         }

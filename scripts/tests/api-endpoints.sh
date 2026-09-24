@@ -304,6 +304,41 @@ check "but the lock action concludes it" 200 "$(code_of "$r")"
 r=$(req POST /api/negotiations.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$NEGID\",\"companyName\":\"HBM\",\"status\":\"IN_NEGOTIATION\"}}" "$ADMIN")
 check "a locked thread cannot be reopened by a save" 409 "$(code_of "$r")"
 
+
+echo "=== 18. A consignee is joined to their work by company name ==="
+#
+# There is no identifier holding a consignee account and their records
+# together — the join is the company NAME on the account matching the company
+# name on each trip, deal and invoice. A strict comparison made
+# "HBM Nig Plc " and "HBM Nig Plc" different organisations, and the consignee
+# signed in to an empty portal with nothing to say why.
+
+CASEID="TRP-CASE-$$"
+# Same company as the consignee account, written differently.
+r=$(req POST /api/trips.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$CASEID\",\"tripId\":\"$CASEID\",\"company\":\"  huaxin building materials nig plc (hbm)  \",\"origin\":\"PAPA\",\"destination\":\"MNY\",\"status\":\"IN_TRANSIT\"}}" "$ADMIN")
+check "a trip is recorded with the company spelt differently" 201 "$(code_of "$r")"
+
+r=$(req GET /api/trips.php '' "$CUST")
+check_contains "the consignee still sees it in their list" "$CASEID" "$(body_of "$r")"
+
+r=$(req GET "/api/trips.php?id=$CASEID" '' "$CUST")
+check "and can open it" 200 "$(code_of "$r")"
+
+# The looser match must not hand over another company's work.
+OTHERID="TRP-OTHER-$$"
+r=$(req POST /api/trips.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$OTHERID\",\"tripId\":\"$OTHERID\",\"company\":\"DASCO Industries Ltd\",\"origin\":\"EWK\",\"destination\":\"MNY\",\"status\":\"LOADING\"}}" "$ADMIN")
+check "another company's trip is recorded" 201 "$(code_of "$r")"
+r=$(req GET /api/trips.php '' "$CUST")
+check_not_contains "the consignee does NOT see it" "$OTHERID" "$(body_of "$r")"
+# Fetching it by id answers 200 with an empty list rather than 403. That is
+# deliberate and better: a 403 would confirm the record exists, which is itself
+# something another company's consignee should not learn. What matters is that
+# no part of the record comes back.
+r=$(req GET "/api/trips.php?id=$OTHERID" '' "$CUST")
+check "fetching it by id is answered without disclosure" 200 "$(code_of "$r")"
+check_not_contains "and returns nothing about it" "$OTHERID" "$(body_of "$r")"
+check_not_contains "not even the company name" 'DASCO' "$(body_of "$r")"
+
 echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
