@@ -1,7 +1,7 @@
 {
-  "commit": "8a516ad",
+  "commit": "dcf7734",
   "branch": "main",
-  "subject": "fix(ops): remove Apache 2.4-only directives from .htaccess",
-  "builtAt": "2026-09-23T16:44:11.135Z",
+  "subject": "fix: deals could not be created at all, and nothing said so",
+  "builtAt": "2026-09-24T06:13:09.746Z",
   "dirty": false
 }
