@@ -151,7 +151,26 @@ Collection::handle([
             ->number('totalAmount', false, 0)
             ->number('amountPaid', false, 0)
             ->number('balance', false)
-            ->enum('status', ['UNPAID', 'PART_PAID', 'PAID', 'CANCELLED'], false, 'UNPAID')
+            /*
+             * The lifecycle an invoice actually moves through.
+             *
+             * This read UNPAID / PART_PAID / PAID / CANCELLED — a vocabulary
+             * with no overlap at all with the application's. Issuing an
+             * invoice sets ISSUED, recording a part payment sets
+             * PARTIALLY_PAID and clearing the balance sets SETTLED, so every
+             * invoice ever issued was refused with 422 and billing never
+             * persisted a single row.
+             *
+             * The three original values are retained so any row already
+             * carrying one stays valid.
+             */
+            ->enum('status', [
+                'ISSUED',          // raised against a completed trip
+                'PARTIALLY_PAID',  // payment recorded, balance outstanding
+                'SETTLED',         // balance cleared
+                'CANCELLED',
+                'UNPAID', 'PART_PAID', 'PAID',  // legacy, retained for existing rows
+            ], false, 'ISSUED')
             ->string('paymentRef', false, 100)
             ->string('issueDate', false, 64)
             ->string('dueDate', false, 64)

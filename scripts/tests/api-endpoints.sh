@@ -259,6 +259,51 @@ r=$(req GET "/api/deals.php?id=$DEALID" '' "$ADMIN")
 check_contains "the agreed tariff persisted" '12500' "$(body_of "$r")"
 check_contains "and the payment terms"       'PER_TRIP_DRAWDOWN' "$(body_of "$r")"
 
+
+echo "=== 17. Invoices and negotiations round-trip as the app sends them ==="
+#
+# Both endpoints validated `status` against a vocabulary with NO overlap at all
+# with the application's, so every write was refused with 422:
+#
+#   invoices      server UNPAID/PART_PAID/PAID/CANCELLED   app ISSUED/PARTIALLY_PAID/SETTLED
+#   negotiations  server UNDER_NEGOTIATION/LOCKED/DECLINED app PENDING_REVIEW/UNDER_OPERATIONS_REVIEW/IN_NEGOTIATION
+#
+# Billing and the client negotiation thread had therefore never persisted a
+# single row, and nothing said so.
+
+INVID="INV-RT-$$"
+r=$(req POST /api/invoices.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$INVID\",\"invoiceNumber\":\"$INVID\",\"companyName\":\"HUAXIN BUILDING MATERIALS NIG PLC (HBM)\",\"totalAmount\":115000000,\"balance\":115000000,\"status\":\"ISSUED\"}}" "$ADMIN")
+check "an issued invoice is accepted" 201 "$(code_of "$r")"
+r=$(req GET "/api/invoices.php?id=$INVID" '' "$ADMIN")
+check_contains "and reads back as ISSUED" '"status":"ISSUED"' "$(body_of "$r")"
+
+r=$(req POST /api/invoices.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$INVID\",\"companyName\":\"HBM\",\"status\":\"PARTIALLY_PAID\"}}" "$ADMIN")
+check "a part-paid invoice is accepted" 200 "$(code_of "$r")"
+r=$(req POST /api/invoices.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$INVID\",\"companyName\":\"HBM\",\"status\":\"SETTLED\"}}" "$ADMIN")
+check "a settled invoice is accepted" 200 "$(code_of "$r")"
+r=$(req POST /api/invoices.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$INVID\",\"companyName\":\"HBM\",\"status\":\"NONSENSE\"}}" "$ADMIN")
+check "an unknown invoice status is still rejected" 422 "$(code_of "$r")"
+
+NEGID="NEG-RT-$$"
+r=$(req POST /api/negotiations.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$NEGID\",\"companyName\":\"HUAXIN BUILDING MATERIALS NIG PLC (HBM)\",\"cargoType\":\"Bagged Cement (50kg)\",\"status\":\"UNDER_OPERATIONS_REVIEW\"}}" "$ADMIN")
+check "a consignment note thread is accepted" 201 "$(code_of "$r")"
+r=$(req GET "/api/negotiations.php?id=$NEGID" '' "$ADMIN")
+check_contains "its status is not reset to a default" 'UNDER_OPERATIONS_REVIEW' "$(body_of "$r")"
+
+r=$(req POST /api/negotiations.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$NEGID\",\"companyName\":\"HBM\",\"status\":\"IN_NEGOTIATION\"}}" "$ADMIN")
+check "moving it to IN_NEGOTIATION is accepted" 200 "$(code_of "$r")"
+
+# Concluding a negotiation stays a privileged, audited action of its own.
+r=$(req POST /api/negotiations.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$NEGID\",\"companyName\":\"HBM\",\"status\":\"LOCKED\"}}" "$ADMIN")
+check "LOCKED cannot be set through an ordinary save" 422 "$(code_of "$r")"
+
+r=$(req POST /api/negotiations.php "{\"action\":\"lock\",\"id\":\"$NEGID\"}" "$ADMIN")
+check "but the lock action concludes it" 200 "$(code_of "$r")"
+
+# And once locked, an ordinary save cannot reopen it.
+r=$(req POST /api/negotiations.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$NEGID\",\"companyName\":\"HBM\",\"status\":\"IN_NEGOTIATION\"}}" "$ADMIN")
+check "a locked thread cannot be reopened by a save" 409 "$(code_of "$r")"
+
 echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

@@ -108,7 +108,25 @@ Collection::handle([
             ->string('cargoType', false, 191)
             ->string('quantity', false, 100)
             ->string('targetDate', false, 64)
-            ->enum('status', ['UNDER_NEGOTIATION', 'LOCKED', 'DECLINED'], false, 'UNDER_NEGOTIATION')
+            /*
+             * The states a thread actually moves through.
+             *
+             * This read UNDER_NEGOTIATION / LOCKED / DECLINED — a vocabulary
+             * with no overlap at all with the application's. A consignee
+             * submitting a consignment note sets UNDER_OPERATIONS_REVIEW, an
+             * admin-raised thread starts at PENDING_REVIEW, and exchanging
+             * messages sets IN_NEGOTIATION. Every one of those failed the enum,
+             * so no negotiation thread was ever saved.
+             *
+             * UNDER_NEGOTIATION is retained for rows already carrying it.
+             */
+            ->enum('status', [
+                'PENDING_REVIEW',           // raised, not yet looked at
+                'UNDER_OPERATIONS_REVIEW',  // consignment note submitted by a client
+                'IN_NEGOTIATION',           // rates being discussed
+                'DECLINED',
+                'UNDER_NEGOTIATION',        // legacy, retained for existing rows
+            ], false, 'PENDING_REVIEW')
             ->string('createdAt', false, 64)
             ->validated();
 
@@ -117,8 +135,27 @@ Collection::handle([
             $clean['companyName'] = (string) ($actor['companyName'] ?? '');
         }
 
-        // Locking is its own audited action with its own capability.
-        unset($clean['status']);
+        /*
+         * LOCKED is deliberately absent from the list above and cannot be set
+         * here at all: concluding a negotiation at an agreed rate is its own
+         * audited action behind negotiation.lock. Everything else is an
+         * ordinary state the thread moves through, and stripping it — as this
+         * did unconditionally — meant a thread's status silently reverted to
+         * the column default on every save.
+         *
+         * The existing row is read directly rather than trusting an
+         * "__existingStatus" field on the payload. Nothing supplies that
+         * field, so a guard written against it would never fire — and a guard
+         * that never fires is worse than none, because it reads as protection.
+         */
+        $id = (string) ($input['id'] ?? '');
+        if ($id !== '') {
+            $prior = Db::conn()->prepare('SELECT status FROM bueno_negotiations WHERE id = ? LIMIT 1');
+            $prior->execute([$id]);
+            if ((string) ($prior->fetchColumn() ?: '') === 'LOCKED') {
+                Response::error('This negotiation is concluded and locked.', 409);
+            }
+        }
 
         return array_filter($clean, static fn($v) => $v !== null);
     },
