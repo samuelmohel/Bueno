@@ -682,10 +682,45 @@ class StateEngineService {
     this.postRemote('/api/deals.php', deals);
   }
 
+  /**
+   * Write one deal.
+   *
+   * Registering a deal used to hand the whole collection to saveDeals, which
+   * resent every other deal alongside it. That is how one new contract
+   * produced "this record changed since you loaded it" about contracts nobody
+   * had opened. Touching one record should write one record.
+   *
+   * Awaited, so a refusal reaches the caller instead of a toast appearing
+   * several seconds later next to a form that has already closed.
+   */
+  async saveDeal(deal: any): Promise<any> {
+    const saved = await STORES.bueno_deals.upsert(deal);
+    this.notifyListeners();
+    return saved;
+  }
+
+  /** Apply a patch to one deal, on top of the freshest copy we hold. */
+  async updateDeal(dealId: string, patch: Record<string, unknown>): Promise<any> {
+    const current = this.getDeals().find(
+      (d: any) => d.id === dealId || d.dealNumber === dealId
+    );
+    if (!current) throw new Error('That deal is no longer in the register.');
+    return this.saveDeal({ ...current, ...patch });
+  }
+
   dispatchDealTranche(dealId: string, user?: any): any {
     const deals = this.getDeals();
     const deal = deals.find((d: any) => d.id === dealId || d.dealNumber === dealId);
     if (!deal) throw new Error('Deal not found');
+
+    // A cancelled contract is off. Hiding it from the register is not enough
+    // on its own — this is the path that actually creates a trip, and it can
+    // be reached from a stale screen opened before the cancellation.
+    if (deal.status === 'CANCELLED') {
+      throw new Error(
+        `${deal.dealNumber || deal.id} has been cancelled. No further trips can be dispatched against it.`
+      );
+    }
 
     const nextTrancheNum = (deal.dispatchedTripsCount || 0) + 1;
     const totalTrips = Math.max(1, Number(deal.totalPlannedTrips) || (deal.dealType === 'SINGLE_TRIP' ? 1 : 1));

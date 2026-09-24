@@ -23,8 +23,10 @@
  */
 
 import { api, ApiError } from '@/lib/apiClient';
+import { rowsDiffer } from './recordDiff';
 
-export type Row = Record<string, any>;
+export type { Row } from './recordDiff';
+import type { Row } from './recordDiff';
 
 interface StoreOptions {
   /** API file name, e.g. "trips.php". */
@@ -54,23 +56,6 @@ function writeCache(key: string, rows: Row[]): void {
   } catch {
     // Quota exceeded or storage disabled: the memory cache still works.
   }
-}
-
-/** Shallow comparison of the fields a caller might have edited. */
-function rowsDiffer(a: Row, b: Row): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const k of keys) {
-    // Server-managed bookkeeping is not a user edit.
-    if (k === 'updated_at' || k === 'version' || k === 'createdAt') continue;
-    const av = a[k];
-    const bv = b[k];
-    if (typeof av === 'object' && av !== null) {
-      if (JSON.stringify(av) !== JSON.stringify(bv)) return true;
-    } else if (av !== bv) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /** Why a collection is empty, when it is empty for a reason. */
@@ -171,16 +156,32 @@ export class CollectionStore {
 
   /** Write one record and merge the server's copy back into the cache. */
   async upsert(record: Row): Promise<Row> {
+    /*
+     * Send the version this store last saw, not whatever the caller is
+     * holding.
+     *
+     * Callers are React state snapshots taken up to a poll ago. Their version
+     * is not a deliberate concurrency token, it is just however old that
+     * render is — so using it reported conflicts against the caller's own
+     * earlier save. The store is the freshest thing the browser knows, and a
+     * genuine edit by someone else still conflicts, because the store only
+     * ever learns a new version from the server.
+     */
+    const id = record[this.idField];
+    const known = id ? this.all().find((r) => r[this.idField] === id) : undefined;
+    const payload: Row =
+      known && known.version !== undefined ? { ...record, version: known.version } : record;
+
     const { data } = await api.post(this.options.endpoint, {
       action: 'upsert',
-      record,
+      record: payload,
     });
 
     const saved: Row = data?.record ?? record;
-    const id = saved[this.idField];
+    const savedId = saved[this.idField];
 
     const next = [...this.all()];
-    const index = next.findIndex((r) => r[this.idField] === id);
+    const index = next.findIndex((r) => r[this.idField] === savedId);
     if (index >= 0) next[index] = saved;
     else next.unshift(saved);
 

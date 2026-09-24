@@ -629,7 +629,12 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   });
 
   // Deals Date Filter & Commercial Costing State (Finance / Treasurer)
-  const [dealsDateFilter, setDealsDateFilter] = useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY' | 'SINGLE'>('TODAY');
+  // Defaults to every contract. It defaulted to TODAY, so the register opened
+  // showing one of five deals with no indication the rest were being withheld
+  // — which reads as deals having gone missing, especially next to a cargo
+  // officer's screen that filters nothing.
+  const [dealsDateFilter, setDealsDateFilter] =
+    useState<'ALL' | 'TODAY' | 'THIS_WEEK' | 'MONTHLY' | 'SINGLE' | 'CANCELLED'>('ALL');
   const [costingModalDeal, setCostingModalDeal] = useState<any | null>(null);
   const [costingForm, setCostingForm] = useState({
     tariffRatePerTon: 12500,
@@ -1140,7 +1145,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   };
 
   // CREATE NEW DEAL DIRECTLY
-  const handleCreateNewDeal = (e: React.FormEvent) => {
+  const handleCreateNewDeal = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const NARROW_SET = new Set(['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD', 'EBJ', 'IGS', 'INS', 'OKK', 'FFA', 'JBB']);
@@ -1193,12 +1198,19 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       createdBy: user?.fullName || 'Alhaji Bashir Umar',
     };
 
-    const updatedDeals = [newDealObj, ...deals];
-    setDeals(updatedDeals);
-    StateEngine.saveDeals(updatedDeals);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('bueno_state_updated'));
+    try {
+      // One deal, one write. Handing the whole collection to saveDeals resent
+      // every other deal too, each carrying the version from this component's
+      // last render — which is how registering one contract produced a
+      // conflict about contracts nobody had opened.
+      await StateEngine.saveDeal(newDealObj);
+      setDeals(StateEngine.getDeals());
+      syncData();
+    } catch (err: any) {
+      notify.error(err?.message || 'The deal could not be registered.');
+      return;
     }
+
     setCreateDealModal(false);
 
     setCustomAlert({
@@ -1209,6 +1221,40 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
         ? `Monthly Master Contract ${dealId} for ${newDealObj.company} created! Total: ${totalQty.toLocaleString()} ${conf.unit} spread across ${totalTrips} train trips (~${trancheTonnage.toLocaleString()} ${conf.unit}/trip). Tranche 1 is ready for siding dispatch!`
         : `Deal ${dealId} for ${newDealObj.company} created! Payload: ${newDealObj.quantity} ${conf.unit} via ${newDealObj.loadingStation} → ${newDealObj.destination}. It is now live in the Cargo Officer queue!`,
     });
+  };
+
+  /**
+   * Cancel a contract.
+   *
+   * Cancelling is not deleting. The row stays, so the audit trail and any
+   * trips already dispatched against it still make sense, but it leaves the
+   * operational register — nobody can dispatch against a contract that is no
+   * longer on. It remains visible under the Cancelled filter.
+   */
+  const handleCancelDeal = async (deal: any) => {
+    const dispatched = Number(deal.dispatchedTripsCount) || 0;
+    const ok = await confirmAction({
+      title: `Cancel ${deal.dealNumber || deal.id}?`,
+      body:
+        `${deal.company || deal.companyName} will no longer appear in the deals register and no `
+        + 'further trips can be dispatched against it. '
+        + (dispatched > 0
+          ? `${dispatched} trip(s) have already gone out under this contract; those are unaffected and stay in the record. `
+          : '')
+        + 'The contract itself is kept for the audit trail and can be found under the Cancelled filter.',
+      confirmLabel: 'Cancel contract',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await StateEngine.updateDeal(deal.id, { status: 'CANCELLED' });
+      setDeals(StateEngine.getDeals());
+      syncData();
+      notify.success(`${deal.dealNumber || deal.id} cancelled.`);
+    } catch (err: any) {
+      notify.error(err?.message || 'The contract could not be cancelled.');
+    }
   };
 
   // ─── FINANCE & COMMERCIAL COSTING HANDLERS (HEAD OF FINANCE / TREASURER) ───
@@ -1232,25 +1278,24 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     });
   };
 
-  const handleSaveCosting = (e: React.FormEvent) => {
+  const handleSaveCosting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!costingModalDeal) return;
 
-    const updated = deals.map((d) => {
-      if (d.id === costingModalDeal.id || d.dealNumber === costingModalDeal.dealNumber) {
-        return {
-          ...d,
-          ...costingForm,
-          financeStatus: 'FINANCE_APPROVED_COSTED',
-          costedBy: user?.fullName || 'Chinenye Nnamdi (Head of Finance)',
-          costedAt: new Date().toLocaleDateString('en-GB'),
-        };
-      }
-      return d;
-    });
+    try {
+      await StateEngine.updateDeal(costingModalDeal.id, {
+        ...costingForm,
+        financeStatus: 'FINANCE_APPROVED_COSTED',
+        costedBy: user?.fullName || 'Chinenye Nnamdi (Head of Finance)',
+        costedAt: new Date().toLocaleDateString('en-GB'),
+      });
+      setDeals(StateEngine.getDeals());
+      syncData();
+    } catch (err: any) {
+      notify.error(err?.message || 'The commercial terms could not be saved.');
+      return;
+    }
 
-    setDeals(updated);
-    StateEngine.saveDeals(updated);
     setCostingModalDeal(null);
     setCustomAlert({
       title: 'Commercial Tariff & Costing Saved',
@@ -4230,7 +4275,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                     { id: 'THIS_WEEK', label: 'This Week' },
                     { id: 'MONTHLY', label: 'Monthly Contracts' },
                     { id: 'SINGLE', label: 'Single Voyages' },
-                    { id: 'ALL', label: `All Deals (${deals.length})` },
+                    { id: 'ALL', label: `All Deals (${deals.filter((d) => d.status !== 'CANCELLED').length})` },
+                    { id: 'CANCELLED', label: `Cancelled (${deals.filter((d) => d.status === 'CANCELLED').length})` },
                   ].map((f) => (
                     <button
                       key={f.id}
@@ -4248,6 +4294,8 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 <span className="text-xs font-mono font-bold text-slate-500 pr-2">
                   Showing: <b className="text-slate-900">{
                     deals.filter((d) => {
+                      if (dealsDateFilter === 'CANCELLED') return d.status === 'CANCELLED';
+                      if (d.status === 'CANCELLED') return false;
                       if (dealsDateFilter === 'MONTHLY') return d.dealType === 'MONTHLY_CONTRACT';
                       if (dealsDateFilter === 'SINGLE') return d.dealType !== 'MONTHLY_CONTRACT';
                       if (dealsDateFilter === 'TODAY') return StateEngine.getDateCategory(d.createdAt) === 'TODAY';
@@ -4264,6 +4312,11 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(() => {
                   const filteredDeals = deals.filter((d) => {
+                    // A cancelled contract stays in the database for the audit
+                    // trail but leaves the operational register, so nobody
+                    // dispatches against it. The Cancelled filter still shows it.
+                    if (dealsDateFilter === 'CANCELLED') return d.status === 'CANCELLED';
+                    if (d.status === 'CANCELLED') return false;
                     if (dealsDateFilter === 'MONTHLY') return d.dealType === 'MONTHLY_CONTRACT';
                     if (dealsDateFilter === 'SINGLE') return d.dealType !== 'MONTHLY_CONTRACT';
                     if (dealsDateFilter === 'TODAY') return StateEngine.getDateCategory(d.createdAt) === 'TODAY';
@@ -4444,6 +4497,15 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                               >
                                 <span>Launch Corridor Trip →</span>
                               </button>
+                              {can('deals.edit') && (
+                                <button
+                                  onClick={() => handleCancelDeal(d)}
+                                  className="shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-bold text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                                  title="Cancel this contract — it leaves the register but is kept for the audit trail"
+                                >
+                                  Cancel
+                                </button>
+                              )}
                               <button
                                 onClick={() => openCostingModal(d)}
                                 className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 shrink-0"

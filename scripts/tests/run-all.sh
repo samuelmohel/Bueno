@@ -125,6 +125,10 @@ echo "══ capability registry (unit) ═════════════�
 npx tsx --test scripts/tests/rbac.test.ts 2>&1 | grep -E '^# (tests|pass|fail)' || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
 echo
+echo "══ record comparison (unit) ═══════════════════════════════════════════"
+npx tsx --test scripts/tests/datastore.test.ts 2>&1 | grep -E '^# (tests|pass|fail)' || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
+echo
 echo "══ generated PHP mirror is in sync ════════════════════════════════════"
 npx tsx scripts/generate-rbac.ts check || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
