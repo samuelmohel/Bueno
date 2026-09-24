@@ -21,11 +21,19 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
   const totalTareWeightTonnes = totalWagons * 22.5;
   const grossTrainWeightTonnes = netWeightTonnes + totalTareWeightTonnes;
 
+  /*
+   * A manifest names who is responsible for a consignment, so an unfilled
+   * field has to say it is unfilled. These fields used to fall back to
+   * hard-coded names — 'Ade Bello (EWK-01)', 'Musa Ibrahim (MNY-01)' — which
+   * kept printing on manifests after those accounts had been deleted.
+   */
+  const UNASSIGNED = '— to be completed —';
+
   const manifestNo = `MNF-NRC-2026-${String(trip.tripId || '001').replace(/[^0-9]/g, '').padStart(3, '0')}`;
   const vesselRef = trip.vesselNo || 'VSL-APMT-992-NRC';
-  const driverName = trip.driverName || 'Engineer Babatunde Adeleke (NRC-DRV-04)';
-  const escortName = trip.cargoOfficerName || 'Ade Bello (EWK-01)';
-  const destOfficer = trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)';
+  const driverName = trip.leadDriverName || trip.driverName || UNASSIGNED;
+  const escortName = trip.cargoOfficerName || UNASSIGNED;
+  const destOfficer = trip.unloadingOfficerName || UNASSIGNED;
 
   const handlePrint = () => {
     window.print();
@@ -152,11 +160,11 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">TRAIN CREW & BRAKEMAN</span>
-              <span className="font-black text-emerald-400 mt-0.5 block">{trip.crewNames || 'Sunday Okafor (Eng), Audu Danladi (Brakeman)'}</span>
+              <span className="font-black text-emerald-400 mt-0.5 block">{trip.trainCrew || trip.crewNames || UNASSIGNED}</span>
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">MONITORING OFFICER</span>
-              <span className="font-black text-emerald-400 mt-0.5 block">{trip.monitoringOfficer || trip.cargoOfficerName || 'Ade Bello (Bueno Ops Monitoring)'}</span>
+              <span className="font-black text-emerald-400 mt-0.5 block">{trip.monitoringOfficer || trip.cargoOfficerName || UNASSIGNED}</span>
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">DESTINATION SIDING & GAUGE</span>

@@ -261,7 +261,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Supervising Escort Officer</span>
-              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Ade Bello'}</p>
+              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Unassigned'}</p>
               <span className="text-[10px] text-emerald-700">Phone: {trip.escortPhone || '08031112233'}</span>
             </div>
           </div>
@@ -346,7 +346,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Receiving Officer</span>
-              <p className="font-bold text-slate-800">{trip.unloadingOfficerName || 'Musa Ibrahim (MNY-01)'}</p>
+              <p className="font-bold text-slate-800">{trip.unloadingOfficerName || 'Unassigned'}</p>
             </div>
           </div>
 
@@ -1004,7 +1004,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     if (!activeThread) return;
 
     const newMsg = {
-      sender: user?.fullName || 'Alhaji Bashir Umar',
+      sender: user?.fullName || 'Operations Command',
       role: 'Executive Command Desk',
       text: replyInput.trim(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1037,8 +1037,10 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       unitOfMeasure: unitLabel,
       wagonType: wagonTypeLabel,
       quantity: qtyNum,
-      cargoOfficerName: 'Ade Bello',
-      unloadingOfficerName: 'Musa Ibrahim',
+      // Staffed when the officers are known, not invented at creation. See
+      // the same change in StateEngine.dispatchDealTranche.
+      cargoOfficerName: '',
+      unloadingOfficerName: '',
       status: 'LOADING',
       dispatchTime: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
       wagonLogs: [],
@@ -1066,7 +1068,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             messages: [
               ...(d.messages || []),
               {
-                sender: user?.fullName || 'Alhaji Bashir Umar',
+                sender: user?.fullName || 'Operations Command',
                 role: 'Executive Command Desk',
                 text: `CONSIGNMENT APPROVED & WAGONS ALLOCATED: Trip #${newTrip.id} has been dispatched for wagon loading at ${newTrip.origin} Siding! Assigned Loco #${newTrip.locomotiveId}.`,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1195,7 +1197,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       wagonType: conf.wagonType,
       status: 'APPROVED',
       createdAt: new Date().toLocaleDateString('en-GB'),
-      createdBy: user?.fullName || 'Alhaji Bashir Umar',
+      createdBy: user?.fullName || '',
     };
 
     try {
@@ -1286,7 +1288,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       await StateEngine.updateDeal(costingModalDeal.id, {
         ...costingForm,
         financeStatus: 'FINANCE_APPROVED_COSTED',
-        costedBy: user?.fullName || 'Chinenye Nnamdi (Head of Finance)',
+        costedBy: user?.fullName || '',
         costedAt: new Date().toLocaleDateString('en-GB'),
       });
       setDeals(StateEngine.getDeals());
@@ -2551,17 +2553,20 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                   onChange={(e) => setNewDealForm({ ...newDealForm, companyName: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
                 >
+                  {/*
+                    Consignees come from the accounts that exist. Six companies
+                    were listed here in the markup as well, so deleting a client
+                    left them still selectable — and a deal could be registered
+                    against a consignee with no account behind it.
+                  */}
+                  {customerUsers.length === 0 && (
+                    <option value="">No consignee accounts — provision one first</option>
+                  )}
                   {customerUsers.map((u) => (
                     <option key={u.id} value={u.companyName || u.fullName}>
                       {u.companyName || u.fullName}
                     </option>
                   ))}
-                  <option value="HUAXIN BUILDING MATERIALS NIG PLC (HBM)">HUAXIN BUILDING MATERIALS NIG PLC (HBM)</option>
-                  <option value="APM Terminals Ltd (APMT)">APM Terminals Ltd (APMT)</option>
-                  <option value="MAERSKLINES Nigeria">MAERSKLINES Nigeria</option>
-                  <option value="British American Tobacco (BAT)">British American Tobacco (BAT)</option>
-                  <option value="DHL Global Forwarding">DHL Global Forwarding</option>
-                  <option value="DASCO Industries Ltd">DASCO Industries Ltd</option>
                 </select>
               </div>
 
@@ -3743,7 +3748,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
             </button>
 
             <div className="hidden sm:block text-right">
-              <span className="text-xs font-extrabold text-slate-900 block">{currentUser?.fullName || user?.fullName || 'Alhaji Bashir Umar'}</span>
+              <span className="text-xs font-extrabold text-slate-900 block">{currentUser?.fullName || user?.fullName || 'Signed in'}</span>
               <span className="text-[10px] font-mono text-slate-500 font-bold block">{currentUser?.roleLabel || currentUser?.role || user?.roleLabel || user?.role || 'Executive Command HQ'}</span>
             </div>
 
@@ -4187,29 +4192,54 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 font-mono text-xs">
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Executive Managing Director Sign-off</span>
-                  <div className="space-y-1">
-                    <p className="font-extrabold text-slate-900 text-sm">{StateEngine.getSignatory('CEO', 'Alhaji Bashir Umar')}</p>
-                    <p className="text-slate-500 text-[11px]">Managing Director & CEO, Bueno Logistics</p>
+                {/*
+                  A sign-off is only shown when somebody actually holds the
+                  role. These blocks used to fall back to a hard-coded name,
+                  so after those accounts were deleted the report still
+                  carried "Alhaji Bashir Umar" under DIGITAL SIGNATURE
+                  VERIFIED — a person who does not work here, above a
+                  verification claim nothing had verified.
+                */}
+                {([
+                  {
+                    caption: 'Executive Managing Director Sign-off',
+                    title: 'Managing Director & CEO, Bueno Logistics',
+                    name: StateEngine.getSignatory('CEO'),
+                    seal: 'Digitally signed',
+                    detail: new Date().toLocaleDateString('en-GB'),
+                  },
+                  {
+                    caption: 'Head of Freight Rail Operations',
+                    title: 'Head of Operations, NRC Freight Corridor',
+                    name: StateEngine.getSignatory('HEAD_OF_OPERATIONS'),
+                    seal: 'Operations certified',
+                    detail: new Date().toLocaleDateString('en-GB'),
+                  },
+                ] as const).map((block) => (
+                  <div key={block.caption} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">{block.caption}</span>
+                    <div className="space-y-1">
+                      {block.name ? (
+                        <p className="font-extrabold text-slate-900 text-sm">{block.name}</p>
+                      ) : (
+                        <p className="text-sm font-bold text-amber-700">Not assigned</p>
+                      )}
+                      <p className="text-slate-500 text-[11px]">{block.title}</p>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center gap-2 text-[10px]">
+                      {block.name ? (
+                        <>
+                          <span className="text-emerald-700 font-extrabold uppercase">{block.seal}</span>
+                          <span className="text-slate-400">{block.detail}</span>
+                        </>
+                      ) : (
+                        <span className="text-amber-700 font-semibold normal-case">
+                          No active account holds this role, so this report is unsigned.
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
-                    <span className="text-emerald-700 font-extrabold">DIGITAL SIGNATURE VERIFIED</span>
-                    <span className="text-slate-400">{new Date().toLocaleDateString('en-GB')}</span>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Head of Freight Rail Operations</span>
-                  <div className="space-y-1">
-                    <p className="font-extrabold text-slate-900 text-sm">{StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')}</p>
-                    <p className="text-slate-500 text-[11px]">Head of Operations, NRC Freight Corridor</p>
-                  </div>
-                  <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-[10px]">
-                    <span className="text-emerald-700 font-extrabold">AUDIT CERTIFIED & SEALED</span>
-                    <span className="text-slate-400">HASH: CERT-2026-NGR-BUENO-OK</span>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -4708,7 +4738,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
 
                   <div className="grid grid-cols-3 gap-3 text-xs text-center">
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-slate-700">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Ade Bello'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-slate-700">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Unassigned'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
                   </div>
                 </div>
@@ -6874,7 +6904,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                             ₦{Number(req.amount || 0).toLocaleString()}
                           </td>
                           <td className="p-3 text-slate-700 font-sans">
-                            <span className="font-bold block">{req.requestedBy || 'Ade Bello'}</span>
+                            <span className="font-bold block">{req.requestedBy || 'Unassigned'}</span>
                             <span className="text-[10px] text-slate-400 block">{req.station || 'EWK'} Terminal</span>
                           </td>
                           <td className="p-3">

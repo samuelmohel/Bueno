@@ -135,7 +135,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
 
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase block font-mono">Cargo Officer & Caboose</span>
-              <p className="font-extrabold text-slate-900">{trip.monitoringOfficer || trip.cargoOfficerName || 'Ade Bello'}</p>
+              <p className="font-extrabold text-slate-900">{trip.monitoringOfficer || trip.cargoOfficerName || 'Unassigned'}</p>
               <span className="text-[10px] text-slate-600 font-mono">Escort: {trip.escortWagonId || 'BV 01'}</span>
             </div>
           </div>
@@ -308,7 +308,7 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
             <div className="space-y-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase font-mono block">Station Cargo Officer</span>
               <div className="h-10 border-b border-dashed border-slate-400 flex items-end">
-                <span className="font-serif italic text-slate-700">{trip.cargoOfficerName || 'Ade Bello'}</span>
+                <span className="font-serif italic text-slate-700">{trip.cargoOfficerName || 'Unassigned'}</span>
               </div>
               <p className="text-[10px] text-slate-500">Sign & Stamp</p>
             </div>

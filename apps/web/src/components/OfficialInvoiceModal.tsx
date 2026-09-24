@@ -394,22 +394,33 @@ export default function OfficialInvoiceModal({ invoice, onClose, onRecordPayment
               </div>
             </div>
 
-            {/* Signature 1 */}
+            {/*
+              This invoice goes to a customer, so the names on it must be
+              people who hold the role. Both blocks used to fall back to a
+              hard-coded name — "Chinenye Nnamdi (Chartered Accountant)",
+              "Babajide Sanwo (Rail Dispatch)" — which kept appearing on
+              issued invoices after those accounts were deleted. Attributing a
+              commercial document to an invented accountant is not a display
+              fault.
+            */}
             <div className="text-center sm:text-left font-sans text-xs">
-              <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic text-slate-600 font-bold">
-                {StateEngine.getSignatory('HEAD_OF_FINANCE', 'Chinenye Nnamdi')} (Chartered Accountant)
+              <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic font-bold">
+                {StateEngine.getSignatory('HEAD_OF_FINANCE')
+                  ? <span className="text-slate-600">{StateEngine.getSignatory('HEAD_OF_FINANCE')} (Chartered Accountant)</span>
+                  : <span className="not-italic font-semibold text-amber-700">Unsigned — no Head of Finance assigned</span>}
               </div>
-              <p className="font-black text-slate-900">Head of Finance & Treasury</p>
-              <p className="text-[10px] text-slate-400">Bueno Logistics Ltd • HQ</p>
+              <p className="font-black text-slate-900">Head of Finance &amp; Treasury</p>
+              <p className="text-[10px] text-slate-500">Bueno Logistics Ltd • HQ</p>
             </div>
 
-            {/* Signature 2 */}
             <div className="text-center sm:text-right font-sans text-xs">
-              <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic text-slate-600 font-bold">
-                {StateEngine.getSignatory('HEAD_OF_OPERATIONS', 'Babajide Sanwo')} (Rail Dispatch)
+              <div className="border-b border-slate-300 pb-1 mb-1 font-mono italic font-bold">
+                {StateEngine.getSignatory('HEAD_OF_OPERATIONS')
+                  ? <span className="text-slate-600">{StateEngine.getSignatory('HEAD_OF_OPERATIONS')} (Rail Dispatch)</span>
+                  : <span className="not-italic font-semibold text-amber-700">Unsigned — no Head of Operations assigned</span>}
               </div>
-              <p className="font-black text-slate-900">Head of Operations & Logistics</p>
-              <p className="text-[10px] text-slate-400">NRC Corridor Operations Unit</p>
+              <p className="font-black text-slate-900">Head of Operations &amp; Logistics</p>
+              <p className="text-[10px] text-slate-500">NRC Corridor Operations Unit</p>
             </div>
           </div>
         </div>

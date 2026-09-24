@@ -272,7 +272,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     startTime: '',
     driverName: 'Engr. Kabiru Usman (NRC-DRV-102)',
     crewMembers: 'Sani Bello, Timothy Danjuma',
-    monitoringOfficer: user?.fullName || 'Ade Bello',
+    monitoringOfficer: user?.fullName || '',
   });
 
   const [fundForm, setFundForm] = useState({
@@ -394,8 +394,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       locomotiveId: tripForm.locomotiveId || 'L2205',
       driverName: tripForm.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
       crewMembers: tripForm.crewMembers || 'Sani Bello, Timothy Danjuma',
-      monitoringOfficer: tripForm.monitoringOfficer || user?.fullName || 'Ade Bello',
-      cargoOfficerName: user?.fullName || 'Ade Bello',
+      monitoringOfficer: tripForm.monitoringOfficer || user?.fullName || '',
+      cargoOfficerName: user?.fullName || '',
       company: createDeal.company,
       origin: createDeal.loadingStation || createDeal.origin || station,
       destination: createDeal.destination || 'MNY',
@@ -466,7 +466,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       status: 'AVAILABLE',
       currentStation: station,
       gauge: 'STANDARD_GAUGE',
-      addedBy: user?.fullName || 'Ade Bello',
+      addedBy: user?.fullName || '',
       createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     };
     saveWagons([...fleetWagons, newW]);
@@ -483,7 +483,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
     e.preventDefault();
     const req = {
       id: `REQ-${Date.now()}`,
-      officerName: user?.fullName || 'Ade Bello',
+      officerName: user?.fullName || '',
       station,
       title: fundForm.title,
       category: fundForm.category,
@@ -495,7 +495,7 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       conversation: [
         {
-          sender: user?.fullName || 'Ade Bello',
+          sender: user?.fullName || '',
           role: 'Cargo Officer',
           msg: fundForm.description,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -2685,8 +2685,8 @@ function TripUnloadWagonView({
       locomotiveId: trip.locomotiveId || 'L2205',
       driverName: trip.driverName || 'Engr. Kabiru Usman (NRC-DRV-102)',
       crewMembers: trip.crewMembers || 'Sani Bello, Timothy Danjuma',
-      monitoringOfficer: user?.fullName || 'Ade Bello',
-      cargoOfficerName: user?.fullName || 'Ade Bello',
+      monitoringOfficer: user?.fullName || '',
+      cargoOfficerName: user?.fullName || '',
       company: 'Bueno Rolling Stock (Empty Repositioning)',
       origin: trip.destination,
       destination: trip.origin,

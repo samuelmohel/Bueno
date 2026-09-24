@@ -741,6 +741,23 @@ class StateEngineService {
     const requiredWagons = Math.min(23, Math.max(1, Math.ceil(trancheBags / 1200)));
     const bagsPerWagon = Math.min(1200, Math.round(trancheBags / requiredWagons));
 
+    /**
+     * The active cargo officer posted to a station, or '' if nobody is.
+     *
+     * '' rather than a placeholder name: the field is filled in by whoever
+     * actually works the trip, and an empty field prompts that. An invented
+     * one does not.
+     */
+    const officerAt = (station: string): string => {
+      const match = this.getUsers().find(
+        (u: any) =>
+          u.role === 'CARGO_OFFICER' &&
+          (u.status === 'ACTIVE' || !u.status) &&
+          (u.assignedStation || '').toUpperCase() === (station || '').toUpperCase()
+      );
+      return match?.fullName || '';
+    };
+
     const newTrip: any = {
       id: newTripId,
       tripId: newTripId,
@@ -749,7 +766,11 @@ class StateEngineService {
       trancheNumber: nextTrancheNum,
       totalPlannedTrips: totalTrips,
       trancheLabel: `Tranche ${nextTrancheNum} of ${totalTrips} (${deal.company || 'Consignee'})`,
-      locomotiveId: nextTrancheNum % 2 === 0 ? 'L2208' : 'L2205',
+      // Left for the cargo officer to enter when the locomotive is actually
+      // coupled. It used to alternate between two invented loco numbers, which
+      // then appeared on the manifest as though a specific engine had been
+      // assigned.
+      locomotiveId: '',
       origin,
       destination,
       gauge,
@@ -763,11 +784,23 @@ class StateEngineService {
       wagonType: deal.wagonType || 'Covered Hopper Wagon',
       quantity: trancheTonnage,
       tonnage: `${trancheTonnage} MT`,
-      cargoOfficerName: origin === 'PAPA' || origin === 'EWK' ? 'Ade Bello' : 'Ngozi Eze',
-      unloadingOfficerName: 'Musa Ibrahim',
-      leadDriverName: nextTrancheNum % 2 === 0 ? 'Engr. Yakubu Mohammed (NRC-DRV-09)' : 'Engr. Babatunde Adeleke (NRC-DRV-04)',
-      trainCrew: 'Sunday Okafor (Assoc Engineer), Audu Danladi (Brakeman)',
-      monitoringOfficer: 'Ade Bello (Bueno Operations Monitoring)',
+      /*
+       * Staffed from the accounts that exist, or left unassigned.
+       *
+       * These were five hard-coded names — Ade Bello, Ngozi Eze, Musa Ibrahim,
+       * a driver and a two-man crew — stamped onto every dispatched trip and
+       * printed onto its manifest and waybill. They survived the accounts
+       * being deleted, because nothing ever read an account to produce them.
+       *
+       * A manifest naming an escort who does not work here is a document
+       * asserting who was responsible for a consignment. Better blank, for
+       * the officer to complete, than confidently wrong.
+       */
+      cargoOfficerName: officerAt(origin),
+      unloadingOfficerName: officerAt(destination),
+      leadDriverName: '',
+      trainCrew: '',
+      monitoringOfficer: officerAt(origin),
       status: 'LOADING',
       dispatchTime: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: 'Today, ' + new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -1202,14 +1235,27 @@ class StateEngineService {
     return data.initialSecret;
   }
 
-  getSignatory(role: string, fallbackName: string = 'Executive Signatory'): string {
+  /**
+   * Who currently holds a role, for a signature block.
+   *
+   * Returns null when nobody does. It used to take a fallback name and call
+   * sites passed real-looking ones — 'Alhaji Bashir Umar', 'Chinenye Nnamdi',
+   * 'Babajide Sanwo' — so a report or an invoice printed a person who does
+   * not work here, under "DIGITAL SIGNATURE VERIFIED" and "(Chartered
+   * Accountant)", once those accounts were deleted.
+   *
+   * An invoice goes to a customer. Attributing it to an invented accountant
+   * is not a display bug. Callers must handle null and say the role is
+   * unassigned rather than invent someone to fill it.
+   */
+  getSignatory(role: string): string | null {
     const users = this.getUsers();
     const matched = users?.find(
       (u: any) =>
         (u.role === role || (role === 'CEO' && (u.role === 'MD' || u.role === 'CEO')) || (role === 'MD' && u.role === 'CEO')) &&
         (u.status === 'ACTIVE' || !u.status)
     );
-    return matched?.fullName || fallbackName;
+    return matched?.fullName || null;
   }
 
   /**

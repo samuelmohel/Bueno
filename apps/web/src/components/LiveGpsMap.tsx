@@ -208,7 +208,7 @@ export function LiveGpsMap({
 
   // Monitoring Officer Details
   const officer: MonitoringOfficer = {
-    name: trip?.monitoringOfficerName || trip?.escortOfficerName || trip?.cargoOfficerName || 'Ade Bello',
+    name: trip?.monitoringOfficerName || trip?.escortOfficerName || trip?.cargoOfficerName || 'Unassigned',
     phone: trip?.monitoringOfficerPhone || trip?.escortPhone || '08031112233',
     badgeId: trip?.escortBadgeId || 'NRC-ESC-2026',
     batteryLevel: `${battery}%`,
