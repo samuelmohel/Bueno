@@ -1,7 +1,7 @@
 {
-  "commit": "b419b9c",
+  "commit": "fe30227",
   "branch": "main",
-  "subject": "fix: registering one deal no longer conflicts with the other deals",
-  "builtAt": "2026-09-24T10:24:35.815Z",
+  "subject": "fix: stop naming people and companies that are not there",
+  "builtAt": "2026-09-24T13:41:52.348Z",
   "dirty": false
 }
