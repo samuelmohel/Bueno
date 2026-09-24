@@ -1,7 +1,7 @@
 {
-  "commit": "fe30227",
+  "commit": "070f6a6",
   "branch": "main",
-  "subject": "fix: stop naming people and companies that are not there",
-  "builtAt": "2026-09-24T13:41:52.348Z",
+  "subject": "fix: a consignee's company name no longer has to match byte for byte",
+  "builtAt": "2026-09-24T13:52:09.847Z",
   "dirty": false
 }
