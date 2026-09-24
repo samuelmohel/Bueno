@@ -1,7 +1,7 @@
 {
-  "commit": "fe0455e",
+  "commit": "b419b9c",
   "branch": "main",
-  "subject": "fix: invoices and negotiations had never persisted either",
-  "builtAt": "2026-09-24T10:04:51.600Z",
+  "subject": "fix: registering one deal no longer conflicts with the other deals",
+  "builtAt": "2026-09-24T10:24:35.815Z",
   "dirty": false
 }
