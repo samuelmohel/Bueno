@@ -195,6 +195,70 @@ check "unknown reference gives a plain 404" 404 "$(code_of "$r")"
 r=$(req GET "/api/public_track.php")
 check "no reference is rejected (there is no listing mode)" 422 "$(code_of "$r")"
 
+
+echo "=== 16. A deal survives the round trip it is actually sent as ==="
+#
+# deals.php validated `status` against ACTIVE / PARTIALLY_DISPATCHED /
+# COMPLETED / CANCELLED - a vocabulary the application does not use. Creating a
+# deal sets APPROVED, so every deal ever created was rejected with 422, and
+# nothing surfaced it because a refused collection write was dispatched to an
+# event listener that did not exist.
+#
+# The whitelist also dropped every field it did not name, so a monthly master
+# contract came back from the next poll with no idea how many trips it covered
+# or how much each tranche carried - which is exactly what the dispatch button
+# reads to build the next trip.
+#
+# This posts the object the admin portal actually builds, then reads it back.
+
+DEALID="DEAL-RT-$$"
+r=$(req POST /api/deals.php "{\"action\":\"upsert\",\"record\":{
+  \"id\":\"$DEALID\",
+  \"dealNumber\":\"$DEALID\",
+  \"company\":\"HUAXIN BUILDING MATERIALS NIG PLC (HBM)\",
+  \"companyName\":\"HUAXIN BUILDING MATERIALS NIG PLC (HBM)\",
+  \"dealType\":\"MONTHLY_CONTRACT\",
+  \"loadingStation\":\"PAPA\",
+  \"destination\":\"MNY\",
+  \"cargoType\":\"Bagged Cement (50kg)\",
+  \"quantity\":92000,
+  \"totalPlannedTrips\":10,
+  \"dispatchedTripsCount\":0,
+  \"trancheTonnage\":9200,
+  \"remainingTonnage\":92000,
+  \"cadence\":\"Weekly\",
+  \"contractMonth\":\"2026-09\",
+  \"unitOfMeasure\":\"Bags\",
+  \"wagonType\":\"Covered Hopper Wagon\",
+  \"status\":\"APPROVED\"
+}}" "$ADMIN")
+check "the admin portal's own deal shape is accepted" 201 "$(code_of "$r")"
+
+r=$(req GET "/api/deals.php?id=$DEALID" '' "$ADMIN")
+BODY="$(body_of "$r")"
+check "the deal can be read back" 200 "$(code_of "$r")"
+check_contains "status APPROVED survived"        '"status":"APPROVED"' "$BODY"
+check_contains "the contract knows its trip count" '"totalPlannedTrips":10' "$BODY"
+check_contains "and its tranche size"              '9200' "$BODY"
+check_contains "and its cadence"                   'Weekly' "$BODY"
+check_contains "and its contract month"            '2026-09' "$BODY"
+check_contains "and its unit of measure"           'Bags' "$BODY"
+
+# Dispatching the last tranche sets this; it must validate too.
+r=$(req POST /api/deals.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$DEALID\",\"company\":\"HUAXIN BUILDING MATERIALS NIG PLC (HBM)\",\"status\":\"ALL_TRANCHES_DISPATCHED\",\"dispatchedTripsCount\":10}}" "$ADMIN")
+check "the dispatch-complete status is accepted" 200 "$(code_of "$r")"
+
+# A status outside the lifecycle is still refused.
+r=$(req POST /api/deals.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$DEALID\",\"company\":\"HBM\",\"status\":\"NOT_A_REAL_STATUS\"}}" "$ADMIN")
+check "an unknown status is still rejected" 422 "$(code_of "$r")"
+
+# Finance costing must persist too - it was being dropped wholesale.
+r=$(req POST /api/deals.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$DEALID\",\"company\":\"HBM\",\"tariffRatePerTon\":12500,\"totalContractValue\":115000000,\"paymentTerms\":\"PER_TRIP_DRAWDOWN\",\"financeStatus\":\"FINANCE_APPROVED_COSTED\"}}" "$ADMIN")
+check "commercial terms are accepted" 200 "$(code_of "$r")"
+r=$(req GET "/api/deals.php?id=$DEALID" '' "$ADMIN")
+check_contains "the agreed tariff persisted" '12500' "$(body_of "$r")"
+check_contains "and the payment terms"       'PER_TRIP_DRAWDOWN' "$(body_of "$r")"
+
 echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
