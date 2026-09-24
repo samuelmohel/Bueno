@@ -1,7 +1,7 @@
 {
-  "commit": "dcf7734",
+  "commit": "fe0455e",
   "branch": "main",
-  "subject": "fix: deals could not be created at all, and nothing said so",
-  "builtAt": "2026-09-24T06:13:09.746Z",
+  "subject": "fix: invoices and negotiations had never persisted either",
+  "builtAt": "2026-09-24T10:04:51.600Z",
   "dirty": false
 }
