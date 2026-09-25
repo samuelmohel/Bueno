@@ -23,47 +23,10 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 require_once $root . '/apps/web/public/api/_lib/db.php';
+require_once __DIR__ . '/_company_names.php';
 
 function line(string $t = ''): void { echo $t . PHP_EOL; }
 
-/**
- * A comparison key that survives how the name was actually typed.
- *
- * SQL TRIM removes ordinary spaces and nothing else, so matching with
- * LOWER(TRIM(col)) missed a stored value carrying a tab, a newline, a
- * non-breaking space, or simply two spaces between words — the report listed
- * the name and the merge then found nothing carrying it.
- *
- * Matching is done in PHP against the distinct values actually present, and
- * the update targets each original value exactly, so nothing is rewritten by
- * guesswork.
- */
-function merge_key(?string $s): string
-{
-    $s = (string) $s;
-    $s = str_replace(["Â ", "	", "", "
-"], ' ', $s);
-    $s = preg_replace('/\s+/u', ' ', $s) ?? $s;
-    return strtolower(trim($s));
-}
-
-/** Distinct stored values whose key matches, with their row counts. */
-function matching_values(PDO $pdo, string $table, string $column, string $needle): array
-{
-    $rows = $pdo->query(
-        "SELECT `$column` AS name, COUNT(*) AS n FROM `$table`
-          WHERE `$column` IS NOT NULL AND `$column` <> ''
-          GROUP BY `$column`"
-    )->fetchAll();
-
-    $out = [];
-    foreach ($rows as $r) {
-        if (merge_key((string) $r['name']) === $needle) {
-            $out[(string) $r['name']] = (int) $r['n'];
-        }
-    }
-    return $out;
-}
 
 
 // ── Arguments ───────────────────────────────────────────────────────────────
@@ -110,7 +73,7 @@ try {
     exit(1);
 }
 
-$needle = merge_key($from);
+$needle = company_key($from);
 
 line($apply ? 'Consolidating company name' : 'DRY RUN — nothing will be written');
 line('  from : "' . $from . '"');
@@ -121,7 +84,12 @@ $counts = [];
 $total  = 0;
 foreach ($TARGETS as $label => [$table, $column]) {
     try {
-        $variants = matching_values($pdo, $table, $column, $needle);
+        $variants = [];
+        foreach (distinct_company_names($pdo, [$label => [$table, $column]]) as $value => $counts) {
+            if (company_key($value) === $needle) {
+                $variants[$value] = (int) ($counts[$label] ?? 0);
+            }
+        }
     } catch (Throwable $e) {
         line(sprintf('  %-14s could not read (%s)', $label, $e->getMessage()));
         continue;
@@ -141,9 +109,28 @@ foreach ($TARGETS as $label => [$table, $column]) {
 
 line();
 if ($total === 0) {
-    line('No records carry that name. Check the spelling with');
-    line('scripts/check-consignee-links.php — matching ignores case and');
-    line('surrounding spaces, but nothing else.');
+    // A dead end is not an answer. Show every company name that IS stored, so
+    // the exact one can be copied, with invisible characters named.
+    line('Nothing carries that name. These are the company names actually stored:');
+    line();
+
+    $all = distinct_company_names($pdo, $TARGETS);
+    if ($all === []) {
+        line('  (none — there are no records with a company name at all)');
+    }
+    foreach ($all as $value => $counts) {
+        $parts = [];
+        foreach ($counts as $label => $n) {
+            $parts[] = "$label: $n";
+        }
+        line('  "' . reveal($value) . '"');
+        line('      ' . implode(',  ', $parts));
+    }
+
+    line();
+    line('Copy one of the names above into --from exactly as it reads, ignoring');
+    line('the [n chars] note and any <MARKER>. Matching ignores case and all');
+    line('whitespace differences, so the markers do not need reproducing.');
     exit(0);
 }
 
