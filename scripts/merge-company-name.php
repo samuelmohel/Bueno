@@ -26,6 +26,46 @@ require_once $root . '/apps/web/public/api/_lib/db.php';
 
 function line(string $t = ''): void { echo $t . PHP_EOL; }
 
+/**
+ * A comparison key that survives how the name was actually typed.
+ *
+ * SQL TRIM removes ordinary spaces and nothing else, so matching with
+ * LOWER(TRIM(col)) missed a stored value carrying a tab, a newline, a
+ * non-breaking space, or simply two spaces between words — the report listed
+ * the name and the merge then found nothing carrying it.
+ *
+ * Matching is done in PHP against the distinct values actually present, and
+ * the update targets each original value exactly, so nothing is rewritten by
+ * guesswork.
+ */
+function merge_key(?string $s): string
+{
+    $s = (string) $s;
+    $s = str_replace(["Â ", "	", "", "
+"], ' ', $s);
+    $s = preg_replace('/\s+/u', ' ', $s) ?? $s;
+    return strtolower(trim($s));
+}
+
+/** Distinct stored values whose key matches, with their row counts. */
+function matching_values(PDO $pdo, string $table, string $column, string $needle): array
+{
+    $rows = $pdo->query(
+        "SELECT `$column` AS name, COUNT(*) AS n FROM `$table`
+          WHERE `$column` IS NOT NULL AND `$column` <> ''
+          GROUP BY `$column`"
+    )->fetchAll();
+
+    $out = [];
+    foreach ($rows as $r) {
+        if (merge_key((string) $r['name']) === $needle) {
+            $out[(string) $r['name']] = (int) $r['n'];
+        }
+    }
+    return $out;
+}
+
+
 // ── Arguments ───────────────────────────────────────────────────────────────
 
 $from = null;
@@ -70,7 +110,7 @@ try {
     exit(1);
 }
 
-$needle = strtolower(trim($from));
+$needle = merge_key($from);
 
 line($apply ? 'Consolidating company name' : 'DRY RUN — nothing will be written');
 line('  from : "' . $from . '"');
@@ -81,16 +121,22 @@ $counts = [];
 $total  = 0;
 foreach ($TARGETS as $label => [$table, $column]) {
     try {
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM `$table` WHERE LOWER(TRIM(`$column`)) = ?");
-        $stmt->execute([$needle]);
-        $n = (int) $stmt->fetchColumn();
+        $variants = matching_values($pdo, $table, $column, $needle);
     } catch (Throwable $e) {
         line(sprintf('  %-14s could not read (%s)', $label, $e->getMessage()));
         continue;
     }
-    $counts[$label] = [$table, $column, $n];
+    $n = array_sum($variants);
+    $counts[$label] = [$table, $column, $variants];
     $total += $n;
     line(sprintf('  %-14s %d', $label, $n));
+
+    // Name each stored spelling that matched, so it is clear what is moving.
+    foreach ($variants as $value => $count) {
+        if ($value !== $to) {
+            line(sprintf('                   from "%s" (%d)', $value, $count));
+        }
+    }
 }
 
 line();
@@ -112,11 +158,18 @@ if (!$apply) {
 
 $pdo->beginTransaction();
 try {
-    foreach ($counts as $label => [$table, $column, $n]) {
-        if ($n === 0) continue;
-        $stmt = $pdo->prepare("UPDATE `$table` SET `$column` = ? WHERE LOWER(TRIM(`$column`)) = ?");
-        $stmt->execute([$to, $needle]);
-        line(sprintf('  %-14s %d updated', $label, $stmt->rowCount()));
+    foreach ($counts as $label => [$table, $column, $variants]) {
+        if ($variants === []) continue;
+        $moved = 0;
+        // Each stored spelling is updated by exact value, so only rows that
+        // genuinely carry one of the matched names are touched.
+        $stmt = $pdo->prepare("UPDATE `$table` SET `$column` = ? WHERE `$column` = ?");
+        foreach (array_keys($variants) as $value) {
+            if ($value === $to) continue;
+            $stmt->execute([$to, $value]);
+            $moved += $stmt->rowCount();
+        }
+        line(sprintf('  %-14s %d updated', $label, $moved));
     }
     $pdo->commit();
 } catch (Throwable $e) {

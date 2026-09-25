@@ -29,6 +29,50 @@ function rule(string $t): void { line(); line($t); line(str_repeat('-', max(4, s
 /** Same normalisation the API scopes by. */
 function company_key(?string $s): string { return strtolower(trim((string) $s)); }
 
+/**
+ * Render a name so invisible differences are visible.
+ *
+ * TRIM in SQL removes ordinary spaces and nothing else, so a value carrying a
+ * tab, a newline or a non-breaking space will not match the same words typed
+ * normally — and both print identically here. This shows the length and marks
+ * anything that is whitespace but not a plain single space.
+ */
+function reveal(string $name): string
+{
+    // Anything whitespace-like that is not a plain single space, named so it
+    // can be seen. A non-breaking space is the usual culprit: it arrives by
+    // copy-and-paste from a document or spreadsheet, prints as a space, and is
+    // not removed by SQL TRIM.
+    $marks = [
+        "\t"       => '<TAB>',
+        "\n"       => '<NEWLINE>',
+        "\r"       => '<CR>',
+        "\u{00A0}" => '<NBSP>',
+        "\u{200B}" => '<ZWSP>',
+        "\u{FEFF}" => '<BOM>',
+    ];
+
+    $out = '';
+    $flagged = false;
+    foreach (preg_split('//u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
+        if (isset($marks[$ch])) {
+            $out .= $marks[$ch];
+            $flagged = true;
+            continue;
+        }
+        $out .= $ch;
+    }
+
+    // Doubled or surrounding ordinary spaces read as identical too.
+    if (str_contains($name, '  ') || $name !== trim($name)) {
+        $flagged = true;
+    }
+
+    $note = sprintf(' [%d chars]', mb_strlen($name));
+    return $out . $note . ($flagged ? '   <-- hidden whitespace' : '');
+}
+
+
 try {
     $pdo = Db::conn();
 } catch (Throwable $e) {
@@ -76,7 +120,7 @@ foreach ($accounts as $a) {
         line('        name, so this user sees NOTHING at all. Set it in User Directory.');
         continue;
     }
-    line('     company: "' . $name . '"');
+    line('     company: "' . reveal($name) . '"');
 
     foreach ($SOURCES as $label => [$table, $column]) {
         try {
@@ -128,7 +172,7 @@ if ($orphans === []) {
         foreach ($counts as $label => $n) {
             $parts[] = "$label: $n";
         }
-        line(sprintf('  "%s"', $name));
+        line(sprintf('  "%s"', reveal($name)));
         line('      ' . implode(',  ', $parts));
     }
     line();
