@@ -398,6 +398,35 @@ Two failure modes it catches:
 Fix either by correcting the account's company name to match the records, or
 by correcting the records. The script changes nothing itself.
 
+### When one customer is recorded under two names
+
+The report will show this as two entries that are obviously the same company:
+
+```
+  "HUAXIN BUILDING MATERIALS NIG PLC (HBM)"
+      trips: 2,  deals: 1
+  "HUAXIN BUILDING MATERIALS PLC"
+      trips: 1,  deals: 1
+```
+
+One account matches one spelling, so whichever you provision, part of that
+customer's history stays invisible to them — and nothing on screen says so.
+Consolidate before creating the account:
+
+```bash
+# Shows what it would change. Writes nothing.
+php scripts/merge-company-name.php   --from="HUAXIN BUILDING MATERIALS PLC"   --to="HUAXIN BUILDING MATERIALS NIG PLC (HBM)"
+
+# Same command with --apply to do it.
+```
+
+It rewrites trips, deals, invoices, negotiations and any account already
+carrying the old spelling, inside a transaction — either all of it or none.
+Re-running it is harmless.
+
+Choose the fuller legal name as the target: it is the one that will appear on
+manifests and invoices.
+
 ### The limitation you should know about
 
 **Renaming a company detaches its history.** Change the company name on an
