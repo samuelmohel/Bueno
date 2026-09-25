@@ -1,7 +1,7 @@
 {
-  "commit": "070f6a6",
+  "commit": "a36f7a9",
   "branch": "main",
-  "subject": "fix: a consignee's company name no longer has to match byte for byte",
-  "builtAt": "2026-09-24T13:52:09.847Z",
+  "subject": "feat: email an invitation when an account is provisioned",
+  "builtAt": "2026-09-25T09:04:36.665Z",
   "dirty": false
 }
