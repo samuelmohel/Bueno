@@ -368,6 +368,20 @@ function reportWriteFailure(key: string, err: ApiError): void {
   }
 }
 
+/**
+ * What an invitation returned by the server carries.
+ *
+ * `url` is included so an administrator can pass the link on another way when
+ * mail is not delivered — shared hosting disables mail() often enough that
+ * onboarding must not depend on it.
+ */
+export interface Invitation {
+  emailed: boolean;
+  sentTo: string;
+  url: string;
+  expiresAt: string;
+}
+
 class StateEngineService {
   private notifyListeners() {
     notifyStateChanged();
@@ -1189,11 +1203,27 @@ class StateEngineService {
     assignedStation?: string;
     companyName?: string;
     staffId?: string;
-  }): Promise<{ user: any; initialSecret: string }> {
+  }): Promise<{ user: any; initialSecret: string; invitation: Invitation }> {
     const { data } = await api.post('users.php', { action: 'create', ...payload });
     await STORES.bueno_users.sync();
     this.notifyListeners();
-    return { user: data.user, initialSecret: data.initialSecret };
+    return {
+      user: data.user,
+      initialSecret: data.initialSecret,
+      invitation: data.invitation,
+    };
+  }
+
+  /**
+   * Send a fresh invitation, invalidating any outstanding one.
+   *
+   * Needed because mail fails, links expire, and people lose them. Without it
+   * the only recovery was resetting the credential — a heavier action that
+   * tells the user nothing about why they are being asked again.
+   */
+  async resendInvitation(userId: string): Promise<Invitation> {
+    const { data } = await api.post('users.php', { action: 'resend_invitation', id: userId });
+    return data.invitation;
   }
 
   /** Edit an existing account's profile. */

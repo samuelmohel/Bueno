@@ -315,8 +315,79 @@ r=$(req POST /api/auth.php '{"action":"login","identifier":"admin@bueno.ng","sec
 check "a non-boolean remember value is tolerated" 200 "$(code_of "$r")"
 
 
+
 echo
-echo "=== 11. Rate limiting (last: it exhausts the login limiter) ==="
+
+echo
+echo "=== 11. Account invitations ==="
+#
+# Provisioning produced a one-time password for the administrator to relay by
+# hand. An invitation replaces that relay with a link the new user follows to
+# set their own password.
+#
+# What is asserted here is mostly what the link must REFUSE to do, because a
+# link that is single-use and expiring is the entire reason this is safer than
+# emailing a credential.
+
+INVMAIL="invited-$$@bueno.ng"
+r=$(req POST /api/users.php "{\"action\":\"create\",\"fullName\":\"Invited Officer\",\"email\":\"$INVMAIL\",\"role\":\"CARGO_OFFICER\",\"userType\":\"STAFF\",\"assignedStation\":\"EWK\"}" "$ADMIN_TOKEN")
+check "provisioning succeeds" 201 "$(code_of "$r")"
+BODY="$(body_of "$r")"
+check_contains "an invitation is issued" '"invitation"' "$BODY"
+check_contains "and reports whether it was emailed" '"emailed"' "$BODY"
+
+INVTOKEN=$(printf '%s' "$BODY" | grep -o 'token=[a-f0-9]*' | head -1 | cut -d= -f2)
+check "the invitation carries a token" 1 "$([ ${#INVTOKEN} -ge 32 ] && echo 1 || echo 0)"
+
+# The token identifies who is being invited, without a credential.
+r=$(req POST /api/auth.php "{\"action\":\"check_invitation\",\"token\":\"$INVTOKEN\"}")
+check "the link resolves without signing in" 200 "$(code_of "$r")"
+check_contains "and names the invitee" "$INVMAIL" "$(body_of "$r")"
+check_not_contains "it does not disclose a password" 'password_hash' "$(body_of "$r")"
+
+# A weak password is refused here exactly as it is everywhere else.
+r=$(req POST /api/auth.php "{\"action\":\"accept_invitation\",\"token\":\"$INVTOKEN\",\"newSecret\":\"1234\"}")
+check "a weak password is refused" 422 "$(code_of "$r")"
+
+# Accepting sets the password and signs the user straight in.
+r=$(req POST /api/auth.php "{\"action\":\"accept_invitation\",\"token\":\"$INVTOKEN\",\"newSecret\":\"Chosen!Pw9xy\"}")
+check "accepting succeeds" 200 "$(code_of "$r")"
+check_contains "and returns a session" '"token"' "$(body_of "$r")"
+check_not_contains "with no password reset still pending" '"mustChangeCredentials":true' "$(body_of "$r")"
+
+# The chosen password works from the sign-in page too.
+r=$(req POST /api/auth.php "{\"action\":\"login\",\"identifier\":\"$INVMAIL\",\"secret\":\"Chosen!Pw9xy\"}")
+check "the chosen password signs in" 200 "$(code_of "$r")"
+
+# Single use: the same link must not work twice.
+r=$(req POST /api/auth.php "{\"action\":\"accept_invitation\",\"token\":\"$INVTOKEN\",\"newSecret\":\"Another!Pw9xy\"}")
+check "the link cannot be used a second time" 410 "$(code_of "$r")"
+r=$(req POST /api/auth.php "{\"action\":\"login\",\"identifier\":\"$INVMAIL\",\"secret\":\"Another!Pw9xy\"}")
+check "so the second password was never set" 401 "$(code_of "$r")"
+
+# A made-up token says the same thing as a used one, disclosing nothing.
+r=$(req POST /api/auth.php '{"action":"check_invitation","token":"0000000000000000000000000000000000000000000000000000000000000000"}')
+check "an unknown token is refused the same way" 410 "$(code_of "$r")"
+
+# Re-issuing must invalidate whatever was outstanding.
+r=$(req POST /api/users.php "{\"action\":\"create\",\"fullName\":\"Reinvite Test\",\"email\":\"reinvite-$$@bueno.ng\",\"role\":\"CARGO_OFFICER\",\"assignedStation\":\"EWK\"}" "$ADMIN_TOKEN")
+FIRST=$(printf '%s' "$(body_of "$r")" | grep -o 'token=[a-f0-9]*' | head -1 | cut -d= -f2)
+RID=$(printf '%s' "$(body_of "$r")" | grep -o '"id":"usr_[^"]*"' | head -1 | cut -d'"' -f4)
+r=$(req POST /api/users.php "{\"action\":\"resend_invitation\",\"id\":\"$RID\"}" "$ADMIN_TOKEN")
+check "an invitation can be re-sent" 200 "$(code_of "$r")"
+SECOND=$(printf '%s' "$(body_of "$r")" | grep -o 'token=[a-f0-9]*' | head -1 | cut -d= -f2)
+check "the new link differs from the old" 1 "$([ "$FIRST" != "$SECOND" ] && echo 1 || echo 0)"
+r=$(req POST /api/auth.php "{\"action\":\"check_invitation\",\"token\":\"$FIRST\"}")
+check "and the superseded link stops working" 410 "$(code_of "$r")"
+r=$(req POST /api/auth.php "{\"action\":\"check_invitation\",\"token\":\"$SECOND\"}")
+check "while the new one works" 200 "$(code_of "$r")"
+
+# Only an account that may provision may invite.
+r=$(req POST /api/users.php "{\"action\":\"resend_invitation\",\"id\":\"$RID\"}" "$CARGO_TOKEN")
+check "a cargo officer cannot send invitations" 403 "$(code_of "$r")"
+
+echo
+echo "=== 12. Rate limiting (last: it exhausts the login limiter) ==="
 limited=0
 for i in $(seq 1 14); do
   r=$(req POST /api/auth.php '{"action":"login","identifier":"ratelimit-probe@bueno.ng","secret":"x"}')
@@ -324,7 +395,6 @@ for i in $(seq 1 14); do
 done
 check "repeated login attempts get rate limited" 1 "$limited"
 
-echo
 echo
 printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

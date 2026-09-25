@@ -18,6 +18,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_lib/bootstrap.php';
+require_once __DIR__ . '/_lib/invitation.php';
 
 /** Columns safe to return. Note the absence of pin and password_hash. */
 const USER_PUBLIC_COLUMNS = 'id, fullName, email, phone, role, userType, assignedStation,
@@ -145,8 +146,26 @@ switch ($action) {
             'email' => $data['email'],
         ], $actor);
 
-        // The one-time secret is returned once, to the provisioning
-        // administrator, and never stored in retrievable form.
+        /*
+         * Invite the new user to set their own password.
+         *
+         * The one-time secret still exists and is still returned, because the
+         * administrator needs a way through if mail is not delivered — shared
+         * hosting disables mail() often enough that provisioning must not
+         * depend on it. But what travels by email is a single-use link that
+         * expires, never the credential itself.
+         */
+        $invite = Invitation::issue($id, $data['email'], (string) $actor['id']);
+        $mailed = Invitation::sendEmail(
+            $data['email'],
+            $data['fullName'],
+            Capabilities::ROLE_LABELS[$data['role']] ?? $data['role'],
+            $invite['url'],
+            $invite['expiresAt'],
+            $data['companyName'] ?? null
+        );
+        Invitation::recordMailStatus($id, $mailed);
+
         Response::json([
             'status'        => 'success',
             'user'          => shape_user(array_merge($data, [
@@ -155,8 +174,19 @@ switch ($action) {
                 'createdAt'               => $now,
                 'must_change_credentials' => 1,
             ])),
+            // Returned once, never stored in retrievable form.
             'initialSecret' => $initialSecret,
-            'message'       => 'Account created. Share the initial password securely; the user must change it at first sign-in.',
+            'invitation'    => [
+                'emailed'   => $mailed,
+                'sentTo'    => $data['email'],
+                // So the administrator can pass the link on another way when
+                // mail fails, rather than being stuck.
+                'url'       => $invite['url'],
+                'expiresAt' => $invite['expiresAt'],
+            ],
+            'message'       => $mailed
+                ? 'Account created and an invitation emailed.'
+                : 'Account created, but the invitation email could not be sent. Share the link or the one-time password directly.',
         ], 201);
     }
 
@@ -343,6 +373,56 @@ switch ($action) {
 
         Response::ok([
             'message' => 'Account permanently deleted. Audit history has been retained.',
+        ]);
+    }
+
+    // ── Re-send an invitation ───────────────────────────────────────────────
+    //
+    // Mail fails, links expire, and people lose them. Without this the only
+    // recovery was resetting the credential, which is a heavier action and
+    // tells the user nothing about why they are being asked again.
+    case 'resend_invitation': {
+        $actor = Rbac::require('users.create');
+
+        $data = Validator::for($body)->identifier('id', true, 100)->validated();
+
+        $find = Db::conn()->prepare('SELECT id, fullName, email, role, companyName, status FROM bueno_users WHERE id = ? LIMIT 1');
+        $find->execute([$data['id']]);
+        $target = $find->fetch();
+        if ($target === false) {
+            Response::error('User not found.', 404);
+        }
+        if ((string) $target['status'] === 'DEACTIVATED') {
+            Response::error('That account is deactivated. Reactivate it before inviting the user.', 422);
+        }
+
+        // Issuing supersedes any outstanding invitation, so an older link in a
+        // forwarded email stops working.
+        $invite = Invitation::issue((string) $target['id'], (string) $target['email'], (string) $actor['id']);
+        $mailed = Invitation::sendEmail(
+            (string) $target['email'],
+            (string) $target['fullName'],
+            Capabilities::ROLE_LABELS[(string) $target['role']] ?? (string) $target['role'],
+            $invite['url'],
+            $invite['expiresAt'],
+            $target['companyName'] ?? null
+        );
+        Invitation::recordMailStatus((string) $target['id'], $mailed);
+
+        Audit::record('users.resend_invitation', 'user', (string) $target['id'], Audit::SUCCESS, [
+            'emailed' => $mailed,
+        ], $actor);
+
+        Response::ok([
+            'invitation' => [
+                'emailed'   => $mailed,
+                'sentTo'    => $target['email'],
+                'url'       => $invite['url'],
+                'expiresAt' => $invite['expiresAt'],
+            ],
+            'message' => $mailed
+                ? 'A new invitation has been emailed. Any previous link no longer works.'
+                : 'The invitation email could not be sent. Share the link directly.',
         ]);
     }
 

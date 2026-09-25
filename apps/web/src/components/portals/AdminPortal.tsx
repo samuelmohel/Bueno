@@ -663,6 +663,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isResettingCredentials, setIsResettingCredentials] = useState(false);
+  const [isResendingInvite, setIsResendingInvite] = useState(false);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   // Null unless the server refused the directory read; see dataStore.readFailure.
   const [usersDirectoryError, setUsersDirectoryError] =
@@ -1568,7 +1569,7 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
        * never have worked. The server has always generated its own one-time
        * secret; nothing was showing it.
        */
-      const { user: created, initialSecret } = await StateEngine.provisionUser({
+      const { user: created, initialSecret, invitation } = await StateEngine.provisionUser({
         fullName: provisionForm.fullName.trim(),
         email: provisionForm.email.toLowerCase().trim(),
         phone: provisionForm.phone.trim(),
@@ -1583,11 +1584,27 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       // Shown once. It is hashed on write and cannot be retrieved again — the
       // only recovery is a credential reset, which issues a new one.
       setCustomAlert({
-        title: 'Account provisioned',
-        message:
-          `${created.fullName} (${created.role}) can now sign in as ${created.email}.\n\n` +
-          'Give the password below to them over a channel you trust. They must set their own ' +
-          'the first time they sign in.',
+        // What the administrator is told depends on whether the invitation
+        // actually went out. Reporting it as sent when the transport refused
+        // leaves someone waiting for a message that is never coming.
+        ...(invitation?.emailed
+          ? {
+              title: 'Account created and invitation sent',
+              message:
+                `${created.fullName} (${created.role}) has been emailed at ${invitation.sentTo} `
+                + 'with a link to choose their own password. The link works once and expires.\n\n'
+                + 'They do not need the password below — it is a fallback in case the email '
+                + 'does not arrive.',
+            }
+          : {
+              title: 'Account created — invitation NOT emailed',
+              message:
+                `${created.fullName} can sign in as ${created.email}, but the invitation email `
+                + 'could not be sent, so nothing has reached them.\n\n'
+                + 'Send them this link, which lets them set their own password:\n'
+                + `${invitation?.url ?? '(no link was issued)'}\n\n`
+                + 'Or read them the one-time password below instead.',
+            }),
         secret: initialSecret,
       });
 
@@ -1650,6 +1667,39 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
       notify.error(err?.message || 'Could not update the account.');
     } finally {
       setIsSavingUser(false);
+    }
+  };
+
+  // SEND A FRESH INVITATION LINK
+  //
+  // Mail fails, links expire, and people lose them. Without this the only
+  // recovery was resetting the credential — a heavier action that tells the
+  // user nothing about why they are being asked again.
+  const handleResendInvitation = async (target: any) => {
+    setIsResendingInvite(true);
+    try {
+      const invitation = await StateEngine.resendInvitation(target.id);
+      setCustomAlert(
+        invitation.emailed
+          ? {
+              title: 'Invitation sent',
+              message:
+                `${target.fullName} has been emailed at ${invitation.sentTo} with a link to set `
+                + 'their password. Any previous link has stopped working.',
+            }
+          : {
+              title: 'Invitation NOT emailed',
+              message:
+                'The email could not be sent, so nothing has reached them. Pass this link on '
+                + `directly — it lets them set their own password:
+
+${invitation.url}`,
+            }
+      );
+    } catch (err: any) {
+      notify.error(err?.message || 'The invitation could not be sent.');
+    } finally {
+      setIsResendingInvite(false);
     }
   };
 
@@ -2302,14 +2352,32 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
                 */}
                 <div>
                   <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Credentials</span>
-                  <button
-                    type="button"
-                    disabled={isResettingCredentials}
-                    onClick={() => handleResetUserCredentials(editingUser)}
-                    className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
-                  >
-                    {isResettingCredentials ? 'Resetting…' : 'Reset password'}
-                  </button>
+                  {/*
+                    Two ways to get someone in. The invitation is the one to
+                    reach for: it emails a single-use link and the person sets
+                    their own password. Resetting issues a one-time password
+                    to read out instead, for when mail is not reaching them.
+                  */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={isResendingInvite}
+                      onClick={() => handleResendInvitation(editingUser)}
+                      className="flex-1 rounded-xl border border-navy-200 bg-navy-50 px-3 py-2.5 text-xs font-bold text-navy-700 transition-colors hover:bg-navy-100 disabled:opacity-60"
+                      title="Email a fresh link letting them choose their own password"
+                    >
+                      {isResendingInvite ? 'Sending…' : 'Send invitation'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isResettingCredentials}
+                      onClick={() => handleResetUserCredentials(editingUser)}
+                      className="flex-1 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                      title="Issue a one-time password to pass on yourself"
+                    >
+                      {isResettingCredentials ? 'Resetting…' : 'Reset password'}
+                    </button>
+                  </div>
                 </div>
 
                 <div>

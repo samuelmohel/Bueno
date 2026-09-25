@@ -442,6 +442,49 @@ casually — and if you must, run the script above afterwards.
 
 ---
 
+## Inviting a user rather than relaying a password
+
+Provisioning an account emails the person a link. They follow it, choose their
+own password, and are signed in. No password is ever emailed.
+
+That is deliberate. A password sent by email stays in the recipient's mailbox,
+in the sending server's queue, and in any forward of it. It cannot be withdrawn
+and it does not expire. An invitation link is single-use, lapses after
+`INVITATION_TTL_SECONDS` (7 days by default), and is revoked the instant a new
+one is issued.
+
+The one-time password still exists and is still shown to you — because mail on
+shared hosting fails often enough that onboarding must not depend on it. The
+dialog tells you which happened:
+
+- **"Account created and invitation sent"** — they have the email. The password
+  shown is only a fallback.
+- **"Account created — invitation NOT emailed"** — nothing reached them. The
+  dialog gives you the link to pass on yourself, or the password to read out.
+
+**Send invitation** in the account's edit dialog issues a fresh link at any
+time. Any previous link stops working immediately.
+
+### If invitations are not arriving
+
+1. **Check `MAIL_FROM` in `/home/speckles/.env`.** It must be a mailbox on a
+   domain this server is authorised to send for. A mismatch fails SPF and the
+   message is rejected or filed as spam.
+2. **Look at what was attempted.** Every send is recorded:
+   ```sql
+   SELECT createdAt, recipient, mailType, status FROM bueno_email_logs
+    ORDER BY createdAt DESC LIMIT 20;
+   ```
+   `FAILED` means the server refused it; `SENT` means it was accepted for
+   delivery, which is not proof it arrived.
+3. **Check the API error log** for `[bueno][mail] FAILED`, which records the
+   type, recipient and subject of anything the transport rejected.
+
+Delivery is never assumed. If mail cannot be sent, the link is still shown to
+you, so an account can always be handed over.
+
+---
+
 ## Outstanding operational tasks
 
 These need a person with cPanel access; none of them can be done from the
