@@ -35,7 +35,11 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://360.specklessinnovations.com'),
+  // The public address, from NEXT_PUBLIC_SITE_URL at build time.
+  //
+  // Hard-coded in four files previously, so moving the site to a different
+  // host meant finding all of them. One value now, set in the environment.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://360.specklessinnovations.com'),
   title: {
     default: 'Bueno Logistics — Nigerian Rail Freight Operations',
     template: '%s · Bueno Logistics',

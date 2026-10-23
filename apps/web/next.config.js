@@ -16,6 +16,13 @@ module.exports = {
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: false },
 
+  // The public address, so a move to a different host is one value rather
+  // than a search through four files. Read at build time.
+  env: {
+    NEXT_PUBLIC_SITE_URL:
+      process.env.NEXT_PUBLIC_SITE_URL || 'https://360.specklessinnovations.com',
+  },
+
   // Security headers are set by Apache (see public/.htaccess and
   // public/api/.htaccess); `output: 'export'` cannot emit headers itself.
 };

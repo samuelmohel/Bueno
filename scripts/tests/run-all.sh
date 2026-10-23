@@ -93,6 +93,29 @@ run_suite() {
   BASE="$BASE" bash "$script" || TOTAL_FAIL=$((TOTAL_FAIL+1))
 }
 
+# Run a node:test file and judge it by its EXIT CODE.
+#
+# These were previously piped into `grep '^# (tests|pass|fail)'` and judged by
+# whether that matched — so the suite was reporting on the reporter's wording,
+# not on whether anything passed. Node changed its default reporter and both
+# unit suites were recorded as failures while every assertion in them passed.
+# --test-reporter=tap pins the format; the exit code decides the outcome.
+run_unit_test() {
+  local name="$1" script="$2"
+  echo
+  echo "══ $name ═══════════════════════════════════════════════════════════"
+  local out
+  if out="$(npx tsx --test --test-reporter=tap "$script" 2>&1)"; then
+    printf '%s
+' "$out" | grep -E '^# (tests|pass|fail)' || printf '%s
+' "$out" | tail -5
+  else
+    printf '%s
+' "$out" | tail -30
+    TOTAL_FAIL=$((TOTAL_FAIL+1))
+  fi
+}
+
 native() {
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*) cygpath -m "$1" 2>/dev/null || echo "$1" ;;
@@ -120,13 +143,8 @@ EOF
   BUENO_ENV_FILE="$(native "$menv")" "$PHP" "$script" || TOTAL_FAIL=$((TOTAL_FAIL+1))
 }
 
-echo
-echo "══ capability registry (unit) ═════════════════════════════════════════"
-npx tsx --test scripts/tests/rbac.test.ts 2>&1 | grep -E '^# (tests|pass|fail)' || TOTAL_FAIL=$((TOTAL_FAIL+1))
-
-echo
-echo "══ record comparison (unit) ═══════════════════════════════════════════"
-npx tsx --test scripts/tests/datastore.test.ts 2>&1 | grep -E '^# (tests|pass|fail)' || TOTAL_FAIL=$((TOTAL_FAIL+1))
+run_unit_test "capability registry (unit)" scripts/tests/rbac.test.ts
+run_unit_test "record comparison (unit)"   scripts/tests/datastore.test.ts
 
 echo
 echo "══ generated PHP mirror is in sync ════════════════════════════════════"

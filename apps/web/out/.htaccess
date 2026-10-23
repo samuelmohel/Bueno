@@ -2,6 +2,29 @@
   RewriteEngine On
   RewriteBase /
 
+  # ── Private mode ──────────────────────────────────────────────────────────
+  #
+  # Uncomment the two lines below to take the public marketing page out of
+  # reach. The landing page is the only thing an unauthenticated visitor can
+  # read — it describes the operation, the corridor, the fleet and the client
+  # list — so it is what someone with the address but no account actually
+  # sees. With this on, "/" goes to the sign-in screen instead.
+  #
+  # Still reachable, deliberately:
+  #   /auth/login    nobody can be stopped from loading a sign-in form
+  #   /tracking      a consignee tracking a shipment needs no account, and a
+  #                  booking reference is required to see anything
+  #   /api/*         the application itself
+  #
+  # Be clear about what this does and does not do. It removes what there is to
+  # see; it cannot stop the address being visited. Anyone determined to reach
+  # the login page will reach it. What it prevents is a casual visitor — or
+  # someone passing the link around — finding anything worth passing on.
+  #
+  # RewriteCond %{REQUEST_URI} ^/(index\.html)?$
+  # RewriteRule ^ /auth/login/ [R=302,L]
+
+
   # 1. Direct access to existing files and PHP endpoints
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]

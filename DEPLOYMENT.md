@@ -485,6 +485,58 @@ you, so an account can always be handed over.
 
 ---
 
+## Moving the site to a different address
+
+The host appears in three places. Change all three, deploy, then remove the old
+subdomain in cPanel.
+
+1. **cPanel → Domains → Create a new subdomain**, document root
+   `/home/speckles/<new-name>`.
+
+2. **`/home/speckles/.env`** — `APP_URL=https://<new-name>`
+   Invitation links are built from this. Get it wrong and every invitation
+   points at an address that no longer serves the site.
+
+3. **`.cpanel.yml`** — `DEPLOYPATH=/home/speckles/<new-name>`
+   and `NEXT_PUBLIC_SITE_URL` when rebuilding, which sets the canonical URL in
+   the page metadata.
+
+Then deploy, confirm the new address works, and only then delete the old
+subdomain in cPanel.
+
+**Invitations already sent will stop working**, because their links carry the
+old host. Re-send them from each account's edit dialog.
+
+### What renaming does and does not achieve
+
+It does not restrict access. A new subdomain is published to public Certificate
+Transparency logs the moment cPanel issues its SSL certificate — anyone can
+search the parent domain at crt.sh and list every subdomain that has ever
+existed. Treat a new address as discoverable, not secret.
+
+What actually removes someone's access is removing their account: edit it, set
+Account Status to **DEACTIVATED**, save. Every session it holds ends
+immediately. To end every session for everyone at once, rotate `APP_SECRET` in
+`.env` — all tokens are signed with it, so they all stop working, and everyone
+signs in again.
+
+### Private mode
+
+The public landing page is the only thing an unauthenticated visitor can read,
+and it describes the operation, the corridor, the fleet and the client list.
+If the concern is someone passing the address around, that page is what they
+are passing on.
+
+`apps/web/public/.htaccess` carries a commented two-line block that sends `/`
+to the sign-in screen. Uncomment it, deploy, and there is nothing to see
+without an account. Public tracking still works for consignees with a booking
+reference, and the API is unaffected.
+
+It removes what there is to see. It cannot stop the address being visited —
+nobody can be prevented from loading a sign-in form.
+
+---
+
 ## Outstanding operational tasks
 
 These need a person with cPanel access; none of them can be done from the
