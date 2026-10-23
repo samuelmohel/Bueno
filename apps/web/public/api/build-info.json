@@ -1,7 +1,7 @@
 {
-  "commit": "a36f7a9",
+  "commit": "153ef49",
   "branch": "main",
-  "subject": "feat: email an invitation when an account is provisioned",
-  "builtAt": "2026-09-25T09:04:36.665Z",
+  "subject": "feat(ops): make the site address configurable, and add a private mode",
+  "builtAt": "2026-10-23T10:06:20.104Z",
   "dirty": false
 }
