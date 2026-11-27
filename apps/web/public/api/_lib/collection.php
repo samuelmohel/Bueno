@@ -83,6 +83,19 @@ final class Collection
     {
         $user = self::requireCapability($spec['capabilities'], 'read');
 
+        /*
+         * A last gate for collections where a capability grant is not the
+         * whole story.
+         *
+         * The company registry is the case this exists for: it is readable by
+         * staff, and must stay unreadable by customers however the permissions
+         * matrix is later edited. A capability list alone cannot express that,
+         * because an administrator can grant any capability to any role.
+         */
+        if (isset($spec['beforeRead']) && is_callable($spec['beforeRead'])) {
+            $spec['beforeRead']($user);
+        }
+
         $table    = $spec['table'];
         $idColumn = $spec['idColumn'] ?? 'id';
 
@@ -259,6 +272,40 @@ final class Collection
         foreach (($spec['jsonColumns'] ?? []) as $field => $column) {
             if (array_key_exists($field, $payload)) {
                 $clean[$column] = json_encode($payload[$field] ?? []);
+            }
+        }
+
+        /*
+         * Attach the record to a company in the registry.
+         *
+         * Every scoped table carries both a company NAME and a companyId.
+         * Writing only the name is what let a rename detach a customer's
+         * history, so any record that names a company gets the id too —
+         * registering the organisation if it is new, which is what happens
+         * when a deal is raised against a consignee not yet on file.
+         *
+         * A consignee's own writes are pinned to their own company: taking
+         * the name from the payload would let them file a record against
+         * somebody else's organisation.
+         */
+        $companyColumn = $spec['scope']['company'] ?? null;
+        if ($companyColumn !== null && self::hasColumn($table, 'companyId')) {
+            $scope = Rbac::scopeFor($actor);
+
+            if ($scope['scope'] === 'company') {
+                $clean['companyId'] = $scope['companyId']
+                    ?? Company::ensure($scope['company'], $actor);
+                if ($scope['company'] !== null && $scope['company'] !== '') {
+                    $clean[$companyColumn] = $scope['company'];
+                }
+            } else {
+                $named = $clean[$companyColumn]
+                    ?? $existing[$companyColumn]
+                    ?? null;
+                $companyId = Company::ensure($named, $actor);
+                if ($companyId !== null) {
+                    $clean['companyId'] = $companyId;
+                }
             }
         }
 

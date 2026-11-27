@@ -45,6 +45,33 @@ if (!in_array($role, $PRIVILEGED, true)) {
 
 $pdo = Db::conn();
 
+/*
+ * Say which database this is about to write to.
+ *
+ * Db::conn() falls back to a local SQLite file when no MySQL is configured,
+ * and Config walks up looking for a .env. Both are reasonable on their own,
+ * and together they mean a mistyped BUENO_ENV_FILE lands an administrator in
+ * the repository's bundled bueno.sqlite while reporting success. The operator
+ * then cannot sign in, and a live account exists in a file nobody is watching.
+ */
+$driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+$target = $driver === 'mysql'
+    ? sprintf('MySQL %s on %s', Config::get('DB_NAME') ?? '?', Config::get('DB_HOST', 'localhost'))
+    : sprintf('SQLite %s', realpath(Config::get('SQLITE_PATH', '')) ?: Config::get('SQLITE_PATH', '(default)'));
+
+fwrite(STDERR, "Target database: {$target}" . PHP_EOL);
+
+// The schema has to be there, or this is not the database the app serves.
+try {
+    $pdo->query('SELECT 1 FROM bueno_users LIMIT 1');
+} catch (Throwable $e) {
+    fwrite(STDERR,
+        "ERROR: that database has no bueno_users table.\n"
+      . "       Run the migrations first:  php apps/web/public/api/_lib/migrate.php up\n"
+    );
+    exit(1);
+}
+
 // Refuse on a deployment that already has someone who could do this from the
 // interface. Bootstrapping is for an empty system only.
 $existing = (int) $pdo->query(

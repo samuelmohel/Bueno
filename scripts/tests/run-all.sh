@@ -173,10 +173,22 @@ BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
 BUENO_E2E_PASS="$E2E_ADMIN_PW" \
   "$PHP" scripts/tests/e2e-full-process.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
+# A customer is identified by a stable id, not by the spelling of their name:
+# a rename must keep their history attached, two spellings must resolve to one
+# organisation, and folding must never cross between two.
+echo
+echo "══ company registry ═══════════════════════════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/company-registry.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
 # Migrations that change how people sign in, or repair damage an earlier
 # migration caused, are the ones most likely to cause a production incident.
 run_migration_test "migration 003 — credential hashing"  scripts/tests/credential-migration.php
 run_migration_test "migration 006 — email uniqueness"    scripts/tests/email-uniqueness-migration.php
+run_migration_test "migration 011 — company backfill"    scripts/tests/company-backfill-migration.php
 
 echo
 if [ "$TOTAL_FAIL" -eq 0 ]; then

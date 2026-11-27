@@ -22,7 +22,7 @@ require_once __DIR__ . '/_lib/invitation.php';
 
 /** Columns safe to return. Note the absence of pin and password_hash. */
 const USER_PUBLIC_COLUMNS = 'id, fullName, email, phone, role, userType, assignedStation,
-                             companyName, staffId, status, must_change_credentials,
+                             companyName, companyId, staffId, status, must_change_credentials,
                              last_login_at, createdAt, updated_at';
 
 /** @param array<string,mixed> $row */
@@ -118,11 +118,35 @@ switch ($action) {
         $initialSecret = generate_initial_secret();
         $now          = gmdate('Y-m-d\TH:i:s\Z');
 
+        /*
+         * Attach a customer account to the company registry.
+         *
+         * A consignee's access is decided by this id, so provisioning one
+         * registers the organisation if it is not already on file. Staff
+         * accounts get no company: a companyId on an internal account would
+         * narrow them to one customer's records.
+         */
+        $companyId = null;
+        if (Capabilities::isExternalRole($data['role']) && ($data['companyName'] ?? '') !== '') {
+            $companyId = Company::ensure($data['companyName'], $actor, [
+                'contactName'  => $data['fullName'],
+                'contactEmail' => $data['email'],
+                'contactPhone' => $data['phone'] ?? null,
+            ]);
+            // Use the registry's spelling, so two accounts at one customer do
+            // not record the organisation two different ways.
+            $registered = Company::nameOf($companyId);
+            if ($registered !== '') {
+                $data['companyName'] = $registered;
+            }
+        }
+
         Db::conn()->prepare(
             'INSERT INTO bueno_users
                 (id, fullName, email, phone, role, userType, assignedStation, companyName,
-                 staffId, pin, status, password_hash, must_change_credentials, createdAt, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 companyId, staffId, pin, status, password_hash, must_change_credentials,
+                 createdAt, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $id,
             $data['fullName'],
@@ -132,6 +156,7 @@ switch ($action) {
             $data['userType'],
             $data['assignedStation'],
             $data['companyName'],
+            $companyId,
             $data['staffId'],
             '',                                     // plaintext pin column stays empty
             'ACTIVE',
@@ -170,6 +195,10 @@ switch ($action) {
             'status'        => 'success',
             'user'          => shape_user(array_merge($data, [
                 'id'                      => $id,
+                // The caller needs this to attach anything else to the same
+                // organisation; without it they would have to re-derive the
+                // company from the name, which is the matching this replaced.
+                'companyId'               => $companyId,
                 'status'                  => 'ACTIVE',
                 'createdAt'               => $now,
                 'must_change_credentials' => 1,
@@ -224,6 +253,31 @@ switch ($action) {
 
         $updates = [];
         $params  = [];
+
+        /*
+         * Moving an account to a different organisation moves what it can
+         * see, so the id has to follow the name. Without this the account
+         * would keep the old company's scope while displaying the new name.
+         */
+        if ($data['companyName'] !== null
+            && Capabilities::isExternalRole((string) ($body['role'] ?? $target['role']))) {
+            $newCompanyId = Company::ensure($data['companyName'], $actor);
+            if ($newCompanyId !== null) {
+                $registered = Company::nameOf($newCompanyId);
+                if ($registered !== '') {
+                    $data['companyName'] = $registered;
+                }
+                if ((string) ($target['companyId'] ?? '') !== $newCompanyId) {
+                    Audit::record('users.company_changed', 'user', (string) $target['id'], Audit::SUCCESS, [
+                        'from' => $target['companyId'] ?? null,
+                        'to'   => $newCompanyId,
+                    ], $actor);
+                }
+                $updates[] = '`companyId` = ?';
+                $params[]  = $newCompanyId;
+            }
+        }
+
         foreach (['fullName', 'email', 'phone', 'assignedStation', 'companyName', 'staffId'] as $field) {
             if ($data[$field] !== null) {
                 $updates[] = "`$field` = ?";
