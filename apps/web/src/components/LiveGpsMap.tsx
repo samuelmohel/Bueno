@@ -16,11 +16,34 @@ export interface MonitoringOfficer {
   lastPingTime?: string;
 }
 
-// CANONICAL FREIGHT STATIONS & SIDING COORDINATES
+/**
+ * Terminal positions, for drawing the corridor.
+ *
+ * NEEDS A SURVEY. Several entries below are placeholders and one pair is
+ * demonstrably wrong: Ewekoro and Papalanto carry identical coordinates
+ * (6.8974, 3.2141), and they are different places roughly ten kilometres
+ * apart. So does the Apapa group, to within a few metres. Any distance,
+ * progress percentage or ETA computed between two terminals sharing a
+ * position is meaningless, and a train "departing Ewekoro" is drawn at
+ * Papalanto.
+ *
+ * These are deliberately left as they are rather than adjusted to plausible
+ * values: a coordinate nobody surveyed is the same class of problem as a
+ * driver name nobody entered, and guessing one would make the map look
+ * correct while staying wrong. Someone with local knowledge, or a single GPS
+ * reading taken standing at each siding, should replace them.
+ *
+ * scripts/verify-deployment.php reports terminals sharing a position.
+ *
+ * The gauge and the list of terminals that exist live in lib/corridor.ts,
+ * which is mirrored on the server. This map is presentation only.
+ */
 export const STATION_COORDS: Record<string, { name: string; lat: number; lng: number; code: string }> = {
+  // TODO(survey): same position as PAPA below. One of them is wrong.
   EWK:  { code: 'EWK',  name: 'Ewekoro Siding (EWK)',          lat: 6.8974, lng: 3.2141 },
   MNY:  { code: 'MNY',  name: 'Moniya Yard, Ibadan (MNY)',      lat: 7.4610, lng: 3.9470 },
   MONI: { code: 'MONI', name: 'Moniya Yard, Ibadan (MNY)',      lat: 7.4610, lng: 3.9470 },
+  // TODO(survey): same position as EWK above. One of them is wrong.
   PAPA: { code: 'PAPA', name: 'Papalanto Terminal (PAPA)',      lat: 6.8974, lng: 3.2141 },
   APT:  { code: 'APT',  name: 'Apapa Maritime Port (APT)',      lat: 6.4550, lng: 3.3610 },
   APQ:  { code: 'APQ',  name: 'Apapa Port (APQ)',               lat: 6.4550, lng: 3.3610 },

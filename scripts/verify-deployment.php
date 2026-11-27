@@ -197,5 +197,171 @@ if ($legacy === []) {
     line('  rm -f ' . $docroot . '/api/bueno.sqlite ' . $docroot . '/api/bueno_*_store.json');
 }
 
+// ── Records not attached to the company registry ────────────────────────────
+
+heading('Company registry');
+
+try {
+    $companies = (int) $pdo->query(
+        'SELECT COUNT(*) FROM bueno_companies WHERE mergedIntoId IS NULL'
+    )->fetchColumn();
+    line('Organisations on file: ' . $companies);
+
+    /*
+     * A record with no companyId still matches by name, so nothing is broken
+     * — but it is matching on a spelling, which is what the registry exists
+     * to stop. These are the rows that would detach if someone renamed the
+     * organisation.
+     */
+    $orphans = 0;
+    foreach ([
+        'bueno_trips'    => 'company',
+        'bueno_deals'    => 'company',
+        'bueno_invoices' => 'companyName',
+        'bueno_users'    => 'companyName',
+    ] as $table => $column) {
+        try {
+            $where = "companyId IS NULL AND `$column` IS NOT NULL AND `$column` <> ''";
+            if ($table === 'bueno_users') {
+                $where .= " AND (UPPER(COALESCE(userType,'STAFF')) = 'CUSTOMER'"
+                        . " OR UPPER(COALESCE(role,'')) IN ('CUSTOMER','CONSIGNEE'))";
+            }
+            $n = (int) $pdo->query("SELECT COUNT(*) FROM `$table` WHERE $where")->fetchColumn();
+            if ($n > 0) {
+                line(sprintf('  %-18s %d record(s) still matched by name only', $table, $n));
+                $orphans += $n;
+            }
+        } catch (Throwable $e) {
+            // Table or column absent on an older schema.
+        }
+    }
+
+    if ($orphans === 0) {
+        line('Every customer record is attached to a registered organisation.');
+    } else {
+        line();
+        line('Re-run the backfill to attach them:');
+        line('  php apps/web/public/api/_lib/migrate.php up');
+    }
+
+    // Organisations whose names are close enough to be worth a look.
+    $dupes = $pdo->query(
+        'SELECT a.name AS a, b.name AS b
+           FROM bueno_companies a
+           JOIN bueno_companies b ON b.id > a.id
+          WHERE a.mergedIntoId IS NULL AND b.mergedIntoId IS NULL
+            AND (a.matchKey LIKE b.matchKey || \'%\' OR b.matchKey LIKE a.matchKey || \'%\')
+          LIMIT 20'
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($dupes !== []) {
+        line();
+        line('Possible duplicates — check whether each pair is one organisation:');
+        foreach ($dupes as $d) {
+            line(sprintf('  %s  <->  %s', $d['a'], $d['b']));
+        }
+        line('Merge from the company registry screen, which repoints the records.');
+    }
+} catch (Throwable $e) {
+    line('  could not read: ' . $e->getMessage());
+}
+
+// ── The books ───────────────────────────────────────────────────────────────
+
+heading('Ledger');
+
+try {
+    $row = $pdo->query(
+        "SELECT COALESCE(SUM(l.debit),0) d, COALESCE(SUM(l.credit),0) c
+           FROM bueno_journal_lines l
+           JOIN bueno_journal_entries e ON e.id = l.entryId
+          WHERE e.status = 'POSTED'"
+    )->fetch(PDO::FETCH_ASSOC);
+
+    $d = round((float) ($row['d'] ?? 0), 2);
+    $c = round((float) ($row['c'] ?? 0), 2);
+
+    $entries  = (int) $pdo->query("SELECT COUNT(*) FROM bueno_journal_entries WHERE status = 'POSTED'")->fetchColumn();
+    $accounts = (int) $pdo->query('SELECT COUNT(*) FROM bueno_chart_of_accounts')->fetchColumn();
+
+    line('Accounts in the chart: ' . $accounts);
+    line('Posted journal entries: ' . $entries);
+    line(sprintf('Total debits:  %18s', number_format($d, 2)));
+    line(sprintf('Total credits: %18s', number_format($c, 2)));
+
+    if (abs($d - $c) <= 0.005) {
+        line('The ledger balances.');
+    } else {
+        // Should be impossible: journal.php refuses an unbalanced entry and
+        // writes the lines in one transaction. If it happens, say so loudly
+        // rather than letting a statement be drawn from it.
+        line(sprintf('THE LEDGER DOES NOT BALANCE. Difference: %s', number_format($d - $c, 2)));
+        line('Do not rely on any financial statement until this is explained.');
+    }
+} catch (Throwable $e) {
+    line('  could not read: ' . $e->getMessage());
+}
+
+// ── Terminals sharing a position ────────────────────────────────────────────
+
+heading('Corridor map');
+
+/*
+ * Two terminals at one position make every distance, progress percentage and
+ * ETA between them meaningless, and draw a departing train at the wrong
+ * siding. Reported rather than corrected here, because the fix is a surveyed
+ * coordinate and not a plausible-looking one.
+ */
+$mapFile = __DIR__ . '/../apps/web/src/components/LiveGpsMap.tsx';
+if (is_file($mapFile)) {
+    $src = (string) file_get_contents($mapFile);
+    preg_match_all(
+        "/^\s*(\w+):\s*\{\s*code:\s*'([A-Z0-9]+)',\s*name:\s*'([^']*)'.*?lat:\s*([\d.\-]+),\s*lng:\s*([\d.\-]+)/m",
+        $src,
+        $m,
+        PREG_SET_ORDER
+    );
+
+    $positions = [];
+    foreach ($m as $hit) {
+        $positions[$hit[4] . ',' . $hit[5]][] = ['code' => $hit[2], 'name' => $hit[3]];
+    }
+
+    /*
+     * Two codes for one place is normal — MNY and MONI are both Moniya yard.
+     * Two codes for two DIFFERENT places at one position is the fault, and
+     * the display name is what distinguishes them.
+     */
+    $suspect = [];
+    foreach ($positions as $pos => $entries) {
+        if (count($entries) < 2) {
+            continue;
+        }
+        $names = array_unique(array_map(static fn($e) => $e['name'], $entries));
+        if (count($names) > 1) {
+            $suspect[$pos] = $entries;
+        }
+    }
+
+    if ($suspect === []) {
+        line('Every distinct terminal has its own position.');
+        line('(Codes that share one, such as MNY and MONI, name the same yard.)');
+    } else {
+        line('DIFFERENT terminals sharing one position — these need a surveyed coordinate:');
+        foreach ($suspect as $pos => $entries) {
+            line(sprintf('  %-22s %s', $pos, implode('  |  ', array_map(
+                static fn($e) => $e['code'] . ' ' . $e['name'],
+                $entries
+            ))));
+        }
+        line();
+        line('Any distance, progress percentage or ETA between these is meaningless,');
+        line('and a train departing one is drawn at the other. A single GPS reading');
+        line('taken standing at each siding fixes it; a plausible guess does not.');
+    }
+} else {
+    line('  map source not found; skipped.');
+}
+
 line();
 line('Done.');
