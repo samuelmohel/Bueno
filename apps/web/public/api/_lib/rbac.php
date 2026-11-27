@@ -240,6 +240,21 @@ final class Rbac
     }
 
     /**
+     * Do two company names refer to the same organisation?
+     *
+     * The single place this comparison is defined. scopeClause() does the
+     * same thing in SQL (LOWER(TRIM(...))), and anything comparing company
+     * names in PHP must come through here — gps.php previously compared raw
+     * bytes, so a consignee whose record carried a trailing space or
+     * different capitalisation saw their consignment listed in the portal and
+     * was then told "trip not found" when they tried to track it.
+     */
+    public static function companyMatches(?string $a, ?string $b): bool
+    {
+        return strtolower(trim((string) $a)) === strtolower(trim((string) $b));
+    }
+
+    /**
      * Confirm a caller may act on a specific record.
      *
      * @param array<string,mixed> $user
@@ -253,11 +268,43 @@ final class Rbac
         }
         // Same comparison as scopeClause, or a record a consignee can see in a
         // list would be refused when they open it.
-        $rowCompany  = strtolower(trim((string) ($row[$companyColumn] ?? '')));
-        $ownCompany  = strtolower(trim((string) $scope['company']));
-        if ($rowCompany !== $ownCompany) {
+        if (!self::companyMatches($row[$companyColumn] ?? '', $scope['company'])) {
             Audit::record('authz.scope_denied', 'row', (string) ($row['id'] ?? ''), Audit::DENIED, null, $user);
             Response::error('You do not have permission to access this record.', 403);
         }
+    }
+
+    /**
+     * May this caller see or touch a trip at all?
+     *
+     * Trips are scoped three ways and every endpoint that reaches a trip
+     * outside the collection handler needs the same answer.
+     *
+     * @param array<string,mixed> $user
+     * @param array<string,mixed> $trip
+     */
+    public static function canReachTrip(array $user, array $trip): bool
+    {
+        $scope = self::scopeFor($user);
+
+        if ($scope['scope'] === 'all') {
+            return true;
+        }
+
+        if ($scope['scope'] === 'company') {
+            return self::companyMatches($trip['company'] ?? '', $scope['company']);
+        }
+
+        // Station scope: the trip must touch this officer's terminal at one
+        // end or the other. An officer with no posting is not a network-wide
+        // account, so they reach nothing until they are assigned one.
+        $station = strtoupper(trim((string) $scope['station']));
+        if ($station === '') {
+            return false;
+        }
+        $origin      = strtoupper(trim((string) ($trip['origin'] ?? '')));
+        $destination = strtoupper(trim((string) ($trip['destination'] ?? '')));
+
+        return $station === $origin || $station === $destination;
     }
 }
