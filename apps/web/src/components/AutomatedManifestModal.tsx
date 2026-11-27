@@ -94,7 +94,8 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
       csvRows.push(['No wagon tallies have been recorded for this consignment.']);
     } else {
       csvRows.push([
-        'Wagon Serial', 'Security Seal No', 'Cargo Spec', 'Bags Loaded',
+        'Wagon Serial', 'Seal Fitted', 'Seal On Arrival', 'Seal Verdict',
+        'Tare (Tonnes)', 'Cargo Spec', 'Bags Loaded',
         'Loading Start', 'Loading End', 'Loading Duration', 'Loading Bay',
         'Feeder Trucks', 'Drivers',
         'Unload Start', 'Unload End', 'Unload Duration',
@@ -120,9 +121,27 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
 
         const trucks = Array.isArray(w.feederTrucks) ? w.feederTrucks : [];
 
+        /*
+         * The seal comparison, as three columns rather than one.
+         *
+         * "Seal: SEAL-PAPA-8801" on its own says a seal was fitted. It does
+         * not say whether that is the seal that arrived, which is the only
+         * question a claim turns on.
+         */
+        const sealVerdict =
+          w.sealIntact === true ? 'MATCHED'
+          : w.sealIntact === false ? 'DID NOT MATCH'
+          : !isUnloaded ? ''
+          : 'NOT CHECKED';
+
         csvRows.push([
           w.wagonId || '',
           w.sealNumber || 'NOT RECORDED',
+          w.sealObserved || (isUnloaded ? 'NOT CHECKED' : ''),
+          sealVerdict,
+          // Tare comes off the wagon register; blank where it is unknown,
+          // rather than the 22.5t constant applied to every vehicle before.
+          w.tareTonnes ?? '',
           trip.cargoType || '',
           bags || '',
           load.range === '—' ? '' : load.range.split(' → ')[0] || '',
@@ -260,6 +279,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                   <tr>
                     <th className="p-3">Wagon ID</th>
                     <th className="p-3">Security Seal No.</th>
+                    <th className="p-3">Seal Verified</th>
                     <th className="p-3">Cargo Spec</th>
                     <th className="p-3">Bags</th>
                     <th className="p-3">Tare (Tonnes)</th>
@@ -278,7 +298,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                     */}
                   {logs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-6 text-center text-slate-400">
+                      <td colSpan={8} className="p-6 text-center text-slate-400">
                         No wagon tallies recorded for this consignment yet.
                       </td>
                     </tr>
@@ -294,6 +314,17 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                         <td className="p-3 font-black text-navy">{recorded(w.wagonId)}</td>
                         <td className={`p-3 font-bold ${w.sealNumber ? 'text-slate-600' : 'text-amber-700'}`}>
                           {w.sealNumber || 'not recorded'}
+                        </td>
+                        <td className="p-3 font-bold">
+                          {w.sealIntact === true ? (
+                            <span className="text-emerald-700">Matched</span>
+                          ) : w.sealIntact === false ? (
+                            <span className="text-rose-600">Did not match</span>
+                          ) : !isUnloaded ? (
+                            <span className="text-slate-400">\u2014</span>
+                          ) : (
+                            <span className="text-amber-700">Not checked</span>
+                          )}
                         </td>
                         <td className="p-3 text-slate-800">{recorded(trip.cargoType)}</td>
                         <td className="p-3 font-bold text-slate-900">{bags ? bags.toLocaleString() : '—'}</td>

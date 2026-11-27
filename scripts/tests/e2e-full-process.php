@@ -559,6 +559,43 @@ foreach ($runs as $runIndex => $run) {
         (float) ($t2['tripRevenue'] ?? 0) !== 999999999.0,
         'operations wrote a commercial figure onto the trip');
 
+    // ── 6b. The consignment moves through its states in order ──────────
+    E2E::phase("R{$n} · 6b. Status transitions");
+
+    // A trip that is still loading has not been dispatched, tracked or
+    // counted off the train, so it cannot have been delivered.
+    $skip = E2E::http('POST', '/api/trips.php', [
+        'action' => 'upsert',
+        'record' => ['id' => $tripId, 'company' => $run['company'], 'status' => 'COMPLETED'],
+    ], $tokenForOps);
+    E2E::check('a loading consignment cannot jump straight to COMPLETED',
+        $skip['status'] === 409,
+        'HTTP ' . $skip['status'] . ' — a trip was marked delivered without ever '
+      . 'being dispatched, tracked or discharged');
+
+    $skip = E2E::http('POST', '/api/trips.php', [
+        'action' => 'upsert',
+        'record' => ['id' => $tripId, 'company' => $run['company'], 'status' => 'UNLOADING'],
+    ], $tokenForOps);
+    E2E::check('nor to UNLOADING before it has arrived', $skip['status'] === 409,
+        'HTTP ' . $skip['status']);
+
+    $r = E2E::http('GET', '/api/trips.php?id=' . urlencode($tripId), null, $admin);
+    E2E::check('the refused transition left the status alone',
+        strtoupper((string) ($r['json']['data'][0]['status'] ?? '')) === 'LOADING',
+        'status is now ' . ($r['json']['data'][0]['status'] ?? 'unknown'));
+
+    // Operations staff keep the siding moving; cancelling a consignment is a
+    // commercial decision about a contract.
+    if ($officerToken !== null) {
+        $cancel = E2E::http('POST', '/api/trips.php', [
+            'action' => 'upsert',
+            'record' => ['id' => $tripId, 'company' => $run['company'], 'status' => 'CANCELLED'],
+        ], $officerToken);
+        E2E::check('a cargo officer cannot cancel a consignment', $cancel['status'] === 403,
+            'HTTP ' . $cancel['status']);
+    }
+
     // ── 7. Departure and GPS ────────────────────────────────────────────────
     E2E::phase("R{$n} · 7. Departure and GPS telemetry");
 
@@ -629,6 +666,27 @@ foreach ($runs as $runIndex => $run) {
             $foreign['status'] >= 400,
             'HTTP ' . $foreign['status'] . ' — a cargo officer at ' . $run['officerSt']
           . ' moved a train belonging to a different corridor on the live map');
+    }
+
+    // ── 7b. Tare belongs to the wagon ──────────────────────────
+    if ($runIndex === 0) {
+        E2E::phase('Wagon tare weight');
+
+        $wagonId = 'PXG 09001';
+        $r = E2E::http('POST', '/api/wagons.php', [
+            'action' => 'upsert',
+            'record' => ['id' => $wagonId, 'tareTonnes' => 23.5, 'maxGrossTonnes' => 84.0],
+        ], $admin);
+        E2E::check('a wagon records its own tare weight', E2E::created($r),
+            'HTTP ' . $r['status'] . ': ' . E2E::brief($r));
+
+        $r = E2E::http('GET', '/api/wagons.php?id=' . urlencode($wagonId), null, $admin);
+        $wagon = $r['json']['data'][0] ?? [];
+        E2E::check('and it survives a round trip',
+            abs((float) ($wagon['tareTonnes'] ?? 0) - 23.5) < 0.01,
+            'got ' . var_export($wagon['tareTonnes'] ?? null, true)
+          . ' — gross weight is what axle-load limits are checked against, so it '
+          . 'cannot rest on one constant for every wagon class');
     }
 
     // ── 8. Public tracking ──────────────────────────────────────────────────

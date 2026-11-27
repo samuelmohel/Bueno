@@ -2588,6 +2588,11 @@ function TripUnloadWagonView({
     complaintNotes: '',
     unloadStartTimeEdit: '',
     unloadEndTimeEdit: '',
+    // The seal number actually found on the wagon at the destination.
+    // Capturing the seal at loading is only half a control: a seal is tamper
+    // evidence, and evidence means comparing what arrived with what was
+    // fitted. Blank means the officer has not checked yet.
+    sealObserved: '',
   });
 
   const isBulkTonnes =
@@ -2664,6 +2669,10 @@ function TripUnloadWagonView({
       complaintNotes: '',
       unloadStartTimeEdit: toClock(w.unloadStartedAtIso) || w.unloadStartTime || '',
       unloadEndTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      // Deliberately NOT prefilled with the seal fitted at loading. Prefilling
+      // it would mean an officer who tabs past the field records a match they
+      // never looked at, which is the failure this check exists to catch.
+      sealObserved: '',
     });
     setStoppingUnloadWagon(w);
   };
@@ -2706,6 +2715,17 @@ function TripUnloadWagonView({
         correctQty: Number(unloadForm.correctQty) || bagsUnloaded,
         damageQty: Number(unloadForm.damageQty) || 0,
         burstBags: Number(unloadForm.burstBags) || 0,
+        // The comparison, recorded as three separate facts: what was fitted,
+        // what arrived, and whether they matched. A single "intact" boolean
+        // cannot be checked by anyone afterwards.
+        sealObserved: unloadForm.sealObserved.trim().toUpperCase() || null,
+        sealIntact:
+          unloadForm.sealObserved.trim() === ''
+            ? null
+            : (w.sealNumber || '').trim().toUpperCase() ===
+              unloadForm.sealObserved.trim().toUpperCase(),
+        sealCheckedBy: user?.fullName || '',
+        sealCheckedAt: new Date().toISOString(),
         hasComplaint: unloadForm.hasComplaint,
         complaintNotes: unloadForm.hasComplaint ? unloadForm.complaintNotes : null,
         unloadStatus: 'UNLOADED',
@@ -3155,6 +3175,56 @@ function TripUnloadWagonView({
                     className="w-full font-mono font-bold text-rose-800 p-2.5 rounded-xl border border-slate-300 bg-rose-50/40"
                   />
                 </div>
+              </div>
+
+              {/*
+                * Seal verification.
+                *
+                * The number fitted at loading is shown, and the officer types
+                * the one actually on the wagon. The two are compared and the
+                * comparison is stored — rather than a tick labelled "seal
+                * intact", which records a judgement nobody can re-check.
+                */}
+              <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <div className="flex justify-between items-baseline">
+                  <label
+                    className="font-bold text-slate-800 text-xs"
+                    htmlFor="cargo-officer-port-seal-observed"
+                  >
+                    Security Seal on Arrival
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    Fitted at loading:{' '}
+                    <span className="font-bold text-slate-800">
+                      {stoppingUnloadWagon?.sealNumber || 'none recorded'}
+                    </span>
+                  </span>
+                </div>
+                <input
+                  id="cargo-officer-port-seal-observed"
+                  value={unloadForm.sealObserved}
+                  onChange={(e) => setUnloadForm({ ...unloadForm, sealObserved: e.target.value })}
+                  placeholder="Read the seal on the wagon now"
+                  className="w-full font-mono p-2.5 rounded-xl border border-slate-300 uppercase"
+                />
+                {unloadForm.sealObserved.trim() !== '' && stoppingUnloadWagon?.sealNumber && (
+                  unloadForm.sealObserved.trim().toUpperCase() ===
+                  String(stoppingUnloadWagon.sealNumber).trim().toUpperCase() ? (
+                    <p className="text-[11px] font-bold text-emerald-700">
+                      Matches the seal fitted at loading.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-bold text-rose-700">
+                      This does not match the seal fitted at loading. The wagon was opened in
+                      transit — raise a discrepancy below before discharging.
+                    </p>
+                  )
+                )}
+                {unloadForm.sealObserved.trim() === '' && (
+                  <p className="text-[11px] text-slate-500">
+                    Leave blank only if no seal was found on the wagon.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">

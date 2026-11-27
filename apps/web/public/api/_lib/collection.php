@@ -259,9 +259,28 @@ final class Collection
             }
         }
 
+        /*
+         * Hand the validator the row as it stands.
+         *
+         * A rule about a *change* -- may this status follow that one, may
+         * this field still be edited -- cannot be expressed without knowing
+         * what is already there. deals.php has been reaching for
+         * `$input['__existingStatus']` since it was written, and nothing ever
+         * supplied it, so its check that clearing a deal for loading needs
+         * deals.approve also refused an ordinary edit to a deal that was
+         * already approved.
+         *
+         * Prefixed, so it cannot collide with a real column, and stripped
+         * below before anything is written.
+         */
+        $payload['__existing']       = $existing;
+        $payload['__existingStatus'] = $existing === null ? null : ($existing['status'] ?? null);
+
         /** @var callable $validate */
         $validate = $spec['validate'];
         $clean    = $validate($payload, $actor);
+
+        unset($clean['__existing'], $clean['__existingStatus']);
 
         if ($id === '') {
             $id = strtolower(substr($entity, 0, 4)) . '_' . bin2hex(random_bytes(8));
