@@ -778,16 +778,47 @@ export function CustomerPortal({ user, onSignOut }: { user: any; onSignOut: () =
                       <div className="p-5 space-y-3 text-xs">
                         <div className="space-y-1.5">
                           <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block">Assigned Wagons & Security Seal Verification</span>
-                          {(trip.wagonLogs || [
-                            { wagonId: 'PXG 2322', status: 'LOADED', loadedAt: '08:10 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9801' },
-                            { wagonId: 'PXG 2323', status: 'LOADED', loadedAt: '08:25 AM', bagsCount: 70, sealNumber: 'SEAL-BN-9802' },
-                          ]).map((w: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                              <span className="font-mono font-bold text-slate-900">{w.wagonId}</span>
-                              <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">{w.sealNumber}</span>
-                              <span className="font-extrabold text-emerald-700">Intact ({w.bagsCount || '70'} {unit})</span>
+                          {/*
+                            * What was loaded, or a note that nothing has been
+                            * yet.
+                            *
+                            * When a consignment had no wagon tallies this
+                            * showed the customer two wagons — PXG 2322 and
+                            * PXG 2323, seals SEAL-BN-9801 and 9802, both
+                            * "Intact" — that did not exist. The customer is
+                            * the one party who cannot check the siding, so
+                            * invented reassurance reaches them unchallenged.
+                            */}
+                          {(trip.wagonLogs || []).length === 0 ? (
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-500">
+                              No wagons have been tallied for this consignment yet. Seal
+                              numbers appear here as each wagon is loaded and sealed.
                             </div>
-                          ))}
+                          ) : (trip.wagonLogs).map((w: any, idx: number) => {
+                            const defects = Number(w.damageQty || 0) + Number(w.burstBags || 0);
+                            const isUnloaded = w.unloadStatus === 'UNLOADED';
+                            return (
+                              <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs gap-2">
+                                <span className="font-mono font-bold text-slate-900">{w.wagonId || '—'}</span>
+                                <span className={`font-mono text-[10px] px-2 py-0.5 rounded font-bold ${
+                                  w.sealNumber ? 'bg-slate-200 text-slate-700' : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                  {w.sealNumber || 'seal not recorded'}
+                                </span>
+                                {!isUnloaded ? (
+                                  <span className="font-extrabold text-slate-500">
+                                    {w.qty ? `${Number(w.qty).toLocaleString()} ${unit}` : 'In transit'}
+                                  </span>
+                                ) : defects > 0 ? (
+                                  <span className="font-extrabold text-rose-600">{defects} defect(s)</span>
+                                ) : (
+                                  <span className="font-extrabold text-emerald-700">
+                                    Intact{w.correctQty ? ` (${Number(w.correctQty).toLocaleString()} ${unit})` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
 
                         <div className="pt-3 border-t border-slate-100 flex justify-end">

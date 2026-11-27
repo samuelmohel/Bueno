@@ -209,7 +209,7 @@ export function LiveGpsMap({
   // Monitoring Officer Details
   const officer: MonitoringOfficer = {
     name: trip?.monitoringOfficerName || trip?.escortOfficerName || trip?.cargoOfficerName || 'Unassigned',
-    phone: trip?.monitoringOfficerPhone || trip?.escortPhone || '08031112233',
+    phone: trip?.monitoringOfficerPhone || trip?.escortPhone || '',
     badgeId: trip?.escortBadgeId || 'NRC-ESC-2026',
     batteryLevel: `${battery}%`,
     signalStrength: signal,
@@ -219,7 +219,7 @@ export function LiveGpsMap({
 
   const tripId = trip?.id || trip?.tripId || '';
   const companyName = trip?.company || trip?.companyName || (allTrips.length === 0 ? 'No Active Corridor Dispatches' : 'Industrial Consignee Client');
-  const locoId = trip?.locomotiveId || 'L2205';
+  const locoId = trip?.locomotiveId || '';
 
   // Process and commit position updates
   const handlePositionUpdate = (pos: GeolocationPosition) => {

@@ -6,6 +6,9 @@ import { shouldPoll, onReturnToForeground } from '@/lib/polling';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { StateEngine, SEED_WAGONS, OFFICIAL_PXG_CODES } from '@/lib/services/StateEngine';
+import { applyClock, durationBetween, toClock, toSheetDate } from '@/lib/tally';
+import { STATION_COORDS } from '@/components/LiveGpsMap';
+import { notify } from '@/lib/notify';
 import {
   Train,
   Search,
@@ -265,7 +268,8 @@ export function CargoOfficerPortal({ user, onSignOut }: { user: any; onSignOut: 
 
   const [newWagonId, setNewWagonId] = useState('');
   const [tripForm, setTripForm] = useState({
-    locomotiveId: 'L2205',
+    // Blank: the officer reads it off the engine when it is coupled.
+    locomotiveId: '',
     selectedWagon: '',
     loadingDate: '',
     qty: '27600',
@@ -1497,7 +1501,8 @@ function TripWagonView({
   const defaultCapacity = isBulkTonnes ? 60 : 1200;
 
   // Multi-feeder trucks form state for current wagon
-  const [sourceBay, setSourceBay] = useState('Silo Bay 1 - Loading Siding');
+  const [sourceBay, setSourceBay] = useState('');
+  const [sealNumberEdit, setSealNumberEdit] = useState('');
   const [startTimeEdit, setStartTimeEdit] = useState('');
   const [endTimeEdit, setEndTimeEdit] = useState('');
   const [feederTrucks, setFeederTrucks] = useState<
@@ -1629,6 +1634,10 @@ function TripWagonView({
     const newLog = {
       id: `wl_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       wagonId: targetWagonId,
+      // The authority for every duration on this wagon's row. The display
+      // strings below are derived from it and are what the officer edits.
+      startedAtIso: now.toISOString(),
+      endedAtIso: null,
       startTimestamp: Date.now(),
       startDate: formattedDate,
       startTime: formattedTime,
@@ -1638,6 +1647,10 @@ function TripWagonView({
       qty: null,
       unitOfMeasure: unitShort,
       sourceEnv: sourceBay,
+      // Recorded when the wagon is sealed at the end of loading. Deliberately
+      // null until then: a seal number is tamper evidence, and a generated
+      // one on a waybill asserts a control that was never applied.
+      sealNumber: null,
       feederTrucks: [],
       status: 'LOADING',
       unloadStatus: 'PENDING_UNLOAD',
@@ -1655,8 +1668,11 @@ function TripWagonView({
     const remaining = Math.max(0, totalReqQty - totalQtyLoadedSoFar);
     const defaultQty = remaining > 0 && remaining < defaultCapacity ? remaining : defaultCapacity;
     setBagsLoadedInput(String(defaultQty));
-    setSourceBay(w.sourceEnv || 'Silo Bay 1 - Loading Siding');
-    setStartTimeEdit(w.startTime || '08:30 AM');
+    setSourceBay(w.sourceEnv || '');
+    setSealNumberEdit(w.sealNumber || '');
+    // Derived from what was actually recorded when loading started, not a
+    // stock '08:30 AM'.
+    setStartTimeEdit(toClock(w.startedAtIso) || w.startTime || '');
     setEndTimeEdit(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
     if (w.feederTrucks && Array.isArray(w.feederTrucks) && w.feederTrucks.length > 0) {
@@ -1670,12 +1686,21 @@ function TripWagonView({
         }))
       );
     } else {
+      /*
+       * Blank, for the officer to fill in.
+       *
+       * This used to pre-fill a specific truck plate, a named driver and
+       * their phone number — 'KJA-482-XY', 'Ibrahim Garba', '08031112233'.
+       * Anyone who tabbed past the section shipped a consignment recorded
+       * against a haulier who does not exist, and that record is what a
+       * waybill, a demurrage dispute and an insurance claim are drawn from.
+       */
       setFeederTrucks([
         {
-          truckRegNo: w.truckRegNo || 'KJA-482-XY',
-          driverName: w.driverDetails?.split('(')[0]?.trim() || 'Ibrahim Garba',
-          phone: w.driverDetails?.match(/\((.*?)\)/)?.[1] || '08031112233',
-          transporter: w.transporter || 'Dangote Logistics Fleet',
+          truckRegNo: w.truckRegNo || '',
+          driverName: w.driverDetails?.split('(')[0]?.trim() || '',
+          phone: w.driverDetails?.match(/\((.*?)\)/)?.[1] || '',
+          transporter: w.transporter || '',
           qtyContributed: String(defaultQty),
         },
       ]);
@@ -1718,40 +1743,65 @@ function TripWagonView({
     if (!stoppingWagon) return;
 
     const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime = endTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const mins = Math.max(1, Math.round((Date.now() - (stoppingWagon.startTimestamp || Date.now())) / 60000));
-    const hours = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
+    /*
+     * Duration comes from the two times on this form, not from how long the
+     * page has been open.
+     *
+     * The officer can correct either time — a wagon finished before someone
+     * got back to the terminal is routine — and the duration has to follow
+     * the correction. The previous calculation used
+     * `Date.now() - startTimestamp`, so it contradicted the very times
+     * printed beside it on the tally sheet.
+     */
+    const startedAtIso =
+      applyClock(stoppingWagon.startedAtIso || now.toISOString(), startTimeEdit) ||
+      stoppingWagon.startedAtIso ||
+      now.toISOString();
+
+    const endedAtIso =
+      applyClock(startedAtIso, endTimeEdit) || now.toISOString();
+
+    const formattedDate = toSheetDate(endedAtIso);
+    const formattedTime = toClock(endedAtIso);
+    const durationStr = durationBetween(startedAtIso, endedAtIso);
 
     const finalLoadedQty = Number(bagsLoadedInput) || defaultCapacity;
 
-    const formattedFeederTrucks = feederTrucks.map((ft) => ({
-      truckRegNo: ft.truckRegNo.trim().toUpperCase() || 'N/A',
-      driverName: ft.driverName.trim() || 'N/A',
-      phone: ft.phone.trim() || 'N/A',
-      transporter: ft.transporter.trim() || 'Logistics Fleet',
-      qtyContributed: Number(ft.qtyContributed) || Math.round(finalLoadedQty / feederTrucks.length),
-    }));
+    // Empty stays empty. A blank haulier field is a true statement that
+    // nobody recorded one; 'N/A' and 'Logistics Fleet' read as findings.
+    const formattedFeederTrucks = feederTrucks
+      .map((ft) => ({
+        truckRegNo: ft.truckRegNo.trim().toUpperCase(),
+        driverName: ft.driverName.trim(),
+        phone: ft.phone.trim(),
+        transporter: ft.transporter.trim(),
+        qtyContributed:
+          Number(ft.qtyContributed) || Math.round(finalLoadedQty / Math.max(1, feederTrucks.length)),
+      }))
+      .filter((t) => t.truckRegNo !== '' || t.driverName !== '' || t.phone !== '');
 
     const primaryTruck = formattedFeederTrucks[0];
+    const describeTruck = (t: { driverName: string; phone: string }) =>
+      t.phone ? `${t.driverName} (${t.phone})` : t.driverName;
 
     const updated = logs.map((w: any) => {
       if (w.id !== stoppingWagon.id) return w;
       return {
         ...w,
-        startTime: startTimeEdit || w.startTime,
+        startedAtIso,
+        endedAtIso,
+        startTime: toClock(startedAtIso),
         endDate: formattedDate,
         endTime: formattedTime,
         durationStr,
         qty: finalLoadedQty,
         unitOfMeasure: unitShort,
-        sourceEnv: sourceBay,
-        truckRegNo: formattedFeederTrucks.map((t) => t.truckRegNo).join(', '),
-        driverDetails: formattedFeederTrucks.map((t) => `${t.driverName} (${t.phone})`).join('; '),
-        transporter: primaryTruck?.transporter || 'Rail Haulage Fleet',
+        sourceEnv: sourceBay.trim(),
+        sealNumber: sealNumberEdit.trim().toUpperCase() || null,
+        truckRegNo: formattedFeederTrucks.map((t) => t.truckRegNo).filter(Boolean).join(', '),
+        driverDetails: formattedFeederTrucks.map(describeTruck).filter(Boolean).join('; '),
+        transporter: primaryTruck?.transporter || '',
         feederTrucks: formattedFeederTrucks,
         status: 'LOADED',
         unloadStatus: 'PENDING_UNLOAD',
@@ -1779,27 +1829,48 @@ function TripWagonView({
     }
 
     const now = new Date();
-    const departureTimeStr = `${now.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    const startLat = 6.8974;
-    const startLng = 3.2141;
+    const departedAtIso = now.toISOString();
+    const departureTimeStr = `${toSheetDate(departedAtIso)}, ${toClock(departedAtIso)}`;
 
-    try {
-      await fetch(`/api/tracking/gps/${encodeURIComponent(trip.locomotiveId || 'L2205')}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    /*
+     * Depart from where the train actually is.
+     *
+     * These were the fixed coordinates of Papalanto, used for every trip
+     * whatever its origin, so a consignment leaving Ewekoro or Apapa opened
+     * its tracking map sixty kilometres from the siding it left.
+     */
+    const originStation = STATION_COORDS[(trip.origin || '').toUpperCase()];
+    const startLat = originStation?.lat ?? trip.curLat ?? null;
+    const startLng = originStation?.lng ?? trip.curLng ?? null;
+
+    /*
+     * Open the telemetry trail at the origin.
+     *
+     * This posted to /api/tracking/gps/<locomotive> — a route that does not
+     * exist. Apache rewrites an unmatched path to index.html, so the call
+     * came back 200 with a page of HTML, the catch below swallowed it, and
+     * the dispatch reported success. The first fix of every trip was
+     * therefore never recorded: the corridor map had nothing to draw until
+     * something else happened to post a position.
+     */
+    if (startLat !== null && startLng !== null) {
+      try {
+        await StateEngine.postGpsFix({
+          tripId: trip.tripId || trip.id,
+          locomotiveId: trip.locomotiveId || '',
           lat: startLat,
           lng: startLng,
-          speed: 74,
+          speed: 0,
           heading: 45,
           signalQuality: 'GPS_SATELLITE_LIVE',
-        }),
-      });
-    } catch (e) {}
+        });
+      } catch (e) {
+        notify.error(
+          'The train was dispatched, but its first position could not be sent. ' +
+            'Tracking will begin at the next position report.'
+        );
+      }
+    }
 
     const notifPayload = {
       id: `ntf_${Date.now()}`,
@@ -1829,11 +1900,21 @@ function TripWagonView({
             ...t,
             status: 'IN_TRANSIT',
             gpsActive: true,
-            departedAt: departureTimeStr,
-            gpsStartedAt: now.toISOString(),
-            lastGpsPing: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            currentSpeed: 74,
-            currentCoords: { lat: startLat, lng: startLng },
+            // An instant, not "26 Nov 2025, 14:32". The display string was
+            // all that was stored, so transit time could not be derived from
+            // a completed trip afterwards at all.
+            departedAt: departedAtIso,
+            departedAtDisplay: departureTimeStr,
+            gpsStartedAt: departedAtIso,
+            lastGpsPing: toClock(departedAtIso),
+            // The train has not moved yet; 74 km/h was a stock value that put
+            // a standing train at line speed on the dashboard.
+            currentSpeed: 0,
+            curLat: startLat,
+            curLng: startLng,
+            currentCoords: startLat !== null && startLng !== null
+              ? { lat: startLat, lng: startLng }
+              : null,
             signalStatus: 'GPS Satellite Live',
             wagonLogs: logs,
           }
@@ -1883,7 +1964,7 @@ function TripWagonView({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div>
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Locomotive</span>
-            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'Not yet coupled'}</span>
           </div>
           <div>
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Cargo Officer</span>
@@ -1912,7 +1993,7 @@ function TripWagonView({
                 <p className="text-xs font-black uppercase tracking-wider font-mono">LIVE GPS CORRIDOR DISPATCH GATE</p>
               </div>
               <p className="text-base font-black text-white mt-1">
-                Locomotive: <span className="font-mono text-white/90">{trip.locomotiveId || 'L2205'}</span> ({loadedCount} Wagons Finalized)
+                Locomotive: <span className="font-mono text-white/90">{trip.locomotiveId || 'Not yet coupled'}</span> ({loadedCount} Wagons Finalized)
               </p>
               <p className="text-xs text-white/80 mt-0.5">
                 Finalize all active loading wagons to unlock corridor departure & satellite telemetry.
@@ -2304,6 +2385,32 @@ function TripWagonView({
                 />
               </div>
 
+              {/*
+                * Security seal.
+                *
+                * This number was never captured anywhere. Every sheet,
+                * manifest and waybill printed a generated one —
+                * SEAL-BN-9800, 9801, 9802 — which asserted a tamper-evidence
+                * control that may never have been applied. It is the
+                * officer's to read off the seal at the wagon door.
+                */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1" htmlFor="cargo-officer-port-security-seal-no">
+                  Security Seal Number Applied *
+                </label>
+                <input id="cargo-officer-port-security-seal-no"
+                  required
+                  value={sealNumberEdit}
+                  onChange={(e) => setSealNumberEdit(e.target.value)}
+                  placeholder="Read from the seal fitted to this wagon"
+                  className="w-full font-mono p-2.5 rounded-xl border border-slate-300 uppercase"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Recorded on the manifest and waybill as evidence this wagon was sealed.
+                  Leave blank only if no seal was fitted.
+                </p>
+              </div>
+
               {/* DYNAMIC MULTI-TRUCK FEEDER ENTRIES */}
               <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div className="flex justify-between items-center">
@@ -2534,11 +2641,13 @@ function TripUnloadWagonView({
       if (w.wagonId !== wagonId) return w;
       return {
         ...w,
+        unloadStartedAtIso: now.toISOString(),
+        unloadEndedAtIso: null,
         unloadStartTimestamp: Date.now(),
         unloadStartDate: formattedDate,
         unloadStartTime: formattedTime,
         unloadStatus: 'UNLOADING',
-        unloadingOfficer: user?.fullName || 'Destination Officer',
+        unloadingOfficer: user?.fullName || '',
       };
     });
     commitLogs(updated, 'UNLOADING');
@@ -2553,7 +2662,7 @@ function TripUnloadWagonView({
       burstBags: '0',
       hasComplaint: false,
       complaintNotes: '',
-      unloadStartTimeEdit: w.unloadStartTime || '02:15 PM',
+      unloadStartTimeEdit: toClock(w.unloadStartedAtIso) || w.unloadStartTime || '',
       unloadEndTimeEdit: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
     setStoppingUnloadWagon(w);
@@ -2564,20 +2673,32 @@ function TripUnloadWagonView({
     if (!stoppingUnloadWagon) return;
 
     const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const formattedTime = unloadForm.unloadEndTimeEdit || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const mins = Math.max(1, Math.round((Date.now() - (stoppingUnloadWagon.unloadStartTimestamp || Date.now())) / 60000));
-    const hours = Math.floor(mins / 60);
-    const remMins = mins % 60;
-    const durationStr = hours > 0 ? `${hours}h ${remMins}m` : `${mins} Minutes`;
+    // Same correction as the loading side: the discharge duration is the gap
+    // between the two times on this form, not the age of the browser tab.
+    const unloadStartedAtIso =
+      applyClock(
+        stoppingUnloadWagon.unloadStartedAtIso || now.toISOString(),
+        unloadForm.unloadStartTimeEdit
+      ) ||
+      stoppingUnloadWagon.unloadStartedAtIso ||
+      now.toISOString();
+
+    const unloadEndedAtIso =
+      applyClock(unloadStartedAtIso, unloadForm.unloadEndTimeEdit) || now.toISOString();
+
+    const formattedDate = toSheetDate(unloadEndedAtIso);
+    const formattedTime = toClock(unloadEndedAtIso);
+    const durationStr = durationBetween(unloadStartedAtIso, unloadEndedAtIso);
     const bagsUnloaded = Number(bagsUnloadedInput) || stoppingUnloadWagon.qty || defaultCapacity;
 
     const updated = logs.map((w: any) => {
       if (w.wagonId !== stoppingUnloadWagon.wagonId) return w;
       return {
         ...w,
-        unloadStartTime: unloadForm.unloadStartTimeEdit || w.unloadStartTime,
+        unloadStartedAtIso,
+        unloadEndedAtIso,
+        unloadStartTime: toClock(unloadStartedAtIso),
         unloadEndDate: formattedDate,
         unloadEndTime: formattedTime,
         unloadDurationStr: durationStr,
@@ -2616,37 +2737,67 @@ function TripUnloadWagonView({
     setStoppingUnloadWagon(null);
   };
 
+  /**
+   * Put this trip's consist back into the fleet register, on the server.
+   *
+   * Reports what it could not update rather than failing silently — a wagon
+   * still showing IN_USE is one nobody else can allocate.
+   */
+  const releaseWagonsToFleet = async (
+    wagonLogs: any[],
+    station: string,
+    status: 'AVAILABLE' | 'RETURNING_EMPTY' = 'AVAILABLE'
+  ) => {
+    const ids = (wagonLogs || []).map((w: any) => w.wagonId).filter(Boolean);
+    if (ids.length === 0) return;
+
+    try {
+      const failed = await StateEngine.setWagonStatuses(ids, status, station);
+      if (failed.length > 0) {
+        notify.error(
+          `${failed.length} wagon(s) could not be released back to the fleet ` +
+            `(${failed.join(', ')}). They will stay allocated until corrected.`
+        );
+      }
+    } catch (err: any) {
+      notify.error(
+        err?.message || 'The consist could not be released back to the fleet register.'
+      );
+    }
+  };
+
   const completeTrip = () => {
     const now = new Date();
-    const completedTimestamp = `${now.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const completedAtIso = now.toISOString();
+    const completedTimestamp = `${toSheetDate(completedAtIso)}, ${toClock(completedAtIso)}`;
 
     const updatedTrips = trips.map((t: any) =>
       t.id === trip.id
         ? {
             ...t,
             status: 'COMPLETED',
-            completedAt: completedTimestamp,
-            unloadingOfficerName: user?.fullName || 'Destination Officer',
+            // Stored as an instant so transit time is derivable. The display
+            // string is kept alongside it for the screens that print it.
+            completedAt: completedAtIso,
+            completedAtDisplay: completedTimestamp,
+            // Whoever actually signed the discharge off, or nobody.
+            unloadingOfficerName: user?.fullName || '',
             wagonLogs: logs,
           }
         : t
     );
     onSaveTrips(updatedTrips);
 
-    // Release wagons back to fleet at destination station
-    try {
-      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
-      const wagonIdsInTrip = new Set(logs.map((w: any) => w.wagonId));
-      const updatedWagons = storedWagons.map((w: any) =>
-        wagonIdsInTrip.has(w.id) ? { ...w, status: 'AVAILABLE', currentStation: trip.destination } : w
-      );
-      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-    } catch {}
+    /*
+     * Release the consist back into the fleet at the destination.
+     *
+     * This wrote the new wagon states straight into localStorage. The fleet
+     * register lives on the server, so the release reached nobody else: the
+     * wagons stayed IN_USE for every other officer, and anyone allocating
+     * stock at the destination saw none available even as the train stood
+     * empty in front of them. It also vanished when the browser was cleared.
+     */
+    void releaseWagonsToFleet(logs, trip.destination);
 
     onBack();
   };
@@ -2655,6 +2806,7 @@ function TripUnloadWagonView({
     const now = new Date();
     const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const completedAtIso = now.toISOString();
     const completedTimestamp = `${formattedDate}, ${formattedTime}`;
     const returnTripId = `${trip.tripId || trip.id}-RET`;
 
@@ -2665,8 +2817,9 @@ function TripUnloadWagonView({
     const completedLadenTrip = {
       ...trip,
       status: 'COMPLETED',
-      completedAt: completedTimestamp,
-      unloadingOfficerName: user?.fullName || 'Destination Officer',
+      completedAt: completedAtIso,
+      completedAtDisplay: completedTimestamp,
+      unloadingOfficerName: user?.fullName || '',
       wagonLogs: logs,
       damages: {
         damagedUnits: totalDamagedUnits,
@@ -2714,19 +2867,10 @@ function TripUnloadWagonView({
     const allWithReturn = [emptyReturnTrip, ...updated];
     onSaveTrips(allWithReturn);
 
-    // Update wagons to RETURNING_EMPTY
-    try {
-      const storedWagons = JSON.parse(localStorage.getItem('bueno_wagons') || '[]');
-      const loadedWagonIds = new Set(logs.map((w: any) => w.wagonId));
-      const updatedWagons = storedWagons.map((w: any) => {
-        if (loadedWagonIds.has(w.id)) {
-          return { ...w, status: 'RETURNING_EMPTY', currentStation: `${trip.destination} ➔ ${trip.origin}` };
-        }
-        return w;
-      });
-      localStorage.setItem('bueno_wagons', JSON.stringify(updatedWagons));
-      window.dispatchEvent(new Event('bueno_state_updated'));
-    } catch {}
+    // Same correction as the completion path: the fleet register is on the
+    // server, so a status written only to this browser is invisible to
+    // everyone allocating stock elsewhere on the corridor.
+    void releaseWagonsToFleet(logs, trip.destination, 'RETURNING_EMPTY');
 
     setCustomAlert({
       title: 'Empty Return Run Dispatched 🔄',
@@ -2767,7 +2911,7 @@ function TripUnloadWagonView({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div>
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Locomotive</span>
-            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'L2205'}</span>
+            <span className="font-mono font-black text-slate-900">{trip.locomotiveId || 'Not yet coupled'}</span>
           </div>
           <div>
             <span className="block text-[9px] font-extrabold uppercase text-slate-400">Origin Station</span>

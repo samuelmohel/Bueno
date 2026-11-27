@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { getUser } from '@/lib/auth/session';
 import { notify, confirmAction } from '@/lib/notify';
 import { BRAND } from '@/lib/theme';
+import { loadWindow, unloadWindow, recorded, tripDuration, toSheetClock } from '@/lib/tally';
+import { checkRoute } from '@/lib/corridor';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
@@ -234,7 +236,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Locomotive & Consist</span>
-            <span className="font-extrabold text-slate-900 text-sm">{trip.locomotiveId || 'L2205'} ({totalWagons} Hoppers + {trip.escortWagonId || 'BV 01'})</span>
+            <span className="font-extrabold text-slate-900 text-sm">{trip.locomotiveId || 'Not yet coupled'} ({totalWagons} Hoppers + {trip.escortWagonId || 'no brake van recorded'})</span>
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Consignment</span>
@@ -249,20 +251,49 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
             <span className="text-[10px] font-bold text-emerald-700 font-mono">Continuous Satellite / Phone Beacon</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+            {/*
+              * Defaults removed here too: a departure of '09:15 AM', an
+              * origin of EWK, a destination of MNY and an escort reachable on
+              * 08031112233 were all printed for trips that recorded none of
+              * them.
+              */}
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Loading & Departure</span>
-              <p className="font-bold text-slate-900">{trip.departedAt || trip.dispatchTime || '09:15 AM'}</p>
-              <span className="text-[10px] text-slate-500">Origin Station: {trip.origin || 'EWK'}</span>
+              <p className="font-bold text-slate-900">
+                {recorded(trip.departedAtDisplay || toSheetClock(trip.departedAt) || trip.dispatchTime)}
+              </p>
+              <span className="text-[10px] text-slate-500">Origin Station: {recorded(trip.origin)}</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Arrival & Discharge</span>
-              <p className="font-bold text-slate-900">{trip.completedAt || 'In Transit / Arrived'}</p>
-              <span className="text-[10px] text-slate-500">Destination: {trip.destination || 'MNY'}</span>
+              <p className="font-bold text-slate-900">
+                {trip.completedAt
+                  ? recorded(trip.completedAtDisplay || toSheetClock(trip.completedAt))
+                  : 'In transit'}
+              </p>
+              <span className="text-[10px] text-slate-500">Destination: {recorded(trip.destination)}</span>
+            </div>
+            {/*
+              * Transit time. Nothing computed this before, and it could not
+              * have: departedAt and completedAt were display strings, not
+              * instants. They are timestamps now, so the number a demurrage
+              * conversation starts from is on the dossier.
+              */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[9px] uppercase text-slate-400 block">Total Transit Time</span>
+              <p className="font-bold text-slate-900">
+                {tripDuration(trip.departedAt, trip.completedAt) || '—'}
+              </p>
+              <span className="text-[10px] text-slate-500">
+                {trip.completedAt ? 'Departure to discharge' : 'Completes on discharge'}
+              </span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Supervising Escort Officer</span>
-              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Unassigned'}</p>
-              <span className="text-[10px] text-emerald-700">Phone: {trip.escortPhone || '08031112233'}</span>
+              <p className="font-bold text-slate-900">
+                {recorded(trip.escortOfficerName || trip.cargoOfficerName, 'Unassigned')}
+              </p>
+              <span className="text-[10px] text-emerald-700">Phone: {recorded(trip.escortPhone)}</span>
             </div>
           </div>
         </div>
@@ -289,14 +320,33 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {wagonLogs.length > 0 ? wagonLogs.map((w: any, idx: number) => {
+                  /*
+                   * Every value here is what was recorded, or a dash.
+                   *
+                   * This table used to invent anything missing: a driver
+                   * called Ibrahim Garba on 08031112233, a plate
+                   * TRK-KJA-98N-XP, a loading window of 08:30 AM lasting
+                   * 25 mins, a silo bay numbered off the row index, and a
+                   * security seal numbered off it too. None of it was ever
+                   * entered by anyone.
+                   *
+                   * This is the sheet a demurrage claim, an insurance
+                   * assessment and a waybill are drawn from. A blank field
+                   * says nobody recorded it, which is true and answerable.
+                   * A plausible invented one is a false record.
+                   */
                   const primaryTruck = (w.feederTrucks && w.feederTrucks[0]) || {};
-                  const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || `TRK-KJA-98${idx + 1}-XP`;
-                  const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || 'N/A'})` : 'Ibrahim Garba (08031112233)');
-                  const sidingStr = w.sourceEnv || `${trip.origin || 'EWK'} Silo Bay #${(idx % 3) + 1}`;
-                  const timeRange = w.startTime && w.endTime ? `${w.startTime} → ${w.endTime}` : (w.startTime || '08:30 AM');
-                  const durationStr = w.durationStr || '25 mins';
-                  const loadedQty = Number(w.qty) || defaultUnitCapacity;
-                  const sealNo = w.sealNumber || `SEAL-${trip.origin || 'EWK'}-${9801 + idx}`;
+                  const truckPlate = recorded(w.truckRegNo || primaryTruck.truckRegNo);
+                  const driverStr = recorded(
+                    w.driverDetails ||
+                      (primaryTruck.driverName
+                        ? `${primaryTruck.driverName}${primaryTruck.phone ? ` (${primaryTruck.phone})` : ''}`
+                        : '')
+                  );
+                  const sidingStr = recorded(w.sourceEnv);
+                  const { range: timeRange, duration: durationStr } = loadWindow(w);
+                  const loadedQty = Number(w.qty) || 0;
+                  const sealNo = recorded(w.sealNumber);
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
@@ -373,28 +423,49 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {wagonLogs.map((w: any, idx: number) => {
-                    const sidingBay = w.sidingBay || `${trip.destination || 'MNY'} Warehouse Bay #${(idx % 4) + 1}`;
-                    const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} → ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
-                    const durationStr = w.unloadDurationStr || '20 mins';
-                    const loadedQty = Number(w.qty) || defaultUnitCapacity;
+                    // As with the loading sheet above: recorded, or a dash.
+                    // The invented warehouse bay, the 01:45 PM unload window
+                    // and its 20-minute duration are gone.
+                    const sidingBay = recorded(w.sidingBay);
+                    const { range: timeRange, duration: durationStr } = unloadWindow(w);
+                    const loadedQty = Number(w.qty) || 0;
                     const burst = Number(w.burstBags || 0);
                     const dmg = Number(w.damageQty || 0);
                     const totalWagonDefect = burst + dmg;
-                    const intact = Number(w.correctQty) || Math.max(0, loadedQty - totalWagonDefect);
-                    const remark = w.complaintNotes || (totalWagonDefect > 0 ? `${totalWagonDefect} burst/damaged units logged` : 'Discharged 100% Intact');
                     const isUnloaded = w.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED';
+                    /*
+                     * Only claim a discharged count once the wagon has been
+                     * tallied. Falling back to "loaded minus defects" asserted
+                     * a full intact discharge for every wagon nobody had
+                     * counted yet — including, on a completed trip, wagons
+                     * whose tally was skipped.
+                     */
+                    const hasTally = w.correctQty !== undefined && w.correctQty !== null;
+                    const intact = hasTally
+                      ? Number(w.correctQty)
+                      : (isUnloaded ? Math.max(0, loadedQty - totalWagonDefect) : null);
+                    const remark = w.complaintNotes
+                      || (!isUnloaded ? 'Not yet discharged'
+                        : totalWagonDefect > 0
+                          ? `${totalWagonDefect} burst/damaged units logged`
+                          : 'Discharged intact');
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-2.5 font-bold text-amber-800">{w.wagonId}</td>
                         <td className="p-2.5 text-slate-700">{sidingBay}</td>
                         <td className="p-2.5 text-slate-700 font-semibold">{timeRange} <span className="text-slate-400">({durationStr})</span></td>
-                        <td className="p-2.5 font-extrabold text-emerald-700">{intact.toLocaleString()} {unit}</td>
+                        <td className="p-2.5 font-extrabold text-emerald-700">
+                          {intact === null ? <span className="text-slate-400">—</span>
+                            : `${intact.toLocaleString()} ${unit}`}
+                        </td>
                         <td className="p-2.5 font-extrabold">
                           {totalWagonDefect > 0 ? (
                             <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black">{totalWagonDefect} Defect(s)</span>
-                          ) : (
+                          ) : isUnloaded ? (
                             <span className="text-slate-400">0 Defects</span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
                           )}
                         </td>
                         <td className="p-2.5 text-slate-700 font-sans text-[11px]">{remark}</td>
@@ -1025,13 +1096,37 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const unitLabel = dealItem.unitOfMeasure || (dealItem.cargoType?.includes('Gypsum') ? 'Metric Tonnes (MT)' : 'Bags');
     const wagonTypeLabel = dealItem.wagonType || (dealItem.cargoType?.includes('Gypsum') ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon');
 
+    /*
+     * The route comes from the contract, and nowhere else.
+     *
+     * These defaulted to EWK and MNY — Ewekoro, narrow gauge, to Moniya,
+     * standard gauge. A deal missing either end therefore produced a trip on
+     * a route no train can run, which the siding would discover when the
+     * wagons did not fit the track. deals.php now refuses that pairing, so
+     * such a trip would be rejected on save with a message about a route
+     * nobody chose.
+     */
+    const route = checkRoute(dealItem.loadingStation, dealItem.destination);
+    if (!dealItem.loadingStation || !dealItem.destination || !route.ok) {
+      notify.error(
+        route.reason ||
+          `${dealItem.dealNumber || dealItem.id} has no loading station or destination set. ` +
+            'Add both to the contract before allocating wagons.'
+      );
+      return;
+    }
+
     const newTripId = `TRP-${Math.floor(1000 + Math.random() * 8999)}`;
     const newTrip = {
       id: newTripId,
       tripId: newTripId,
-      locomotiveId: 'L2205',
-      origin: dealItem.loadingStation || 'EWK',
-      destination: dealItem.destination || 'MNY',
+      // Entered by the officer when the engine is actually coupled. This was
+      // stamped 'L2205' on every trip, and that number then printed on the
+      // manifest as though a specific locomotive had been assigned.
+      locomotiveId: '',
+      origin: dealItem.loadingStation,
+      destination: dealItem.destination,
+      gauge: route.gauge,
       company: dealItem.companyName || dealItem.company,
       dealNumber: dealItem.id || dealItem.dealNumber,
       cargoType: dealItem.cargoType,
@@ -1151,18 +1246,25 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleCreateNewDeal = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const NARROW_SET = new Set(['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD', 'EBJ', 'IGS', 'INS', 'OKK', 'FFA', 'JBB']);
-    const STANDARD_SET = new Set(['PAPA', 'MNY', 'MONI', 'ENL', 'APL', 'MBJ', 'MU', 'SH', 'SG', 'IK', 'GE', 'UJ', 'GD', 'IT', 'JK', 'KA', 'AB', 'AD']);
-
-    const isOriginNarrow = NARROW_SET.has(newDealForm.loadingStation);
-    const isOriginStandard = STANDARD_SET.has(newDealForm.loadingStation);
-    const isDestNarrow = NARROW_SET.has(newDealForm.destination);
-    const isDestStandard = STANDARD_SET.has(newDealForm.destination);
-
-    if ((isOriginNarrow && isDestStandard) || (isOriginStandard && isDestNarrow)) {
+    /*
+     * One registry, shared with the server.
+     *
+     * The two gauge sets that used to live here covered fewer terminals than
+     * the corridor actually has, so a code in neither — Apapa, for one —
+     * passed this check by being unknown to it. corridor.ts mirrors
+     * corridor.php, and a parity test fails the build if they drift.
+     *
+     * This remains a convenience: deals.php refuses the same route whatever
+     * the browser decides.
+     */
+    const route = checkRoute(newDealForm.loadingStation, newDealForm.destination);
+    if (!route.ok) {
       setCustomAlert({
-        title: 'Gauge Incompatibility Blocked (Page 1 Spec 04)',
-        message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto → Moniya Standard Gauge, or Ewekoro → Dugbe Narrow Gauge).`,
+        title: 'Route Cannot Be Run',
+        message:
+          `${route.reason}\n\n` +
+          'Please select two terminals on the same gauge — for example ' +
+          'Papalanto → Moniya (standard gauge), or Ewekoro → Dugbe (narrow gauge).',
       });
       return;
     }
@@ -4805,7 +4907,7 @@ ${invitation.url}`,
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 text-xs text-center">
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'Not yet coupled'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-slate-700">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Unassigned'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
                   </div>
@@ -5146,7 +5248,7 @@ ${invitation.url}`,
                               <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="py-3.5 px-3">
                                   <span className="font-bold text-navy block">{t.tripId || t.id}</span>
-                                  <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'L2205'}</span>
+                                  <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'not coupled'}</span>
                                 </td>
                                 <td className="py-3.5 px-3 font-sans font-bold text-slate-900">
                                   {t.company || 'Corporate Client'}
@@ -6362,7 +6464,7 @@ ${invitation.url}`,
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono font-black text-slate-900 text-sm">{t.id}</span>
                                   <span className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
-                                    Loco: {t.locomotiveId || 'L2205'}
+                                    Loco: {t.locomotiveId || 'not coupled'}
                                   </span>
                                 </div>
                                 <h4 className="font-black text-slate-900 text-base mt-0.5">{t.company}</h4>

@@ -24,6 +24,7 @@ import { CollectionStore, notifyStateChanged, type Row } from '@/lib/services/da
 import { api, ApiError } from '@/lib/apiClient';
 import * as session from '@/lib/auth/session';
 import { resolveTabCapability, normalizeMatrix } from '@/lib/rbac/capabilities';
+import { checkRoute, gaugeOf } from '@/lib/corridor';
 
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
 export const OFFICIAL_PXG_CODES = [
@@ -743,7 +744,23 @@ class StateEngineService {
 
     const origin = deal.loadingStation || 'PAPA';
     const destination = deal.destination || 'MONI';
-    const gauge = deal.gauge || (['EWK', 'IDD', 'ILR', 'OSB', 'DGB'].includes(origin) ? 'NARROW_GAUGE' : 'STANDARD_GAUGE');
+
+    /*
+     * The gauge the deal was registered with, or the registry's answer.
+     *
+     * This used to derive it from a five-entry narrow-gauge list of its own —
+     * EWK, IDD, ILR, OSB, DGB — which omitted ITO, EBJ, IGS, INS, OKK, FFA
+     * and JBB. A deal the deal form had correctly treated as narrow gauge
+     * therefore produced a trip stamped STANDARD_GAUGE, and the wagons
+     * allocated against it were the wrong gauge for the track.
+     */
+    const gauge = deal.gauge || gaugeOf(origin) || 'STANDARD_GAUGE';
+
+    // A cancelled or mis-keyed contract should not reach a siding.
+    const route = checkRoute(origin, destination);
+    if (!route.ok) {
+      throw new Error(route.reason || 'This route cannot be run.');
+    }
 
     const isOriginPAPA = origin === 'PAPA';
     const curLat = isOriginPAPA ? 6.8974 : (origin === 'APT' ? 6.4550 : 6.8974);
@@ -940,6 +957,113 @@ class StateEngineService {
     const current = this.getRequests();
     const updated = [req, ...current];
     this.saveRequests(updated);
+  }
+
+  /**
+   * Move a set of wagons to a new status and station, through the API.
+   *
+   * The portals used to do this by rewriting the bueno_wagons key in
+   * localStorage. That is the read-through cache, not the register: the
+   * change never left the browser, so a consist released at Moniya stayed
+   * IN_USE for every other officer and the destination showed no available
+   * stock while the empty train sat in the yard.
+   *
+   * Resolves to the ids that could not be updated, so a caller can say which.
+   */
+  async setWagonStatuses(
+    wagonIds: string[],
+    status: string,
+    currentStation?: string
+  ): Promise<string[]> {
+    const ids = Array.from(new Set(wagonIds.filter(Boolean)));
+    if (ids.length === 0) return [];
+
+    const known = new Map(this.getWagons().map((w: any) => [String(w.id), w]));
+    const failed: string[] = [];
+
+    await Promise.all(
+      ids.map(async (id) => {
+        const existing = known.get(String(id));
+        // A wagon the register has never seen is not invented here; it is
+        // reported, so the officer can register it properly.
+        if (!existing) {
+          failed.push(id);
+          return;
+        }
+        try {
+          await STORES.bueno_wagons.upsert({
+            ...existing,
+            status,
+            ...(currentStation ? { currentStation } : {}),
+          });
+        } catch (err) {
+          if (err instanceof ApiError) reportWriteFailure('bueno_wagons', err);
+          failed.push(id);
+        }
+      })
+    );
+
+    notifyStateChanged();
+    return failed;
+  }
+
+  // ── CORRIDOR TELEMETRY ────────────────────────────────────────────────────
+
+  /**
+   * Record one position fix against a trip.
+   *
+   * gps.php is append-only and is not one of the collection stores, so it
+   * cannot go through postRemote. It also has to surface its errors: the
+   * dispatch screen previously posted the opening fix to
+   * `/api/tracking/gps/<locomotive>`, a path with no handler behind it. The
+   * static-site rewrite answered it with index.html, the fetch resolved 200,
+   * and nothing anywhere reported that tracking had not started.
+   *
+   * Rejects on failure so the caller can tell the officer.
+   */
+  async postGpsFix(fix: {
+    tripId: string;
+    locomotiveId?: string;
+    lat: number;
+    lng: number;
+    speed?: number;
+    heading?: number;
+    accuracy?: number;
+    batteryLevel?: number;
+    officerPhone?: string;
+    signalQuality?: string;
+  }): Promise<void> {
+    if (!fix?.tripId) throw new Error('A trip reference is required to report a position.');
+    if (!Number.isFinite(fix.lat) || !Number.isFinite(fix.lng)) {
+      throw new Error('A valid position is required.');
+    }
+
+    const body: Record<string, unknown> = {
+      tripId: fix.tripId,
+      lat: fix.lat,
+      lng: fix.lng,
+    };
+    // Only send what was actually measured; the server defaults the rest.
+    if (fix.locomotiveId) body.locomotiveId = fix.locomotiveId;
+    if (fix.speed !== undefined) body.speed = Math.round(fix.speed);
+    if (fix.heading !== undefined) body.heading = fix.heading;
+    if (fix.accuracy !== undefined) body.accuracy = fix.accuracy;
+    if (fix.batteryLevel !== undefined) body.batteryLevel = fix.batteryLevel;
+    if (fix.officerPhone) body.officerPhone = fix.officerPhone;
+    if (fix.signalQuality) body.signalQuality = fix.signalQuality;
+
+    await api.post('gps.php', body);
+  }
+
+  /** Latest fix and breadcrumb trail for a trip. */
+  async getGpsTrail(tripId: string, limit = 50): Promise<{ latest: any; breadcrumbs: any[] }> {
+    const { data } = await api.get(
+      `gps.php?tripId=${encodeURIComponent(tripId)}&limit=${limit}`
+    );
+    return {
+      latest: data?.latest ?? null,
+      breadcrumbs: Array.isArray(data?.breadcrumbs) ? data.breadcrumbs : [],
+    };
   }
 
   // ── INVOICES (AR & REVENUE) API ───────────────────────────────────────────
