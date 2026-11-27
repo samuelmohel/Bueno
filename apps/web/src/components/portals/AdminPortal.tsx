@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { getUser } from '@/lib/auth/session';
 import { notify, confirmAction } from '@/lib/notify';
 import { BRAND } from '@/lib/theme';
+import { loadWindow, unloadWindow, recorded, tripDuration, toSheetClock } from '@/lib/tally';
+import { checkRoute } from '@/lib/corridor';
 import {
   StateEngine,
   DEFAULT_ROLE_TAB_PERMISSIONS,
@@ -234,7 +236,7 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Locomotive & Consist</span>
-            <span className="font-extrabold text-slate-900 text-sm">{trip.locomotiveId || 'L2205'} ({totalWagons} Hoppers + {trip.escortWagonId || 'BV 01'})</span>
+            <span className="font-extrabold text-slate-900 text-sm">{trip.locomotiveId || 'Not yet coupled'} ({totalWagons} Hoppers + {trip.escortWagonId || 'no brake van recorded'})</span>
           </div>
           <div>
             <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Consignment</span>
@@ -249,20 +251,49 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
             <span className="text-[10px] font-bold text-emerald-700 font-mono">Continuous Satellite / Phone Beacon</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+            {/*
+              * Defaults removed here too: a departure of '09:15 AM', an
+              * origin of EWK, a destination of MNY and an escort reachable on
+              * 08031112233 were all printed for trips that recorded none of
+              * them.
+              */}
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Loading & Departure</span>
-              <p className="font-bold text-slate-900">{trip.departedAt || trip.dispatchTime || '09:15 AM'}</p>
-              <span className="text-[10px] text-slate-500">Origin Station: {trip.origin || 'EWK'}</span>
+              <p className="font-bold text-slate-900">
+                {recorded(trip.departedAtDisplay || toSheetClock(trip.departedAt) || trip.dispatchTime)}
+              </p>
+              <span className="text-[10px] text-slate-500">Origin Station: {recorded(trip.origin)}</span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Arrival & Discharge</span>
-              <p className="font-bold text-slate-900">{trip.completedAt || 'In Transit / Arrived'}</p>
-              <span className="text-[10px] text-slate-500">Destination: {trip.destination || 'MNY'}</span>
+              <p className="font-bold text-slate-900">
+                {trip.completedAt
+                  ? recorded(trip.completedAtDisplay || toSheetClock(trip.completedAt))
+                  : 'In transit'}
+              </p>
+              <span className="text-[10px] text-slate-500">Destination: {recorded(trip.destination)}</span>
+            </div>
+            {/*
+              * Transit time. Nothing computed this before, and it could not
+              * have: departedAt and completedAt were display strings, not
+              * instants. They are timestamps now, so the number a demurrage
+              * conversation starts from is on the dossier.
+              */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-[9px] uppercase text-slate-400 block">Total Transit Time</span>
+              <p className="font-bold text-slate-900">
+                {tripDuration(trip.departedAt, trip.completedAt) || '—'}
+              </p>
+              <span className="text-[10px] text-slate-500">
+                {trip.completedAt ? 'Departure to discharge' : 'Completes on discharge'}
+              </span>
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
               <span className="text-[9px] uppercase text-slate-400 block">Supervising Escort Officer</span>
-              <p className="font-bold text-slate-900">{trip.escortOfficerName || trip.cargoOfficerName || 'Unassigned'}</p>
-              <span className="text-[10px] text-emerald-700">Phone: {trip.escortPhone || '08031112233'}</span>
+              <p className="font-bold text-slate-900">
+                {recorded(trip.escortOfficerName || trip.cargoOfficerName, 'Unassigned')}
+              </p>
+              <span className="text-[10px] text-emerald-700">Phone: {recorded(trip.escortPhone)}</span>
             </div>
           </div>
         </div>
@@ -289,14 +320,33 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {wagonLogs.length > 0 ? wagonLogs.map((w: any, idx: number) => {
+                  /*
+                   * Every value here is what was recorded, or a dash.
+                   *
+                   * This table used to invent anything missing: a driver
+                   * called Ibrahim Garba on 08031112233, a plate
+                   * TRK-KJA-98N-XP, a loading window of 08:30 AM lasting
+                   * 25 mins, a silo bay numbered off the row index, and a
+                   * security seal numbered off it too. None of it was ever
+                   * entered by anyone.
+                   *
+                   * This is the sheet a demurrage claim, an insurance
+                   * assessment and a waybill are drawn from. A blank field
+                   * says nobody recorded it, which is true and answerable.
+                   * A plausible invented one is a false record.
+                   */
                   const primaryTruck = (w.feederTrucks && w.feederTrucks[0]) || {};
-                  const truckPlate = w.truckRegNo || primaryTruck.truckRegNo || `TRK-KJA-98${idx + 1}-XP`;
-                  const driverStr = w.driverDetails || (primaryTruck.driverName ? `${primaryTruck.driverName} (${primaryTruck.phone || 'N/A'})` : 'Ibrahim Garba (08031112233)');
-                  const sidingStr = w.sourceEnv || `${trip.origin || 'EWK'} Silo Bay #${(idx % 3) + 1}`;
-                  const timeRange = w.startTime && w.endTime ? `${w.startTime} → ${w.endTime}` : (w.startTime || '08:30 AM');
-                  const durationStr = w.durationStr || '25 mins';
-                  const loadedQty = Number(w.qty) || defaultUnitCapacity;
-                  const sealNo = w.sealNumber || `SEAL-${trip.origin || 'EWK'}-${9801 + idx}`;
+                  const truckPlate = recorded(w.truckRegNo || primaryTruck.truckRegNo);
+                  const driverStr = recorded(
+                    w.driverDetails ||
+                      (primaryTruck.driverName
+                        ? `${primaryTruck.driverName}${primaryTruck.phone ? ` (${primaryTruck.phone})` : ''}`
+                        : '')
+                  );
+                  const sidingStr = recorded(w.sourceEnv);
+                  const { range: timeRange, duration: durationStr } = loadWindow(w);
+                  const loadedQty = Number(w.qty) || 0;
+                  const sealNo = recorded(w.sealNumber);
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50">
@@ -373,28 +423,49 @@ function SingleTripPerformanceAuditModal({ trip, onClose }: { trip: any; onClose
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {wagonLogs.map((w: any, idx: number) => {
-                    const sidingBay = w.sidingBay || `${trip.destination || 'MNY'} Warehouse Bay #${(idx % 4) + 1}`;
-                    const timeRange = w.unloadStartTime && w.unloadEndTime ? `${w.unloadStartTime} → ${w.unloadEndTime}` : (w.unloadStartTime || '01:45 PM');
-                    const durationStr = w.unloadDurationStr || '20 mins';
-                    const loadedQty = Number(w.qty) || defaultUnitCapacity;
+                    // As with the loading sheet above: recorded, or a dash.
+                    // The invented warehouse bay, the 01:45 PM unload window
+                    // and its 20-minute duration are gone.
+                    const sidingBay = recorded(w.sidingBay);
+                    const { range: timeRange, duration: durationStr } = unloadWindow(w);
+                    const loadedQty = Number(w.qty) || 0;
                     const burst = Number(w.burstBags || 0);
                     const dmg = Number(w.damageQty || 0);
                     const totalWagonDefect = burst + dmg;
-                    const intact = Number(w.correctQty) || Math.max(0, loadedQty - totalWagonDefect);
-                    const remark = w.complaintNotes || (totalWagonDefect > 0 ? `${totalWagonDefect} burst/damaged units logged` : 'Discharged 100% Intact');
                     const isUnloaded = w.unloadStatus === 'UNLOADED' || trip.status === 'COMPLETED';
+                    /*
+                     * Only claim a discharged count once the wagon has been
+                     * tallied. Falling back to "loaded minus defects" asserted
+                     * a full intact discharge for every wagon nobody had
+                     * counted yet — including, on a completed trip, wagons
+                     * whose tally was skipped.
+                     */
+                    const hasTally = w.correctQty !== undefined && w.correctQty !== null;
+                    const intact = hasTally
+                      ? Number(w.correctQty)
+                      : (isUnloaded ? Math.max(0, loadedQty - totalWagonDefect) : null);
+                    const remark = w.complaintNotes
+                      || (!isUnloaded ? 'Not yet discharged'
+                        : totalWagonDefect > 0
+                          ? `${totalWagonDefect} burst/damaged units logged`
+                          : 'Discharged intact');
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-2.5 font-bold text-amber-800">{w.wagonId}</td>
                         <td className="p-2.5 text-slate-700">{sidingBay}</td>
                         <td className="p-2.5 text-slate-700 font-semibold">{timeRange} <span className="text-slate-400">({durationStr})</span></td>
-                        <td className="p-2.5 font-extrabold text-emerald-700">{intact.toLocaleString()} {unit}</td>
+                        <td className="p-2.5 font-extrabold text-emerald-700">
+                          {intact === null ? <span className="text-slate-400">—</span>
+                            : `${intact.toLocaleString()} ${unit}`}
+                        </td>
                         <td className="p-2.5 font-extrabold">
                           {totalWagonDefect > 0 ? (
                             <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded font-black">{totalWagonDefect} Defect(s)</span>
-                          ) : (
+                          ) : isUnloaded ? (
                             <span className="text-slate-400">0 Defects</span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
                           )}
                         </td>
                         <td className="p-2.5 text-slate-700 font-sans text-[11px]">{remark}</td>
@@ -718,10 +789,41 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setSystemSettings(liveSettings);
     setInvoices(liveInvoices);
     setTripCosts(liveTripCosts);
+    // Last synced copy, so the screen renders immediately and still shows
+    // something if the ledger fetch below fails.
     setChartAccounts(StateEngine.getChartOfAccounts());
     setJournalEntries(StateEngine.getJournalEntries());
     setBankAccounts(StateEngine.getBankAccounts());
     setGranularPermissions(StateEngine.getGranularPermissions());
+
+    /*
+     * The books come from the server.
+     *
+     * These three used to be localStorage reads against a seeded array, so
+     * the ledger each user saw was their own. A failure here leaves the last
+     * synced copy on screen and says so, rather than silently falling back to
+     * figures nobody posted.
+     */
+    void (async () => {
+      try {
+        const [accounts, entries, banks] = await Promise.all([
+          StateEngine.loadChartOfAccounts(),
+          StateEngine.loadJournalEntries({ limit: 200 }),
+          StateEngine.loadBankAccounts(),
+        ]);
+        setChartAccounts(accounts);
+        setJournalEntries(entries);
+        setBankAccounts(banks);
+        setLedgerError(null);
+      } catch (err: any) {
+        // 403 is ordinary here: most roles cannot open the books at all.
+        if (err?.status !== 403) {
+          setLedgerError(
+            err?.message || 'The ledger could not be loaded. Showing the last synced copy.'
+          );
+        }
+      }
+    })();
 
 
     // BUILD MASTER CLIENT NEGOTIATION THREADS FOR ALL REGISTERED CLIENTS (KEYED BY EMAIL)
@@ -1025,13 +1127,37 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     const unitLabel = dealItem.unitOfMeasure || (dealItem.cargoType?.includes('Gypsum') ? 'Metric Tonnes (MT)' : 'Bags');
     const wagonTypeLabel = dealItem.wagonType || (dealItem.cargoType?.includes('Gypsum') ? 'Open Top Gondola Wagon' : 'Covered Hopper Wagon');
 
+    /*
+     * The route comes from the contract, and nowhere else.
+     *
+     * These defaulted to EWK and MNY — Ewekoro, narrow gauge, to Moniya,
+     * standard gauge. A deal missing either end therefore produced a trip on
+     * a route no train can run, which the siding would discover when the
+     * wagons did not fit the track. deals.php now refuses that pairing, so
+     * such a trip would be rejected on save with a message about a route
+     * nobody chose.
+     */
+    const route = checkRoute(dealItem.loadingStation, dealItem.destination);
+    if (!dealItem.loadingStation || !dealItem.destination || !route.ok) {
+      notify.error(
+        route.reason ||
+          `${dealItem.dealNumber || dealItem.id} has no loading station or destination set. ` +
+            'Add both to the contract before allocating wagons.'
+      );
+      return;
+    }
+
     const newTripId = `TRP-${Math.floor(1000 + Math.random() * 8999)}`;
     const newTrip = {
       id: newTripId,
       tripId: newTripId,
-      locomotiveId: 'L2205',
-      origin: dealItem.loadingStation || 'EWK',
-      destination: dealItem.destination || 'MNY',
+      // Entered by the officer when the engine is actually coupled. This was
+      // stamped 'L2205' on every trip, and that number then printed on the
+      // manifest as though a specific locomotive had been assigned.
+      locomotiveId: '',
+      origin: dealItem.loadingStation,
+      destination: dealItem.destination,
+      gauge: route.gauge,
       company: dealItem.companyName || dealItem.company,
       dealNumber: dealItem.id || dealItem.dealNumber,
       cargoType: dealItem.cargoType,
@@ -1151,18 +1277,25 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
   const handleCreateNewDeal = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const NARROW_SET = new Set(['EWK', 'ITO', 'DGB', 'OSB', 'ILR', 'IDD', 'EBJ', 'IGS', 'INS', 'OKK', 'FFA', 'JBB']);
-    const STANDARD_SET = new Set(['PAPA', 'MNY', 'MONI', 'ENL', 'APL', 'MBJ', 'MU', 'SH', 'SG', 'IK', 'GE', 'UJ', 'GD', 'IT', 'JK', 'KA', 'AB', 'AD']);
-
-    const isOriginNarrow = NARROW_SET.has(newDealForm.loadingStation);
-    const isOriginStandard = STANDARD_SET.has(newDealForm.loadingStation);
-    const isDestNarrow = NARROW_SET.has(newDealForm.destination);
-    const isDestStandard = STANDARD_SET.has(newDealForm.destination);
-
-    if ((isOriginNarrow && isDestStandard) || (isOriginStandard && isDestNarrow)) {
+    /*
+     * One registry, shared with the server.
+     *
+     * The two gauge sets that used to live here covered fewer terminals than
+     * the corridor actually has, so a code in neither — Apapa, for one —
+     * passed this check by being unknown to it. corridor.ts mirrors
+     * corridor.php, and a parity test fails the build if they drift.
+     *
+     * This remains a convenience: deals.php refuses the same route whatever
+     * the browser decides.
+     */
+    const route = checkRoute(newDealForm.loadingStation, newDealForm.destination);
+    if (!route.ok) {
       setCustomAlert({
-        title: 'Gauge Incompatibility Blocked (Page 1 Spec 04)',
-        message: `Cannot register deal: Standard Gauge and Narrow Gauge tracks are mutually exclusive.\n\nOrigin ${newDealForm.loadingStation} is ${isOriginNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'} and Destination ${newDealForm.destination} is ${isDestNarrow ? 'Narrow Gauge (1,067mm)' : 'Standard Gauge (1,435mm)'}.\n\nRolling stock cannot operate across incompatible gauges. Please select matching gauge sidings (e.g. Papalanto → Moniya Standard Gauge, or Ewekoro → Dugbe Narrow Gauge).`,
+        title: 'Route Cannot Be Run',
+        message:
+          `${route.reason}\n\n` +
+          'Please select two terminals on the same gauge — for example ' +
+          'Papalanto → Moniya (standard gauge), or Ewekoro → Dugbe (narrow gauge).',
       });
       return;
     }
@@ -1963,19 +2096,38 @@ ${invitation.url}`,
   };
 
   // ADD NEW LEDGER ACCOUNT TO CHART OF ACCOUNTS
-  const handleCreateAccount = (e: React.FormEvent) => {
+  // Per-account statement figures entered for reconciliation. Held here
+  // rather than on the bank record because they are what is being compared
+  // against it, not part of it.
+  const [statementInputs, setStatementInputs] = useState<Record<string, string>>({});
+  const [statementDates, setStatementDates] = useState<Record<string, string>>({});
+
+  // Set when the ledger could not be fetched, so the accounting screens can
+  // say they are showing a stale copy instead of presenting it as current.
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountForm.code || !newAccountForm.name) return;
 
-    const added = StateEngine.addChartOfAccount({
-      code: newAccountForm.code.trim(),
-      name: newAccountForm.name.trim(),
-      type: newAccountForm.type,
-      subType: newAccountForm.subType || 'General',
-      balance: Number(newAccountForm.openingBalance) || 0,
-      description: newAccountForm.description || '',
-      isEnabled: true,
-    });
+    // openingBalance, not balance: a balance is derived from the posted
+    // entries and cannot be written. The server refuses a duplicate code, and
+    // refuses to move an opening balance under entries already posted.
+    let added: any;
+    try {
+      added = await StateEngine.addChartOfAccount({
+        code: newAccountForm.code.trim(),
+        name: newAccountForm.name.trim(),
+        type: newAccountForm.type,
+        subType: newAccountForm.subType || 'General',
+        openingBalance: Number(newAccountForm.openingBalance) || 0,
+        description: newAccountForm.description || '',
+        isEnabled: true,
+      } as any);
+    } catch (err: any) {
+      notify.error(err?.message || 'The ledger account could not be created.');
+      return;
+    }
 
     setChartAccounts(StateEngine.getChartOfAccounts());
     setNewAccountModal(false);
@@ -1994,50 +2146,55 @@ ${invitation.url}`,
   };
 
   // POST NEW DOUBLE-ENTRY JOURNAL VOUCHER
-  const handlePostJournalEntry = (e: React.FormEvent) => {
+  const handlePostJournalEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalDebits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
-    const totalCredits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
 
-    if (Math.abs(totalDebits - totalCredits) > 0.01 || totalDebits <= 0) {
-      setCustomAlert({
-        title: 'Unbalanced Journal Voucher',
-        message: `Debits and Credits must be strictly equal. (Debits: ₦${totalDebits.toLocaleString()} | Credits: ₦${totalCredits.toLocaleString()})`,
-      });
+    /*
+     * The server decides whether this balances.
+     *
+     * This used to total the lines in the browser, adjust each account's
+     * balance by hand, and push the result into localStorage -- so an entry
+     * that did not balance was posted anyway, and the balances it moved
+     * drifted away from the lines that were meant to explain them.
+     *
+     * journal.php refuses an entry whose debits and credits differ, and every
+     * balance is derived from the posted lines rather than carried.
+     */
+    const lines = (newJournalForm.lines || [])
+      .filter((l: any) => Number(l.debit) > 0 || Number(l.credit) > 0)
+      .map((l: any) => ({
+        account: l.accountId,
+        description: l.description || newJournalForm.description,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+      }));
+
+    if (lines.length < 2) {
+      notify.error('A journal entry needs at least two lines: what is debited and what is credited.');
       return;
     }
 
-    const postedLines = newJournalForm.lines
-      .filter((l) => (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0)
-      .map((l) => {
-        const acc = chartAccounts.find((a) => a.id === l.accountId || a.code === l.accountId);
-        return {
-          accountId: acc?.id || l.accountId,
-          accountCode: acc?.code || '',
-          accountName: acc?.name || '',
-          description: l.description || newJournalForm.description,
-          debit: Number(l.debit) || 0,
-          credit: Number(l.credit) || 0,
-        };
+    let posted: any;
+    try {
+      posted = await StateEngine.postJournalEntry({
+        narration: newJournalForm.description || 'General Journal Posting',
+        entryDate: newJournalForm.date || undefined,
+        reference: newJournalForm.reference || undefined,
+        lines,
       });
-
-    const newJrn = StateEngine.addJournalEntry({
-      journalNo: newJournalForm.journalNo || `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
-      date: newJournalForm.date || new Date().toLocaleDateString('en-GB'),
-      reference: newJournalForm.reference || 'GL-VOUCHER',
-      description: newJournalForm.description || 'General Journal Posting',
-      lines: postedLines,
-      totalAmount: totalDebits,
-      status: 'POSTED',
-      postedBy: user?.fullName || 'Finance Controller',
-    });
+    } catch (err: any) {
+      // Carries the server's reason, which names the amount the entry is out
+      // by rather than only saying that it failed.
+      notify.error(err?.message || 'The journal entry could not be posted.');
+      return;
+    }
 
     setJournalEntries(StateEngine.getJournalEntries());
     setChartAccounts(StateEngine.getChartOfAccounts());
     setNewJournalModal(false);
     setNewJournalForm({
-      journalNo: `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
-      date: new Date().toLocaleDateString('en-GB'),
+      journalNo: '',
+      date: new Date().toISOString().slice(0, 10),
       reference: '',
       description: '',
       lines: [
@@ -2047,18 +2204,50 @@ ${invitation.url}`,
     });
     setCustomAlert({
       title: 'Journal Entry Posted',
-      message: `Voucher ${newJrn.journalNo} for ₦${totalDebits.toLocaleString()} posted cleanly to general ledger.`,
+      message:
+        'Entry ' + (posted?.entryNumber ?? '') + ' for ₦' +
+        Number(posted?.totalDebit ?? 0).toLocaleString() +
+        ' posted to the general ledger.',
     });
   };
 
   // RECONCILE BANK ACCOUNT
-  const handleReconcileBank = (bankId: string) => {
-    StateEngine.reconcileBankAccount(bankId);
-    setBankAccounts(StateEngine.getBankAccounts());
-    setCustomAlert({
-      title: 'Bank Statement Reconciled',
-      message: `Bank account statement reconciled and ledger balance verified.`,
-    });
+  /**
+   * Reconcile one bank account against the ledger.
+   *
+   * Needs the statement balance, because reconciliation is a comparison. The
+   * previous version took none: it set a RECONCILED flag and announced that
+   * the ledger balance was verified, having compared nothing with anything.
+   */
+  const handleReconcileBank = async (
+    bankId: string,
+    statementBalance: number,
+    statementDate?: string
+  ) => {
+    try {
+      const result = await StateEngine.reconcileBankAccount(bankId, statementBalance, statementDate);
+      setBankAccounts(StateEngine.getBankAccounts());
+
+      if (result.reconciled) {
+        setCustomAlert({
+          title: 'Bank Statement Reconciled',
+          message:
+            'The statement agrees with the ledger balance of ₦' +
+            result.ledgerBalance.toLocaleString() + '.',
+        });
+      } else {
+        setCustomAlert({
+          title: 'Statement Does Not Agree',
+          message:
+            result.message ||
+            'The statement and the ledger differ by ₦' +
+              Math.abs(result.difference).toLocaleString() +
+              '. The account stays unreconciled until the difference is explained.',
+        });
+      }
+    } catch (err: any) {
+      notify.error(err?.message || 'The account could not be reconciled.');
+    }
   };
 
   const activeThread = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
@@ -4805,7 +4994,7 @@ ${invitation.url}`,
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 text-xs text-center">
-                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'L2205'}</span></div>
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Locomotive</span><span className="font-mono font-bold text-slate-900">{trip.locomotiveId || 'Not yet coupled'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Escort Officer</span><span className="font-mono font-bold text-slate-700">{trip.monitoringOfficerName || trip.cargoOfficerName || 'Unassigned'}</span></div>
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200"><span className="text-[9px] uppercase font-bold text-slate-400 block">Quantity</span><span className="font-mono font-bold text-emerald-700">{trip.quantity} {trip.unitOfMeasure || 'Bags'}</span></div>
                   </div>
@@ -5146,7 +5335,7 @@ ${invitation.url}`,
                               <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="py-3.5 px-3">
                                   <span className="font-bold text-navy block">{t.tripId || t.id}</span>
-                                  <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'L2205'}</span>
+                                  <span className="text-[10px] text-slate-500 font-normal font-sans">Loco: #{t.locomotiveId || 'not coupled'}</span>
                                 </td>
                                 <td className="py-3.5 px-3 font-sans font-bold text-slate-900">
                                   {t.company || 'Corporate Client'}
@@ -5572,9 +5761,26 @@ ${invitation.url}`,
                     </div>
                   </div>
 
+                  {/*
+                    * Say when these figures are not current.
+                    *
+                    * The books used to be read from this browser's own
+                    * storage, so there was no such thing as a stale copy and
+                    * nothing to report. Now that they come from the server, a
+                    * failed fetch leaves the last synced ledger on screen —
+                    * and a screen showing yesterday's books without saying so
+                    * is the problem the move to the server was meant to end.
+                    */}
+                  {ledgerError && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 text-xs font-semibold">
+                      <span className="font-black block mb-0.5">These figures may be out of date</span>
+                      {ledgerError}
+                    </div>
+                  )}
+
                   {/* Journal Metrics */}
                   {(() => {
-                    const totalTurnover = journalEntries.reduce((s, j) => s + (Number(j.totalAmount) || 0), 0);
+                    const totalTurnover = journalEntries.reduce((s, j) => s + (Number(j.totalDebit) || 0), 0);
                     return (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -5608,12 +5814,12 @@ ${invitation.url}`,
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
                           <div className="flex items-center gap-3">
                             <span className="bg-purple-100 text-purple-800 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
-                              {jrn.journalNo}
+                              {jrn.entryNumber}
                             </span>
                             <div>
-                              <span className="font-extrabold text-slate-900 text-xs block">{jrn.description}</span>
+                              <span className="font-extrabold text-slate-900 text-xs block">{jrn.narration}</span>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                                <span>{jrn.date}</span>
+                                <span>{jrn.entryDate}</span>
                                 <span>• Ref: {jrn.reference}</span>
                                 <span>• Posted by: {jrn.postedBy}</span>
                               </div>
@@ -5623,7 +5829,7 @@ ${invitation.url}`,
                           <div className="flex items-center gap-3">
                             <div className="text-right">
                               <span className="text-[9px] uppercase font-mono font-bold text-slate-400 block">Total Voucher Value</span>
-                              <span className="text-xs font-mono font-black text-slate-900">₦{jrn.totalAmount.toLocaleString()}</span>
+                              <span className="text-xs font-mono font-black text-slate-900">₦{Number(jrn.totalDebit).toLocaleString()}</span>
                             </div>
                             <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-1 rounded-full font-mono uppercase">
                               {jrn.status}
@@ -6145,10 +6351,10 @@ ${invitation.url}`,
                           j.lines.forEach((l) => {
                             if (l.accountId === acc.id || l.accountCode === acc.code) {
                               matchingLines.push({
-                                date: j.date,
-                                voucherNo: j.journalNo,
-                                reference: j.reference,
-                                description: l.description || j.description,
+                                date: j.entryDate,
+                                voucherNo: j.entryNumber,
+                                reference: j.reference ?? '',
+                                description: l.description || j.narration,
                                 debit: l.debit,
                                 credit: l.credit,
                               });
@@ -6249,11 +6455,20 @@ ${invitation.url}`,
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          bankAccounts.forEach((b) => StateEngine.reconcileBankAccount(b.id));
-                          setBankAccounts(StateEngine.getBankAccounts());
+                          /*
+                           * Reconciliation needs a statement per account.
+                           *
+                           * This button used to mark every account reconciled
+                           * at once with no statement balance for any of them,
+                           * announcing that all bank feeds had been verified
+                           * against the ledger when nothing had been compared.
+                           */
                           setCustomAlert({
-                            title: 'All Bank Accounts Reconciled',
-                            message: 'All commercial bank feeds verified against general ledger cash balances.',
+                            title: 'Reconcile Each Account Against Its Statement',
+                            message:
+                              'Reconciliation compares a bank statement with the ledger balance, so ' +
+                              'each account needs its own closing statement figure. Open an account ' +
+                              'below and enter the statement balance and date.',
                           });
                         }}
                         className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
@@ -6269,43 +6484,109 @@ ${invitation.url}`,
                       <div key={bank.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">GL Code: {bank.glAccountCode || '1010'}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                              {bank.ledgerAccountId ? 'Linked to ledger account' : 'Not linked to a ledger account'}
+                            </span>
                             <h4 className="text-base font-black text-slate-900">{bank.bankName}</h4>
                             <p className="text-xs text-slate-500">{bank.accountName}</p>
                           </div>
-                          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
-                            {bank.accountType}
+                          <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
+                            {bank.currency || 'NGN'}
                           </span>
                         </div>
 
+                        {/*
+                          * The variance is the whole point of this card, so
+                          * it is computed. It was previously printed as a
+                          * flat ₦0.00 for every account whatever the
+                          * figures were -- a reconciliation screen asserting
+                          * that everything agreed, always.
+                          */}
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
                           <div className="flex justify-between items-center text-xs">
                             <span className="text-slate-500">Account Number:</span>
-                            <span className="font-mono font-bold text-slate-800">{bank.accountNumber}</span>
+                            <span className="font-mono font-bold text-slate-800">
+                              {bank.accountNumberTail ? `****${bank.accountNumberTail}` : '\u2014'}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500">Ledger Balance:</span>
-                            <span className="font-mono font-black text-slate-900">₦{(bank.ledgerBalance ?? bank.currentBalance).toLocaleString()}</span>
+                            <span className="text-slate-500">Last Statement:</span>
+                            <span className="font-mono font-black text-slate-900">
+                              {bank.statementBalance === undefined || bank.statementBalance === null
+                                ? 'not yet entered'
+                                : `₦${Number(bank.statementBalance).toLocaleString()}`}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500">Bank Statement:</span>
-                            <span className="font-mono font-black text-emerald-700">₦{(bank.statementBalance ?? bank.currentBalance).toLocaleString()}</span>
+                            <span className="text-slate-500">Statement Date:</span>
+                            <span className="font-mono text-slate-700">{bank.statementDate || '\u2014'}</span>
                           </div>
                           <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
-                            <span className="text-slate-500">Unreconciled Variance:</span>
-                            <span className="font-mono font-bold text-emerald-700">₦0.00</span>
+                            <span className="text-slate-500">Status:</span>
+                            <span className={`font-mono font-bold ${
+                              String(bank.status).toUpperCase() === 'RECONCILED'
+                                ? 'text-emerald-700'
+                                : 'text-amber-700'
+                            }`}>
+                              {String(bank.status).toUpperCase() === 'RECONCILED'
+                                ? 'Reconciled'
+                                : 'Pending review'}
+                            </span>
                           </div>
+                        </div>
+
+                        <div className="space-y-2 pt-1">
+                          <label
+                            className="block text-[10px] uppercase font-bold text-slate-500"
+                            htmlFor={`stmt-${bank.id}`}
+                          >
+                            Closing Statement Balance
+                          </label>
+                          <input
+                            id={`stmt-${bank.id}`}
+                            type="number"
+                            step="0.01"
+                            value={statementInputs[bank.id] ?? ''}
+                            onChange={(e) =>
+                              setStatementInputs({ ...statementInputs, [bank.id]: e.target.value })
+                            }
+                            placeholder="From the bank statement"
+                            className="w-full font-mono p-2 rounded-xl border border-slate-300 text-xs"
+                          />
+                          <input
+                            type="date"
+                            value={statementDates[bank.id] ?? ''}
+                            onChange={(e) =>
+                              setStatementDates({ ...statementDates, [bank.id]: e.target.value })
+                            }
+                            className="w-full font-mono p-2 rounded-xl border border-slate-300 text-xs"
+                          />
                         </div>
 
                         <div className="flex justify-between items-center pt-2">
                           <span className="text-[10px] text-slate-400 font-mono">
-                            Last synced: {bank.lastReconciled}
+                            {bank.lastReconciledAt
+                              ? `Reconciled ${bank.lastReconciledAt}`
+                              : 'Never reconciled'}
                           </span>
                           <button
-                            onClick={() => handleReconcileBank(bank.id)}
+                            onClick={() => {
+                              const raw = statementInputs[bank.id];
+                              if (raw === undefined || raw === '' || Number.isNaN(Number(raw))) {
+                                notify.error(
+                                  'Enter the closing balance from the bank statement to reconcile against.'
+                                );
+                                return;
+                              }
+                              void handleReconcileBank(
+                                bank.id,
+                                Number(raw),
+                                statementDates[bank.id] || undefined
+                              );
+                            }}
                             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition-all cursor-pointer"
                           >
-                            Reconcile Now
+                            Reconcile
                           </button>
                         </div>
                       </div>
@@ -6362,7 +6643,7 @@ ${invitation.url}`,
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono font-black text-slate-900 text-sm">{t.id}</span>
                                   <span className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded">
-                                    Loco: {t.locomotiveId || 'L2205'}
+                                    Loco: {t.locomotiveId || 'not coupled'}
                                   </span>
                                 </div>
                                 <h4 className="font-black text-slate-900 text-base mt-0.5">{t.company}</h4>

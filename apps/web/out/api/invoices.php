@@ -62,7 +62,18 @@ if ($action === 'RECORD_PAYMENT') {
         }
 
         $balance = round($total - $newPaid, 2);
-        $status  = $balance <= 0.01 ? 'PAID' : 'PART_PAID';
+
+        /*
+         * The same vocabulary the rest of the platform uses.
+         *
+         * This wrote PAID / PART_PAID — the legacy values the upsert
+         * validator keeps only so that pre-existing rows stay valid. Every
+         * screen, and StateEngine's invoice sync, looks for SETTLED and
+         * PARTIALLY_PAID, so recording a payment moved the invoice into a
+         * state nothing recognised: a fully paid invoice kept presenting as
+         * outstanding on the billing ledger and in the customer's portal.
+         */
+        $status = $balance <= 0.01 ? 'SETTLED' : 'PARTIALLY_PAID';
 
         $history   = json_decode((string) ($invoice['paymentHistoryJson'] ?? '[]'), true);
         $history   = is_array($history) ? $history : [];

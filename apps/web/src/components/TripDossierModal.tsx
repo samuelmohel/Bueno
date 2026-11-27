@@ -172,17 +172,31 @@ export function TripDossierModal({ trip, onClose }: TripDossierModalProps) {
                   {wagonLogs.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-4 text-center text-slate-400 font-sans text-xs">
-                        Standard 23-wagon rake assigned. Wagon loading logs will populate during siding loading.
+                        No wagons have been tallied for this consignment yet.
                       </td>
                     </tr>
                   ) : (
+                    // Recorded values only. The seal number was generated
+                    // from the row index and the quantities fell back to
+                    // 70 bags a wagon, so a dossier could state a load and a
+                    // discharge that nobody had counted.
                     wagonLogs.map((w: any, idx: number) => (
                       <tr key={idx} className="hover:bg-slate-50">
-                        <td className="p-2.5 px-3 font-bold text-slate-900">{w.wagonId || `WG-${idx + 1}`}</td>
-                        <td className="p-2.5 px-3 text-slate-600">{w.sealNumber || `SEAL-BN-${9800 + idx}`}</td>
-                        <td className="p-2.5 px-3 font-bold text-emerald-700">{w.bagsCount || 70} Bags</td>
-                        <td className="p-2.5 px-3 text-purple-700 font-bold">{w.unloadStatus === 'UNLOADED' ? (w.bagsCount || 70) : 0}</td>
-                        <td className="p-2.5 px-3 text-rose-600 font-black">{w.burstBags || 0}</td>
+                        <td className="p-2.5 px-3 font-bold text-slate-900">{w.wagonId || '—'}</td>
+                        <td className={`p-2.5 px-3 ${w.sealNumber ? 'text-slate-600' : 'text-amber-700'}`}>
+                          {w.sealNumber || 'not recorded'}
+                        </td>
+                        <td className="p-2.5 px-3 font-bold text-emerald-700">
+                          {w.qty ? `${Number(w.qty).toLocaleString()} ${w.unitOfMeasure || 'Bags'}` : '—'}
+                        </td>
+                        <td className="p-2.5 px-3 text-purple-700 font-bold">
+                          {w.unloadStatus === 'UNLOADED' && w.correctQty !== undefined && w.correctQty !== null
+                            ? Number(w.correctQty).toLocaleString()
+                            : '—'}
+                        </td>
+                        <td className="p-2.5 px-3 text-rose-600 font-black">
+                          {w.unloadStatus === 'UNLOADED' ? Number(w.burstBags || 0) : '—'}
+                        </td>
                         <td className="p-2.5 px-3">
                           <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
                             w.unloadStatus === 'UNLOADED'

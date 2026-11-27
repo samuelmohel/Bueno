@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { loadWindow, unloadWindow, recorded, tripDuration, toSheetClock } from '@/lib/tally';
 
 interface ManifestModalProps {
   trip: any;
@@ -30,7 +31,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
   const UNASSIGNED = '— to be completed —';
 
   const manifestNo = `MNF-NRC-2026-${String(trip.tripId || '001').replace(/[^0-9]/g, '').padStart(3, '0')}`;
-  const vesselRef = trip.vesselNo || 'VSL-APMT-992-NRC';
+  const vesselRef = trip.vesselNo || '';
   const driverName = trip.leadDriverName || trip.driverName || UNASSIGNED;
   const escortName = trip.cargoOfficerName || UNASSIGNED;
   const destOfficer = trip.unloadingOfficerName || UNASSIGNED;
@@ -39,46 +40,141 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
     window.print();
   };
 
+  /**
+   * Quote a value for CSV.
+   *
+   * Company names contain commas ("Huaxin Building Materials Nig, Plc") and
+   * complaint notes contain commas, quotes and newlines. None of it was
+   * escaped, so a single comma anywhere silently shifted every later column
+   * in the row — on the document a claim is settled from.
+   *
+   * The leading apostrophe guards the spreadsheet-formula case: a field
+   * beginning = + - or @ is executed by Excel and Sheets when the file is
+   * opened, and these fields are typed by hand at a siding.
+   */
+  const csvCell = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    let text = String(value);
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+
   const handleDownloadCsv = () => {
-    const csvRows = [
+    /*
+     * The manifest reports what was recorded.
+     *
+     * Previously, when a trip had no wagon tallies this invented twenty-three
+     * wagons named WG001…WG023 carrying 1,200 bags each, gave every one a
+     * generated seal number, a tare of exactly 22.5 tonnes and a condition of
+     * VERIFIED_INTACT — including wagons logged as damaged. The timing
+     * captured at the siding appeared nowhere on it at all.
+     */
+    const csvRows: unknown[][] = [
       ['Manifest Serial No', manifestNo],
-      ['Locomotive ID', trip.locomotiveId || 'L2205'],
-      ['Trip ID', trip.tripId || 'TRIP-001'],
-      ['Consignee Company', trip.company || 'HUAXIN BUILDING MATERIALS NIG PLC'],
-      ['Vessel Ref', vesselRef],
-      ['Origin Station', trip.origin || 'EWK'],
-      ['Destination Station', trip.destination || 'MNY'],
-      ['Lead Driver', driverName],
-      ['Escort Officer', escortName],
-      ['Total Wagons', totalWagons],
-      ['Total Bags Loaded', actualLoadedBags],
-      ['Net Freight Weight (Tonnes)', netWeightTonnes],
-      ['Gross Train Weight (Tonnes)', grossTrainWeightTonnes],
+      ['Locomotive ID', trip.locomotiveId || ''],
+      ['Trip ID', trip.tripId || trip.id || ''],
+      ['Consignee Company', trip.company || ''],
+      ['Vessel Ref', trip.vesselNo || ''],
+      ['Origin Station', trip.origin || ''],
+      ['Destination Station', trip.destination || ''],
+      ['Departed', toSheetClock(trip.departedAt) || ''],
+      ['Discharged', toSheetClock(trip.completedAt) || ''],
+      ['Total Transit Time', tripDuration(trip.departedAt, trip.completedAt) || ''],
+      ['Lead Driver', trip.leadDriverName || trip.driverName || ''],
+      ['Escort Officer', trip.cargoOfficerName || ''],
+      ['Discharge Officer', trip.unloadingOfficerName || ''],
+      ['Wagons Tallied', logs.length],
+      ['Total Bags Loaded', logs.length > 0 ? actualLoadedBags : ''],
+      ['Net Freight Weight (Tonnes)', logs.length > 0 ? netWeightTonnes : ''],
+      ['Generated', toSheetClock(new Date().toISOString())],
       [],
-      ['Wagon Serial', 'Security Seal No', 'Cargo Spec', 'Bags Loaded', 'Tare (Tonnes)', 'Gross (Tonnes)', 'Condition'],
     ];
 
-    const wagonList = logs.length > 0 ? logs : Array.from({ length: totalWagons }, (_, i) => ({
-      wagonId: `WG${String(i + 1).padStart(3, '0')}`,
-      qty: 1200,
-    }));
+    if (logs.length === 0) {
+      csvRows.push(['No wagon tallies have been recorded for this consignment.']);
+    } else {
+      csvRows.push([
+        'Wagon Serial', 'Seal Fitted', 'Seal On Arrival', 'Seal Verdict',
+        'Tare (Tonnes)', 'Cargo Spec', 'Bags Loaded',
+        'Loading Start', 'Loading End', 'Loading Duration', 'Loading Bay',
+        'Feeder Trucks', 'Drivers',
+        'Unload Start', 'Unload End', 'Unload Duration',
+        'Discharged Intact', 'Damaged', 'Burst Bags', 'Discrepancy Note', 'Condition',
+      ]);
 
-    wagonList.forEach((w: any, idx: number) => {
-      const bags = Number(w.qty) || 1200;
-      const netT = (bags * 50) / 1000;
-      const grossT = netT + 22.5;
-      const sealNo = `SEAL-BN-${9800 + idx}`;
-      csvRows.push([w.wagonId, sealNo, trip.cargoType || 'Huaxin Portland Cement (50kg)', bags, 22.5, grossT, 'VERIFIED_INTACT']);
-    });
+      logs.forEach((w: any) => {
+        const bags = Number(w.qty) || 0;
+        const load = loadWindow(w);
+        const unload = unloadWindow(w);
+        const damaged = Number(w.damageQty || 0);
+        const burst = Number(w.burstBags || 0);
+        const defects = damaged + burst;
+        const isUnloaded = w.unloadStatus === 'UNLOADED';
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map(e => e.join(',')).join('\n');
-    const encodedUri = encodeURI(csvContent);
+        // Condition reports the tally, rather than asserting VERIFIED_INTACT
+        // for every wagon including the damaged ones.
+        const condition = !isUnloaded
+          ? 'NOT_YET_DISCHARGED'
+          : defects > 0
+            ? 'DISCREPANCY_LOGGED'
+            : 'DISCHARGED_INTACT';
+
+        const trucks = Array.isArray(w.feederTrucks) ? w.feederTrucks : [];
+
+        /*
+         * The seal comparison, as three columns rather than one.
+         *
+         * "Seal: SEAL-PAPA-8801" on its own says a seal was fitted. It does
+         * not say whether that is the seal that arrived, which is the only
+         * question a claim turns on.
+         */
+        const sealVerdict =
+          w.sealIntact === true ? 'MATCHED'
+          : w.sealIntact === false ? 'DID NOT MATCH'
+          : !isUnloaded ? ''
+          : 'NOT CHECKED';
+
+        csvRows.push([
+          w.wagonId || '',
+          w.sealNumber || 'NOT RECORDED',
+          w.sealObserved || (isUnloaded ? 'NOT CHECKED' : ''),
+          sealVerdict,
+          // Tare comes off the wagon register; blank where it is unknown,
+          // rather than the 22.5t constant applied to every vehicle before.
+          w.tareTonnes ?? '',
+          trip.cargoType || '',
+          bags || '',
+          load.range === '—' ? '' : load.range.split(' → ')[0] || '',
+          load.range === '—' ? '' : load.range.split(' → ')[1] || '',
+          load.duration === '—' ? '' : load.duration,
+          w.sourceEnv || '',
+          trucks.map((t: any) => t.truckRegNo).filter(Boolean).join('; '),
+          trucks.map((t: any) => t.driverName).filter(Boolean).join('; '),
+          unload.range === '—' ? '' : unload.range.split(' → ')[0] || '',
+          unload.range === '—' ? '' : unload.range.split(' → ')[1] || '',
+          unload.duration === '—' ? '' : unload.duration,
+          isUnloaded && w.correctQty !== undefined && w.correctQty !== null ? Number(w.correctQty) : '',
+          damaged || 0,
+          burst || 0,
+          w.complaintNotes || '',
+          condition,
+        ]);
+      });
+    }
+
+    const csv = csvRows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+
+    // A Blob rather than a data: URI. encodeURI() mangles '#' and '+' in a
+    // note, and long manifests exceeded the URL length limit outright.
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = url;
     link.setAttribute('download', `Official_Manifest_${manifestNo}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -136,7 +232,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs font-mono">
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">LOCOMOTIVE ID</span>
-              <span className="font-black text-slate-900 text-sm">{trip.locomotiveId || 'L2205'}</span>
+              <span className="font-black text-slate-900 text-sm">{trip.locomotiveId || 'Not yet coupled'}</span>
             </div>
             <div>
               <span className="text-[9px] uppercase text-slate-400 block font-bold">CONSIGNEE COMPANY</span>
@@ -183,6 +279,7 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                   <tr>
                     <th className="p-3">Wagon ID</th>
                     <th className="p-3">Security Seal No.</th>
+                    <th className="p-3">Seal Verified</th>
                     <th className="p-3">Cargo Spec</th>
                     <th className="p-3">Bags</th>
                     <th className="p-3">Tare (Tonnes)</th>
@@ -191,20 +288,61 @@ export default function AutomatedManifestModal({ trip, onClose }: ManifestModalP
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[11px]">
-                  {(logs.length > 0 ? logs : Array.from({ length: totalWagons }, (_, i) => ({ wagonId: `WG${String(i + 1).padStart(3, '0')}`, qty: 1200 }))).map((w: any, idx: number) => {
-                    const bags = Number(w.qty) || 1200;
+                  {/*
+                    * Only wagons that were actually tallied.
+                    *
+                    * When a trip had no logs this printed WG001…WG023, each
+                    * with 1,200 bags, a generated seal and a condition of
+                    * VERIFIED INTACT — a complete manifest for a train that
+                    * had not been loaded.
+                    */}
+                  {logs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-6 text-center text-slate-400">
+                        No wagon tallies recorded for this consignment yet.
+                      </td>
+                    </tr>
+                  ) : logs.map((w: any, idx: number) => {
+                    const bags = Number(w.qty) || 0;
                     const netT = (bags * 50) / 1000;
-                    const grossT = netT + 22.5;
-                    const sealNo = `SEAL-BN-${9800 + idx}`;
+                    const tareT = Number(w.tareTonnes) || null;
+                    const grossT = tareT !== null ? netT + tareT : null;
+                    const defects = Number(w.damageQty || 0) + Number(w.burstBags || 0);
+                    const isUnloaded = w.unloadStatus === 'UNLOADED';
                     return (
                       <tr key={w.wagonId || idx} className="hover:bg-slate-50">
-                        <td className="p-3 font-black text-navy">{w.wagonId}</td>
-                        <td className="p-3 text-slate-600 font-bold">{sealNo}</td>
-                        <td className="p-3 text-slate-800">{trip.cargoType || 'Huaxin Portland Cement (50kg)'}</td>
-                        <td className="p-3 font-bold text-slate-900">{bags.toLocaleString()}</td>
-                        <td className="p-3 text-slate-500">22.5 T</td>
-                        <td className="p-3 font-black text-slate-900">{grossT.toFixed(1)} T</td>
-                        <td className="p-3 text-emerald-700 font-extrabold">VERIFIED INTACT</td>
+                        <td className="p-3 font-black text-navy">{recorded(w.wagonId)}</td>
+                        <td className={`p-3 font-bold ${w.sealNumber ? 'text-slate-600' : 'text-amber-700'}`}>
+                          {w.sealNumber || 'not recorded'}
+                        </td>
+                        <td className="p-3 font-bold">
+                          {w.sealIntact === true ? (
+                            <span className="text-emerald-700">Matched</span>
+                          ) : w.sealIntact === false ? (
+                            <span className="text-rose-600">Did not match</span>
+                          ) : !isUnloaded ? (
+                            <span className="text-slate-400">\u2014</span>
+                          ) : (
+                            <span className="text-amber-700">Not checked</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-800">{recorded(trip.cargoType)}</td>
+                        <td className="p-3 font-bold text-slate-900">{bags ? bags.toLocaleString() : '—'}</td>
+                        {/* Tare is a property of the individual wagon, not a
+                            constant 22.5 T for every vehicle on the network. */}
+                        <td className="p-3 text-slate-500">{tareT !== null ? `${tareT} T` : '—'}</td>
+                        <td className="p-3 font-black text-slate-900">
+                          {grossT !== null ? `${grossT.toFixed(1)} T` : '—'}
+                        </td>
+                        <td className="p-3 font-extrabold">
+                          {!isUnloaded ? (
+                            <span className="text-slate-400">Not yet discharged</span>
+                          ) : defects > 0 ? (
+                            <span className="text-rose-600">{defects} defect(s) logged</span>
+                          ) : (
+                            <span className="text-emerald-700">Discharged intact</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

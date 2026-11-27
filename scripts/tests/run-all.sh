@@ -145,6 +145,7 @@ EOF
 
 run_unit_test "capability registry (unit)" scripts/tests/rbac.test.ts
 run_unit_test "record comparison (unit)"   scripts/tests/datastore.test.ts
+run_unit_test "corridor gauge registry"    scripts/tests/corridor-parity.test.ts
 
 echo
 echo "══ generated PHP mirror is in sync ════════════════════════════════════"
@@ -153,10 +154,78 @@ npx tsx scripts/generate-rbac.ts check || TOTAL_FAIL=$((TOTAL_FAIL+1))
 run_suite "authentication and RBAC" scripts/tests/api-integration.sh
 run_suite "endpoint hardening"      scripts/tests/api-endpoints.sh
 
+# The whole commercial lifecycle, twice, as every role that touches it:
+# enquiry -> account -> deal -> dispatch -> loading -> GPS -> unload ->
+# completion -> invoice -> settlement. Needs its own administrator, because
+# it provisions the accounts it then signs in as.
+echo
+echo "══ end-to-end process (two consignments) ══════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+E2E_ADMIN_PW="$("$PHP" -r "echo bin2hex(random_bytes(12));")"
+"$PHP" -r '
+require "apps/web/public/api/_lib/db.php";
+$pdo = Db::conn();
+$pdo->prepare("INSERT INTO bueno_users (id,fullName,email,role,userType,status,password_hash,must_change_credentials,failed_attempts,pin) VALUES (?,?,?,?,?,?,?,0,0,\"\")")
+    ->execute(["usr_e2e","E2E Administrator","e2e-admin@bueno.ng","ADMIN","STAFF","ACTIVE",password_hash($argv[1],PASSWORD_BCRYPT)]);
+' "$E2E_ADMIN_PW" >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/e2e-full-process.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
+# A customer is identified by a stable id, not by the spelling of their name:
+# a rename must keep their history attached, two spellings must resolve to one
+# organisation, and folding must never cross between two.
+echo
+echo "══ company registry ═══════════════════════════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/company-registry.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
+# The books have two rules: an entry's debits equal its credits, and a posted
+# entry is reversed rather than edited. Everything else in accounting follows.
+echo
+echo "══ double-entry ledger ════════════════════════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/accounting-ledger.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
 # Migrations that change how people sign in, or repair damage an earlier
 # migration caused, are the ones most likely to cause a production incident.
 run_migration_test "migration 003 — credential hashing"  scripts/tests/credential-migration.php
 run_migration_test "migration 006 — email uniqueness"    scripts/tests/email-uniqueness-migration.php
+run_migration_test "migration 011 — company backfill"    scripts/tests/company-backfill-migration.php
+
+# Issuing and rotating staff credentials. Rotation has to end the sessions the
+# old password opened, or it has rotated nothing. Runs against its own
+# database because it provisions the whole internal account set.
+echo
+echo "══ staff credentials ══════════════════════════════════════════════════"
+STAFF_DB="$WORKDIR/staff.sqlite"
+STAFF_ENV="$WORKDIR/staff.env"
+cat > "$STAFF_ENV" <<EOF
+APP_ENV=development
+APP_SECRET=$("$PHP" -r "echo bin2hex(random_bytes(32));")
+SQLITE_PATH=$(native "$STAFF_DB")
+LOGIN_RATE_IP=500
+LOGIN_RATE_ID=500
+EOF
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" "$PHP" apps/web/public/api/_lib/migrate.php up >/dev/null 2>&1
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" "$PHP" -S "127.0.0.1:$((PORT+1))" -t apps/web/public \
+  > "$WORKDIR/staff-server.log" 2>&1 &
+STAFF_PID=$!
+for _ in $(seq 1 40); do
+  curl -s -o /dev/null "http://127.0.0.1:$((PORT+1))/api/auth.php" && break
+  sleep 0.25
+done
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" \
+BUENO_E2E_URL="http://127.0.0.1:$((PORT+1))" \
+  "$PHP" scripts/tests/staff-credentials.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+kill "$STAFF_PID" 2>/dev/null
 
 echo
 if [ "$TOTAL_FAIL" -eq 0 ]; then

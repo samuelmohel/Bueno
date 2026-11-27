@@ -24,6 +24,7 @@ import { CollectionStore, notifyStateChanged, type Row } from '@/lib/services/da
 import { api, ApiError } from '@/lib/apiClient';
 import * as session from '@/lib/auth/session';
 import { resolveTabCapability, normalizeMatrix } from '@/lib/rbac/capabilities';
+import { checkRoute, gaugeOf } from '@/lib/corridor';
 
 // ─── INITIAL SEED DATA (FALLBACK CACHE) ───────────────────────────────────────
 export const OFFICIAL_PXG_CODES = [
@@ -99,200 +100,110 @@ export const SEED_INVOICES: any[] = [];
 
 export const SEED_TRIP_COSTS: any[] = [];
 
-// ─── ENTERPRISE ACCOUNTING INTERFACES & SEED DATA ────────────────────────────
+// ─── ACCOUNTING ──────────────────────────────────────────────────────────────
+//
+// These now describe what the server stores, not what the browser used to
+// hold. The differences are the point of the change:
+//
+//   - an account has an openingBalance; its current balance is DERIVED from
+//     the posted lines and arrives only on a trial balance, so it cannot be
+//     written and cannot drift from the entries behind it
+//   - a journal entry has a server-assigned entryNumber and a posting
+//     identity, and can be REVERSED but never edited
+//   - a bank account keeps only the last four digits of its number
+
 export interface ChartAccount {
   id: string;
   code: string;
   name: string;
   type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
   subType: string;
+  openingBalance: number;
+  description?: string | null;
+  isEnabled: boolean | number;
+  /**
+   * Derived from the posted lines, never stored and never written.
+   * loadChartOfAccounts() fetches the trial balance, so it is always present.
+   */
   balance: number;
-  description: string;
-  isEnabled: boolean;
+  movement?: number;
+  totalDebit?: number;
+  totalCredit?: number;
+  normalSide?: 'DEBIT' | 'CREDIT';
 }
 
 export interface JournalEntryLine {
+  id?: string;
+  entryId?: string;
+  lineNo?: number;
   accountId: string;
-  accountCode: string;
-  accountName: string;
-  description: string;
+  accountCode?: string | null;
+  accountName?: string | null;
+  description?: string | null;
   debit: number;
   credit: number;
 }
 
 export interface JournalEntry {
   id: string;
-  journalNo: string;
-  date: string;
-  reference: string;
-  description: string;
+  entryNumber: string;
+  entryDate: string;
+  narration: string;
+  reference?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  companyId?: string | null;
+  status: 'POSTED' | 'REVERSED';
+  /** Set on both sides of a correction, so the pair is always traceable. */
+  reversesId?: string | null;
+  reversedById?: string | null;
+  reversalReason?: string | null;
+  totalDebit: number;
+  totalCredit: number;
+  postedBy?: string | null;
+  postedAt?: string | null;
   lines: JournalEntryLine[];
-  totalAmount: number;
-  status: 'POSTED';
-  postedBy: string;
-  createdAt: string;
 }
 
 export interface BankAccount {
   id: string;
   bankName: string;
-  accountName: string;
-  accountNumber: string;
-  accountType: string;
-  currency: string;
-  currentBalance: number;
-  ledgerBalance?: number;
-  statementBalance?: number;
-  glAccountCode?: string;
-  lastReconciled: string;
+  accountName?: string | null;
+  /** Last four digits only — a full account number is not worth holding. */
+  accountNumberTail?: string | null;
+  currency?: string;
+  /** The chart-of-accounts asset account this bank account posts to. */
+  ledgerAccountId?: string | null;
+  statementBalance?: number | null;
+  statementDate?: string | null;
   status: 'RECONCILED' | 'PENDING_REVIEW';
+  lastReconciledAt?: string | null;
+  lastReconciledBy?: string | null;
 }
 
-export const SEED_CHART_OF_ACCOUNTS: ChartAccount[] = [
-  { id: 'acc_1010', code: '1010', name: 'Zenith Bank Operating Account (#1014889201)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 48250000, description: 'Primary corporate revenue collection and clearing account', isEnabled: true },
-  { id: 'acc_1020', code: '1020', name: 'Access Bank Rail Escort & NRC Escrow (#0049921102)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 18400000, description: 'Track toll reserve and security escort operations escrow', isEnabled: true },
-  { id: 'acc_1030', code: '1030', name: 'Siding Petty Cash Vault (Ewekoro & Moniya)', type: 'ASSET', subType: 'Cash & Cash Equivalents', balance: 1250000, description: 'Station-level cash imprest for immediate siding contingencies', isEnabled: true },
-  { id: 'acc_1110', code: '1110', name: 'Trade Debtors (Consignee Receivables)', type: 'ASSET', subType: 'Accounts Receivable', balance: 73600000, description: 'Outstanding freight billings due from HBM, APMT, Maersk, and BAT', isEnabled: true },
-  { id: 'acc_1210', code: '1210', name: 'Bulk AGO Diesel Reserves (Ewekoro Depot)', type: 'ASSET', subType: 'Inventory', balance: 12800000, description: 'Locomotive fuel held in storage tanks at Ewekoro siding', isEnabled: true },
-  { id: 'acc_1510', code: '1510', name: 'Rolling Stock — 46 PXG Covered Hopper Wagons', type: 'ASSET', subType: 'Property, Plant & Equipment', balance: 1380000000, description: 'Dedicated fleet of 46 covered hopper standard-gauge wagons', isEnabled: true },
-  { id: 'acc_1520', code: '1520', name: 'Siding Heavy Machinery & Tractors', type: 'ASSET', subType: 'Property, Plant & Equipment', balance: 45000000, description: 'Cross-docking loaders, forklifts, and shunting tractors', isEnabled: true },
-  { id: 'acc_1590', code: '1590', name: 'Accumulated Depreciation — Rolling Stock', type: 'ASSET', subType: 'Contra-Asset', balance: -46000000, description: 'Cumulative asset depreciation charged to date', isEnabled: true },
-
-  { id: 'acc_2010', code: '2010', name: 'Trade Creditors (Diesel & Vendor Payables)', type: 'LIABILITY', subType: 'Current Liabilities', balance: 16200000, description: 'Invoices payable to fuel suppliers and maintenance contractors', isEnabled: true },
-  { id: 'acc_2020', code: '2020', name: 'NRC Track Access Surcharge Payable', type: 'LIABILITY', subType: 'Current Liabilities', balance: 22500000, description: 'Nigerian Railway Corporation statutory corridor track tolls', isEnabled: true },
-  { id: 'acc_2030', code: '2030', name: 'Accrued Operating Expenses & Crew Allowances', type: 'LIABILITY', subType: 'Current Liabilities', balance: 4800000, description: 'Unsettled shift allowances and stevedoring charges', isEnabled: true },
-  { id: 'acc_2040', code: '2040', name: 'Consignee Advance Deposits & Retainers', type: 'LIABILITY', subType: 'Current Liabilities', balance: 35000000, description: 'Prepaid freight funds held prior to dispatch release', isEnabled: true },
-  { id: 'acc_2120', code: '2120', name: 'Unidentified Receipts Suspense Account', type: 'LIABILITY', subType: 'Suspense', balance: 0, description: 'Unallocated bank wire receipts pending customer attribution', isEnabled: true },
-
-  { id: 'acc_3010', code: '3010', name: 'Ordinary Share Capital', type: 'EQUITY', subType: 'Contributed Capital', balance: 1200000000, description: 'Issued and fully paid corporate equity capital', isEnabled: true },
-  { id: 'acc_3020', code: '3020', name: 'Retained Earnings & Reserves', type: 'EQUITY', subType: 'Retained Earnings', balance: 206700000, description: 'Accumulated net surplus from railway operations', isEnabled: true },
-
-  { id: 'acc_4010', code: '4010', name: 'Bulk Freight Revenue — Cement (HBM Siding)', type: 'REVENUE', subType: 'Operating Revenue', balance: 82800000, description: 'Freight haulage tariffs for Huaxin Portland Cement (50kg)', isEnabled: true },
-  { id: 'acc_4020', code: '4020', name: 'Bulk Freight Revenue — Containerized Cargo (APMT)', type: 'REVENUE', subType: 'Operating Revenue', balance: 24000000, description: 'Intermodal import/export container movement on rail', isEnabled: true },
-  { id: 'acc_4030', code: '4030', name: 'Siding Loading & Cross-Docking Handling Income', type: 'REVENUE', subType: 'Operating Revenue', balance: 4600000, description: 'Terminal siding cargo handling and bag conveyance fees', isEnabled: true },
-  { id: 'acc_4040', code: '4040', name: 'Demurrage & Wagon Detention Penalties', type: 'REVENUE', subType: 'Other Operating Income', balance: 2200000, description: 'Hourly demurrage billed for unloading delays exceeding free time', isEnabled: true },
-
-  { id: 'acc_5010', code: '5010', name: 'NRC Track Access & Corridor Tolls', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 28400000, description: 'Direct mileage and axle-load access tariffs paid to NRC', isEnabled: true },
-  { id: 'acc_5020', code: '5020', name: 'Locomotive Diesel Fuel (AGO) Consumption', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 19600000, description: 'AGO diesel fuel burned per voyage run between EWK and MNY', isEnabled: true },
-  { id: 'acc_5030', code: '5030', name: 'Mainline Locomotive Power Unit Hire', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 11500000, description: 'Locomotive charter and wet-lease per train trip', isEnabled: true },
-  { id: 'acc_5040', code: '5040', name: 'Siding Loading & Stevedoring Wages', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 3800000, description: 'Labor rates paid for loading 1,200 bags per covered hopper', isEnabled: true },
-  { id: 'acc_5050', code: '5050', name: 'Armed Security Rail Escort Operations', type: 'EXPENSE', subType: 'Cost of Goods Sold', balance: 2900000, description: 'Corridor armed patrol and onboard escort officer allowances', isEnabled: true },
-
-  { id: 'acc_6010', code: '6010', name: 'Terminal Management & Staff Salaries', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 6800000, description: 'Salaries for station officers, dispatchers, and finance staff', isEnabled: true },
-  { id: 'acc_6020', code: '6020', name: 'Corridor Telemetry, GPS & Cloud Infrastructure', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 1400000, description: 'Satellite GPS telemetry tracking and software hosting', isEnabled: true },
-  { id: 'acc_6030', code: '6030', name: 'Yard Utilities, Siding Maintenance & Safety', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 2100000, description: 'Lighting, security fencing, track clearance, and depot safety', isEnabled: true },
-  { id: 'acc_6040', code: '6040', name: 'Corporate Legal, Audit & Regulatory Compliance', type: 'EXPENSE', subType: 'Operating Expenses (SG&A)', balance: 1850000, description: 'Statutory filing, external financial audit, and insurance', isEnabled: true },
-];
-
-export const SEED_JOURNAL_ENTRIES: JournalEntry[] = [
-  {
-    id: 'jrn_001',
-    journalNo: 'JRN-2026-001',
-    date: '01/09/2026',
-    reference: 'EQUITY-CAP-01',
-    description: 'Initial equity capitalization and purchase of 46 PXG Hopper Wagons fleet',
-    totalAmount: 1380000000,
-    status: 'POSTED',
-    postedBy: 'Folake Adeyemi (Finance Controller)',
-    createdAt: '01 Sep 2026',
-    lines: [
-      { accountId: 'acc_1510', accountCode: '1510', accountName: 'Rolling Stock — 46 PXG Covered Hopper Wagons', description: 'Acquisition of 46 standard-gauge hoppers', debit: 1380000000, credit: 0 },
-      { accountId: 'acc_3010', accountCode: '3010', accountName: 'Ordinary Share Capital', description: 'Equity allotment', debit: 0, credit: 1200000000 },
-      { accountId: 'acc_3020', accountCode: '3020', accountName: 'Retained Earnings & Reserves', description: 'Capital reserve contribution', debit: 0, credit: 180000000 },
-    ]
-  },
-  {
-    id: 'jrn_002',
-    journalNo: 'JRN-2026-002',
-    date: '06/09/2026',
-    reference: 'HBM-INV-001',
-    description: 'Accrual of freight tariff revenue on HBM Monthly Consignment Tranche 1 (920 MT)',
-    totalAmount: 9200000,
-    status: 'POSTED',
-    postedBy: 'Chinenye Nnamdi (Head of Finance)',
-    createdAt: '06 Sep 2026',
-    lines: [
-      { accountId: 'acc_1110', accountCode: '1110', accountName: 'Trade Debtors (Consignee Receivables)', description: 'Invoice HBM-INV-001 billed to Huaxin Cement', debit: 9200000, credit: 0 },
-      { accountId: 'acc_4010', accountCode: '4010', accountName: 'Bulk Freight Revenue — Cement (HBM Siding)', description: '10,000 NGN/MT contract tariff recognized', debit: 0, credit: 9200000 },
-    ]
-  },
-  {
-    id: 'jrn_003',
-    journalNo: 'JRN-2026-003',
-    date: '08/09/2026',
-    reference: 'VOYAGE-EXP-884',
-    description: 'Settlement of NRC track access toll and bulk AGO locomotive fuel via Zenith Bank',
-    totalAmount: 5300000,
-    status: 'POSTED',
-    postedBy: 'Chinenye Nnamdi (Head of Finance)',
-    createdAt: '08 Sep 2026',
-    lines: [
-      { accountId: 'acc_5010', accountCode: '5010', accountName: 'NRC Track Access & Corridor Tolls', description: 'Statutory track access fees paid to NRC', debit: 3100000, credit: 0 },
-      { accountId: 'acc_5020', accountCode: '5020', accountName: 'Locomotive Diesel Fuel (AGO) Consumption', description: 'AGO diesel bunkering for trip', debit: 2200000, credit: 0 },
-      { accountId: 'acc_1010', accountCode: '1010', accountName: 'Zenith Bank Operating Account (#1014889201)', description: 'Bank electronic disbursement', debit: 0, credit: 5300000 },
-    ]
-  },
-  {
-    id: 'jrn_004',
-    journalNo: 'JRN-2026-004',
-    date: '11/09/2026',
-    reference: 'WIRE-RCV-HBM-94',
-    description: 'Wire settlement received from Huaxin Building Materials Nig Plc for Tranches 1 & 2',
-    totalAmount: 25000000,
-    status: 'POSTED',
-    postedBy: 'Chinenye Nnamdi (Head of Finance)',
-    createdAt: '11 Sep 2026',
-    lines: [
-      { accountId: 'acc_1010', accountCode: '1010', accountName: 'Zenith Bank Operating Account (#1014889201)', description: 'Direct NIBSS wire settlement credited', debit: 25000000, credit: 0 },
-      { accountId: 'acc_1110', accountCode: '1110', accountName: 'Trade Debtors (Consignee Receivables)', description: 'Clearance of outstanding consignee invoice', debit: 0, credit: 25000000 },
-    ]
-  },
-];
-
-export const SEED_BANK_ACCOUNTS: BankAccount[] = [
-  {
-    id: 'bnk_01',
-    bankName: 'Zenith Bank Plc',
-    accountName: 'Bueno Logistics Limited — Freight Operations',
-    accountNumber: '1014889201',
-    accountType: 'Corporate Current',
-    currency: 'NGN (₦)',
-    currentBalance: 48250000,
-    ledgerBalance: 48250000,
-    statementBalance: 48250000,
-    glAccountCode: '1010',
-    lastReconciled: '12 Sep 2026',
-    status: 'RECONCILED',
-  },
-  {
-    id: 'bnk_02',
-    bankName: 'Access Bank Plc',
-    accountName: 'Bueno Logistics Limited — NRC & Escort Escrow',
-    accountNumber: '0049921102',
-    accountType: 'Treasury Escrow',
-    currency: 'NGN (₦)',
-    currentBalance: 18400000,
-    ledgerBalance: 18400000,
-    statementBalance: 18400000,
-    glAccountCode: '1020',
-    lastReconciled: '12 Sep 2026',
-    status: 'RECONCILED',
-  },
-  {
-    id: 'bnk_03',
-    bankName: 'Stanbic IBTC Bank',
-    accountName: 'Bueno Logistics Limited — Rolling Stock Capital Fund',
-    accountNumber: '9023817740',
-    accountType: 'Yield Reserve',
-    currency: 'NGN (₦)',
-    currentBalance: 32000000,
-    ledgerBalance: 32000000,
-    statementBalance: 32000000,
-    glAccountCode: '1025',
-    lastReconciled: '10 Sep 2026',
-    status: 'RECONCILED',
-  },
-];
+/*
+ * There are deliberately no seeded books.
+ *
+ * Three arrays stood here: a chart of accounts, a general journal and a list
+ * of bank accounts, all carrying figures -- 48,250,000 in one operating
+ * account, 35,000,000 of consignee advances, a set of posted journal entries.
+ * They were illustrative, and they were also the fallback whenever the
+ * accounting screens had nothing else, so the Financial Statements screen
+ * reported them as the company's position.
+ *
+ * The bank entries went further and carried account numbers attributed to
+ * named banks -- 1014889201 at Zenith, 0049921102 at Access -- for an
+ * organisation that is a real client of this platform.
+ *
+ * The books now come from the server (accounts.php, journal.php, bank.php)
+ * or the screens are empty. An empty ledger is a true statement that nothing
+ * has been posted yet. A seeded one is a set of figures nobody entered,
+ * presented as accounts.
+ *
+ * Migration 013 seeds the chart of ACCOUNT CODES, with every opening balance
+ * at zero, so an accountant has the account structure without inheriting
+ * anybody's invented balances.
+ */
 
 // ─── STATE ENGINE SERVICE ───────────────────────────────────────────────────
 
@@ -743,7 +654,23 @@ class StateEngineService {
 
     const origin = deal.loadingStation || 'PAPA';
     const destination = deal.destination || 'MONI';
-    const gauge = deal.gauge || (['EWK', 'IDD', 'ILR', 'OSB', 'DGB'].includes(origin) ? 'NARROW_GAUGE' : 'STANDARD_GAUGE');
+
+    /*
+     * The gauge the deal was registered with, or the registry's answer.
+     *
+     * This used to derive it from a five-entry narrow-gauge list of its own —
+     * EWK, IDD, ILR, OSB, DGB — which omitted ITO, EBJ, IGS, INS, OKK, FFA
+     * and JBB. A deal the deal form had correctly treated as narrow gauge
+     * therefore produced a trip stamped STANDARD_GAUGE, and the wagons
+     * allocated against it were the wrong gauge for the track.
+     */
+    const gauge = deal.gauge || gaugeOf(origin) || 'STANDARD_GAUGE';
+
+    // A cancelled or mis-keyed contract should not reach a siding.
+    const route = checkRoute(origin, destination);
+    if (!route.ok) {
+      throw new Error(route.reason || 'This route cannot be run.');
+    }
 
     const isOriginPAPA = origin === 'PAPA';
     const curLat = isOriginPAPA ? 6.8974 : (origin === 'APT' ? 6.4550 : 6.8974);
@@ -940,6 +867,113 @@ class StateEngineService {
     const current = this.getRequests();
     const updated = [req, ...current];
     this.saveRequests(updated);
+  }
+
+  /**
+   * Move a set of wagons to a new status and station, through the API.
+   *
+   * The portals used to do this by rewriting the bueno_wagons key in
+   * localStorage. That is the read-through cache, not the register: the
+   * change never left the browser, so a consist released at Moniya stayed
+   * IN_USE for every other officer and the destination showed no available
+   * stock while the empty train sat in the yard.
+   *
+   * Resolves to the ids that could not be updated, so a caller can say which.
+   */
+  async setWagonStatuses(
+    wagonIds: string[],
+    status: string,
+    currentStation?: string
+  ): Promise<string[]> {
+    const ids = Array.from(new Set(wagonIds.filter(Boolean)));
+    if (ids.length === 0) return [];
+
+    const known = new Map(this.getWagons().map((w: any) => [String(w.id), w]));
+    const failed: string[] = [];
+
+    await Promise.all(
+      ids.map(async (id) => {
+        const existing = known.get(String(id));
+        // A wagon the register has never seen is not invented here; it is
+        // reported, so the officer can register it properly.
+        if (!existing) {
+          failed.push(id);
+          return;
+        }
+        try {
+          await STORES.bueno_wagons.upsert({
+            ...existing,
+            status,
+            ...(currentStation ? { currentStation } : {}),
+          });
+        } catch (err) {
+          if (err instanceof ApiError) reportWriteFailure('bueno_wagons', err);
+          failed.push(id);
+        }
+      })
+    );
+
+    notifyStateChanged();
+    return failed;
+  }
+
+  // ── CORRIDOR TELEMETRY ────────────────────────────────────────────────────
+
+  /**
+   * Record one position fix against a trip.
+   *
+   * gps.php is append-only and is not one of the collection stores, so it
+   * cannot go through postRemote. It also has to surface its errors: the
+   * dispatch screen previously posted the opening fix to
+   * `/api/tracking/gps/<locomotive>`, a path with no handler behind it. The
+   * static-site rewrite answered it with index.html, the fetch resolved 200,
+   * and nothing anywhere reported that tracking had not started.
+   *
+   * Rejects on failure so the caller can tell the officer.
+   */
+  async postGpsFix(fix: {
+    tripId: string;
+    locomotiveId?: string;
+    lat: number;
+    lng: number;
+    speed?: number;
+    heading?: number;
+    accuracy?: number;
+    batteryLevel?: number;
+    officerPhone?: string;
+    signalQuality?: string;
+  }): Promise<void> {
+    if (!fix?.tripId) throw new Error('A trip reference is required to report a position.');
+    if (!Number.isFinite(fix.lat) || !Number.isFinite(fix.lng)) {
+      throw new Error('A valid position is required.');
+    }
+
+    const body: Record<string, unknown> = {
+      tripId: fix.tripId,
+      lat: fix.lat,
+      lng: fix.lng,
+    };
+    // Only send what was actually measured; the server defaults the rest.
+    if (fix.locomotiveId) body.locomotiveId = fix.locomotiveId;
+    if (fix.speed !== undefined) body.speed = Math.round(fix.speed);
+    if (fix.heading !== undefined) body.heading = fix.heading;
+    if (fix.accuracy !== undefined) body.accuracy = fix.accuracy;
+    if (fix.batteryLevel !== undefined) body.batteryLevel = fix.batteryLevel;
+    if (fix.officerPhone) body.officerPhone = fix.officerPhone;
+    if (fix.signalQuality) body.signalQuality = fix.signalQuality;
+
+    await api.post('gps.php', body);
+  }
+
+  /** Latest fix and breadcrumb trail for a trip. */
+  async getGpsTrail(tripId: string, limit = 50): Promise<{ latest: any; breadcrumbs: any[] }> {
+    const { data } = await api.get(
+      `gps.php?tripId=${encodeURIComponent(tripId)}&limit=${limit}`
+    );
+    return {
+      latest: data?.latest ?? null,
+      breadcrumbs: Array.isArray(data?.breadcrumbs) ? data.breadcrumbs : [],
+    };
   }
 
   // ── INVOICES (AR & REVENUE) API ───────────────────────────────────────────
@@ -1562,71 +1596,195 @@ class StateEngineService {
   }
 
 
-  // ─── DOUBLE-ENTRY CHART OF ACCOUNTS & GENERAL JOURNAL API ─────────────────
+  // --- DOUBLE-ENTRY LEDGER -------------------------------------------------
+  //
+  // These were localStorage reads against a seeded array: the chart of
+  // accounts, the general journal and the bank accounts existed only in
+  // whichever browser last touched them. Two accountants each had their own
+  // books, clearing site data destroyed them, and the Financial Statements
+  // screen reported on them as though they were the company's accounts.
+  //
+  // addJournalEntry also adjusted account balances by hand, in the browser,
+  // with nothing checking that the entry balanced. The server now refuses an
+  // entry whose debits and credits differ, and derives every balance from the
+  // posted lines, so a reported figure cannot drift from the entries behind it.
+  //
+  // They are async because they are network calls. The synchronous readers
+  // serve the last synced copy so a screen still renders while offline.
 
+  private ledgerCache = {
+    accounts: [] as ChartAccount[],
+    entries: [] as JournalEntry[],
+    banks: [] as BankAccount[],
+  };
+
+  /** The chart of accounts, from the server. */
+  async loadChartOfAccounts(): Promise<ChartAccount[]> {
+    /*
+     * The trial balance, not the bare account list.
+     *
+     * Every screen that shows an account also shows its balance, and a
+     * balance is derived from the posted lines rather than stored on the
+     * account. Fetching the derived view in one call is what keeps a
+     * displayed balance in step with the entries behind it.
+     */
+    const { data } = await api.get('accounts.php?trialBalance=1');
+    const rows: ChartAccount[] = (Array.isArray(data?.data) ? data.data : []).map((r: any) => ({
+      ...r,
+      subType: r.subType ?? '',
+      openingBalance: Number(r.openingBalance ?? 0),
+      balance: Number(r.balance ?? r.openingBalance ?? 0),
+      isEnabled: Number(r.isEnabled ?? 1) === 1,
+    }));
+    this.ledgerCache.accounts = rows;
+    this.writeStorage('bueno_chart_of_accounts', rows);
+    this.notifyListeners();
+    return rows;
+  }
+
+  /**
+   * Last synced chart of accounts.
+   *
+   * No seeded fallback: an invented chart of accounts is worse than an empty
+   * one, because every figure drawn from it reads as a real balance.
+   */
   getChartOfAccounts(): ChartAccount[] {
-    return this.readStorage<ChartAccount[]>('bueno_chart_of_accounts', SEED_CHART_OF_ACCOUNTS);
+    if (this.ledgerCache.accounts.length > 0) return this.ledgerCache.accounts;
+    return this.readStorage<ChartAccount[]>('bueno_chart_of_accounts', []);
   }
 
-  saveChartOfAccounts(accounts: ChartAccount[]): void {
-    this.writeStorage('bueno_chart_of_accounts', accounts);
+  async addChartOfAccount(acc: Partial<ChartAccount>): Promise<ChartAccount> {
+    const { data } = await api.post('accounts.php', { action: 'upsert', record: acc });
+    await this.loadChartOfAccounts();
+    return (data?.record ?? data?.account) as ChartAccount;
   }
 
-  addChartOfAccount(acc: Omit<ChartAccount, 'id'>): ChartAccount {
-    const existing = this.getChartOfAccounts();
-    const newAccount: ChartAccount = {
-      ...acc,
-      id: `acc_${acc.code || Date.now()}`,
+  /**
+   * Account balances, derived server-side from the posted lines.
+   *
+   * Carries the ledger's own integrity check, so a screen can say the books
+   * do not balance rather than printing a statement that silently does not
+   * add up.
+   */
+  async getTrialBalance(asOf?: string): Promise<{
+    rows: any[];
+    totals: { debit: number; credit: number };
+    integrity: { balanced: boolean; totalDebit: number; totalCredit: number; difference: number };
+  }> {
+    const query = asOf ? '&asOf=' + encodeURIComponent(asOf) : '';
+    const { data } = await api.get('accounts.php?trialBalance=1' + query);
+    return {
+      rows: Array.isArray(data?.data) ? data.data : [],
+      totals: data?.totals ?? { debit: 0, credit: 0 },
+      integrity: data?.integrity ?? { balanced: true, totalDebit: 0, totalCredit: 0, difference: 0 },
     };
-    this.saveChartOfAccounts([...existing, newAccount]);
-    return newAccount;
+  }
+
+  /** Journal entries, most recent first. */
+  async loadJournalEntries(params: {
+    from?: string;
+    to?: string;
+    account?: string;
+    sourceType?: string;
+    sourceId?: string;
+    limit?: number;
+  } = {}): Promise<JournalEntry[]> {
+    const q = new URLSearchParams();
+    if (params.from) q.set('from', params.from);
+    if (params.to) q.set('to', params.to);
+    if (params.account) q.set('account', params.account);
+    if (params.sourceType) q.set('source', params.sourceType);
+    if (params.sourceId) q.set('sourceId', params.sourceId);
+    q.set('limit', String(params.limit ?? 200));
+
+    const { data } = await api.get('journal.php?' + q.toString());
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    this.ledgerCache.entries = rows;
+    this.writeStorage('bueno_journal_entries', rows);
+    this.notifyListeners();
+    return rows;
   }
 
   getJournalEntries(): JournalEntry[] {
-    return this.readStorage<JournalEntry[]>('bueno_journal_entries', SEED_JOURNAL_ENTRIES);
+    if (this.ledgerCache.entries.length > 0) return this.ledgerCache.entries;
+    return this.readStorage<JournalEntry[]>('bueno_journal_entries', []);
   }
 
-  addJournalEntry(entry: Omit<JournalEntry, 'id' | 'createdAt'>): JournalEntry {
-    const existing = this.getJournalEntries();
-    const newEntry: JournalEntry = {
-      ...entry,
-      id: `jrn_${Date.now()}`,
-      createdAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    };
+  /**
+   * Post a journal entry.
+   *
+   * Rejects if the server refuses it, so an unbalanced entry reaches the
+   * person keying it instead of being written into a browser array that
+   * nobody reconciles.
+   */
+  async postJournalEntry(entry: {
+    narration: string;
+    entryDate?: string;
+    reference?: string;
+    sourceType?: string;
+    sourceId?: string;
+    companyId?: string;
+    lines: Array<{ account: string; description?: string; debit?: number; credit?: number }>;
+  }): Promise<JournalEntry> {
+    const { data } = await api.post('journal.php', { action: 'post', entry });
+    await Promise.all([this.loadJournalEntries(), this.loadChartOfAccounts()]);
+    return (data?.entry ?? data?.record) as JournalEntry;
+  }
 
-    // Update account balances according to debit and credit effects
-    const accounts = this.getChartOfAccounts();
-    newEntry.lines.forEach((line) => {
-      const targetAcc = accounts.find((a) => a.id === line.accountId || a.code === line.accountCode);
-      if (targetAcc) {
-        if (targetAcc.type === 'ASSET' || targetAcc.type === 'EXPENSE') {
-          targetAcc.balance += (Number(line.debit) || 0) - (Number(line.credit) || 0);
-        } else {
-          targetAcc.balance += (Number(line.credit) || 0) - (Number(line.debit) || 0);
-        }
-      }
-    });
-    this.saveChartOfAccounts(accounts);
-    this.writeStorage('bueno_journal_entries', [newEntry, ...existing]);
-    return newEntry;
+  /** Correct a posted entry by reversing it; posted entries are never edited. */
+  async reverseJournalEntry(entryId: string, reason: string): Promise<JournalEntry> {
+    const { data } = await api.post('journal.php', { action: 'reverse', id: entryId, reason });
+    await Promise.all([this.loadJournalEntries(), this.loadChartOfAccounts()]);
+    return (data?.entry ?? data?.record) as JournalEntry;
+  }
+
+  async loadBankAccounts(): Promise<BankAccount[]> {
+    const { data } = await api.get('bank.php');
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    this.ledgerCache.banks = rows;
+    this.writeStorage('bueno_bank_accounts', rows);
+    this.notifyListeners();
+    return rows;
   }
 
   getBankAccounts(): BankAccount[] {
-    return this.readStorage<BankAccount[]>('bueno_bank_accounts', SEED_BANK_ACCOUNTS);
+    if (this.ledgerCache.banks.length > 0) return this.ledgerCache.banks;
+    return this.readStorage<BankAccount[]>('bueno_bank_accounts', []);
   }
 
-  saveBankAccounts(banks: BankAccount[]): void {
-    this.writeStorage('bueno_bank_accounts', banks);
+  async saveBankAccount(bank: Partial<BankAccount>): Promise<void> {
+    await api.post('bank.php', { action: 'upsert', record: bank });
+    await this.loadBankAccounts();
   }
 
-  reconcileBankAccount(bankId: string): void {
-    const banks = this.getBankAccounts();
-    const updated = banks.map((b) =>
-      b.id === bankId
-        ? { ...b, lastReconciled: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), status: 'RECONCILED' as const }
-        : b
-    );
-    this.saveBankAccounts(updated);
+  /**
+   * Reconcile a bank account against the ledger.
+   *
+   * This used to set a RECONCILED flag on a number held in the browser,
+   * comparing nothing against anything. It now sends the statement balance
+   * and the server compares it against what the ledger says the account
+   * holds; if the two disagree the account stays unreconciled and the
+   * difference comes back, because a tick that does not mean the figures
+   * agree is worse than no tick at all.
+   */
+  async reconcileBankAccount(
+    bankId: string,
+    statementBalance: number,
+    statementDate?: string
+  ): Promise<{ reconciled: boolean; difference: number; ledgerBalance: number; message?: string }> {
+    const { data } = await api.post('bank.php', {
+      action: 'reconcile',
+      id: bankId,
+      statementBalance,
+      statementDate,
+    });
+    await this.loadBankAccounts();
+    return {
+      reconciled: Boolean(data?.reconciled),
+      difference: Number(data?.difference ?? 0),
+      ledgerBalance: Number(data?.ledgerBalance ?? 0),
+      message: data?.message,
+    };
   }
 
 }

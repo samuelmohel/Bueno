@@ -35,6 +35,17 @@ Collection::handle([
             ->string('wagonType', false, 100)
             ->string('payloadCapacity', false, 100)
             ->integer('capacity', false, 1, 100000)
+            /*
+             * Tare is a property of this wagon, read off its data panel.
+             *
+             * The manifest used to compute gross weight as net plus a flat
+             * 22.5 tonnes for every vehicle on the network. Gross weight is
+             * what axle-load limits are checked against and what a
+             * weighbridge dispute turns on, so one constant standing in for
+             * every wagon class is a figure that cannot be defended.
+             */
+            ->number('tareTonnes', false, 0, 200)
+            ->number('maxGrossTonnes', false, 0, 500)
             ->enum('status', [
                 'AVAILABLE', 'LOADING', 'LOADED', 'IN_USE', 'IN_TRANSIT',
                 'UNLOADING', 'RETURNING_EMPTY', 'EMPTY', 'MAINTENANCE',
