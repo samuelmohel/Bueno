@@ -200,6 +200,33 @@ run_migration_test "migration 003 — credential hashing"  scripts/tests/credent
 run_migration_test "migration 006 — email uniqueness"    scripts/tests/email-uniqueness-migration.php
 run_migration_test "migration 011 — company backfill"    scripts/tests/company-backfill-migration.php
 
+# Issuing and rotating staff credentials. Rotation has to end the sessions the
+# old password opened, or it has rotated nothing. Runs against its own
+# database because it provisions the whole internal account set.
+echo
+echo "══ staff credentials ══════════════════════════════════════════════════"
+STAFF_DB="$WORKDIR/staff.sqlite"
+STAFF_ENV="$WORKDIR/staff.env"
+cat > "$STAFF_ENV" <<EOF
+APP_ENV=development
+APP_SECRET=$("$PHP" -r "echo bin2hex(random_bytes(32));")
+SQLITE_PATH=$(native "$STAFF_DB")
+LOGIN_RATE_IP=500
+LOGIN_RATE_ID=500
+EOF
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" "$PHP" apps/web/public/api/_lib/migrate.php up >/dev/null 2>&1
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" "$PHP" -S "127.0.0.1:$((PORT+1))" -t apps/web/public \
+  > "$WORKDIR/staff-server.log" 2>&1 &
+STAFF_PID=$!
+for _ in $(seq 1 40); do
+  curl -s -o /dev/null "http://127.0.0.1:$((PORT+1))/api/auth.php" && break
+  sleep 0.25
+done
+BUENO_ENV_FILE="$(native "$STAFF_ENV")" \
+BUENO_E2E_URL="http://127.0.0.1:$((PORT+1))" \
+  "$PHP" scripts/tests/staff-credentials.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+kill "$STAFF_PID" 2>/dev/null
+
 echo
 if [ "$TOTAL_FAIL" -eq 0 ]; then
   echo "ALL SUITES PASSED"
