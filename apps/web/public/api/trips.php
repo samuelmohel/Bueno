@@ -17,6 +17,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_lib/collection.php';
+require_once __DIR__ . '/_lib/corridor.php';
 
 const TRIP_STATUSES = [
     'LOADING', 'PENDING_DISPATCH', 'IN_TRANSIT', 'ARRIVED',
@@ -85,6 +86,16 @@ Collection::handle([
             ->string('createdAt', false, 64);
 
         $clean = $v->validated();
+
+        // A trip inherits its deal's route, so an impossible one should never
+        // reach here — but a trip can also be posted directly, and the siding
+        // is the worst place to discover the gauge does not match.
+        if (isset($clean['origin'], $clean['destination'])) {
+            $route = Corridor::checkRoute($clean['origin'], $clean['destination']);
+            if (!$route['ok']) {
+                Response::error($route['reason'] ?? 'This route cannot be run.', 422);
+            }
+        }
 
         // Money is a finance decision, not an operations one. A cargo officer
         // may log bags and seals but must not be able to set what the trip
