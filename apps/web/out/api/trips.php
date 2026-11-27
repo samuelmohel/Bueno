@@ -17,10 +17,37 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_lib/collection.php';
+require_once __DIR__ . '/_lib/corridor.php';
 
 const TRIP_STATUSES = [
     'LOADING', 'PENDING_DISPATCH', 'IN_TRANSIT', 'ARRIVED',
     'UNLOADING', 'COMPLETED', 'RETURNING_EMPTY', 'CANCELLED',
+];
+
+/**
+ * Which status a trip may move to from where.
+ *
+ * There was no such rule. Any status could be written over any other, so a
+ * trip could go straight from LOADING to COMPLETED -- skipping dispatch,
+ * transit and the discharge tally -- and the record would show a delivered
+ * consignment that was never counted off the train. The requisition chain in
+ * requests.php has worked this way from the start; trips did not.
+ *
+ * Backwards moves are deliberately permitted in one place only: ARRIVED back
+ * to IN_TRANSIT, because a train marked arrived at the wrong terminal is an
+ * ordinary mistake made at a siding and refusing to correct it helps nobody.
+ */
+const TRIP_TRANSITIONS = [
+    'LOADING'          => ['LOADING', 'PENDING_DISPATCH', 'IN_TRANSIT', 'CANCELLED'],
+    'PENDING_DISPATCH' => ['PENDING_DISPATCH', 'LOADING', 'IN_TRANSIT', 'CANCELLED'],
+    'IN_TRANSIT'       => ['IN_TRANSIT', 'ARRIVED', 'CANCELLED'],
+    'ARRIVED'          => ['ARRIVED', 'UNLOADING', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED'],
+    'UNLOADING'        => ['UNLOADING', 'COMPLETED', 'CANCELLED'],
+    // Terminal. A completed trip stays completed; a correction is a new
+    // record, not a rewrite of the delivery that was signed for.
+    'COMPLETED'        => ['COMPLETED', 'RETURNING_EMPTY'],
+    'RETURNING_EMPTY'  => ['RETURNING_EMPTY', 'COMPLETED'],
+    'CANCELLED'        => ['CANCELLED'],
 ];
 
 Collection::handle([
@@ -85,6 +112,55 @@ Collection::handle([
             ->string('createdAt', false, 64);
 
         $clean = $v->validated();
+
+        // A trip inherits its deal's route, so an impossible one should never
+        // reach here — but a trip can also be posted directly, and the siding
+        // is the worst place to discover the gauge does not match.
+        if (isset($clean['origin'], $clean['destination'])) {
+            $route = Corridor::checkRoute($clean['origin'], $clean['destination']);
+            if (!$route['ok']) {
+                Response::error($route['reason'] ?? 'This route cannot be run.', 422);
+            }
+        }
+
+        /*
+         * A consignment moves through its states in order.
+         *
+         * Without this a trip could be written straight from LOADING to
+         * COMPLETED, so the record showed freight delivered that was never
+         * dispatched, never tracked and never counted off the train — and the
+         * invoice raised against it had nothing behind it.
+         */
+        $previous = $input['__existingStatus'] ?? null;
+        $next     = $clean['status'] ?? null;
+
+        if ($previous !== null && $next !== null) {
+            $from    = strtoupper((string) $previous);
+            $to      = strtoupper((string) $next);
+            $allowed = TRIP_TRANSITIONS[$from] ?? null;
+
+            if ($allowed !== null && !in_array($to, $allowed, true)) {
+                $onward = array_values(array_filter($allowed, static fn($s) => $s !== $from));
+                Response::error(
+                    sprintf(
+                        'A consignment cannot go from %s to %s. From %s it can only move to: %s.',
+                        $from,
+                        $to,
+                        $from,
+                        $onward === [] ? 'nothing — this is a final state' : implode(', ', $onward)
+                    ),
+                    409,
+                    ['from' => $from, 'to' => $to, 'allowed' => $onward]
+                );
+            }
+        }
+
+        // Cancelling a consignment is a commercial decision, not a siding one.
+        if (strtoupper((string) ($next ?? '')) === 'CANCELLED'
+            && strtoupper((string) ($previous ?? '')) !== 'CANCELLED'
+            && !Rbac::can($actor, 'deals.approve')) {
+            Response::error('Cancelling a consignment requires the deals.approve capability.', 403);
+        }
 
         // Money is a finance decision, not an operations one. A cargo officer
         // may log bags and seals but must not be able to set what the trip

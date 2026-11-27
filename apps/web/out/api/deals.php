@@ -16,6 +16,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_lib/collection.php';
+require_once __DIR__ . '/_lib/corridor.php';
 
 Collection::handle([
     'table'  => 'bueno_deals',
@@ -94,6 +95,31 @@ Collection::handle([
             ->string('costedBy', false, 191)
             ->string('costedAt', false, 64)
             ->validated();
+
+        /*
+         * The route has to be physically runnable.
+         *
+         * This existed only in AdminPortal.tsx, so it stopped a mistake typed
+         * into the deal form and nothing else. A contract pairing a
+         * narrow-gauge siding with a standard-gauge one describes a train
+         * that cannot be assembled, and it is not discovered until a cargo
+         * officer is standing at the siding with wagons that do not fit the
+         * track.
+         *
+         * Only checked when both ends are present: a costing update that
+         * touches neither must not be refused for a route it did not send.
+         */
+        if (isset($clean['loadingStation'], $clean['destination'])) {
+            $route = Corridor::checkRoute($clean['loadingStation'], $clean['destination']);
+            if (!$route['ok']) {
+                Response::error($route['reason'] ?? 'This route cannot be run.', 422);
+            }
+            // Stamp the gauge so dispatch does not have to re-derive it from
+            // its own list, which is how the two disagreed.
+            if ($route['gauge'] !== null) {
+                $clean['gauge'] = $route['gauge'];
+            }
+        }
 
         // Clearing a deal to load is an authorization, not a data entry, so it
         // needs the approval capability rather than plain create rights.

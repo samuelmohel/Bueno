@@ -1,7 +1,7 @@
 {
-  "commit": "153ef49",
-  "branch": "main",
-  "subject": "feat(ops): make the site address configurable, and add a private mode",
-  "builtAt": "2026-10-23T10:06:20.104Z",
-  "dirty": false
+  "commit": "def065c",
+  "branch": "fix/process-integrity-and-scale",
+  "subject": "feat(ops): report what a deployment cannot check for itself",
+  "builtAt": "2026-11-27T03:56:55.416Z",
+  "dirty": true
 }

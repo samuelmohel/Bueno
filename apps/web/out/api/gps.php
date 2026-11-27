@@ -28,18 +28,28 @@ if ($method === 'GET') {
     $tripId = (string) ($_GET['tripId'] ?? '');
     $locoId = (string) ($_GET['locomotiveId'] ?? $_GET['locoId'] ?? '');
 
-    // Knowing where a train is reveals whose cargo is where, so a consignee
-    // is confined to trips carrying their own freight.
+    // Knowing where a train is reveals whose cargo is where, so a caller who
+    // is scoped at all is confined to trips they can already reach.
+    //
+    // This previously applied to consignees only, and compared the company
+    // name byte-for-byte. Two consequences: a cargo officer could watch every
+    // train on the network regardless of posting, and a consignee whose
+    // record carried a trailing space or different capitalisation could see
+    // the consignment in their portal but never track it — the list query
+    // compares case- and whitespace-insensitively, this did not.
     $scope = Rbac::scopeFor($user);
-    if ($scope['scope'] === 'company') {
+    if ($scope['scope'] !== 'all') {
         if ($tripId === '') {
             Response::error('Specify the trip you want to track.', 422);
         }
-        $check = Db::conn()->prepare('SELECT company FROM bueno_trips WHERE id = ? OR tripId = ? LIMIT 1');
+        $check = Db::conn()->prepare(
+            'SELECT id, company, origin, destination FROM bueno_trips
+              WHERE id = ? OR tripId = ? LIMIT 1'
+        );
         $check->execute([$tripId, $tripId]);
         $trip = $check->fetch();
 
-        if ($trip === false || (string) $trip['company'] !== $scope['company']) {
+        if ($trip === false || !Rbac::canReachTrip($user, $trip)) {
             // Same answer whether the trip is someone else's or does not
             // exist, so this cannot be used to enumerate trips.
             Response::error('Trip not found.', 404);
@@ -93,6 +103,34 @@ $data = Validator::for($body)
     ->string('officerPhone', false, 32)
     ->string('signalQuality', false, 50)
     ->validated();
+
+/*
+ * The trip has to exist, and the reporter has to be connected to it.
+ *
+ * Neither was checked. The capability alone let any account holding
+ * ops.loading_update write a position for any tripId at all — including one
+ * that does not exist, which silently filled the telemetry table with
+ * breadcrumbs belonging to nothing, and including another terminal's train,
+ * which moved it on the live map for every viewer.
+ */
+$tripStmt = Db::conn()->prepare(
+    'SELECT id, tripId, company, origin, destination, status
+       FROM bueno_trips WHERE id = ? OR tripId = ? LIMIT 1'
+);
+$tripStmt->execute([$data['tripId'], $data['tripId']]);
+$trip = $tripStmt->fetch();
+
+if ($trip === false) {
+    Response::error('No such consignment.', 404);
+}
+
+if (!Rbac::canReachTrip($actor, $trip)) {
+    Audit::record('gps.scope_denied', 'trip', (string) $data['tripId'], Audit::DENIED, [
+        'origin'      => $trip['origin'] ?? null,
+        'destination' => $trip['destination'] ?? null,
+    ], $actor);
+    Response::error('You do not have permission to report positions for this consignment.', 403);
+}
 
 // One fix per trip every couple of seconds is plenty; this bounds how fast
 // the table can grow if a handset gets stuck in a retry loop.
