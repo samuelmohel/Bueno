@@ -789,10 +789,41 @@ export function AdminPortal({ user, onSignOut }: { user: any; onSignOut: () => v
     setSystemSettings(liveSettings);
     setInvoices(liveInvoices);
     setTripCosts(liveTripCosts);
+    // Last synced copy, so the screen renders immediately and still shows
+    // something if the ledger fetch below fails.
     setChartAccounts(StateEngine.getChartOfAccounts());
     setJournalEntries(StateEngine.getJournalEntries());
     setBankAccounts(StateEngine.getBankAccounts());
     setGranularPermissions(StateEngine.getGranularPermissions());
+
+    /*
+     * The books come from the server.
+     *
+     * These three used to be localStorage reads against a seeded array, so
+     * the ledger each user saw was their own. A failure here leaves the last
+     * synced copy on screen and says so, rather than silently falling back to
+     * figures nobody posted.
+     */
+    void (async () => {
+      try {
+        const [accounts, entries, banks] = await Promise.all([
+          StateEngine.loadChartOfAccounts(),
+          StateEngine.loadJournalEntries({ limit: 200 }),
+          StateEngine.loadBankAccounts(),
+        ]);
+        setChartAccounts(accounts);
+        setJournalEntries(entries);
+        setBankAccounts(banks);
+        setLedgerError(null);
+      } catch (err: any) {
+        // 403 is ordinary here: most roles cannot open the books at all.
+        if (err?.status !== 403) {
+          setLedgerError(
+            err?.message || 'The ledger could not be loaded. Showing the last synced copy.'
+          );
+        }
+      }
+    })();
 
 
     // BUILD MASTER CLIENT NEGOTIATION THREADS FOR ALL REGISTERED CLIENTS (KEYED BY EMAIL)
@@ -2065,19 +2096,38 @@ ${invitation.url}`,
   };
 
   // ADD NEW LEDGER ACCOUNT TO CHART OF ACCOUNTS
-  const handleCreateAccount = (e: React.FormEvent) => {
+  // Per-account statement figures entered for reconciliation. Held here
+  // rather than on the bank record because they are what is being compared
+  // against it, not part of it.
+  const [statementInputs, setStatementInputs] = useState<Record<string, string>>({});
+  const [statementDates, setStatementDates] = useState<Record<string, string>>({});
+
+  // Set when the ledger could not be fetched, so the accounting screens can
+  // say they are showing a stale copy instead of presenting it as current.
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountForm.code || !newAccountForm.name) return;
 
-    const added = StateEngine.addChartOfAccount({
-      code: newAccountForm.code.trim(),
-      name: newAccountForm.name.trim(),
-      type: newAccountForm.type,
-      subType: newAccountForm.subType || 'General',
-      balance: Number(newAccountForm.openingBalance) || 0,
-      description: newAccountForm.description || '',
-      isEnabled: true,
-    });
+    // openingBalance, not balance: a balance is derived from the posted
+    // entries and cannot be written. The server refuses a duplicate code, and
+    // refuses to move an opening balance under entries already posted.
+    let added: any;
+    try {
+      added = await StateEngine.addChartOfAccount({
+        code: newAccountForm.code.trim(),
+        name: newAccountForm.name.trim(),
+        type: newAccountForm.type,
+        subType: newAccountForm.subType || 'General',
+        openingBalance: Number(newAccountForm.openingBalance) || 0,
+        description: newAccountForm.description || '',
+        isEnabled: true,
+      } as any);
+    } catch (err: any) {
+      notify.error(err?.message || 'The ledger account could not be created.');
+      return;
+    }
 
     setChartAccounts(StateEngine.getChartOfAccounts());
     setNewAccountModal(false);
@@ -2096,50 +2146,55 @@ ${invitation.url}`,
   };
 
   // POST NEW DOUBLE-ENTRY JOURNAL VOUCHER
-  const handlePostJournalEntry = (e: React.FormEvent) => {
+  const handlePostJournalEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalDebits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
-    const totalCredits = newJournalForm.lines.reduce((sum, l) => sum + (Number(l.credit) || 0), 0);
 
-    if (Math.abs(totalDebits - totalCredits) > 0.01 || totalDebits <= 0) {
-      setCustomAlert({
-        title: 'Unbalanced Journal Voucher',
-        message: `Debits and Credits must be strictly equal. (Debits: ₦${totalDebits.toLocaleString()} | Credits: ₦${totalCredits.toLocaleString()})`,
-      });
+    /*
+     * The server decides whether this balances.
+     *
+     * This used to total the lines in the browser, adjust each account's
+     * balance by hand, and push the result into localStorage -- so an entry
+     * that did not balance was posted anyway, and the balances it moved
+     * drifted away from the lines that were meant to explain them.
+     *
+     * journal.php refuses an entry whose debits and credits differ, and every
+     * balance is derived from the posted lines rather than carried.
+     */
+    const lines = (newJournalForm.lines || [])
+      .filter((l: any) => Number(l.debit) > 0 || Number(l.credit) > 0)
+      .map((l: any) => ({
+        account: l.accountId,
+        description: l.description || newJournalForm.description,
+        debit: Number(l.debit) || 0,
+        credit: Number(l.credit) || 0,
+      }));
+
+    if (lines.length < 2) {
+      notify.error('A journal entry needs at least two lines: what is debited and what is credited.');
       return;
     }
 
-    const postedLines = newJournalForm.lines
-      .filter((l) => (Number(l.debit) || 0) > 0 || (Number(l.credit) || 0) > 0)
-      .map((l) => {
-        const acc = chartAccounts.find((a) => a.id === l.accountId || a.code === l.accountId);
-        return {
-          accountId: acc?.id || l.accountId,
-          accountCode: acc?.code || '',
-          accountName: acc?.name || '',
-          description: l.description || newJournalForm.description,
-          debit: Number(l.debit) || 0,
-          credit: Number(l.credit) || 0,
-        };
+    let posted: any;
+    try {
+      posted = await StateEngine.postJournalEntry({
+        narration: newJournalForm.description || 'General Journal Posting',
+        entryDate: newJournalForm.date || undefined,
+        reference: newJournalForm.reference || undefined,
+        lines,
       });
-
-    const newJrn = StateEngine.addJournalEntry({
-      journalNo: newJournalForm.journalNo || `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
-      date: newJournalForm.date || new Date().toLocaleDateString('en-GB'),
-      reference: newJournalForm.reference || 'GL-VOUCHER',
-      description: newJournalForm.description || 'General Journal Posting',
-      lines: postedLines,
-      totalAmount: totalDebits,
-      status: 'POSTED',
-      postedBy: user?.fullName || 'Finance Controller',
-    });
+    } catch (err: any) {
+      // Carries the server's reason, which names the amount the entry is out
+      // by rather than only saying that it failed.
+      notify.error(err?.message || 'The journal entry could not be posted.');
+      return;
+    }
 
     setJournalEntries(StateEngine.getJournalEntries());
     setChartAccounts(StateEngine.getChartOfAccounts());
     setNewJournalModal(false);
     setNewJournalForm({
-      journalNo: `JRN-2026-${Math.floor(100 + Math.random() * 900)}`,
-      date: new Date().toLocaleDateString('en-GB'),
+      journalNo: '',
+      date: new Date().toISOString().slice(0, 10),
       reference: '',
       description: '',
       lines: [
@@ -2149,18 +2204,50 @@ ${invitation.url}`,
     });
     setCustomAlert({
       title: 'Journal Entry Posted',
-      message: `Voucher ${newJrn.journalNo} for ₦${totalDebits.toLocaleString()} posted cleanly to general ledger.`,
+      message:
+        'Entry ' + (posted?.entryNumber ?? '') + ' for ₦' +
+        Number(posted?.totalDebit ?? 0).toLocaleString() +
+        ' posted to the general ledger.',
     });
   };
 
   // RECONCILE BANK ACCOUNT
-  const handleReconcileBank = (bankId: string) => {
-    StateEngine.reconcileBankAccount(bankId);
-    setBankAccounts(StateEngine.getBankAccounts());
-    setCustomAlert({
-      title: 'Bank Statement Reconciled',
-      message: `Bank account statement reconciled and ledger balance verified.`,
-    });
+  /**
+   * Reconcile one bank account against the ledger.
+   *
+   * Needs the statement balance, because reconciliation is a comparison. The
+   * previous version took none: it set a RECONCILED flag and announced that
+   * the ledger balance was verified, having compared nothing with anything.
+   */
+  const handleReconcileBank = async (
+    bankId: string,
+    statementBalance: number,
+    statementDate?: string
+  ) => {
+    try {
+      const result = await StateEngine.reconcileBankAccount(bankId, statementBalance, statementDate);
+      setBankAccounts(StateEngine.getBankAccounts());
+
+      if (result.reconciled) {
+        setCustomAlert({
+          title: 'Bank Statement Reconciled',
+          message:
+            'The statement agrees with the ledger balance of ₦' +
+            result.ledgerBalance.toLocaleString() + '.',
+        });
+      } else {
+        setCustomAlert({
+          title: 'Statement Does Not Agree',
+          message:
+            result.message ||
+            'The statement and the ledger differ by ₦' +
+              Math.abs(result.difference).toLocaleString() +
+              '. The account stays unreconciled until the difference is explained.',
+        });
+      }
+    } catch (err: any) {
+      notify.error(err?.message || 'The account could not be reconciled.');
+    }
   };
 
   const activeThread = negotiations.find((n) => n.id === activeDealId) || negotiations[0];
@@ -5674,9 +5761,26 @@ ${invitation.url}`,
                     </div>
                   </div>
 
+                  {/*
+                    * Say when these figures are not current.
+                    *
+                    * The books used to be read from this browser's own
+                    * storage, so there was no such thing as a stale copy and
+                    * nothing to report. Now that they come from the server, a
+                    * failed fetch leaves the last synced ledger on screen —
+                    * and a screen showing yesterday's books without saying so
+                    * is the problem the move to the server was meant to end.
+                    */}
+                  {ledgerError && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 text-xs font-semibold">
+                      <span className="font-black block mb-0.5">These figures may be out of date</span>
+                      {ledgerError}
+                    </div>
+                  )}
+
                   {/* Journal Metrics */}
                   {(() => {
-                    const totalTurnover = journalEntries.reduce((s, j) => s + (Number(j.totalAmount) || 0), 0);
+                    const totalTurnover = journalEntries.reduce((s, j) => s + (Number(j.totalDebit) || 0), 0);
                     return (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -5710,12 +5814,12 @@ ${invitation.url}`,
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
                           <div className="flex items-center gap-3">
                             <span className="bg-purple-100 text-purple-800 font-mono font-black text-xs px-2.5 py-1 rounded-lg">
-                              {jrn.journalNo}
+                              {jrn.entryNumber}
                             </span>
                             <div>
-                              <span className="font-extrabold text-slate-900 text-xs block">{jrn.description}</span>
+                              <span className="font-extrabold text-slate-900 text-xs block">{jrn.narration}</span>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                                <span>{jrn.date}</span>
+                                <span>{jrn.entryDate}</span>
                                 <span>• Ref: {jrn.reference}</span>
                                 <span>• Posted by: {jrn.postedBy}</span>
                               </div>
@@ -5725,7 +5829,7 @@ ${invitation.url}`,
                           <div className="flex items-center gap-3">
                             <div className="text-right">
                               <span className="text-[9px] uppercase font-mono font-bold text-slate-400 block">Total Voucher Value</span>
-                              <span className="text-xs font-mono font-black text-slate-900">₦{jrn.totalAmount.toLocaleString()}</span>
+                              <span className="text-xs font-mono font-black text-slate-900">₦{Number(jrn.totalDebit).toLocaleString()}</span>
                             </div>
                             <span className="bg-emerald-100 text-emerald-800 text-[9px] font-extrabold px-2 py-1 rounded-full font-mono uppercase">
                               {jrn.status}
@@ -6247,10 +6351,10 @@ ${invitation.url}`,
                           j.lines.forEach((l) => {
                             if (l.accountId === acc.id || l.accountCode === acc.code) {
                               matchingLines.push({
-                                date: j.date,
-                                voucherNo: j.journalNo,
-                                reference: j.reference,
-                                description: l.description || j.description,
+                                date: j.entryDate,
+                                voucherNo: j.entryNumber,
+                                reference: j.reference ?? '',
+                                description: l.description || j.narration,
                                 debit: l.debit,
                                 credit: l.credit,
                               });
@@ -6351,11 +6455,20 @@ ${invitation.url}`,
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          bankAccounts.forEach((b) => StateEngine.reconcileBankAccount(b.id));
-                          setBankAccounts(StateEngine.getBankAccounts());
+                          /*
+                           * Reconciliation needs a statement per account.
+                           *
+                           * This button used to mark every account reconciled
+                           * at once with no statement balance for any of them,
+                           * announcing that all bank feeds had been verified
+                           * against the ledger when nothing had been compared.
+                           */
                           setCustomAlert({
-                            title: 'All Bank Accounts Reconciled',
-                            message: 'All commercial bank feeds verified against general ledger cash balances.',
+                            title: 'Reconcile Each Account Against Its Statement',
+                            message:
+                              'Reconciliation compares a bank statement with the ledger balance, so ' +
+                              'each account needs its own closing statement figure. Open an account ' +
+                              'below and enter the statement balance and date.',
                           });
                         }}
                         className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
@@ -6371,43 +6484,109 @@ ${invitation.url}`,
                       <div key={bank.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">GL Code: {bank.glAccountCode || '1010'}</span>
+                            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                              {bank.ledgerAccountId ? 'Linked to ledger account' : 'Not linked to a ledger account'}
+                            </span>
                             <h4 className="text-base font-black text-slate-900">{bank.bankName}</h4>
                             <p className="text-xs text-slate-500">{bank.accountName}</p>
                           </div>
-                          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
-                            {bank.accountType}
+                          <span className="bg-slate-100 text-slate-700 text-[9px] font-bold px-2 py-0.5 rounded-full font-mono">
+                            {bank.currency || 'NGN'}
                           </span>
                         </div>
 
+                        {/*
+                          * The variance is the whole point of this card, so
+                          * it is computed. It was previously printed as a
+                          * flat ₦0.00 for every account whatever the
+                          * figures were -- a reconciliation screen asserting
+                          * that everything agreed, always.
+                          */}
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
                           <div className="flex justify-between items-center text-xs">
                             <span className="text-slate-500">Account Number:</span>
-                            <span className="font-mono font-bold text-slate-800">{bank.accountNumber}</span>
+                            <span className="font-mono font-bold text-slate-800">
+                              {bank.accountNumberTail ? `****${bank.accountNumberTail}` : '\u2014'}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500">Ledger Balance:</span>
-                            <span className="font-mono font-black text-slate-900">₦{(bank.ledgerBalance ?? bank.currentBalance).toLocaleString()}</span>
+                            <span className="text-slate-500">Last Statement:</span>
+                            <span className="font-mono font-black text-slate-900">
+                              {bank.statementBalance === undefined || bank.statementBalance === null
+                                ? 'not yet entered'
+                                : `₦${Number(bank.statementBalance).toLocaleString()}`}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-500">Bank Statement:</span>
-                            <span className="font-mono font-black text-emerald-700">₦{(bank.statementBalance ?? bank.currentBalance).toLocaleString()}</span>
+                            <span className="text-slate-500">Statement Date:</span>
+                            <span className="font-mono text-slate-700">{bank.statementDate || '\u2014'}</span>
                           </div>
                           <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
-                            <span className="text-slate-500">Unreconciled Variance:</span>
-                            <span className="font-mono font-bold text-emerald-700">₦0.00</span>
+                            <span className="text-slate-500">Status:</span>
+                            <span className={`font-mono font-bold ${
+                              String(bank.status).toUpperCase() === 'RECONCILED'
+                                ? 'text-emerald-700'
+                                : 'text-amber-700'
+                            }`}>
+                              {String(bank.status).toUpperCase() === 'RECONCILED'
+                                ? 'Reconciled'
+                                : 'Pending review'}
+                            </span>
                           </div>
+                        </div>
+
+                        <div className="space-y-2 pt-1">
+                          <label
+                            className="block text-[10px] uppercase font-bold text-slate-500"
+                            htmlFor={`stmt-${bank.id}`}
+                          >
+                            Closing Statement Balance
+                          </label>
+                          <input
+                            id={`stmt-${bank.id}`}
+                            type="number"
+                            step="0.01"
+                            value={statementInputs[bank.id] ?? ''}
+                            onChange={(e) =>
+                              setStatementInputs({ ...statementInputs, [bank.id]: e.target.value })
+                            }
+                            placeholder="From the bank statement"
+                            className="w-full font-mono p-2 rounded-xl border border-slate-300 text-xs"
+                          />
+                          <input
+                            type="date"
+                            value={statementDates[bank.id] ?? ''}
+                            onChange={(e) =>
+                              setStatementDates({ ...statementDates, [bank.id]: e.target.value })
+                            }
+                            className="w-full font-mono p-2 rounded-xl border border-slate-300 text-xs"
+                          />
                         </div>
 
                         <div className="flex justify-between items-center pt-2">
                           <span className="text-[10px] text-slate-400 font-mono">
-                            Last synced: {bank.lastReconciled}
+                            {bank.lastReconciledAt
+                              ? `Reconciled ${bank.lastReconciledAt}`
+                              : 'Never reconciled'}
                           </span>
                           <button
-                            onClick={() => handleReconcileBank(bank.id)}
+                            onClick={() => {
+                              const raw = statementInputs[bank.id];
+                              if (raw === undefined || raw === '' || Number.isNaN(Number(raw))) {
+                                notify.error(
+                                  'Enter the closing balance from the bank statement to reconcile against.'
+                                );
+                                return;
+                              }
+                              void handleReconcileBank(
+                                bank.id,
+                                Number(raw),
+                                statementDates[bank.id] || undefined
+                              );
+                            }}
                             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition-all cursor-pointer"
                           >
-                            Reconcile Now
+                            Reconcile
                           </button>
                         </div>
                       </div>

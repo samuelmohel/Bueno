@@ -184,6 +184,16 @@ BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
 BUENO_E2E_PASS="$E2E_ADMIN_PW" \
   "$PHP" scripts/tests/company-registry.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
+# The books have two rules: an entry's debits equal its credits, and a posted
+# entry is reversed rather than edited. Everything else in accounting follows.
+echo
+echo "══ double-entry ledger ════════════════════════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/accounting-ledger.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
+
 # Migrations that change how people sign in, or repair damage an earlier
 # migration caused, are the ones most likely to cause a production incident.
 run_migration_test "migration 003 — credential hashing"  scripts/tests/credential-migration.php
