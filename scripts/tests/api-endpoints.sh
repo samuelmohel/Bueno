@@ -83,12 +83,12 @@ check_contains "refusal explains how to confirm" "irreversible" "$(body_of "$r")
 
 echo
 echo "=== 4. Creating a trip ==="
-r=$(req POST /api/trips.php '{"action":"upsert","record":{"company":"HUAXIN BUILDING MATERIALS NIG PLC (HBM)","cargoType":"Huaxin Portland Cement (50kg bags)","quantity":"1610","origin":"EWK","destination":"MNY","status":"LOADING","clientEmail":"logistics@hbm.ng"}}' "$CARGO")
+r=$(req POST /api/trips.php '{"action":"upsert","record":{"company":"HUAXIN BUILDING MATERIALS NIG PLC (HBM)","cargoType":"Huaxin Portland Cement (50kg bags)","quantity":"1610","origin":"PAPA","destination":"MNY","status":"LOADING","clientEmail":"logistics@hbm.ng"}}' "$CARGO")
 check "cargo officer may create a trip" 201 "$(code_of "$r")"
 TRIP_ID=$(json_field id "$(body_of "$r")")
 printf '         trip id: %s\n' "$TRIP_ID"
 
-r=$(req POST /api/trips.php '{"action":"upsert","record":{"company":"OTHER CORP","origin":"EWK","destination":"MNY"}}' "$ADMIN")
+r=$(req POST /api/trips.php '{"action":"upsert","record":{"company":"OTHER CORP","origin":"PAPA","destination":"MNY"}}' "$ADMIN")
 check "admin may create a trip for another company" 201 "$(code_of "$r")"
 
 echo
@@ -153,7 +153,7 @@ check "unknown trip refused (recipient not caller-controlled)" 404 "$(code_of "$
 
 echo
 echo "=== 12. Public enquiry form still works, but provisions nothing ==="
-r=$(req POST /api/client_requests.php '{"action":"submit","companyName":"Prospect Ltd","contactName":"A Buyer","email":"buyer@prospect.test","volume":"5000 bags","route":"EWK-MNY"}')
+r=$(req POST /api/client_requests.php '{"action":"submit","companyName":"Prospect Ltd","contactName":"A Buyer","email":"buyer@prospect.test","volume":"5000 bags","route":"PAPA-MNY"}')
 check "public enquiry accepted without auth" 201 "$(code_of "$r")"
 check_not_contains "no PIN is issued" '"pin"' "$(body_of "$r")"
 check_not_contains "no account is returned" '"staffId"' "$(body_of "$r")"
@@ -326,7 +326,7 @@ check "and can open it" 200 "$(code_of "$r")"
 
 # The looser match must not hand over another company's work.
 OTHERID="TRP-OTHER-$$"
-r=$(req POST /api/trips.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$OTHERID\",\"tripId\":\"$OTHERID\",\"company\":\"DASCO Industries Ltd\",\"origin\":\"EWK\",\"destination\":\"MNY\",\"status\":\"LOADING\"}}" "$ADMIN")
+r=$(req POST /api/trips.php "{\"action\":\"upsert\",\"record\":{\"id\":\"$OTHERID\",\"tripId\":\"$OTHERID\",\"company\":\"DASCO Industries Ltd\",\"origin\":\"PAPA\",\"destination\":\"MNY\",\"status\":\"LOADING\"}}" "$ADMIN")
 check "another company's trip is recorded" 201 "$(code_of "$r")"
 r=$(req GET /api/trips.php '' "$CUST")
 check_not_contains "the consignee does NOT see it" "$OTHERID" "$(body_of "$r")"

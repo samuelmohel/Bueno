@@ -145,6 +145,7 @@ EOF
 
 run_unit_test "capability registry (unit)" scripts/tests/rbac.test.ts
 run_unit_test "record comparison (unit)"   scripts/tests/datastore.test.ts
+run_unit_test "corridor gauge registry"    scripts/tests/corridor-parity.test.ts
 
 echo
 echo "══ generated PHP mirror is in sync ════════════════════════════════════"
@@ -152,6 +153,25 @@ npx tsx scripts/generate-rbac.ts check || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
 run_suite "authentication and RBAC" scripts/tests/api-integration.sh
 run_suite "endpoint hardening"      scripts/tests/api-endpoints.sh
+
+# The whole commercial lifecycle, twice, as every role that touches it:
+# enquiry -> account -> deal -> dispatch -> loading -> GPS -> unload ->
+# completion -> invoice -> settlement. Needs its own administrator, because
+# it provisions the accounts it then signs in as.
+echo
+echo "══ end-to-end process (two consignments) ══════════════════════════════"
+"$PHP" scripts/tests/reset-limits.php >/dev/null 2>&1
+E2E_ADMIN_PW="$("$PHP" -r "echo bin2hex(random_bytes(12));")"
+"$PHP" -r '
+require "apps/web/public/api/_lib/db.php";
+$pdo = Db::conn();
+$pdo->prepare("INSERT INTO bueno_users (id,fullName,email,role,userType,status,password_hash,must_change_credentials,failed_attempts,pin) VALUES (?,?,?,?,?,?,?,0,0,\"\")")
+    ->execute(["usr_e2e","E2E Administrator","e2e-admin@bueno.ng","ADMIN","STAFF","ACTIVE",password_hash($argv[1],PASSWORD_BCRYPT)]);
+' "$E2E_ADMIN_PW" >/dev/null 2>&1
+BUENO_E2E_URL="$BASE" \
+BUENO_E2E_ADMIN="e2e-admin@bueno.ng" \
+BUENO_E2E_PASS="$E2E_ADMIN_PW" \
+  "$PHP" scripts/tests/e2e-full-process.php || TOTAL_FAIL=$((TOTAL_FAIL+1))
 
 # Migrations that change how people sign in, or repair damage an earlier
 # migration caused, are the ones most likely to cause a production incident.
