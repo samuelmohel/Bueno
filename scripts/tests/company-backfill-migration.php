@@ -88,12 +88,57 @@ $i->execute(['inv_1', 'INV-1', 'HBM NIG PLC', 'ISSUED']);
 
 echo '  seeded 5 accounts, 5 trips, 1 deal, 1 invoice' . PHP_EOL;
 
+/*
+ * Bulk rows, because the first version of this migration was fast only on an
+ * empty database.
+ *
+ * It issued one UPDATE per row, and on MySQL the migrator runs without a
+ * transaction, so every row became its own committed write with its own disk
+ * flush. That is instantaneous against a handful of fixtures and minutes to
+ * hours against a real database — which is how it timed out a cPanel deploy
+ * part-way through, leaving the schema mid-migration and the deploy reporting
+ * nothing at all.
+ *
+ * Volume is the only thing that catches it, so the fixtures carry some.
+ */
+$BULK = 4000;
+$pdo->beginTransaction();
+$bt = $pdo->prepare('INSERT INTO bueno_trips (id,tripId,company,origin,destination,status) VALUES (?,?,?,?,?,?)');
+for ($i = 0; $i < $BULK; $i++) {
+    $base = 'Bulk Consignee ' . ($i % 25) . ' Nig Plc';
+    // Four spellings of each, as real data has.
+    $name = [$base, strtoupper($base), '  ' . $base . ' ', str_replace('Nig Plc', 'Nig. PLC', $base)][$i % 4];
+    $bt->execute(['bulk_trp_' . $i, 'BULK-' . $i, $name, 'PAPA', 'MNY', 'COMPLETED']);
+}
+$pdo->commit();
+echo '  seeded ' . $BULK . ' further trips across 25 organisations' . PHP_EOL;
+
 // ── Apply the registry ──────────────────────────────────────────────────────
 
 echo PHP_EOL . '=== Applying 010 and 011 ===' . PHP_EOL;
+$started = microtime(true);
 $mig->up();
+$elapsed = microtime(true) - $started;
 
 // ── What should have happened ───────────────────────────────────────────────
+
+echo PHP_EOL . '=== It finishes fast enough to survive a deploy timeout ===' . PHP_EOL;
+
+printf("  %d records migrated in %.2f seconds%s", $BULK + 7, $elapsed, PHP_EOL);
+t('the backfill completes in well under a deploy timeout', $elapsed < 15,
+    sprintf('took %.1fs — a cPanel deploy would be killed part-way', $elapsed));
+
+$bulkLinked = (int) $pdo->query(
+    "SELECT COUNT(*) FROM bueno_trips WHERE id LIKE 'bulk_trp_%' AND companyId IS NOT NULL"
+)->fetchColumn();
+t('every bulk record was linked', $bulkLinked === $BULK,
+    "{$bulkLinked} of {$BULK}");
+
+$bulkCompanies = (int) $pdo->query(
+    "SELECT COUNT(DISTINCT companyId) FROM bueno_trips WHERE id LIKE 'bulk_trp_%'"
+)->fetchColumn();
+t('the four spellings of each folded to one organisation', $bulkCompanies === 25,
+    "{$bulkCompanies} companies for 25 organisations");
 
 echo PHP_EOL . '=== One organisation, however it was spelled ===' . PHP_EOL;
 
@@ -137,8 +182,13 @@ t('nor does a cargo officer', $idOf('bueno_users', 'usr_cargo') === null);
 
 echo PHP_EOL . '=== The registry itself ===' . PHP_EOL;
 
-$companies = $pdo->query('SELECT id, name, matchKey FROM bueno_companies ORDER BY name')->fetchAll(PDO::FETCH_ASSOC);
-t('exactly three organisations were registered', count($companies) === 3,
+// The bulk fixtures above exist to time the migration, not to be reasoned
+// about here; this section is about the careful mess seeded earlier.
+$companies = $pdo->query(
+    "SELECT id, name, matchKey FROM bueno_companies
+      WHERE name NOT LIKE 'Bulk Consignee%' ORDER BY name"
+)->fetchAll(PDO::FETCH_ASSOC);
+t('exactly three organisations were registered from the mess', count($companies) === 3,
     count($companies) . ' found: ' . implode(', ', array_column($companies, 'name')));
 
 $keys = array_column($companies, 'matchKey');

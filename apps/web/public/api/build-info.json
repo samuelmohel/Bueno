@@ -1,7 +1,7 @@
 {
-  "commit": "def065c",
-  "branch": "fix/process-integrity-and-scale",
-  "subject": "feat(ops): report what a deployment cannot check for itself",
-  "builtAt": "2026-11-27T03:56:55.416Z",
+  "commit": "d080b83",
+  "branch": "main",
+  "subject": "Merge pull request #1 from samuelmohel/fix/process-integrity-and-scale",
+  "builtAt": "2026-11-28T05:14:40.901Z",
   "dirty": true
 }
