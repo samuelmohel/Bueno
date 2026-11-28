@@ -244,15 +244,33 @@ try {
         line('  php apps/web/public/api/_lib/migrate.php up');
     }
 
-    // Organisations whose names are close enough to be worth a look.
-    $dupes = $pdo->query(
-        'SELECT a.name AS a, b.name AS b
-           FROM bueno_companies a
-           JOIN bueno_companies b ON b.id > a.id
-          WHERE a.mergedIntoId IS NULL AND b.mergedIntoId IS NULL
-            AND (a.matchKey LIKE b.matchKey || \'%\' OR b.matchKey LIKE a.matchKey || \'%\')
-          LIMIT 20'
+    /*
+     * Organisations whose names are close enough to be worth a look.
+     *
+     * Compared in PHP, not SQL. The first version of this used
+     * `a.matchKey LIKE b.matchKey || '%'`, where || is string concatenation
+     * in SQLite and LOGICAL OR in MySQL and MariaDB — so on the database that
+     * actually matters it compared a name against the number 1 and silently
+     * reported nothing. A check that cannot fail is not a check.
+     */
+    $all = $pdo->query(
+        'SELECT id, name, matchKey FROM bueno_companies WHERE mergedIntoId IS NULL ORDER BY name'
     )->fetchAll(PDO::FETCH_ASSOC);
+
+    $dupes = [];
+    $count = count($all);
+    for ($i = 0; $i < $count && count($dupes) < 20; $i++) {
+        for ($j = $i + 1; $j < $count && count($dupes) < 20; $j++) {
+            $x = (string) $all[$i]['matchKey'];
+            $y = (string) $all[$j]['matchKey'];
+            if ($x === '' || $y === '') {
+                continue;
+            }
+            if (str_starts_with($x, $y) || str_starts_with($y, $x)) {
+                $dupes[] = ['a' => $all[$i]['name'], 'b' => $all[$j]['name']];
+            }
+        }
+    }
 
     if ($dupes !== []) {
         line();

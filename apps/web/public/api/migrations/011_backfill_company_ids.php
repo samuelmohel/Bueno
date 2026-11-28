@@ -169,17 +169,69 @@ return static function (PDO $pdo): void {
         $rows = $pdo->query("SELECT id, `$column` AS n FROM `$table` WHERE $where")
                     ->fetchAll(PDO::FETCH_ASSOC);
 
-        $upd = $pdo->prepare("UPDATE `$table` SET companyId = ? WHERE id = ?");
-        $n = 0;
+        /*
+         * Group by company, then write one statement per group.
+         *
+         * This was one UPDATE per row. On MySQL the migrator deliberately
+         * runs without a transaction — MySQL auto-commits DDL, so wrapping a
+         * migration in one buys nothing and risks a half-committed mess — and
+         * the consequence is that every single row became its own committed
+         * write with its own disk flush.
+         *
+         * On a near-empty test database that is instantaneous. On a real one
+         * it is thousands of round trips, and cPanel's deploy timeout kills
+         * it part-way: the deploy spins and reports nothing, and the schema
+         * is left mid-migration.
+         *
+         * Grouped and chunked, a few thousand rows become a handful of
+         * statements. The DML here touches no DDL, so it is safe to wrap in
+         * one transaction as well.
+         */
+        $byCompany = [];
         foreach ($rows as $r) {
             $key = $foldName((string) $r['n']);
             if ($key === '' || !isset($existing[$key])) {
                 continue;
             }
-            $upd->execute([$existing[$key], $r['id']]);
-            $n++;
+            $byCompany[$existing[$key]][] = $r['id'];
         }
+
+        $n       = 0;
+        $ownTx   = !$pdo->inTransaction();
+        if ($ownTx) {
+            $pdo->beginTransaction();
+        }
+
+        try {
+            foreach ($byCompany as $companyId => $ids) {
+                // Chunked, because a placeholder list of unbounded length
+                // runs into max_allowed_packet and the prepared-statement
+                // placeholder limit.
+                foreach (array_chunk($ids, 500) as $chunk) {
+                    $marks = implode(',', array_fill(0, count($chunk), '?'));
+                    $stmt  = $pdo->prepare(
+                        "UPDATE `$table` SET companyId = ? WHERE id IN ($marks)"
+                    );
+                    $stmt->execute(array_merge([$companyId], $chunk));
+                    $n += count($chunk);
+                }
+            }
+            if ($ownTx) {
+                $pdo->commit();
+            }
+        } catch (Throwable $e) {
+            if ($ownTx && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
         $attached[$table] = $n;
+
+        // Progress, so a long run on a large database shows signs of life
+        // rather than looking like a hang.
+        echo sprintf("         %-24s %d record(s) linked\n", $table, $n);
+        flush();
     }
 
     // Staff accounts are not consignees. Leaving a companyId on an internal
@@ -192,11 +244,10 @@ return static function (PDO $pdo): void {
 
     // ── Report, because a wrong merge here is a disclosure ──────────────────
 
+    // Each table reported its own count as it finished, above.
     error_log(sprintf('[bueno][migration 011] registered %d compan(ies)', $created));
     echo sprintf("         registered %d compan(y/ies) from existing records\n", $created);
-    foreach ($attached as $table => $n) {
-        echo sprintf("         %-24s %d record(s) linked\n", $table, $n);
-    }
+    echo sprintf("         linked %d record(s) in total\n", array_sum($attached));
 
     $multi = $pdo->query(
         "SELECT c.name, COUNT(DISTINCT u.companyName) AS spellings
